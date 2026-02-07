@@ -22,7 +22,10 @@ For each recommended skill:
   1. Search: npx skills search <name>
   2. If found → Install: npx skills install <name>
   3. If not found → Generate: /ai-factory.skill-generator <name>
+  4. Has reference URLs? → Learn: /ai-factory.skill-generator <url1> [url2]...
 ```
+
+**Learn Mode:** When you have documentation URLs, API references, or guides relevant to the project — pass them directly to skill-generator. It will study the sources and generate a skill based on real documentation instead of generic patterns. Always prefer Learn Mode when reference material is available.
 
 ---
 
@@ -111,7 +114,7 @@ Proceed? [Y/n]
 1. Create directory: `mkdir -p .ai-factory`
 2. Save `.ai-factory/DESCRIPTION.md`
 3. Install from skills.sh
-4. Generate custom skills via `/ai-factory.skill-generator`
+4. Generate custom skills via `/ai-factory.skill-generator` (pass URLs for Learn Mode when docs are available)
 5. Configure MCP in `.claude/settings.local.json`
 
 ---

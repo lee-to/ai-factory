@@ -1,11 +1,11 @@
 ---
 name: ai-factory.skill-generator
 description: Generate professional Agent Skills for Claude Code and other AI agents. Creates complete skill packages with SKILL.md, references, scripts, and templates. Use when creating new skills, generating custom slash commands, or building reusable AI capabilities. Validates against Agent Skills specification.
-argument-hint: [skill-name or "search <query>"]
+argument-hint: [skill-name or "search <query>" or URL(s)]
 allowed-tools: Read Grep Glob Write Bash(mkdir *) Bash(npx skills *) WebFetch WebSearch
 metadata:
   author: skill-generator
-  version: "2.0"
+  version: "2.1"
   category: developer-tools
 ---
 
@@ -16,9 +16,26 @@ You are an expert Agent Skills architect. You help users create professional, pr
 ## Quick Commands
 
 - `/skill-generator <name>` - Generate a new skill interactively
+- `/skill-generator <url> [url2] [url3]...` - **Learn Mode**: study URLs and generate a skill from them
 - `/skill-generator search <query>` - Search existing skills on skills.sh for inspiration
 - `/skill-generator validate <path>` - Validate an existing skill
 - `/skill-generator template <type>` - Get a template (basic, task, reference, visual)
+
+## URL Detection & Learn Mode
+
+**IMPORTANT**: Before starting the standard workflow, check if `$ARGUMENTS` contains URLs (http:// or https:// links).
+
+If ANY URLs are detected — activate **Learn Mode** instead of the standard workflow. Follow the [Learn Mode Workflow](references/LEARN-MODE.md).
+
+**Quick summary of Learn Mode:**
+1. Extract all URLs from arguments
+2. Fetch and deeply study each URL using WebFetch
+3. Run supplementary WebSearch queries to enrich understanding
+4. Synthesize all material into a knowledge base
+5. Ask the user 2-3 targeted questions (skill name, type, customization)
+6. Generate a complete skill package enriched with the learned content
+
+If NO URLs detected — proceed with the standard workflow below.
 
 ## Workflow
 
@@ -232,4 +249,5 @@ See supporting files for more details:
 - [references/SPECIFICATION.md](references/SPECIFICATION.md) - Full Agent Skills spec
 - [references/EXAMPLES.md](references/EXAMPLES.md) - Example skills
 - [references/BEST-PRACTICES.md](references/BEST-PRACTICES.md) - Quality guidelines
+- [references/LEARN-MODE.md](references/LEARN-MODE.md) - Learn Mode: self-learning from URLs
 - [templates/](templates/) - Starter templates

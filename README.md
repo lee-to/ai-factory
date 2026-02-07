@@ -204,6 +204,18 @@ Generates new skills:
 - Follows [Agent Skills](https://agentskills.io) specification
 - Can include references, scripts, templates
 
+**Learn Mode** — pass URLs to generate skills from real documentation:
+```
+/ai-factory.skill-generator https://fastapi.tiangolo.com/tutorial/
+/ai-factory.skill-generator https://react.dev/learn https://react.dev/reference/react/hooks
+/ai-factory.skill-generator my-skill https://docs.example.com/api
+```
+- Fetches and deeply studies each URL
+- Enriches with web search for best practices and pitfalls
+- Synthesizes a structured knowledge base
+- Generates a complete skill package with references from real sources
+- Supports multiple URLs, mixed sources (docs + blogs), and optional skill name hint
+
 ## Plan Files
 
 AI Factory uses markdown files to track implementation plans:
@@ -261,9 +273,10 @@ For each recommended skill:
   1. Search skills.sh: npx skills search <name>
   2. If found → Install: npx skills install <name>
   3. If not found → Generate: /ai-factory.skill-generator <name>
+  4. Has reference docs? → Learn: /ai-factory.skill-generator <url1> [url2]...
 ```
 
-**Never reinvent existing skills** - always check skills.sh first.
+**Never reinvent existing skills** - always check skills.sh first. When reference documentation is available, use **Learn Mode** to generate skills from real sources.
 
 ## CLI Commands
 
