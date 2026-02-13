@@ -28,6 +28,7 @@ export interface McpOptions {
   filesystem: boolean;
   postgres: boolean;
   chromeDevtools: boolean;
+  serena: boolean;
 }
 
 function toOpenCodeFormat(config: McpServerConfig): OpenCodeMcpServerConfig {
@@ -73,6 +74,7 @@ export async function configureMcp(projectDir: string, options: McpOptions, agen
       ['filesystem', 'filesystem.json'],
       ['postgres', 'postgres.json'],
       ['chromeDevtools', 'chrome-devtools.json'],
+      ['serena', 'serena.json'],
     ];
 
     for (const [key, file] of serverEntries) {
@@ -106,6 +108,7 @@ export async function configureMcp(projectDir: string, options: McpOptions, agen
       ['filesystem', 'filesystem.json'],
       ['postgres', 'postgres.json'],
       ['chromeDevtools', 'chrome-devtools.json'],
+      ['serena', 'serena.json'],
     ];
 
     for (const [key, file] of serverEntries) {
@@ -149,7 +152,13 @@ export function getMcpInstructions(servers: string[]): string[] {
 
   if (servers.includes('chromeDevtools')) {
     instructions.push(
-        'Chrome Devtools MCP: No additional configuration needed. Server provides your coding agent control and inspect a live Chrome browser.'
+      'Chrome Devtools MCP: No additional configuration needed. Server provides your coding agent control and inspect a live Chrome browser.'
+    );
+  }
+
+  if (servers.includes('serena')) {
+    instructions.push(
+      'Serena MCP: Requires `uv` package manager. Install: https://docs.astral.sh/uv/getting-started/installation/'
     );
   }
 

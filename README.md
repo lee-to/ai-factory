@@ -21,7 +21,7 @@ ai-factory init
 - **Spec-driven development** — AI follows plans, not random exploration. Predictable, resumable, reviewable
 - **Community skills** — leverage [skills.sh](https://skills.sh) ecosystem or generate custom skills
 - **Works with your stack** — Next.js, Laravel, Django, Express, and more
-- **Multi-agent support** — Claude Code, Cursor, Windsurf, OpenCode, Warp, Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, or any agent
+- **Multi-agent support** — Claude Code, Cursor, Windsurf, OpenCode, Warp, Zencoder, Antigravity, Codex CLI, GitHub Copilot, Gemini CLI, Junie, or any agent
 
 ---
 
@@ -41,6 +41,7 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | GitHub Copilot | `.github/` | `.github/skills/` |
 | Gemini CLI | `.gemini/` | `.gemini/skills/` |
 | Junie | `.junie/` | `.junie/skills/` |
+| Antigravity | `.agent/` | `.agent/skills/`, `.agent/workflows/`, `.agent/rules/` |
 | Universal / Other | `.agents/` | `.agents/skills/` |
 
 MCP server configuration is supported for Claude Code, Cursor, and OpenCode. Other agents get skills installed with correct paths but without MCP auto-configuration.
@@ -70,7 +71,7 @@ ai-factory init
 ```
 
 This will:
-- Ask which AI agent you use (Claude, Cursor, Windsurf, OpenCode, Warp, Zencoder, Codex, Copilot, Gemini, Junie, or Universal)
+- Ask which AI agent you use (Claude, Cursor, Windsurf, OpenCode, Warp, Zencoder, Antigravity, Codex, Copilot, Gemini, Junie, or Universal)
 - Detect your project stack
 - Ask which base skills to install
 - Configure MCP servers (for supported agents)
@@ -511,6 +512,30 @@ your-project/
 └── .ai-factory.json           # AI Factory config
 ```
 
+For Antigravity, the structure uses Antigravity-native directories:
+
+```
+your-project/
+├── .agent/                    # Antigravity config dir
+│   ├── skills/                # Knowledge skills (auto-discovered by relevance)
+│   │   ├── best-practices/
+│   │   └── architecture/
+│   ├── workflows/             # Action workflows (explicitly invoked via /command)
+│   │   ├── ai-factory.md
+│   │   ├── ai-factory.feature.md
+│   │   ├── ai-factory.task.md
+│   │   ├── ai-factory.implement.md
+│   │   ├── ai-factory.fix.md
+│   │   ├── ai-factory.commit.md
+│   │   └── ...
+│   └── rules/                 # Passive guardrails (always active)
+│       ├── ai-factory-guardrails.md
+│       └── ai-factory-conventions.md
+├── .ai-factory/               # AI Factory working directory
+│   └── ...
+└── .ai-factory.json           # AI Factory config
+```
+
 ## Self-Improvement Patches
 
 AI Factory has a built-in learning loop. Every bug fix creates a **patch** — a structured knowledge artifact that helps AI avoid the same mistakes in the future.
@@ -597,7 +622,7 @@ All implementations include verbose, configurable logging:
 }
 ```
 
-The `agent` field can be any supported agent ID: `claude`, `cursor`, `windsurf`, `opencode`, `warp`, `zencoder`, `codex`, `copilot`, `gemini`, `junie`, or `universal`. The `skillsDir` is set automatically based on the chosen agent.
+The `agent` field can be any supported agent ID: `claude`, `cursor`, `windsurf`, `opencode`, `warp`, `zencoder`, `antigravity`, `codex`, `copilot`, `gemini`, `junie`, or `universal`. The `skillsDir` is set automatically based on the chosen agent.
 
 ![happy](https://github.com/lee-to/ai-factory/raw/main/art/happy.png)
 
@@ -614,6 +639,7 @@ The `agent` field can be any supported agent ID: `claude`, `cursor`, `windsurf`,
 - [Codex CLI](https://github.com/openai/codex) - OpenAI's coding agent
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's coding agent
 - [Junie](https://www.jetbrains.com/junie/) - JetBrains' AI coding agent
+- [Antigravity](https://antigravity.google) - Google's AI coding agent
 
 ## License
 

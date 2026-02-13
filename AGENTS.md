@@ -43,7 +43,7 @@ ai-factory/
 
 ### Skills Location
 - **Package skills**: `skills/` - source of truth, copied during install
-- **User skills**: `.claude/skills/` (Claude Code), `.opencode/skills/` (OpenCode), or `.agents/skills/` (universal)
+- **User skills**: `.claude/skills/` (Claude Code), `.opencode/skills/` (OpenCode), `.agents/skills/` (universal), or `.agent/skills/` + `.agent/workflows/` + `.agent/rules/` (Antigravity)
 
 ### Working Directory
 All AI Factory files in user projects go to `.ai-factory/`:
@@ -59,6 +59,15 @@ All skills use `ai-factory.` namespace prefix:
 - `/ai-factory.implement`
 - `/ai-factory.commit`
 - etc.
+
+### Antigravity-specific
+Antigravity uses a different directory structure than other agents:
+- **`.agent/workflows/`** — action-oriented skills (explicitly invoked by user via `/command`)
+- **`.agent/skills/`** — knowledge skills (auto-discovered by the agent based on relevance)
+- **`.agent/rules/`** — passive guardrails (always active, no invocation needed)
+
+During `ai-factory init`, skills are automatically reorganized into this native structure.
+Workflow SKILL.md frontmatter is simplified to Antigravity format (only `description` field).
 
 ## Workflow Logic
 

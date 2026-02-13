@@ -8,20 +8,25 @@ export interface TemplateVars {
   home_skills_dir: string;
   settings_file: string;
   agent_name: string;
+  workflows_dir: string;
+  rules_dir: string;
 }
 
 export function buildTemplateVars(agent: AgentConfig): TemplateVars {
+  const isAntigravity = agent.id === 'antigravity';
   return {
     config_dir: agent.configDir,
     skills_dir: agent.skillsDir,
     home_skills_dir: `~/${agent.skillsDir}`,
     settings_file: agent.settingsFile ?? '',
     agent_name: agent.displayName,
+    workflows_dir: isAntigravity ? '.agent/workflows' : agent.skillsDir,
+    rules_dir: isAntigravity ? '.agent/rules' : agent.configDir,
   };
 }
 
 export function processTemplate(content: string, vars: TemplateVars): string {
-  return content.replace(/\{\{(config_dir|skills_dir|home_skills_dir|settings_file|agent_name)\}\}/g, (_, key: string) => {
+  return content.replace(/\{\{(config_dir|skills_dir|home_skills_dir|settings_file|agent_name|workflows_dir|rules_dir)\}\}/g, (_, key: string) => {
     return vars[key as keyof TemplateVars];
   });
 }

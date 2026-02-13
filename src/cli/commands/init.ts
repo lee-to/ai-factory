@@ -42,12 +42,13 @@ export async function initCommand(): Promise<void> {
     console.log(chalk.green('✓ Configuration saved to .ai-factory.json'));
 
     let configuredMcp: string[] = [];
-    if (answers.mcpGithub || answers.mcpFilesystem || answers.mcpPostgres || answers.mcpChromeDevtools) {
+    if (answers.mcpGithub || answers.mcpFilesystem || answers.mcpPostgres || answers.mcpChromeDevtools || answers.mcpSerena) {
       configuredMcp = await configureMcp(projectDir, {
         github: answers.mcpGithub,
         filesystem: answers.mcpFilesystem,
         postgres: answers.mcpPostgres,
         chromeDevtools: answers.mcpChromeDevtools,
+        serena: answers.mcpSerena,
       }, answers.agent);
 
       if (configuredMcp.length > 0) {
@@ -76,8 +77,15 @@ export async function initCommand(): Promise<void> {
     const agentConfig = getAgentConfig(answers.agent);
     console.log(chalk.bold('\nNext steps:'));
     console.log(chalk.dim(`  1. Open ${agentConfig.displayName} in this directory`));
-    console.log(chalk.dim('  2. Run /ai-factory to analyze project and generate stack-specific skills'));
-    console.log(chalk.dim('  3. Use /ai-factory.feature to start new features, /ai-factory.commit to commit'));
+    if (answers.agent === 'antigravity') {
+      console.log(chalk.dim('  2. Workflows are in .agent/workflows/ (e.g. /ai-factory, /ai-factory.feature)'));
+      console.log(chalk.dim('  3. Rules (guardrails) are in .agent/rules/'));
+      console.log(chalk.dim('  4. Skills (knowledge) are in .agent/skills/'));
+      console.log(chalk.dim('  5. MCP servers configured in .agent/settings.json'));
+    } else {
+      console.log(chalk.dim('  2. Run /ai-factory to analyze project and generate stack-specific skills'));
+      console.log(chalk.dim('  3. Use /ai-factory.feature to start new features, /ai-factory.commit to commit'));
+    }
     console.log('');
 
   } catch (error) {

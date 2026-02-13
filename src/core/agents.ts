@@ -88,6 +88,14 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     settingsFile: 'opencode.json',
     supportsMcp: true,
   },
+  antigravity: {
+    id: 'antigravity',
+    displayName: 'Antigravity',
+    configDir: '.agent',
+    skillsDir: '.agent/skills',
+    settingsFile: '.agent/settings.json',
+    supportsMcp: true,
+  },
   universal: {
     id: 'universal',
     displayName: 'Universal / Other',

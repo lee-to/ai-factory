@@ -11,6 +11,7 @@ export interface WizardAnswers {
   mcpFilesystem: boolean;
   mcpPostgres: boolean;
   mcpChromeDevtools: boolean;
+  mcpSerena: boolean;
 }
 
 export async function runWizard(projectDir: string): Promise<WizardAnswers> {
@@ -66,6 +67,7 @@ export async function runWizard(projectDir: string): Promise<WizardAnswers> {
     mcpFilesystem: false,
     mcpPostgres: false,
     mcpChromeDevtools: false,
+    mcpSerena: false,
   };
 
   if (agentConfig.supportsMcp) {
@@ -106,6 +108,12 @@ export async function runWizard(projectDir: string): Promise<WizardAnswers> {
           name: 'mcpChromeDevtools',
           message: 'Chrome Devtools MCP (inspect, debug, performance insights, analyze network requests)?',
           default: false,
+        },
+        {
+          type: 'confirm',
+          name: 'mcpSerena',
+          message: 'Serena MCP (IDE-like code navigation, symbol-level editing, project memory)?',
+          default: true,
         },
       ]);
     }
