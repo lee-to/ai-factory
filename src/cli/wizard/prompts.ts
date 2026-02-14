@@ -80,7 +80,7 @@ export async function runWizard(projectDir: string): Promise<WizardAnswers> {
 
     if (configureMcp) {
       const suggestPostgres = detectedStack?.name &&
-        ['laravel', 'symfony', 'django', 'fastapi', 'nextjs', 'node-api'].includes(detectedStack.name);
+        ['laravel', 'symfony', 'django', 'fastapi', 'nextjs', 'node-api', 'java'].includes(detectedStack.name);
 
       mcpAnswers = await inquirer.prompt([
         {

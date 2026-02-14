@@ -167,16 +167,39 @@ Used by: best-practices, architecture, security-checklist, review
 # Build TypeScript
 npm run build
 
-# Link globally for testing
-npm link
+# Build and link globally for local testing (one command)
+npm run link
 
-# Test in a project
-cd /some/project
+# Test in another project (e.g. naice-backend)
+cd ../naice-backend
 ai-factory init
 
 # Update skills after changes
 ai-factory update
 ```
+
+### Build and install globally for local testing
+
+1. **From ai-factory directory:**
+   ```bash
+   npm run build    # Compile TypeScript
+   npm link         # Create global symlink to this package
+   ```
+
+   Or use the shortcut: `npm run link` (builds then links).
+
+2. **From your target project (e.g. Java/Gradle project):**
+   ```bash
+   cd /path/to/your-java-project
+   ai-factory init
+   ```
+
+   The `ai-factory` command will use your linked local version.
+
+3. **To unlink** (restore npm registry version):
+   ```bash
+   npm unlink -g ai-factory
+   ```
 
 ## Key Files to Know
 
@@ -184,6 +207,8 @@ ai-factory update
 |------|---------|
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
 | `src/cli/wizard/detector.ts` | Stack detection logic |
+| `src/cli/wizard/java-detector.ts` | Java (Gradle/Maven) project detection |
+| `src/cli/wizard/codestyle-detector.ts` | Codestyle config detection (checkstyle, editorconfig, etc.) |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/mcp.ts` | MCP server configuration |
 | `skills/*/SKILL.md` | Skill instructions |

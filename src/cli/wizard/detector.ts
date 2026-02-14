@@ -1,11 +1,15 @@
 import path from 'path';
 import { readJsonFile, readTextFile, fileExists } from '../../utils/fs.js';
+import { detectJavaStack, type JavaProjectDetails, type JavaCodestyleDetails } from './java-detector.js';
+
+export type { JavaProjectDetails, JavaCodestyleDetails };
 
 export interface DetectedStack {
   name: string;
   confidence: 'high' | 'medium' | 'low';
   frameworks: string[];
   languages: string[];
+  java?: JavaProjectDetails;
 }
 
 interface PackageJson {
@@ -19,6 +23,11 @@ interface ComposerJson {
 }
 
 export async function detectStack(projectDir: string): Promise<DetectedStack | null> {
+  const javaStack = await detectJavaStack(projectDir);
+  if (javaStack) {
+    return javaStack;
+  }
+
   const packageJsonPath = path.join(projectDir, 'package.json');
   const composerJsonPath = path.join(projectDir, 'composer.json');
   const requirementsPath = path.join(projectDir, 'requirements.txt');
@@ -254,7 +263,7 @@ export function getRecommendedSkills(stack: DetectedStack | null): string[] {
 
   const skills = [...baseSkills];
 
-  if (['nextjs', 'react', 'vue', 'node-api', 'fastapi', 'django', 'flask', 'laravel', 'symfony'].includes(stack.name)) {
+  if (['nextjs', 'react', 'vue', 'node-api', 'java', 'fastapi', 'django', 'flask', 'laravel', 'symfony'].includes(stack.name)) {
     skills.push('deploy');
   }
 
@@ -269,6 +278,7 @@ export function getRecommendedTemplate(stack: DetectedStack | null): string | nu
     'react': 'react',
     'node-api': 'node-api',
     'node': 'node-api',
+    'java': 'java',
     'python': 'python',
     'django': 'python',
     'fastapi': 'python',
