@@ -50,7 +50,10 @@ export async function initCommand(): Promise<void> {
 
   try {
     const existingAgentIds = existingConfig?.agents.map(agent => agent.id) ?? [];
-    const answers = await runWizard(projectDir, existingAgentIds);
+    
+    // Don't pre-select any agents - let user choose fresh each time
+    // Pass empty array so no agents are checked by default
+    const answers = await runWizard(projectDir, []);
 
     const selectedAgentIds = new Set(answers.agents.map(agent => agent.id));
     const removedAgents = (existingConfig?.agents ?? []).filter(agent => !selectedAgentIds.has(agent.id));
