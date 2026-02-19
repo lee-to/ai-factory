@@ -19,7 +19,6 @@ export interface WizardAnswers {
 export async function runWizard(projectDir: string, defaultAgentIds: string[] = []): Promise<WizardAnswers> {
   const detectedStack = await detectStack(projectDir);
   const availableSkills = await getAvailableSkills();
-  const selectedByDefault = new Set(defaultAgentIds.length > 0 ? defaultAgentIds : ['claude']);
 
   if (detectedStack) {
     console.log(`\n📦 Detected: ${detectedStack.name}`);
@@ -39,7 +38,7 @@ export async function runWizard(projectDir: string, defaultAgentIds: string[] = 
       message: 'Target AI agents:',
       choices: getAgentChoices().map(agent => ({
         ...agent,
-        checked: selectedByDefault.has(agent.value),
+        checked: false, // Don't pre-select any agents - user chooses fresh
       })),
       validate: (value: string[]) => {
         if (value.length === 0) {
