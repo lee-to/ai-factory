@@ -126,6 +126,15 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     supportsMcp: true,
     skillsCliAgent: 'opencode',
   },
+  qwen: {
+    id: 'qwen',
+    displayName: 'Qwen Code',
+    configDir: '.qwen',
+    skillsDir: '.qwen/skills',
+    settingsFile: null,
+    supportsMcp: false,
+    skillsCliAgent: null,
+  },
   universal: {
     id: 'universal',
     displayName: 'Universal / Other',
