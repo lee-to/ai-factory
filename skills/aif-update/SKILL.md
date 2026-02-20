@@ -1,6 +1,7 @@
 ---
 name: aif-update
 description: Updates ai-factory CLI to the latest version with version checking and confirmation. Checks if CLI and project are already up to date before prompting. Performs skills migration. Use when user says "update ai-factory", "ai-factory update" or asks to update ai-factory.
+model: haiku
 ---
 
 # ai-factory CLI Update
