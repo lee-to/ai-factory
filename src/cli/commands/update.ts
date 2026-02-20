@@ -20,42 +20,52 @@ export async function updateCommand(): Promise<void> {
   console.log(chalk.dim(`Config version: ${config.version}`));
   console.log(chalk.dim(`Package version: ${currentVersion}\n`));
 
-  // Check for new skills
-  const availableSkills = await getAvailableSkills();
-  const previousBaseSkills = config.installedSkills.filter(s => !s.includes('/'));
-  const newSkills = availableSkills.filter(s => !previousBaseSkills.includes(s));
-
-  if (newSkills.length > 0) {
-    console.log(chalk.cyan(`📦 New skills available: ${newSkills.join(', ')}\n`));
-  }
-
   console.log(chalk.dim('Updating skills...\n'));
 
   try {
-    const updatedSkills = await updateSkills(config, projectDir);
+    const availableSkills = await getAvailableSkills();
+    const previousBaseSkillsByAgent = new Map<string, string[]>();
 
+    for (const agent of config.agents) {
+      const previousBaseSkills = agent.installedSkills.filter(s => !s.includes('/'));
+      previousBaseSkillsByAgent.set(agent.id, previousBaseSkills);
+      const newSkills = availableSkills.filter(s => !previousBaseSkills.includes(s));
+
+      if (newSkills.length > 0) {
+        console.log(chalk.cyan(`📦 [${agent.id}] New skills available: ${newSkills.join(', ')}`));
+      }
+    }
+    if (config.agents.length > 0) {
+      console.log('');
+    }
+
+    for (const agent of config.agents) {
+      const updatedSkills = await updateSkills(agent, projectDir);
+      agent.installedSkills = updatedSkills;
+    }
     config.version = currentVersion;
-    config.installedSkills = updatedSkills;
-
     await saveConfig(projectDir, config);
 
     console.log(chalk.green('✓ Skills updated successfully'));
     console.log(chalk.green('✓ Configuration updated'));
 
-    // Separate base skills and custom skills for display
-    const baseSkills = updatedSkills.filter(s => !s.includes('/'));
-    const customSkills = updatedSkills.filter(s => s.includes('/'));
+    for (const agent of config.agents) {
+      const previousBaseSkills = previousBaseSkillsByAgent.get(agent.id) ?? [];
+      const newSkills = availableSkills.filter(s => !previousBaseSkills.includes(s));
+      const baseSkills = agent.installedSkills.filter(s => !s.includes('/'));
+      const customSkills = agent.installedSkills.filter(s => s.includes('/'));
 
-    console.log(chalk.bold('\nBase skills:'));
-    for (const skill of baseSkills) {
-      const isNew = newSkills.includes(skill);
-      console.log(chalk.dim(`  - ${skill}`) + (isNew ? chalk.green(' (new)') : ''));
-    }
+      console.log(chalk.bold(`\n[${agent.id}] Base skills:`));
+      for (const skill of baseSkills) {
+        const isNew = newSkills.includes(skill);
+        console.log(chalk.dim(`  - ${skill}`) + (isNew ? chalk.green(' (new)') : ''));
+      }
 
-    if (customSkills.length > 0) {
-      console.log(chalk.bold('\nCustom skills (preserved):'));
-      for (const skill of customSkills) {
-        console.log(chalk.dim(`  - ${skill}`));
+      if (customSkills.length > 0) {
+        console.log(chalk.bold(`[${agent.id}] Custom skills (preserved):`));
+        for (const skill of customSkills) {
+          console.log(chalk.dim(`  - ${skill}`));
+        }
       }
     }
     console.log('');

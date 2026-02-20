@@ -1,0 +1,177 @@
+# --- Taskfile for Python Projects ---
+# Usage: task [target]
+# Install: https://taskfile.dev/installation/
+
+version: '3'
+
+output: prefixed
+
+dotenv: ['.env', '.env.local']
+
+vars:
+  PROJECT: '{{.ROOT_DIR | base}}'
+  PYTHON: python3
+  SRC_DIR: src
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+
+  # Package manager detection
+  PKG:
+    sh: |
+      if [ -f uv.lock ]; then echo "uv"
+      elif [ -f poetry.lock ]; then echo "poetry"
+      elif [ -f Pipfile.lock ]; then echo "pipenv"
+      else echo "pip"; fi
+  PKG_RUN:
+    sh: |
+      if [ -f uv.lock ]; then echo "uv run"
+      elif [ -f poetry.lock ]; then echo "poetry run"
+      elif [ -f Pipfile.lock ]; then echo "pipenv run"
+      else echo ""; fi
+
+  # Docker
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: '{{.DOCKER_REGISTRY}}/{{.PROJECT}}'
+  DOCKER_TAG: '{{.VERSION}}'
+
+tasks:
+  # --- Development ---
+
+  install:
+    desc: Install dependencies
+    cmds:
+      - |
+        case "{{.PKG}}" in
+          uv)      uv sync ;;
+          poetry)  poetry install ;;
+          pipenv)  pipenv install --dev ;;
+          *)       {{.PYTHON}} -m pip install -e ".[dev]" ;;
+        esac
+
+  dev:
+    desc: Start development server
+    deps: [install]
+    cmds:
+      - '{{.PKG_RUN}} {{.PYTHON}} -m uvicorn main:app --reload --host 0.0.0.0 --port 8000'
+
+  run:
+    desc: Run the application
+    cmds:
+      - '{{.PKG_RUN}} {{.PYTHON}} -m {{.PROJECT}}'
+
+  shell:
+    desc: Open interactive Python shell
+    cmds:
+      - '{{.PKG_RUN}} {{.PYTHON}}'
+
+  # --- Testing ---
+
+  test:
+    desc: Run tests
+    cmds:
+      - '{{.PKG_RUN}} pytest'
+
+  test:watch:
+    desc: Run tests in watch mode
+    cmds:
+      - '{{.PKG_RUN}} pytest-watch'
+
+  test:cover:
+    desc: Run tests with coverage
+    cmds:
+      - '{{.PKG_RUN}} pytest --cov={{.SRC_DIR}} --cov-report=html --cov-report=term-missing'
+      - echo "Coverage report{{":"}} htmlcov/index.html"
+
+  test:integration:
+    desc: Run integration tests
+    cmds:
+      - '{{.PKG_RUN}} pytest tests/integration/ -v'
+
+  # --- Code Quality ---
+
+  lint:
+    desc: Run linters
+    cmds:
+      - '{{.PKG_RUN}} ruff check {{.SRC_DIR}} tests/'
+
+  lint:fix:
+    desc: Run linters with auto-fix
+    cmds:
+      - '{{.PKG_RUN}} ruff check --fix {{.SRC_DIR}} tests/'
+
+  fmt:
+    desc: Format code
+    cmds:
+      - '{{.PKG_RUN}} ruff format {{.SRC_DIR}} tests/'
+
+  fmt:check:
+    desc: Check code formatting
+    cmds:
+      - '{{.PKG_RUN}} ruff format --check {{.SRC_DIR}} tests/'
+
+  typecheck:
+    desc: Run type checker
+    cmds:
+      - '{{.PKG_RUN}} mypy {{.SRC_DIR}}'
+
+  check:
+    desc: Run all checks
+    deps: [lint, typecheck, test]
+
+  # --- Docker ---
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - >-
+        docker build
+        --build-arg VERSION={{.VERSION}}
+        --build-arg COMMIT={{.COMMIT}}
+        -t {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+        -t {{.DOCKER_IMAGE}}:latest
+        .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  # --- Database ---
+
+  db:migrate:
+    desc: Run database migrations
+    cmds:
+      - '{{.PKG_RUN}} alembic upgrade head'
+
+  db:rollback:
+    desc: Rollback last migration
+    cmds:
+      - '{{.PKG_RUN}} alembic downgrade -1'
+
+  db:migration:
+    desc: Create new migration
+    cmds:
+      - '{{.PKG_RUN}} alembic revision --autogenerate -m "{{.CLI_ARGS}}"'
+
+  # --- CI ---
+
+  ci:
+    desc: Run full CI pipeline
+    cmds:
+      - task: install
+      - task: lint
+      - task: fmt:check
+      - task: typecheck
+      - task: test
+
+  # --- Cleanup ---
+
+  clean:
+    desc: Remove build artifacts and caches
+    cmds:
+      - rm -rf dist/ build/ *.egg-info .pytest_cache .mypy_cache .ruff_cache htmlcov/ coverage.xml
+      - find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+      - find . -type f -name "*.pyc" -delete 2>/dev/null || true

@@ -1,0 +1,59 @@
+# Version control
+.git
+.gitignore
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docker (prevent recursive copy)
+Dockerfile*
+docker-compose*
+compose*
+.dockerignore
+
+# Dependencies (rebuilt in container)
+node_modules
+vendor
+__pycache__
+*.pyc
+.venv
+venv
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+dist
+build
+out
+bin
+coverage
+htmlcov
+*.egg-info
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+docs/
+
+# Tests (optional — remove if you run tests in Docker)
+# tests/
+# test/
+# *_test.go
+# *.test.ts
+# *.spec.ts

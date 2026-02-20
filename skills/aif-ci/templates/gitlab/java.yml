@@ -1,0 +1,129 @@
+# GitLab CI — Java
+# Template variables:
+#   JAVA_VERSION: e.g., 21
+#   BUILD_TOOL: maven | gradle
+#   HAS_CHECKSTYLE: boolean
+#   HAS_PMD: boolean
+#   HAS_SPOTBUGS: boolean
+#   WANT_COVERAGE: boolean
+#   WANT_SECURITY: boolean
+
+# --- Maven ---
+image: maven:3.9-eclipse-temurin-${JAVA_VERSION}
+
+stages:
+  - lint
+  - test
+  - build
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  interruptible: true
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+
+.maven-cache:
+  cache:
+    - key:
+        files:
+          - pom.xml
+      paths:
+        - .m2/repository/
+      policy: pull-push
+
+checkstyle:
+  stage: lint
+  extends: .maven-cache
+  script:
+    - mvn checkstyle:check -B
+
+pmd:
+  stage: lint
+  extends: .maven-cache
+  script:
+    - mvn pmd:check -B
+
+spotbugs:
+  stage: lint
+  extends: .maven-cache
+  script:
+    - mvn compile spotbugs:check -B
+
+tests:
+  stage: test
+  extends: .maven-cache
+  script:
+    - mvn verify -B
+  artifacts:
+    reports:
+      junit: target/surefire-reports/TEST-*.xml
+    paths:
+      - target/site/jacoco/
+    when: always
+
+build:
+  stage: build
+  extends: .maven-cache
+  needs: [tests, checkstyle, pmd, spotbugs]
+  script:
+    - mvn package -DskipTests -B
+  artifacts:
+    paths:
+      - target/*.jar
+    expire_in: 7 days
+
+security:
+  stage: lint
+  extends: .maven-cache
+  script:
+    - mvn dependency-check:check -B
+  allow_failure: true
+
+# --- Gradle (alternative) ---
+# image: gradle:8-jdk${JAVA_VERSION}
+#
+# variables:
+#   GRADLE_USER_HOME: $CI_PROJECT_DIR/.gradle
+#
+# .gradle-cache:
+#   cache:
+#     - key:
+#         files:
+#           - build.gradle
+#           - gradle/wrapper/gradle-wrapper.properties
+#       paths:
+#         - .gradle/caches/
+#         - .gradle/wrapper/
+#       policy: pull-push
+#
+# lint:
+#   stage: lint
+#   extends: .gradle-cache
+#   script:
+#     - ./gradlew checkstyleMain pmdMain spotbugsMain
+#
+# tests:
+#   stage: test
+#   extends: .gradle-cache
+#   script:
+#     - ./gradlew test jacocoTestReport
+#   artifacts:
+#     reports:
+#       junit: build/test-results/test/TEST-*.xml
+#     when: always
+#
+# build:
+#   stage: build
+#   extends: .gradle-cache
+#   needs: [lint, tests]
+#   script:
+#     - ./gradlew assemble
+#   artifacts:
+#     paths:
+#       - build/libs/*.jar
+#     expire_in: 7 days

@@ -69,8 +69,21 @@ export async function listDirectories(dirPath: string): Promise<string[]> {
   }
 }
 
+export async function writeTextFile(filePath: string, content: string): Promise<void> {
+  await fs.ensureDir(path.dirname(filePath));
+  await fs.writeFile(filePath, content, 'utf-8');
+}
+
 export async function ensureDir(dirPath: string): Promise<void> {
   await fs.ensureDir(dirPath);
+}
+
+export async function removeDirectory(dirPath: string): Promise<void> {
+  await fs.remove(dirPath);
+}
+
+export async function removeFile(filePath: string): Promise<void> {
+  await fs.remove(filePath);
 }
 
 /** Skip directories when walking (e.g. node_modules, .git, build output) */

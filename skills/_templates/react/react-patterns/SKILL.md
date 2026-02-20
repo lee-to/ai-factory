@@ -1,7 +1,7 @@
 ---
 name: react-patterns
 description: React development patterns and best practices. Covers hooks, state management, component design, and performance optimization.
-argument-hint: [topic: hooks|state|components|performance]
+argument-hint: "[topic: hooks|state|components|performance]"
 ---
 
 # React Patterns Guide

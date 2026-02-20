@@ -1,7 +1,7 @@
 ---
 name: api-patterns
 description: Node.js API development patterns. Covers REST design, validation, error handling, authentication, and database access.
-argument-hint: [topic: rest|validation|errors|auth|database]
+argument-hint: "[topic: rest|validation|errors|auth|database]"
 ---
 
 # Node.js API Patterns Guide

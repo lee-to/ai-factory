@@ -1,0 +1,163 @@
+# --- Justfile for Python Projects ---
+# Usage: just [recipe]
+# Install: https://just.systems/man/en/
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load
+set export
+set positional-arguments
+
+# --- Variables ---
+project := `basename $(pwd)`
+python := "python3"
+src_dir := "src"
+version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+
+# Package manager detection
+pkg := if path_exists("uv.lock") == "true" { "uv" } else if path_exists("poetry.lock") == "true" { "poetry" } else if path_exists("Pipfile.lock") == "true" { "pipenv" } else { "pip" }
+pkg_run := if pkg == "uv" { "uv run" } else if pkg == "poetry" { "poetry run" } else if pkg == "pipenv" { "pipenv run" } else { "" }
+
+# Docker
+docker_registry := env("DOCKER_REGISTRY", "ghcr.io")
+docker_image := docker_registry + "/" + project
+docker_tag := version
+
+# Default recipe - show help
+[doc("Show available recipes")]
+default:
+    @just --list --unsorted
+
+# --- Development ---
+
+[group("development")]
+[doc("Install dependencies")]
+install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{ pkg }}" in
+        uv)      uv sync ;;
+        poetry)  poetry install ;;
+        pipenv)  pipenv install --dev ;;
+        *)       {{ python }} -m pip install -e ".[dev]" ;;
+    esac
+
+[group("development")]
+[doc("Start development server")]
+dev: install
+    {{ pkg_run }} {{ python }} -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+[group("development")]
+[doc("Run the application")]
+run:
+    {{ pkg_run }} {{ python }} -m {{ project }}
+
+[group("development")]
+[doc("Open interactive Python shell")]
+shell:
+    {{ pkg_run }} {{ python }}
+
+# --- Testing ---
+
+[group("testing")]
+[doc("Run tests")]
+test *args:
+    {{ pkg_run }} pytest {{ args }}
+
+[group("testing")]
+[doc("Run tests in watch mode")]
+test-watch:
+    {{ pkg_run }} pytest-watch
+
+[group("testing")]
+[doc("Run tests with coverage")]
+test-cover:
+    {{ pkg_run }} pytest --cov={{ src_dir }} --cov-report=html --cov-report=term-missing
+    @echo "Coverage report: htmlcov/index.html"
+
+[group("testing")]
+[doc("Run integration tests")]
+test-integration:
+    {{ pkg_run }} pytest tests/integration/ -v
+
+# --- Code Quality ---
+
+[group("quality")]
+[doc("Run linters")]
+lint:
+    {{ pkg_run }} ruff check {{ src_dir }} tests/
+
+[group("quality")]
+[doc("Run linters with auto-fix")]
+lint-fix:
+    {{ pkg_run }} ruff check --fix {{ src_dir }} tests/
+
+[group("quality")]
+[doc("Format code")]
+fmt:
+    {{ pkg_run }} ruff format {{ src_dir }} tests/
+
+[group("quality")]
+[doc("Check code formatting")]
+fmt-check:
+    {{ pkg_run }} ruff format --check {{ src_dir }} tests/
+
+[group("quality")]
+[doc("Run type checker")]
+typecheck:
+    {{ pkg_run }} mypy {{ src_dir }}
+
+[group("quality")]
+[doc("Run all checks")]
+check: lint fmt-check typecheck test
+
+# --- Docker ---
+
+[group("docker")]
+[doc("Build Docker image")]
+docker-build:
+    docker build \
+        --build-arg VERSION={{ version }} \
+        --build-arg COMMIT={{ commit }} \
+        -t {{ docker_image }}:{{ docker_tag }} \
+        -t {{ docker_image }}:latest \
+        .
+
+[group("docker")]
+[doc("Push Docker image")]
+docker-push:
+    docker push {{ docker_image }}:{{ docker_tag }}
+    docker push {{ docker_image }}:latest
+
+# --- Database ---
+
+[group("database")]
+[doc("Run database migrations")]
+db-migrate:
+    {{ pkg_run }} alembic upgrade head
+
+[group("database")]
+[doc("Rollback last migration")]
+db-rollback:
+    {{ pkg_run }} alembic downgrade -1
+
+[group("database")]
+[doc("Create new migration")]
+db-migration msg:
+    {{ pkg_run }} alembic revision --autogenerate -m "{{ msg }}"
+
+# --- CI ---
+
+[group("ci")]
+[doc("Run full CI pipeline")]
+ci: install lint fmt-check typecheck test
+
+# --- Cleanup ---
+
+[confirm("Remove all build artifacts and caches?")]
+[group("maintenance")]
+[doc("Remove build artifacts and caches")]
+clean:
+    rm -rf dist/ build/ *.egg-info .pytest_cache .mypy_cache .ruff_cache htmlcov/ coverage.xml
+    find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+    find . -type f -name "*.pyc" -delete 2>/dev/null || true

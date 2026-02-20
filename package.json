@@ -1,6 +1,6 @@
 {
   "name": "ai-factory",
-  "version": "1.7.1",
+  "version": "2.0.1",
   "type": "module",
   "description": "CLI tool for automating AI agent context setup in projects",
   "main": "dist/cli/index.js",
@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
+    "test": "bash scripts/test-skills.sh",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
     "link": "npm run build && npm link"
@@ -20,12 +21,15 @@
     "cursor",
     "codex",
     "opencode",
+    "kilocode",
     "windsurf",
     "warp",
     "zencoder",
     "junie",
     "gemini",
     "copilot",
+    "roocode",
+    "antigravity",
     "claude-code",
     "ai",
     "skills",

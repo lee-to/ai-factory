@@ -1,0 +1,102 @@
+# GitHub Actions CI — Node.js / TypeScript
+# Template variables:
+#   NODE_VERSION: e.g., 22
+#   NODE_VERSIONS: e.g., [18, 20, 22]
+#   PACKAGE_MANAGER: npm | pnpm | yarn | bun
+#   INSTALL_CMD: e.g., 'npm ci', 'pnpm install --frozen-lockfile'
+#   HAS_ESLINT: boolean
+#   HAS_PRETTIER: boolean
+#   HAS_BIOME: boolean
+#   HAS_TYPESCRIPT: boolean
+#   TEST_FRAMEWORK: jest | vitest
+#   HAS_BUILD: boolean
+#   WANT_MATRIX: boolean
+#   WANT_COVERAGE: boolean
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # For pnpm — uncomment:
+      # - uses: pnpm/action-setup@v4
+      #   with:
+      #     version: 9
+      # For Bun — uncomment:
+      # - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${NODE_VERSION}
+          cache: ${PACKAGE_MANAGER}
+      - run: ${INSTALL_CMD}
+      # ESLint + Prettier:
+      - run: npx eslint .
+      - run: npx prettier --check .
+      # Or Biome (replaces BOTH ESLint and Prettier — use one or the other):
+      # - run: npx biome check .
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${NODE_VERSION}
+          cache: ${PACKAGE_MANAGER}
+      - run: ${INSTALL_CMD}
+      - run: npx tsc --noEmit
+
+  tests:
+    name: Tests (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ${NODE_VERSIONS}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: ${PACKAGE_MANAGER}
+      - run: ${INSTALL_CMD}
+      # Jest:
+      - run: npx jest --coverage --ci
+      # Or Vitest:
+      # - run: npx vitest run --coverage
+      - uses: actions/upload-artifact@v4
+        if: matrix.node-version == '${NODE_VERSION}'
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${NODE_VERSION}
+          cache: ${PACKAGE_MANAGER}
+      - run: ${INSTALL_CMD}
+      - run: npm run build

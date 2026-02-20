@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+# NOTE: Replace image versions with actual project versions from composer.json
+
+# --- Vendor ---
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN --mount=type=cache,target=/root/.composer/cache \
+    composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
+
+# --- Development ---
+FROM php:8.4-fpm-alpine AS development
+RUN docker-php-ext-install pdo_mysql opcache bcmath
+RUN apk add --no-cache $PHPIZE_DEPS && \
+    pecl install xdebug && docker-php-ext-enable xdebug
+WORKDIR /app
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY . .
+RUN composer install
+EXPOSE 9000
+CMD ["php-fpm"]
+
+# --- Production ---
+FROM php:8.4-fpm-alpine AS production
+RUN docker-php-ext-install pdo_mysql opcache bcmath && \
+    docker-php-ext-enable opcache
+COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+WORKDIR /app
+RUN addgroup -g 1001 -S appuser && \
+    adduser -S -u 1001 -G appuser appuser
+COPY --from=vendor --chown=appuser:appuser /app/vendor ./vendor
+COPY --chown=appuser:appuser . .
+USER appuser
+EXPOSE 9000
+CMD ["php-fpm"]

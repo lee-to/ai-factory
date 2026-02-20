@@ -1,0 +1,78 @@
+# GitLab CI — Rust
+# Template variables:
+#   RUST_VERSION: e.g., '1.83'
+#   WANT_COVERAGE: boolean
+#   WANT_SECURITY: boolean
+
+image: rust:${RUST_VERSION}-slim
+
+stages:
+  - lint
+  - test
+  - security
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  interruptible: true
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  RUST_BACKTRACE: "1"
+
+.rust-cache:
+  cache:
+    - key:
+        files:
+          - Cargo.lock
+      paths:
+        - .cargo/bin/
+        - .cargo/registry/
+        - .cargo/git/
+        - target/
+      policy: pull-push
+
+fmt:
+  stage: lint
+  extends: .rust-cache
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+
+clippy:
+  stage: lint
+  extends: .rust-cache
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features -- -D warnings
+
+tests:
+  stage: test
+  extends: .rust-cache
+  script:
+    - cargo test --all-features
+
+coverage:
+  stage: test
+  extends: .rust-cache
+  script:
+    - cargo install cargo-tarpaulin || true
+    - cargo tarpaulin --ignore-tests --out xml
+  coverage: '/\d+\.\d+% coverage/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: cobertura.xml
+    when: always
+
+audit:
+  stage: security
+  extends: .rust-cache
+  script:
+    - cargo install cargo-audit || true
+    - cargo audit
+  allow_failure: true

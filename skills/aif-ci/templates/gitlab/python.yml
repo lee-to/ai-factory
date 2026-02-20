@@ -1,0 +1,115 @@
+# GitLab CI — Python
+# Template variables:
+#   PYTHON_VERSION: e.g., '3.13'
+#   PACKAGE_MANAGER: uv | pip | poetry
+#   HAS_RUFF: boolean
+#   HAS_BLACK: boolean
+#   HAS_MYPY: boolean
+#   HAS_BANDIT: boolean
+#   SOURCE_DIR: e.g., src/
+#   WANT_COVERAGE: boolean
+#   WANT_SECURITY: boolean
+
+image: python:${PYTHON_VERSION}-slim
+
+stages:
+  - lint
+  - test
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  interruptible: true
+
+variables:
+  UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
+
+# --- UV-based setup (modern) ---
+.uv-setup:
+  before_script:
+    - pip install uv
+    - uv sync --all-extras --dev
+  cache:
+    - key:
+        files:
+          - uv.lock
+      paths:
+        - .uv-cache/
+        - .venv/
+      policy: pull-push
+
+ruff-lint:
+  stage: lint
+  extends: .uv-setup
+  script:
+    - uv run ruff check . --output-format=gitlab > ruff-report.json
+  artifacts:
+    reports:
+      codequality: ruff-report.json
+    when: always
+
+ruff-format:
+  stage: lint
+  extends: .uv-setup
+  script:
+    - uv run ruff format --check .
+
+# Or for black + isort + flake8:
+# black:
+#   stage: lint
+#   extends: .uv-setup
+#   script:
+#     - uv run black --check .
+#     - uv run isort --check-only .
+#
+# flake8:
+#   stage: lint
+#   extends: .uv-setup
+#   script:
+#     - uv run flake8 .
+
+mypy:
+  stage: lint
+  extends: .uv-setup
+  script:
+    - uv run mypy ${SOURCE_DIR}
+
+tests:
+  stage: test
+  extends: .uv-setup
+  script:
+    - uv run pytest -v --cov=${SOURCE_DIR} --cov-report=xml --junitxml=report.xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    when: always
+
+security:
+  stage: lint
+  extends: .uv-setup
+  script:
+    - uv run bandit -r ${SOURCE_DIR} -f json -o bandit-report.json
+  artifacts:
+    paths:
+      - bandit-report.json
+    when: always
+  allow_failure: true
+
+# --- pip-based setup (traditional) ---
+# .pip-setup:
+#   before_script:
+#     - pip install -r requirements-dev.txt
+#   cache:
+#     - key:
+#         files:
+#           - requirements.txt
+#       paths:
+#         - .cache/pip/
+#       policy: pull-push

@@ -1,0 +1,75 @@
+# compose.production.yml — Production hardening
+# Usage: docker compose -f compose.yml -f compose.production.yml up -d
+# NOTE: No ports exposed on infrastructure services (db, redis). They communicate
+# via Docker network only. Only the app (or reverse proxy) exposes ports to the host.
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-security: &default-security
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  app:
+    image: ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${VERSION}
+    <<: *default-security
+    user: "1001:1001"
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 100
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    logging: *default-logging
+    restart: unless-stopped
+
+  db:
+    <<: *default-security
+    read_only: false                     # Postgres needs writable filesystem
+    cap_add:
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETGID
+      - SETUID
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+      - /run/postgresql:noexec,nosuid,size=10m
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    logging: *default-logging
+    restart: unless-stopped
+
+  redis:
+    <<: *default-security
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+    logging: *default-logging
+    restart: unless-stopped
+
+networks:
+  backend:
+    internal: true                       # No internet access for DB/Redis

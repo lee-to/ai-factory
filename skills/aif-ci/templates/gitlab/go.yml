@@ -1,0 +1,84 @@
+# GitLab CI — Go
+# Template variables:
+#   GO_VERSION: e.g., '1.23'
+#   HAS_GOLANGCI_LINT: boolean
+#   WANT_COVERAGE: boolean
+#   WANT_SECURITY: boolean
+#   BINARY_NAME: e.g., 'app'
+#   MAIN_PACKAGE: e.g., './cmd/app'
+
+image: golang:${GO_VERSION}
+
+stages:
+  - lint
+  - test
+  - build
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  interruptible: true
+
+variables:
+  GOPATH: $CI_PROJECT_DIR/.go
+  GOLANGCI_LINT_CACHE: $CI_PROJECT_DIR/.golangci-lint-cache
+
+.go-cache:
+  cache:
+    - key:
+        files:
+          - go.sum
+      paths:
+        - .go/pkg/mod/
+      policy: pull-push
+
+lint:
+  stage: lint
+  extends: .go-cache
+  image: golangci/golangci-lint:latest
+  script:
+    - golangci-lint run --out-format code-climate > gl-code-quality-report.json
+  artifacts:
+    reports:
+      codequality: gl-code-quality-report.json
+    when: always
+
+tests:
+  stage: test
+  extends: .go-cache
+  script:
+    - go mod verify
+    - go vet ./...
+    - go test -race -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    paths:
+      - coverage.out
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.out
+    when: always
+
+security:
+  stage: lint
+  extends: .go-cache
+  script:
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - govulncheck ./...
+  allow_failure: true
+
+build:
+  stage: build
+  extends: .go-cache
+  needs: [lint, tests]
+  script:
+    - CGO_ENABLED=0 go build -ldflags="-s -w" -o ${BINARY_NAME} ${MAIN_PACKAGE}
+  artifacts:
+    paths:
+      - ${BINARY_NAME}
+    expire_in: 7 days

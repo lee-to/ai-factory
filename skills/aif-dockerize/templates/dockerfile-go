@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+# NOTE: Replace image versions with actual project versions from go.mod
+
+# --- Builder ---
+FROM golang:1.24-alpine AS builder
+WORKDIR /app
+
+# Dependencies
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Build
+COPY . .
+ARG VERSION=dev
+ARG COMMIT=unknown
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${COMMIT}" \
+    -o /app/server ./cmd/server
+
+# --- Development ---
+FROM golang:1.24-alpine AS development
+WORKDIR /app
+RUN go install github.com/air-verse/air@latest
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+COPY . .
+EXPOSE 8080 2345
+CMD ["air"]
+
+# --- Production ---
+FROM gcr.io/distroless/static-debian12:nonroot AS production
+COPY --from=builder /app/server /server
+EXPOSE 8080
+ENTRYPOINT ["/server"]

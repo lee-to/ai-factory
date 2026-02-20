@@ -1,7 +1,7 @@
 ---
 name: php-patterns
 description: PHP development patterns and best practices. Covers Laravel, Symfony, modern PHP 8+, PSR standards, Composer, and testing with PHPUnit/Pest.
-argument-hint: [topic: laravel|symfony|php8|psr|testing|security]
+argument-hint: "[topic: laravel|symfony|php8|psr|testing|security]"
 ---
 
 # PHP Patterns Guide

@@ -1,0 +1,142 @@
+# --- Taskfile for Go Projects ---
+# Usage: task [target]
+# Install: https://taskfile.dev/installation/
+
+version: '3'
+
+output: prefixed
+
+dotenv: ['.env', '.env.local']
+
+vars:
+  PROJECT: '{{.ROOT_DIR | base}}'
+  MODULE:
+    sh: head -1 go.mod | awk '{print $2}'
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  BUILD_TIME:
+    sh: date -u '+%Y-%m-%dT%H:%M:%SZ'
+  BIN_DIR: bin
+  MAIN_PKG: './cmd/{{.PROJECT}}'
+  LDFLAGS: >-
+    -s -w
+    -X {{.MODULE}}/internal/version.Version={{.VERSION}}
+    -X {{.MODULE}}/internal/version.Commit={{.COMMIT}}
+    -X {{.MODULE}}/internal/version.BuildTime={{.BUILD_TIME}}
+
+  # Docker
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: '{{.DOCKER_REGISTRY}}/{{.PROJECT}}'
+  DOCKER_TAG: '{{.VERSION}}'
+
+tasks:
+  # --- Development ---
+
+  build:
+    desc: Build the binary
+    sources:
+      - ./**/*.go
+      - go.mod
+      - go.sum
+    generates:
+      - ./{{.BIN_DIR}}/{{.PROJECT}}
+    cmds:
+      - go build -ldflags '{{.LDFLAGS}}' -o {{.BIN_DIR}}/{{.PROJECT}} {{.MAIN_PKG}}
+
+  run:
+    desc: Build and run
+    deps: [build]
+    cmds:
+      - ./{{.BIN_DIR}}/{{.PROJECT}}
+
+  dev:
+    desc: Run with hot reload (requires air)
+    cmds:
+      - air
+
+  generate:
+    desc: Run go generate
+    cmds:
+      - go generate ./...
+
+  tidy:
+    desc: Tidy and verify go.mod
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  # --- Testing ---
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -race -count=1 ./...
+
+  test:cover:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -race -count=1 -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report{{":"}} coverage.html"
+
+  test:integration:
+    desc: Run integration tests
+    cmds:
+      - go test -race -count=1 -tags=integration ./...
+
+  bench:
+    desc: Run benchmarks
+    cmds:
+      - go test -bench=. -benchmem ./...
+
+  # --- Code Quality ---
+
+  lint:
+    desc: Run linters
+    cmds:
+      - golangci-lint run ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+      - goimports -w .
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  # --- Docker ---
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - >-
+        docker build
+        --build-arg VERSION={{.VERSION}}
+        --build-arg COMMIT={{.COMMIT}}
+        -t {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+        -t {{.DOCKER_IMAGE}}:latest
+        .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  # --- CI ---
+
+  ci:
+    desc: Run full CI pipeline
+    deps: [lint, test, build]
+
+  # --- Cleanup ---
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf {{.BIN_DIR}} coverage.out coverage.html

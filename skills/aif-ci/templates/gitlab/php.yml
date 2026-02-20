@@ -1,0 +1,101 @@
+# GitLab CI — PHP
+# Template variables:
+#   PHP_VERSION: e.g., '8.3'
+#   HAS_PHPSTAN: boolean
+#   HAS_PSALM: boolean
+#   HAS_RECTOR: boolean
+#   HAS_CS_FIXER: boolean
+#   HAS_PINT: boolean
+#   HAS_PHPCS: boolean
+#   TEST_FRAMEWORK: phpunit | pest
+#   WANT_COVERAGE: boolean
+#   WANT_SECURITY: boolean
+
+image: php:${PHP_VERSION}-cli
+
+stages:
+  - install
+  - lint
+  - test
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  interruptible: true
+
+variables:
+  COMPOSER_HOME: $CI_PROJECT_DIR/.composer
+
+install:
+  stage: install
+  before_script:
+    - apt-get update && apt-get install -y git unzip
+    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+  script:
+    - composer install --no-interaction --prefer-dist --optimize-autoloader
+  cache:
+    - key:
+        files:
+          - composer.lock
+      paths:
+        - vendor/
+        - $COMPOSER_HOME/cache/
+      policy: pull-push
+  artifacts:
+    paths:
+      - vendor/
+    expire_in: 1 hour
+
+code-style:
+  stage: lint
+  needs: [install]
+  script:
+    # PHP-CS-Fixer:
+    - vendor/bin/php-cs-fixer fix --dry-run --diff
+    # Or Pint:
+    # - vendor/bin/pint --test
+    # Or PHPCS:
+    # - vendor/bin/phpcs
+
+phpstan:
+  stage: lint
+  needs: [install]
+  script:
+    - vendor/bin/phpstan analyse --memory-limit=512M --error-format=gitlab > phpstan-report.json
+  artifacts:
+    reports:
+      codequality: phpstan-report.json
+    when: always
+
+rector:
+  stage: lint
+  needs: [install]
+  script:
+    - vendor/bin/rector process --dry-run
+
+tests:
+  stage: test
+  needs: [install]
+  script:
+    # PHPUnit:
+    - vendor/bin/phpunit --coverage-clover coverage.xml --log-junit report.xml
+    # Or Pest:
+    # - vendor/bin/pest --ci --coverage --min=80
+  coverage: '/^\s*Lines:\s*\d+\.\d+\%/'
+  artifacts:
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    when: always
+
+security:
+  stage: lint
+  needs: [install]
+  script:
+    - composer audit
+  allow_failure: true

@@ -1,7 +1,7 @@
 ---
 name: python-patterns
 description: Python development patterns and best practices. Covers typing, async, testing, project structure, and common frameworks.
-argument-hint: [topic: typing|async|testing|structure|fastapi|django]
+argument-hint: "[topic: typing|async|testing|structure|fastapi|django]"
 ---
 
 # Python Patterns Guide

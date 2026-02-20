@@ -1,0 +1,131 @@
+# --- Justfile for Go Projects ---
+# Usage: just [recipe]
+# Install: https://just.systems/man/en/
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load
+set export
+set positional-arguments
+
+# --- Variables ---
+project := `basename $(pwd)`
+module := `head -1 go.mod | awk '{print $2}'`
+version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+build_time := `date -u '+%Y-%m-%dT%H:%M:%SZ'`
+
+bin_dir := "bin"
+main_pkg := "./cmd/" + project
+ldflags := "-s -w -X " + module + "/internal/version.Version=" + version + " -X " + module + "/internal/version.Commit=" + commit + " -X " + module + "/internal/version.BuildTime=" + build_time
+
+# Docker
+docker_registry := env("DOCKER_REGISTRY", "ghcr.io")
+docker_image := docker_registry + "/" + project
+docker_tag := version
+
+# Default recipe - show help
+[doc("Show available recipes")]
+default:
+    @just --list --unsorted
+
+# --- Development ---
+
+[group("development")]
+[doc("Build the binary")]
+build:
+    go build -ldflags '{{ ldflags }}' -o {{ bin_dir }}/{{ project }} {{ main_pkg }}
+
+[group("development")]
+[doc("Build and run")]
+run: build
+    ./{{ bin_dir }}/{{ project }}
+
+[group("development")]
+[doc("Run with hot reload (requires air)")]
+dev:
+    air
+
+[group("development")]
+[doc("Run go generate")]
+generate:
+    go generate ./...
+
+[group("development")]
+[doc("Tidy and verify go.mod")]
+tidy:
+    go mod tidy
+    go mod verify
+
+# --- Testing ---
+
+[group("testing")]
+[doc("Run tests")]
+test *args:
+    go test -race -count=1 {{ args }} ./...
+
+[group("testing")]
+[doc("Run tests with coverage report")]
+test-cover:
+    go test -race -count=1 -coverprofile=coverage.out ./...
+    go tool cover -html=coverage.out -o coverage.html
+    @echo "Coverage report: coverage.html"
+
+[group("testing")]
+[doc("Run integration tests")]
+test-integration:
+    go test -race -count=1 -tags=integration ./...
+
+[group("testing")]
+[doc("Run benchmarks")]
+bench:
+    go test -bench=. -benchmem ./...
+
+# --- Code Quality ---
+
+[group("quality")]
+[doc("Run linters")]
+lint:
+    golangci-lint run ./...
+
+[group("quality")]
+[doc("Format code")]
+fmt:
+    go fmt ./...
+    goimports -w .
+
+[group("quality")]
+[doc("Run go vet")]
+vet:
+    go vet ./...
+
+# --- Docker ---
+
+[group("docker")]
+[doc("Build Docker image")]
+docker-build:
+    docker build \
+        --build-arg VERSION={{ version }} \
+        --build-arg COMMIT={{ commit }} \
+        -t {{ docker_image }}:{{ docker_tag }} \
+        -t {{ docker_image }}:latest \
+        .
+
+[group("docker")]
+[doc("Push Docker image")]
+docker-push:
+    docker push {{ docker_image }}:{{ docker_tag }}
+    docker push {{ docker_image }}:latest
+
+# --- CI ---
+
+[group("ci")]
+[doc("Run full CI pipeline")]
+ci: lint test build
+
+# --- Cleanup ---
+
+[confirm("Remove all build artifacts?")]
+[group("maintenance")]
+[doc("Remove build artifacts")]
+clean:
+    rm -rf {{ bin_dir }} coverage.out coverage.html

@@ -5,6 +5,7 @@ export interface AgentConfig {
   skillsDir: string;
   settingsFile: string | null;
   supportsMcp: boolean;
+  skillsCliAgent: string | null;
 }
 
 const AGENT_REGISTRY: Record<string, AgentConfig> = {
@@ -13,8 +14,9 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     displayName: 'Claude Code',
     configDir: '.claude',
     skillsDir: '.claude/skills',
-    settingsFile: '.claude/settings.local.json',
+    settingsFile: '.mcp.json',
     supportsMcp: true,
+    skillsCliAgent: 'claude-code',
   },
   cursor: {
     id: 'cursor',
@@ -23,6 +25,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.cursor/skills',
     settingsFile: '.cursor/mcp.json',
     supportsMcp: true,
+    skillsCliAgent: 'cursor',
   },
   codex: {
     id: 'codex',
@@ -31,6 +34,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.codex/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: 'codex',
   },
   copilot: {
     id: 'copilot',
@@ -39,6 +43,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.github/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: 'github-copilot',
   },
   gemini: {
     id: 'gemini',
@@ -47,6 +52,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.gemini/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: 'gemini-cli',
   },
   junie: {
     id: 'junie',
@@ -55,6 +61,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.junie/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: 'junie',
   },
   windsurf: {
     id: 'windsurf',
@@ -63,6 +70,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.windsurf/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: 'windsurf',
   },
   warp: {
     id: 'warp',
@@ -71,6 +79,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.warp/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: null,
   },
   zencoder: {
     id: 'zencoder',
@@ -79,6 +88,34 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.zencoder/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: 'zencoder',
+  },
+  roocode: {
+    id: 'roocode',
+    displayName: 'Roo Code',
+    configDir: '.roo',
+    skillsDir: '.roo/skills',
+    settingsFile: '.roo/mcp.json',
+    supportsMcp: true,
+    skillsCliAgent: 'roo',
+  },
+  kilocode: {
+    id: 'kilocode',
+    displayName: 'Kilo Code',
+    configDir: '.kilocode',
+    skillsDir: '.kilocode/skills',
+    settingsFile: '.kilocode/mcp.json',
+    supportsMcp: true,
+    skillsCliAgent: 'kilo',
+  },
+  antigravity: {
+    id: 'antigravity',
+    displayName: 'Antigravity',
+    configDir: '.agent',
+    skillsDir: '.agent/skills',
+    settingsFile: null,
+    supportsMcp: false,
+    skillsCliAgent: 'antigravity',
   },
   opencode: {
     id: 'opencode',
@@ -87,6 +124,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.opencode/skills',
     settingsFile: 'opencode.json',
     supportsMcp: true,
+    skillsCliAgent: 'opencode',
   },
   universal: {
     id: 'universal',
@@ -95,6 +133,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.agents/skills',
     settingsFile: null,
     supportsMcp: false,
+    skillsCliAgent: null,
   },
 };
 

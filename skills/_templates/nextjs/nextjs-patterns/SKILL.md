@@ -1,7 +1,7 @@
 ---
 name: nextjs-patterns
 description: Next.js development patterns and best practices. Helps with App Router, Server Components, API routes, and data fetching.
-argument-hint: [topic: routing|data|api|auth|forms]
+argument-hint: "[topic: routing|data|api|auth|forms]"
 ---
 
 # Next.js Patterns Guide

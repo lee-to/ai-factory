@@ -1,0 +1,113 @@
+# GitHub Actions CI — Python
+# Template variables:
+#   PYTHON_VERSION: e.g., '3.13'
+#   PYTHON_VERSIONS: e.g., ['3.11', '3.12', '3.13']
+#   PACKAGE_MANAGER: uv | pip | poetry | pipenv
+#   HAS_RUFF: boolean
+#   HAS_BLACK: boolean
+#   HAS_ISORT: boolean
+#   HAS_FLAKE8: boolean
+#   HAS_PYLINT: boolean
+#   HAS_MYPY: boolean
+#   HAS_BANDIT: boolean
+#   SOURCE_DIR: e.g., src/
+#   WANT_MATRIX: boolean
+#   WANT_COVERAGE: boolean
+#   WANT_SECURITY: boolean
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # --- UV-based setup (modern) ---
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv python install ${PYTHON_VERSION}
+      - run: uv sync --all-extras --dev
+      # Ruff (lint + format):
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format
+        run: uv run ruff format --check .
+      # Or Black + isort + Flake8:
+      # - run: uv run black --check .
+      # - run: uv run isort --check-only .
+      # - run: uv run flake8 .
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv python install ${PYTHON_VERSION}
+      - run: uv sync --all-extras --dev
+      - run: uv run mypy ${SOURCE_DIR}
+
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${PYTHON_VERSIONS}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv python install ${{ matrix.python-version }}
+      - run: uv sync --all-extras --dev
+      - run: uv run pytest -v --cov=${SOURCE_DIR} --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '${PYTHON_VERSION}'
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 14
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv python install ${PYTHON_VERSION}
+      - run: uv sync --all-extras --dev
+      - run: uv run bandit -r ${SOURCE_DIR}
+
+  # --- pip-based setup (traditional) ---
+  # lint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '${PYTHON_VERSION}'
+  #         cache: pip
+  #     - run: pip install -r requirements-dev.txt
+  #     - run: ruff check .
+  #     - run: ruff format --check .

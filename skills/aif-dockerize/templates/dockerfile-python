@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+# NOTE: Replace image versions with actual project versions from pyproject.toml / .python-version
+
+# --- Builder ---
+FROM python:3.13-slim AS builder
+WORKDIR /app
+RUN pip install --no-cache-dir uv
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-editable
+
+# --- Development ---
+FROM python:3.13-slim AS development
+WORKDIR /app
+RUN pip install --no-cache-dir uv
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+COPY . .
+EXPOSE 8000
+CMD ["uv", "run", "uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+
+# --- Production ---
+FROM python:3.13-slim AS production
+WORKDIR /app
+RUN groupadd -r -g 1001 appuser && \
+    useradd -r -u 1001 -g appuser appuser
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --chown=appuser:appuser . .
+ENV PATH="/app/.venv/bin:$PATH"
+USER appuser
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,112 @@
+# GitHub Actions CI — PHP
+# Template variables:
+#   PHP_VERSION: e.g., '8.3'
+#   PHP_VERSIONS: e.g., ['8.2', '8.3', '8.4']
+#   COVERAGE_DRIVER: xdebug | pcov
+#   HAS_PHPSTAN: boolean
+#   HAS_PSALM: boolean
+#   HAS_RECTOR: boolean
+#   HAS_CS_FIXER: boolean
+#   HAS_PINT: boolean
+#   HAS_PHPCS: boolean
+#   TEST_FRAMEWORK: phpunit | pest
+#   WANT_MATRIX: boolean
+#   WANT_COVERAGE: boolean
+#   WANT_SECURITY: boolean
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  code-style:
+    name: Code Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${PHP_VERSION}'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      # PHP-CS-Fixer:
+      - run: vendor/bin/php-cs-fixer fix --dry-run --diff
+      # Or Pint:
+      # - run: vendor/bin/pint --test
+      # Or PHPCS:
+      # - run: vendor/bin/phpcs
+
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${PHP_VERSION}'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      # PHPStan:
+      - run: vendor/bin/phpstan analyse --memory-limit=512M
+      # Or Psalm:
+      # - run: vendor/bin/psalm --no-cache
+
+  rector:
+    name: Rector
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${PHP_VERSION}'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/rector process --dry-run
+
+  tests:
+    name: Tests (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ${PHP_VERSIONS}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: ${COVERAGE_DRIVER}
+      - run: composer install --no-interaction --prefer-dist
+      # PHPUnit:
+      - run: vendor/bin/phpunit --coverage-clover coverage.xml
+      # Or Pest:
+      # - run: vendor/bin/pest --ci --coverage --min=80
+      - uses: actions/upload-artifact@v4
+        if: matrix.php-version == '${PHP_VERSION}'
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 14
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${PHP_VERSION}'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer audit

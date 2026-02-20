@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{page_title} — {project_name}</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a2e;
+      --text-secondary: #555;
+      --accent: #0066cc;
+      --border: #e2e8f0;
+      --code-bg: #f6f8fa;
+      --nav-bg: #f8fafc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --text: #e6edf3;
+        --text-secondary: #8b949e;
+        --accent: #58a6ff;
+        --border: #30363d;
+        --code-bg: #161b22;
+        --nav-bg: #161b22;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    nav {
+      background: var(--nav-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    nav a {
+      color: var(--accent);
+      text-decoration: none;
+      margin-right: 1.5rem;
+    }
+    nav a:hover { text-decoration: underline; }
+    nav a.active { font-weight: 600; }
+    h1 { font-size: 2rem; margin: 1.5rem 0 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    h2 { font-size: 1.5rem; margin: 2rem 0 0.75rem; }
+    h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; }
+    p { margin: 0.75rem 0; }
+    a { color: var(--accent); }
+    code {
+      background: var(--code-bg);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    pre code { background: none; padding: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    th { background: var(--code-bg); font-weight: 600; }
+    ul, ol { padding-left: 1.5rem; margin: 0.75rem 0; }
+    li { margin: 0.25rem 0; }
+    blockquote {
+      border-left: 4px solid var(--accent);
+      padding-left: 1rem;
+      color: var(--text-secondary);
+      margin: 1rem 0;
+    }
+    hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    img { max-width: 100%; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <nav>
+    {nav_links}
+  </nav>
+  <main>
+    {content}
+  </main>
+</body>
+</html>

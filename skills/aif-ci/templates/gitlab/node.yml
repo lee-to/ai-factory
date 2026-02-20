@@ -1,0 +1,106 @@
+# GitLab CI — Node.js / TypeScript
+# Template variables:
+#   NODE_VERSION: e.g., 22
+#   PACKAGE_MANAGER: npm | pnpm | yarn | bun
+#   INSTALL_CMD: e.g., 'npm ci'
+#   HAS_ESLINT: boolean
+#   HAS_PRETTIER: boolean
+#   HAS_BIOME: boolean
+#   HAS_TYPESCRIPT: boolean
+#   TEST_FRAMEWORK: jest | vitest
+#   HAS_BUILD: boolean
+#   WANT_COVERAGE: boolean
+
+image: node:${NODE_VERSION}-slim
+
+stages:
+  - install
+  - lint
+  - test
+  - build
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+default:
+  interruptible: true
+
+variables:
+  npm_config_cache: $CI_PROJECT_DIR/.npm
+
+install:
+  stage: install
+  script:
+    - ${INSTALL_CMD}
+  cache:
+    - key:
+        files:
+          - package-lock.json
+      paths:
+        - .npm/
+      policy: pull-push
+  artifacts:
+    paths:
+      - node_modules/
+    expire_in: 1 hour
+
+eslint:
+  stage: lint
+  needs: [install]
+  script:
+    - npx eslint . --format json --output-file eslint-report.json
+  artifacts:
+    reports:
+      codequality: eslint-report.json
+    when: always
+  allow_failure: false
+
+prettier:
+  stage: lint
+  needs: [install]
+  script:
+    - npx prettier --check .
+
+# Or Biome (replaces BOTH ESLint and Prettier — use one or the other):
+# biome:
+#   stage: lint
+#   needs: [install]
+#   script:
+#     - npx biome check .
+
+typecheck:
+  stage: lint
+  needs: [install]
+  script:
+    - npx tsc --noEmit
+
+tests:
+  stage: test
+  needs: [install]
+  script:
+    # Jest:
+    - npx jest --coverage --ci --reporters=default --reporters=jest-junit
+    # Or Vitest:
+    # - npx vitest run --coverage --reporter=junit --outputFile=report.xml
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    paths:
+      - coverage/
+    when: always
+
+build:
+  stage: build
+  needs: [tests, eslint, typecheck]
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 7 days

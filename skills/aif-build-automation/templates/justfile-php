@@ -1,0 +1,183 @@
+# --- Justfile for PHP Projects ---
+# Usage: just [recipe]
+# Install: https://just.systems/man/en/
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load
+set export
+set positional-arguments
+
+# --- Variables ---
+project := `basename $(pwd)`
+php := "php"
+composer := "composer"
+version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+
+# Docker
+docker_registry := env("DOCKER_REGISTRY", "ghcr.io")
+docker_image := docker_registry + "/" + project
+docker_tag := version
+
+# Default recipe - show help
+[doc("Show available recipes")]
+default:
+    @just --list --unsorted
+
+# --- Development ---
+
+[group("development")]
+[doc("Install dependencies")]
+install:
+    {{ composer }} install
+
+[group("development")]
+[doc("Update dependencies")]
+update:
+    {{ composer }} update
+
+[group("development")]
+[doc("Start development server")]
+dev: install
+    {{ php }} -S localhost:8000 -t public/
+
+[group("development")]
+[doc("Start Laravel dev server")]
+serve:
+    {{ php }} artisan serve
+
+[group("development")]
+[doc("Open interactive REPL (Laravel)")]
+tinker:
+    {{ php }} artisan tinker
+
+[group("development")]
+[doc("List application routes (Laravel)")]
+routes:
+    {{ php }} artisan route:list
+
+# --- Testing ---
+
+[group("testing")]
+[doc("Run tests")]
+test *args:
+    ./vendor/bin/phpunit {{ args }}
+
+[group("testing")]
+[doc("Run tests with coverage report")]
+test-cover:
+    ./vendor/bin/phpunit --coverage-html coverage/ --coverage-text
+    @echo "Coverage report: coverage/index.html"
+
+[group("testing")]
+[doc("Run filtered tests")]
+test-filter filter:
+    ./vendor/bin/phpunit --filter="{{ filter }}"
+
+[group("testing")]
+[doc("Run tests in parallel (requires paratest)")]
+test-parallel:
+    ./vendor/bin/paratest
+
+# --- Code Quality ---
+
+[group("quality")]
+[doc("Run PHP linter (PHP-CS-Fixer dry-run)")]
+lint:
+    ./vendor/bin/php-cs-fixer fix --dry-run --diff
+
+[group("quality")]
+[doc("Fix code style issues")]
+lint-fix:
+    ./vendor/bin/php-cs-fixer fix
+
+[group("quality")]
+[doc("Run static analysis")]
+phpstan:
+    ./vendor/bin/phpstan analyse
+
+[group("quality")]
+[doc("Format code (alias for lint-fix)")]
+fmt: lint-fix
+
+[group("quality")]
+[doc("Run all quality checks")]
+check: lint phpstan test
+
+# --- Database ---
+
+[group("database")]
+[doc("Run database migrations")]
+db-migrate:
+    {{ php }} artisan migrate
+
+[group("database")]
+[doc("Rollback last migration")]
+db-rollback:
+    {{ php }} artisan migrate:rollback
+
+[group("database")]
+[doc("Seed the database")]
+db-seed:
+    {{ php }} artisan db:seed
+
+[confirm("This will DROP ALL TABLES and re-run migrations. Continue?")]
+[group("database")]
+[doc("Drop all tables, re-run migrations + seeds")]
+db-fresh:
+    {{ php }} artisan migrate:fresh --seed
+
+# --- Cache & Optimization ---
+
+[group("cache")]
+[doc("Clear all caches")]
+cache-clear:
+    {{ php }} artisan cache:clear
+    {{ php }} artisan config:clear
+    {{ php }} artisan route:clear
+    {{ php }} artisan view:clear
+
+[group("cache")]
+[doc("Cache config, routes, and views for production")]
+optimize:
+    {{ php }} artisan config:cache
+    {{ php }} artisan route:cache
+    {{ php }} artisan view:cache
+
+# --- Docker ---
+
+[group("docker")]
+[doc("Build Docker image")]
+docker-build:
+    docker build \
+        --build-arg VERSION={{ version }} \
+        --build-arg COMMIT={{ commit }} \
+        -t {{ docker_image }}:{{ docker_tag }} \
+        -t {{ docker_image }}:latest \
+        .
+
+[group("docker")]
+[doc("Push Docker image")]
+docker-push:
+    docker push {{ docker_image }}:{{ docker_tag }}
+    docker push {{ docker_image }}:latest
+
+[group("docker")]
+[doc("Run Docker container locally")]
+docker-run:
+    docker run --rm -p 8000:8000 --env-file .env {{ docker_image }}:{{ docker_tag }}
+
+# --- CI ---
+
+[group("ci")]
+[doc("Run full CI pipeline")]
+ci: install lint phpstan test
+
+# --- Cleanup ---
+
+[confirm("Remove vendor/, coverage/, and framework caches?")]
+[group("maintenance")]
+[doc("Remove generated files and caches")]
+clean:
+    rm -rf vendor/ coverage/ bootstrap/cache/*.php
+    rm -rf storage/framework/cache/* storage/framework/sessions/* storage/framework/views/*

@@ -1,0 +1,195 @@
+# --- Taskfile for Node.js Projects ---
+# Usage: task [target]
+# Install: https://taskfile.dev/installation/
+
+version: '3'
+
+output: prefixed
+
+dotenv: ['.env', '.env.local']
+
+vars:
+  PROJECT:
+    sh: node -p "require('./package.json').name" 2>/dev/null || basename $(pwd)
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+
+  # Package manager detection
+  PM:
+    sh: |
+      if [ -f bun.lockb ]; then echo "bun"
+      elif [ -f pnpm-lock.yaml ]; then echo "pnpm"
+      elif [ -f yarn.lock ]; then echo "yarn"
+      else echo "npm"; fi
+  PMX:
+    sh: |
+      if [ -f bun.lockb ]; then echo "bunx"
+      elif [ -f pnpm-lock.yaml ]; then echo "pnpm exec"
+      elif [ -f yarn.lock ]; then echo "yarn"
+      else echo "npx"; fi
+
+  # Docker
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: '{{.DOCKER_REGISTRY}}/{{.PROJECT}}'
+  DOCKER_TAG: '{{.VERSION}}'
+
+tasks:
+  # --- Development ---
+
+  install:
+    desc: Install dependencies
+    sources:
+      - package.json
+      - yarn.lock
+      - pnpm-lock.yaml
+      - package-lock.json
+      - bun.lockb
+    cmds:
+      - '{{.PM}} install'
+
+  dev:
+    desc: Start development server
+    deps: [install]
+    cmds:
+      - '{{.PM}} run dev'
+
+  build:
+    desc: Build for production
+    deps: [install]
+    env:
+      NODE_ENV: production
+    cmds:
+      - '{{.PM}} run build'
+
+  start:
+    desc: Start production server
+    env:
+      NODE_ENV: production
+    cmds:
+      - '{{.PM}} run start'
+
+  generate:
+    desc: Run code generation
+    cmds:
+      - '{{.PM}} run generate'
+
+  # --- Testing ---
+
+  test:
+    desc: Run tests
+    deps: [install]
+    cmds:
+      - '{{.PM}} run test'
+
+  test:watch:
+    desc: Run tests in watch mode
+    cmds:
+      - '{{.PM}} run test -- --watch'
+
+  test:cover:
+    desc: Run tests with coverage
+    cmds:
+      - '{{.PM}} run test -- --coverage'
+
+  test:e2e:
+    desc: Run end-to-end tests
+    cmds:
+      - '{{.PM}} run test:e2e'
+
+  # --- Code Quality ---
+
+  lint:
+    desc: Run linter
+    cmds:
+      - '{{.PM}} run lint'
+
+  lint:fix:
+    desc: Run linter with auto-fix
+    cmds:
+      - '{{.PM}} run lint -- --fix'
+
+  fmt:
+    desc: Format code with Prettier
+    cmds:
+      - '{{.PMX}} prettier --write .'
+
+  fmt:check:
+    desc: Check code formatting
+    cmds:
+      - '{{.PMX}} prettier --check .'
+
+  typecheck:
+    desc: Run TypeScript type checking
+    cmds:
+      - '{{.PMX}} tsc --noEmit'
+
+  check:
+    desc: Run all checks
+    deps: [lint, typecheck, test]
+
+  # --- Docker ---
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - >-
+        docker build
+        --build-arg VERSION={{.VERSION}}
+        --build-arg COMMIT={{.COMMIT}}
+        -t {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+        -t {{.DOCKER_IMAGE}}:latest
+        .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  docker:run:
+    desc: Run Docker container locally
+    cmds:
+      - docker run --rm -p 3000:3000 --env-file .env {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+
+  # --- Database ---
+
+  db:migrate:
+    desc: Run database migrations
+    cmds:
+      - '{{.PM}} run db:migrate'
+
+  db:seed:
+    desc: Seed the database
+    cmds:
+      - '{{.PM}} run db:seed'
+
+  db:reset:
+    desc: Reset database
+    cmds:
+      - '{{.PM}} run db:reset'
+
+  # --- CI ---
+
+  ci:
+    desc: Run full CI pipeline
+    cmds:
+      - task: install
+      - task: lint
+      - task: typecheck
+      - task: test
+      - task: build
+
+  # --- Cleanup ---
+
+  clean:
+    desc: Remove build artifacts and caches
+    cmds:
+      - rm -rf dist/ build/ .next/ out/ coverage/ .turbo/ node_modules/.cache
+
+  clean:all:
+    desc: Remove everything including node_modules
+    deps: [clean]
+    cmds:
+      - rm -rf node_modules/

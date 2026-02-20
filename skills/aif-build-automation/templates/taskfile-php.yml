@@ -1,0 +1,193 @@
+# --- Taskfile for PHP Projects ---
+# Usage: task [target]
+# Install: https://taskfile.dev/installation/
+
+version: '3'
+
+output: prefixed
+
+dotenv: ['.env', '.env.local']
+
+vars:
+  PROJECT: '{{.ROOT_DIR | base}}'
+  PHP: php
+  COMPOSER: composer
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+
+  # Docker
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: '{{.DOCKER_REGISTRY}}/{{.PROJECT}}'
+  DOCKER_TAG: '{{.VERSION}}'
+
+tasks:
+  # --- Development ---
+
+  install:
+    desc: Install dependencies
+    sources:
+      - composer.json
+      - composer.lock
+    cmds:
+      - '{{.COMPOSER}} install'
+
+  update:
+    desc: Update dependencies
+    cmds:
+      - '{{.COMPOSER}} update'
+
+  dev:
+    desc: Start development server
+    deps: [install]
+    cmds:
+      - '{{.PHP}} -S localhost:8000 -t public/'
+
+  serve:
+    desc: Start Laravel dev server
+    cmds:
+      - '{{.PHP}} artisan serve'
+
+  tinker:
+    desc: Open interactive REPL (Laravel)
+    cmds:
+      - '{{.PHP}} artisan tinker'
+
+  routes:
+    desc: List application routes (Laravel)
+    cmds:
+      - '{{.PHP}} artisan route:list'
+
+  # --- Testing ---
+
+  test:
+    desc: Run tests
+    cmds:
+      - ./vendor/bin/phpunit
+
+  test:cover:
+    desc: Run tests with coverage report
+    cmds:
+      - ./vendor/bin/phpunit --coverage-html coverage/ --coverage-text
+      - echo "Coverage report{{":"}} coverage/index.html"
+
+  test:filter:
+    desc: Run filtered tests (usage{{":"}} task test:filter -- ClassName::testMethod)
+    cmds:
+      - ./vendor/bin/phpunit --filter="{{.CLI_ARGS}}"
+
+  test:parallel:
+    desc: Run tests in parallel (requires paratest)
+    cmds:
+      - ./vendor/bin/paratest
+
+  # --- Code Quality ---
+
+  lint:
+    desc: Run PHP linter (PHP-CS-Fixer dry-run)
+    cmds:
+      - ./vendor/bin/php-cs-fixer fix --dry-run --diff
+
+  lint:fix:
+    desc: Fix code style issues
+    cmds:
+      - ./vendor/bin/php-cs-fixer fix
+
+  phpstan:
+    desc: Run static analysis
+    cmds:
+      - ./vendor/bin/phpstan analyse
+
+  fmt:
+    desc: Format code (alias for lint:fix)
+    cmds:
+      - task: lint:fix
+
+  check:
+    desc: Run all quality checks
+    deps: [lint, phpstan, test]
+
+  # --- Database ---
+
+  db:migrate:
+    desc: Run database migrations
+    cmds:
+      - '{{.PHP}} artisan migrate'
+
+  db:rollback:
+    desc: Rollback last migration
+    cmds:
+      - '{{.PHP}} artisan migrate:rollback'
+
+  db:seed:
+    desc: Seed the database
+    cmds:
+      - '{{.PHP}} artisan db:seed'
+
+  db:fresh:
+    desc: Drop all tables, re-run migrations + seeds
+    preconditions:
+      - sh: '[ "{{.CONFIRM}}" = "yes" ]'
+        msg: "Pass CONFIRM=yes to run db:fresh (destructive)"
+    cmds:
+      - '{{.PHP}} artisan migrate:fresh --seed'
+
+  # --- Cache & Optimization ---
+
+  cache:clear:
+    desc: Clear all caches
+    cmds:
+      - '{{.PHP}} artisan cache:clear'
+      - '{{.PHP}} artisan config:clear'
+      - '{{.PHP}} artisan route:clear'
+      - '{{.PHP}} artisan view:clear'
+
+  optimize:
+    desc: Cache config, routes, and views for production
+    cmds:
+      - '{{.PHP}} artisan config:cache'
+      - '{{.PHP}} artisan route:cache'
+      - '{{.PHP}} artisan view:cache'
+
+  # --- Docker ---
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - >-
+        docker build
+        --build-arg VERSION={{.VERSION}}
+        --build-arg COMMIT={{.COMMIT}}
+        -t {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+        -t {{.DOCKER_IMAGE}}:latest
+        .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  docker:run:
+    desc: Run Docker container locally
+    cmds:
+      - docker run --rm -p 8000:8000 --env-file .env {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+
+  # --- CI ---
+
+  ci:
+    desc: Run full CI pipeline
+    cmds:
+      - task: install
+      - task: lint
+      - task: phpstan
+      - task: test
+
+  # --- Cleanup ---
+
+  clean:
+    desc: Remove generated files and caches
+    cmds:
+      - rm -rf vendor/ coverage/ bootstrap/cache/*.php
+      - rm -rf storage/framework/cache/* storage/framework/sessions/* storage/framework/views/*
