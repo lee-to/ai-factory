@@ -171,3 +171,8 @@ AI Factory can generate and maintain your project docs with a single command:
 ## License
 
 MIT
+
+
+## Contributing
+
+Contributions are welcome!
