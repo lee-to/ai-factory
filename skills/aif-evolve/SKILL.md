@@ -65,6 +65,7 @@ Scan the project for patterns:
 
 - If `$ARGUMENTS` contains a specific skill name → evolve only that skill
 - If `$ARGUMENTS` is "all" or empty → evolve all installed skills
+- **ALWAYS exclude `aif-*` skills** — skills matching the `aif-*` pattern are managed by AI Factory and will be overwritten on upgrade. Never read, analyze, or modify them during evolution.
 
 **Read each target skill's SKILL.md:**
 
@@ -72,10 +73,14 @@ Scan the project for patterns:
 Glob: {{skills_dir}}/*/SKILL.md
 ```
 
+**Skip any skill whose directory name starts with `aif-`** (e.g., `aif-evolve`, `aif-fix`, `aif-plan`, `aif-review`). Do NOT read, analyze, or modify these files — they are managed by AI Factory.
+
 If skills are not installed yet (no `{{skills_dir}}/`), read from source:
 ```
 Glob: skills/*/SKILL.md
 ```
+
+Same rule applies: **skip any `aif-*` directories**.
 
 ### Step 3: Analyze Gaps
 
@@ -84,10 +89,10 @@ For each skill, identify what's missing based on collected intelligence:
 **3.1: Patch-driven gaps**
 
 Compare patch patterns against skill instructions:
-- Does `/aif-fix` mention the most common error categories from patches? If not → add them
-- Does `/aif-implement` warn about the pitfalls found in patches? If not → add guards
-- Does `/aif-plan` include logging/validation requirements for problem areas? If not → enhance
-- Does `/aif-review` check for the patterns that caused bugs? If not → add checklist items
+- Does the skill mention the most common error categories from patches? If not → add them
+- Does the skill warn about the pitfalls found in patches? If not → add guards
+- Does the skill include logging/validation requirements for problem areas? If not → enhance
+- Does the skill check for the patterns that caused bugs? If not → add checklist items
 
 **3.2: Tech-stack gaps**
 
@@ -143,18 +148,18 @@ Based on:
 
 ### Proposed Improvements
 
-#### /aif-fix
+#### /my-fix-skill
 1. **Add null-check guard** — 5 patches involved null references
    → Add to Step 2: "Check for optional/nullable fields before accessing nested properties"
 
 2. **Add async/await pattern** — 3 patches involved unhandled promises
    → Add to Important Rules: "Always use try/catch with async/await"
 
-#### /aif-implement
-1. **Add Prisma-specific warning** — 2 patches from incorrect Prisma queries
-   → Add to Logging: "Log all Prisma queries in DEBUG mode"
+#### /my-codegen-skill
+1. **Add ORM-specific warning** — 2 patches from incorrect queries
+   → Add to Logging: "Log all ORM queries in DEBUG mode"
 
-#### /aif-review
+#### /my-review-skill
 1. **Add checklist item** — optional chaining not checked
    → Add to Correctness: "Optional chaining for nullable relations"
 
@@ -229,16 +234,6 @@ Options:
 3. Continue as is
 ```
 
-## What Each Skill Can Learn
-
-| Skill | Learns From | Example Enhancement |
-|-------|-------------|---------------------|
-| `/aif-fix` | Patches → common errors | "Check for X before accessing Y" |
-| `/aif-implement` | Patches → prevention rules | "When creating models, always validate Z" |
-| `/aif-plan` | Patches → logging gaps | "Add validation task for nullable fields" |
-| `/aif-review` | Patches → missed issues | "Check: are all optional relations null-safe?" |
-| `/aif-commit` | Codebase → conventions | "Use project's commit prefix format" |
-
 ## Important Rules
 
 1. **Traceable** — every improvement must link to a patch, convention, or tech fact
@@ -253,13 +248,13 @@ Options:
 ### Example 1: After 10 fixes with null-reference patterns
 
 ```
-/aif-evolve fix
+/aif-evolve my-fix-skill
 
 → Found 6/10 patches tagged #null-check
-→ Improvement: Add to /aif-fix Step 2:
+→ Improvement: Add to /my-fix-skill Step 2:
   "PRIORITY CHECK: Look for optional/nullable fields accessed
    without null guards. This is the #1 source of bugs in this project."
-→ Improvement: Add to /aif-review checklist:
+→ Improvement: Add to /my-review-skill checklist:
   "- [ ] All nullable DB fields have null checks in UI/API layer"
 ```
 
@@ -270,11 +265,11 @@ Options:
 
 → Stack: Laravel + Eloquent (from DESCRIPTION.md)
 → Found 3 patches tagged #n-plus-one #database
-→ Improvement: Add to /aif-implement logging:
+→ Improvement: Add to /my-codegen-skill logging:
   "Enable query logging: DB::enableQueryLog() in DEBUG mode"
-→ Improvement: Add to /aif-review checklist:
+→ Improvement: Add to /my-review-skill checklist:
   "- [ ] Eager loading used for related models (no N+1)"
-→ Improvement: Add to /aif-plan descriptions:
+→ Improvement: Add to /my-planning-skill descriptions:
   "Include 'use ->with() for relations' in DB-related tasks"
 ```
 
@@ -286,11 +281,11 @@ Options:
 → No patches found (first run)
 → Analyzing project context only...
 → Stack: Next.js 14 + Prisma + TypeScript
-→ Improvement: Add to /aif-implement:
+→ Improvement: Add to /my-codegen-skill:
   "Use server actions for mutations, API routes for external APIs"
-→ Improvement: Add to /aif-fix:
+→ Improvement: Add to /my-fix-skill:
   "For Prisma errors, check schema.prisma for field types first"
-→ Improvement: Add to /aif-review:
+→ Improvement: Add to /my-review-skill:
   "- [ ] Server components don't use client-only hooks"
 ```
 
@@ -301,3 +296,4 @@ Options:
 - Do not create new skills (suggest using `/aif-skill-generator` instead)
 - Do not apply changes without user approval
 - Do not evolve skills not installed in the project
+- Do not touch `aif-*` skills — they are managed by AI Factory and reset on upgrade
