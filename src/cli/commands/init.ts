@@ -2,7 +2,14 @@ import chalk from 'chalk';
 import path from 'path';
 import { runWizard } from '../wizard/prompts.js';
 import { installSkills } from '../../core/installer.js';
-import { saveConfig, configExists, loadConfig, getCurrentVersion, type AgentInstallation } from '../../core/config.js';
+import {
+  saveConfig,
+  configExists,
+  loadConfig,
+  getCurrentVersion,
+  createDefaultSubagentsConfig,
+  type AgentInstallation,
+} from '../../core/config.js';
 import { configureMcp, getMcpInstructions } from '../../core/mcp.js';
 import { getAgentConfig } from '../../core/agents.js';
 import { cleanupAgentSetup, getAgentOnboarding } from '../../core/transformer.js';
@@ -89,6 +96,7 @@ export async function initCommand(): Promise<void> {
       version: getCurrentVersion(),
       agents: installedAgents,
       extensions: existingExtensions,
+      subagents: existingConfig?.subagents ?? createDefaultSubagentsConfig(),
     });
 
     // Re-apply extension injections after skill installation
