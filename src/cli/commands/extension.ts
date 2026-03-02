@@ -84,12 +84,18 @@ function removeExtensionSubagentsFromConfig(
   }
 
   const profileSet = new Set(profileIds);
-  const beforeCount = config.subagents.profiles.length;
+  const removedIds = new Set<string>();
+
   config.subagents.profiles = config.subagents.profiles.filter(profile => {
     if (!profileSet.has(profile.id)) return true;
-    return profile.sourceExtension !== extensionName;
+    const shouldRemove = profile.sourceExtension === extensionName;
+    if (shouldRemove) {
+      removedIds.add(profile.id);
+    }
+    return !shouldRemove;
   });
 
+  const restoredIds = new Set<string>();
   if (backups) {
     for (const [profileId, backup] of Object.entries(backups)) {
       if (!backup) continue;
@@ -110,8 +116,9 @@ function removeExtensionSubagentsFromConfig(
     config.subagents.mode = 'off';
   }
 
-  return beforeCount === config.subagents.profiles.length ? [] : profileIds;
+  return removedOnlyIds;
 }
+
 
 export async function extensionAddCommand(source: string): Promise<void> {
   const projectDir = process.cwd();

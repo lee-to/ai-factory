@@ -100,6 +100,17 @@ function pickProfile(config: SubagentsConfig, id?: string): SubagentProfile | nu
   return config.profiles.find(profile => profile.enabled) ?? null;
 }
 
+function pickRoutedProfiles(config: SubagentsConfig, route: 'plan' | 'implement'): SubagentProfile[] {
+  const routeIds = config.routing[route];
+  if (!routeIds.length) {
+    return config.profiles.filter(profile => profile.enabled);
+  }
+
+  return routeIds
+    .map(id => pickProfile(config, id))
+    .filter((profile): profile is SubagentProfile => Boolean(profile));
+}
+
 export async function runPlanScouting(
   projectDir: string,
   config: SubagentsConfig,
@@ -110,9 +121,11 @@ export async function runPlanScouting(
     throw new Error('Subagent plan scouting is disabled by configuration mode.');
   }
 
-  const profile = pickProfile(config, profileId);
+  const profile = profileId
+    ? pickProfile(config, profileId)
+    : pickRoutedProfiles(config, 'plan')[0] ?? null;
   if (!profile) {
-    throw new Error('No enabled subagent profile found. Run "ai-factory subagent init" first.');
+    throw new Error('No enabled plan-scout subagent profile found. Run "ai-factory subagent init" first.');
   }
 
   const runId = nowRunId();
@@ -164,13 +177,7 @@ export async function runImplementOrchestration(
     throw new Error('No tasks found in active plan (expected checkbox or numbered tasks).');
   }
 
-  const routedImplementers = config.routing.implement
-    .map(id => pickProfile(config, id))
-    .filter((profile): profile is SubagentProfile => Boolean(profile));
-
-  const implementerProfiles = config.routing.implement.length > 0
-    ? routedImplementers
-    : config.profiles.filter(p => p.enabled);
+  const implementerProfiles = pickRoutedProfiles(config, 'implement');
 
   if (implementerProfiles.length === 0) {
     throw new Error('No implement subagents available. Run "ai-factory subagent init" first.');

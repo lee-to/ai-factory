@@ -78,13 +78,13 @@ cat > local-ext/extension.json <<'JSON'
 JSON
 
 node "$CLI" extension add ./local-ext >/dev/null
-node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); const has=(c.subagents?.profiles||[]).some(p=>p.id==="ext-worker"); if(!has) process.exit(1); const ext=(c.extensions||[]).find(e=>e.name==="ext-subagent-test"); if(!ext||!ext.subagentProfileIds||ext.subagentProfileIds[0]!=="ext-worker") process.exit(1);'
+node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); const has=(c.subagents?.profiles||[]).some(p=>p.id==="ext-worker"); if(!has) process.exit(1); const ext=(c.extensions||[]).find(e=>e.name==="ext-subagent-test"); if(!ext||!ext.subagentProfileIds||ext.subagentProfileIds[0]!=="ext-worker") process.exit(1); const p=(c.subagents?.profiles||[]).find(p=>p.id==="ext-worker"); if(!p||p.role!=="planner-scout") process.exit(1);'
 
 node "$CLI" extension remove ext-subagent-test >/dev/null
 node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); const has=(c.subagents?.profiles||[]).some(p=>p.id==="ext-worker"); if(has) process.exit(1);'
 
 # profile ownership collision should restore user-owned profile on remove
-node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); c.subagents.profiles.push({id:"collision-worker",role:"reviewer",description:"user profile",maxContextChars:7000,outputFormat:"markdown",enabled:true}); fs.writeFileSync(".ai-factory.json", JSON.stringify(c,null,2));'
+node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); c.subagents.profiles.push({id:"collision-worker",role:"reviewer",description:"user profile",maxContextChars:7000,outputFormat:"markdown",enabled:true}); c.subagents.routing.plan=["collision-worker"]; c.subagents.routing.implement=["collision-worker"]; fs.writeFileSync(".ai-factory.json", JSON.stringify(c,null,2));'
 cat > local-ext/extension.json <<'JSON'
 {
   "name": "ext-subagent-test",
@@ -102,6 +102,6 @@ cat > local-ext/extension.json <<'JSON'
 JSON
 node "$CLI" extension add ./local-ext >/dev/null
 node "$CLI" extension remove ext-subagent-test >/dev/null
-node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); const p=(c.subagents?.profiles||[]).find(p=>p.id==="collision-worker"); if(!p||p.description!=="user profile") process.exit(1);'
+node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); const p=(c.subagents?.profiles||[]).find(p=>p.id==="collision-worker"); if(!p||p.description!=="user profile") process.exit(1); if(!c.subagents.routing.plan.includes("collision-worker")) process.exit(1); if(!c.subagents.routing.implement.includes("collision-worker")) process.exit(1);'
 
 echo "subagent tests passed"
