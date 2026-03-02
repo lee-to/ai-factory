@@ -105,11 +105,16 @@ function removeExtensionSubagentsFromConfig(
       } else {
         config.subagents.profiles.push(backup);
       }
+      restoredIds.add(profileId);
     }
   }
 
-  config.subagents.routing.plan = config.subagents.routing.plan.filter(id => !profileSet.has(id));
-  config.subagents.routing.implement = config.subagents.routing.implement.filter(id => !profileSet.has(id));
+  const removedOnlyIds = [...removedIds].filter(id => !restoredIds.has(id));
+  if (removedOnlyIds.length > 0) {
+    const removedSet = new Set(removedOnlyIds);
+    config.subagents.routing.plan = config.subagents.routing.plan.filter(id => !removedSet.has(id));
+    config.subagents.routing.implement = config.subagents.routing.implement.filter(id => !removedSet.has(id));
+  }
 
   if (config.subagents.profiles.length === 0) {
     config.subagents.enabled = false;
