@@ -222,6 +222,17 @@ For full contracts and state transition rules, see [Reflex Loop](loop.md).
 
 Reads past patches from `.ai-factory/patches/` to learn from previous mistakes, then executes tasks one by one with commit checkpoints. If the plan has `Docs: yes`, runs `/aif-docs` after completion.
 
+### `ai-factory subagent ...` — optional orchestration for Codex-style multi-worker flows
+
+```bash
+ai-factory subagent init
+ai-factory subagent run-plan "payments refactor impact"
+ai-factory subagent run-implement
+ai-factory subagent status
+```
+
+Optional CLI layer for teams that want the main orchestrator context to stay compact. `run-plan` performs focused scouting and returns condensed findings; `run-implement` assigns independent tasks from `.ai-factory/PLAN.md` to subagent profiles and stores per-run summaries in `.ai-factory/subagents/`.
+
 ### `/aif-verify [--strict]` — check completeness
 
 ```

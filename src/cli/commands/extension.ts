@@ -306,6 +306,7 @@ export async function extensionListCommand(): Promise<void> {
       if (manifest.injections?.length) features.push(`${manifest.injections.length} injection(s)`);
       if (manifest.skills?.length) features.push(`${manifest.skills.length} skill(s)`);
       if (manifest.mcpServers?.length) features.push(`${manifest.mcpServers.length} MCP server(s)`);
+      if (manifest.subagents?.length) features.push(`${manifest.subagents.length} subagent profile(s)`);
       if (features.length > 0) {
         console.log(chalk.dim(`    Provides: ${features.join(', ')}`));
       }

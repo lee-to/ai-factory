@@ -39,13 +39,53 @@
       "source": "https://github.com/user/aif-ext-example.git",
       "version": "1.0.0"
     }
-  ]
+  ],
+  "subagents": {
+    "enabled": true,
+    "mode": "full",
+    "maxParallelTasks": 3,
+    "profiles": [
+      {
+        "id": "planner-scout",
+        "role": "planner-scout",
+        "description": "Returns planning-relevant findings only",
+        "maxContextChars": 12000,
+        "outputFormat": "markdown",
+        "enabled": true
+      },
+      {
+        "id": "implementer-a",
+        "role": "implementer",
+        "description": "Executes independent tasks in isolated context",
+        "maxContextChars": 14000,
+        "outputFormat": "markdown",
+        "enabled": true
+      }
+    ],
+    "routing": {
+      "plan": ["planner-scout"],
+      "implement": ["implementer-a"]
+    }
+  }
 }
 ```
 
 The `agents` array can include any supported agent IDs: `claude`, `cursor`, `windsurf`, `roocode`, `kilocode`, `antigravity`, `opencode`, `warp`, `zencoder`, `codex`, `copilot`, `gemini`, `junie`, or `universal`. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences.
 
 The optional `extensions` array tracks installed extensions by name, original source, and version.
+
+The optional `subagents` block enables orchestration for focused plan scouting and parallel execution of independent implementation tasks. Runs are persisted under `.ai-factory/subagents/` as markdown artifacts and `runs.json` status snapshots.
+
+### Subagents Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | `boolean` | Enables/disables subagent orchestration. |
+| `mode` | `off \| plan-only \| implement-only \| full` | Which phases use subagents. |
+| `maxParallelTasks` | `number` | Max number of independent tasks scheduled in one implement orchestration pass. |
+| `profiles` | `array` | Subagent profiles (role, context cap, output format). |
+| `routing.plan` | `array<string>` | Profile IDs used for plan scouting. |
+| `routing.implement` | `array<string>` | Profile IDs used for implementation orchestration. |
 
 ## MCP Configuration
 

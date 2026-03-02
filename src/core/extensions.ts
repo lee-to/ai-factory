@@ -31,6 +31,14 @@ export interface ExtensionMcpServer {
   instruction?: string;
 }
 
+export interface ExtensionSubagentDef {
+  id: string;
+  role: string;
+  description?: string;
+  maxContextChars?: number;
+  outputFormat?: 'json' | 'markdown';
+}
+
 export interface ExtensionManifest {
   name: string;
   version: string;
@@ -41,6 +49,7 @@ export interface ExtensionManifest {
   skills?: string[];
   replaces?: Record<string, string>;
   mcpServers?: ExtensionMcpServer[];
+  subagents?: ExtensionSubagentDef[];
 }
 
 const EXTENSIONS_DIR = 'extensions';

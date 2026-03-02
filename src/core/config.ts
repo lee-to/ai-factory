@@ -32,6 +32,31 @@ export interface AiFactoryConfig {
   version: string;
   agents: AgentInstallation[];
   extensions?: ExtensionRecord[];
+  subagents?: SubagentsConfig;
+}
+
+export type SubagentMode = 'off' | 'plan-only' | 'implement-only' | 'full';
+
+export interface SubagentProfile {
+  id: string;
+  role: 'planner-scout' | 'implementer' | 'reviewer' | 'verifier' | 'custom';
+  description: string;
+  maxContextChars: number;
+  outputFormat: 'json' | 'markdown';
+  enabled: boolean;
+}
+
+export interface SubagentRouting {
+  plan: string[];
+  implement: string[];
+}
+
+export interface SubagentsConfig {
+  enabled: boolean;
+  mode: SubagentMode;
+  maxParallelTasks: number;
+  profiles: SubagentProfile[];
+  routing: SubagentRouting;
 }
 
 interface LegacyAiFactoryConfig {
@@ -40,6 +65,7 @@ interface LegacyAiFactoryConfig {
   skillsDir?: string;
   installedSkills?: string[];
   mcp?: Partial<McpConfig>;
+  subagents?: Partial<SubagentsConfig>;
 }
 
 const CONFIG_FILENAME = '.ai-factory.json';
@@ -56,6 +82,48 @@ function normalizeMcp(mcp?: Partial<McpConfig>): McpConfig {
     postgres: mcp?.postgres ?? false,
     chromeDevtools: mcp?.chromeDevtools ?? false,
     playwright: mcp?.playwright ?? false,
+  };
+}
+
+export function createDefaultSubagentsConfig(): SubagentsConfig {
+  return {
+    enabled: false,
+    mode: 'off',
+    maxParallelTasks: 3,
+    profiles: [],
+    routing: {
+      plan: [],
+      implement: [],
+    },
+  };
+}
+
+function normalizeSubagents(subagents?: Partial<SubagentsConfig>): SubagentsConfig {
+  const defaults = createDefaultSubagentsConfig();
+  const profiles = Array.isArray(subagents?.profiles)
+    ? subagents.profiles
+      .filter((profile): profile is SubagentProfile => {
+        return Boolean(profile?.id && profile?.role);
+      })
+      .map(profile => ({
+        id: profile.id,
+        role: profile.role,
+        description: profile.description ?? '',
+        maxContextChars: profile.maxContextChars ?? 12000,
+        outputFormat: profile.outputFormat ?? 'markdown',
+        enabled: profile.enabled ?? true,
+      }))
+    : defaults.profiles;
+
+  return {
+    enabled: subagents?.enabled ?? defaults.enabled,
+    mode: subagents?.mode ?? defaults.mode,
+    maxParallelTasks: subagents?.maxParallelTasks ?? defaults.maxParallelTasks,
+    profiles,
+    routing: {
+      plan: Array.isArray(subagents?.routing?.plan) ? subagents!.routing!.plan : defaults.routing.plan,
+      implement: Array.isArray(subagents?.routing?.implement) ? subagents!.routing!.implement : defaults.routing.implement,
+    },
   };
 }
 
@@ -91,6 +159,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
       version: raw.version ?? CURRENT_VERSION,
       agents: normalizedAgents,
       extensions: Array.isArray(raw.extensions) ? raw.extensions : [],
+      subagents: normalizeSubagents(raw.subagents),
     };
   }
 
@@ -99,6 +168,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
       version: raw.version ?? CURRENT_VERSION,
       agents: [createAgentInstallation(raw.agent, raw)],
       extensions: [],
+      subagents: normalizeSubagents(raw.subagents),
     };
   }
 
@@ -106,6 +176,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
     version: raw.version ?? CURRENT_VERSION,
     agents: [],
     extensions: [],
+    subagents: normalizeSubagents(raw.subagents),
   };
 }
 
