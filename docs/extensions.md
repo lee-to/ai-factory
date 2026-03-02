@@ -118,6 +118,15 @@ my-extension/
       "template": "./mcp/my-server.json",
       "instruction": "My Server: Set MY_API_KEY environment variable"
     }
+  ],
+  "subagents": [
+    {
+      "id": "my-planner-scout",
+      "role": "planner-scout",
+      "description": "Collects planning-relevant code insights",
+      "maxContextChars": 12000,
+      "outputFormat": "markdown"
+    }
   ]
 }
 ```
@@ -137,6 +146,7 @@ Only `name` and `version` are required. All other fields are optional.
 | `skills` | `array` | Paths to skill directories within the extension. |
 | `replaces` | `object` | Maps extension skill paths to base skill names they replace (e.g. `{"skills/my-commit": "aif-commit"}`). |
 | `mcpServers` | `array` | MCP server configurations to merge into agent settings. |
+| `subagents` | `array` | Subagent profile definitions consumable by orchestration-aware tooling. |
 
 ---
 

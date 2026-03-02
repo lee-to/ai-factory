@@ -82,6 +82,22 @@ ai-factory extension list
 
 # Remove extension
 ai-factory extension remove my-extension
+
+# Initialize built-in subagent profiles (planner + parallel implementers)
+ai-factory subagent init
+
+# List subagent routing and profiles
+ai-factory subagent list
+
+# Run plan scouting subagent for focused discovery
+ai-factory subagent run-plan "auth + billing impact"
+
+# Run implement orchestration for independent tasks in active plan
+# (supports .ai-factory/PLAN.md and .ai-factory/plans/<current-branch>.md)
+ai-factory subagent run-implement
+
+# Check recent subagent runs/artifacts
+ai-factory subagent status
 ```
 
 For v1 -> v2 migration, run both commands in order:

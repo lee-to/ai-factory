@@ -3,6 +3,13 @@ import { initCommand } from './commands/init.js';
 import { updateCommand } from './commands/update.js';
 import { upgradeCommand } from './commands/upgrade.js';
 import { extensionAddCommand, extensionRemoveCommand, extensionListCommand } from './commands/extension.js';
+import {
+  subagentInitCommand,
+  subagentListCommand,
+  subagentRunImplementCommand,
+  subagentRunPlanCommand,
+  subagentStatusCommand,
+} from './commands/subagent.js';
 import { getCurrentVersion, loadConfig } from '../core/config.js';
 import { loadAllExtensions } from '../core/extensions.js';
 
@@ -46,6 +53,35 @@ ext
   .command('list')
   .description('List installed extensions')
   .action(extensionListCommand);
+
+const subagent = program
+  .command('subagent')
+  .description('Manage subagent orchestration for plan and implement workflows');
+
+subagent
+  .command('init')
+  .description('Initialize default subagent profiles and routing')
+  .action(subagentInitCommand);
+
+subagent
+  .command('list')
+  .description('List current subagent profiles and routing configuration')
+  .action(subagentListCommand);
+
+subagent
+  .command('status')
+  .description('Show recent subagent runs and artifacts status')
+  .action(subagentStatusCommand);
+
+subagent
+  .command('run-plan <focus>')
+  .description('Run plan scouting subagent to return condensed planning data')
+  .action(subagentRunPlanCommand);
+
+subagent
+  .command('run-implement')
+  .description('Run implement orchestration for independent plan tasks')
+  .action(subagentRunImplementCommand);
 
 async function loadExtensionCommands(): Promise<void> {
   try {
