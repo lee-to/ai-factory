@@ -26,6 +26,7 @@ export interface ExtensionRecord {
   source: string;
   version: string;
   replacedSkills?: string[];
+  subagentProfileIds?: string[];
 }
 
 export interface AiFactoryConfig {

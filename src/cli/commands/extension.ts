@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import path from 'path';
-import { loadConfig, saveConfig } from '../../core/config.js';
+import { createDefaultSubagentsConfig, loadConfig, saveConfig } from '../../core/config.js';
 import {
   resolveExtension,
   commitExtensionInstall,
@@ -24,6 +24,64 @@ import {
   stripInjectionsForAllAgents,
   removeCustomSkillsForAllAgents,
 } from '../../core/extension-ops.js';
+
+function applyExtensionSubagentsToConfig(
+  config: NonNullable<Awaited<ReturnType<typeof loadConfig>>>,
+  manifest: ExtensionManifest,
+): string[] {
+  if (!manifest.subagents?.length) {
+    return [];
+  }
+
+  const subagents = config.subagents ?? createDefaultSubagentsConfig();
+  const installedIds: string[] = [];
+
+  for (const extProfile of manifest.subagents) {
+    const existingIndex = subagents.profiles.findIndex(profile => profile.id === extProfile.id);
+    const normalizedProfile = {
+      id: extProfile.id,
+      role: 'custom' as const,
+      description: extProfile.description ?? `Installed from extension profile ${extProfile.id}`,
+      maxContextChars: extProfile.maxContextChars ?? 12000,
+      outputFormat: extProfile.outputFormat ?? 'markdown',
+      enabled: true,
+    };
+
+    if (existingIndex >= 0) {
+      subagents.profiles[existingIndex] = normalizedProfile;
+    } else {
+      subagents.profiles.push(normalizedProfile);
+    }
+
+    installedIds.push(extProfile.id);
+  }
+
+  config.subagents = subagents;
+  return installedIds;
+}
+
+function removeExtensionSubagentsFromConfig(
+  config: NonNullable<Awaited<ReturnType<typeof loadConfig>>>,
+  profileIds: string[] | undefined,
+): string[] {
+  if (!profileIds?.length || !config.subagents) {
+    return [];
+  }
+
+  const profileSet = new Set(profileIds);
+  const beforeCount = config.subagents.profiles.length;
+  config.subagents.profiles = config.subagents.profiles.filter(profile => !profileSet.has(profile.id));
+
+  config.subagents.routing.plan = config.subagents.routing.plan.filter(id => !profileSet.has(id));
+  config.subagents.routing.implement = config.subagents.routing.implement.filter(id => !profileSet.has(id));
+
+  if (config.subagents.profiles.length === 0) {
+    config.subagents.enabled = false;
+    config.subagents.mode = 'off';
+  }
+
+  return beforeCount === config.subagents.profiles.length ? [] : profileIds;
+}
 
 export async function extensionAddCommand(source: string): Promise<void> {
   const projectDir = process.cwd();
@@ -73,6 +131,10 @@ export async function extensionAddCommand(source: string): Promise<void> {
       // Clean up old state on re-install
       if (existIdx >= 0) {
         await stripInjectionsForAllAgents(projectDir, config.agents, manifest.name);
+
+        if (oldRecord?.subagentProfileIds?.length) {
+          removeExtensionSubagentsFromConfig(config, oldRecord.subagentProfileIds);
+        }
 
         // Remove old replacement skills (installed under base names)
         if (oldRecord?.replacedSkills?.length) {
@@ -138,7 +200,14 @@ export async function extensionAddCommand(source: string): Promise<void> {
       }
 
       // Save config AFTER all installations succeed
-      const record = { name: manifest.name, source, version: manifest.version, replacedSkills: replacedSkills.length > 0 ? replacedSkills : undefined };
+      const subagentProfileIds = applyExtensionSubagentsToConfig(config, manifest);
+      const record = {
+        name: manifest.name,
+        source,
+        version: manifest.version,
+        replacedSkills: replacedSkills.length > 0 ? replacedSkills : undefined,
+        subagentProfileIds: subagentProfileIds.length > 0 ? subagentProfileIds : undefined,
+      };
       if (existIdx >= 0) {
         extensions[existIdx] = record;
       } else {
@@ -182,6 +251,9 @@ export async function extensionAddCommand(source: string): Promise<void> {
       }
       if (manifest.skills?.length) {
         console.log(chalk.dim(`  Skills provided: ${manifest.skills.join(', ')}`));
+      }
+      if (manifest.subagents?.length) {
+        console.log(chalk.dim(`  Subagent profiles provided: ${manifest.subagents.map(s => s.id).join(', ')}`));
       }
 
       console.log('');
@@ -239,6 +311,11 @@ export async function extensionRemoveCommand(name: string): Promise<void> {
           console.log(chalk.green(`✓ Skills removed for ${agentId}: ${skills.join(', ')}`));
         }
       }
+    }
+
+    const removedProfiles = removeExtensionSubagentsFromConfig(config, extRecord.subagentProfileIds);
+    if (removedProfiles.length > 0) {
+      console.log(chalk.green(`✓ Subagent profiles removed: ${removedProfiles.join(', ')}`));
     }
 
     // Restore base skills if no other extension replaces them

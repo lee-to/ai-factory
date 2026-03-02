@@ -148,6 +148,8 @@ Only `name` and `version` are required. All other fields are optional.
 | `mcpServers` | `array` | MCP server configurations to merge into agent settings. |
 | `subagents` | `array` | Subagent profile definitions consumable by orchestration-aware tooling. |
 
+When an extension with `subagents` is installed, those profiles are merged into `.ai-factory.json > subagents.profiles` and tracked on the extension record. On `ai-factory extension remove`, tracked profiles are removed from config (including routing references).
+
 ---
 
 ### Commands

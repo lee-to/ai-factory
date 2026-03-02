@@ -114,7 +114,12 @@ export async function runPlanScouting(
   }
 
   const runId = nowRunId();
-  const contextSources = ['.ai-factory/DESCRIPTION.md', '.ai-factory/ARCHITECTURE.md', '.ai-factory/PLAN.md'];
+  const resolvedPlanPath = await resolvePlanFile(projectDir);
+  const contextSources = [
+    '.ai-factory/DESCRIPTION.md',
+    '.ai-factory/ARCHITECTURE.md',
+    resolvedPlanPath ? path.relative(projectDir, resolvedPlanPath) : '.ai-factory/PLAN.md',
+  ];
   const summary = [
     `Profile: ${profile.id} (${profile.role})`,
     `Focus: ${focus}`,
@@ -154,7 +159,7 @@ export async function runImplementOrchestration(
   const tasks = parsePlanTasks(planContent);
 
   if (tasks.length === 0) {
-    throw new Error('No tasks found in PLAN.md (expected checkbox or numbered tasks).');
+    throw new Error('No tasks found in active plan (expected checkbox or numbered tasks).');
   }
 
   const implementerIds = config.routing.implement.length > 0
