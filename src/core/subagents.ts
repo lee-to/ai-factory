@@ -25,8 +25,11 @@ interface PlanTask {
 
 const SUBAGENT_DIR = path.join('.ai-factory', 'subagents');
 
+let runSequence = 0;
+
 function nowRunId(): string {
-  return new Date().toISOString().replace(/[:.]/g, '-');
+  runSequence = (runSequence + 1) % 10000;
+  return `${new Date().toISOString().replace(/[:.]/g, '-')}-${runSequence}`;
 }
 
 function parsePlanTasks(content: string): PlanTask[] {
@@ -41,7 +44,7 @@ function parsePlanTasks(content: string): PlanTask[] {
 
     if (!plainTask) continue;
 
-    const depMatch = plainTask.match(/deps?:\s*([^|]+)/i);
+    const depMatch = plainTask.match(/(?:deps?|depends\s+on):\s*([^|]+)/i);
     const dependencies = depMatch
       ? depMatch[1]
         .split(',')
@@ -59,8 +62,33 @@ function parsePlanTasks(content: string): PlanTask[] {
   return tasks;
 }
 
-function pickPlanFile(projectDir: string): string {
-  return path.join(projectDir, '.ai-factory', 'PLAN.md');
+async function resolvePlanFile(projectDir: string): Promise<string | null> {
+  const fastPlan = path.join(projectDir, '.ai-factory', 'PLAN.md');
+  if (await fileExists(fastPlan)) {
+    return fastPlan;
+  }
+
+  const gitHead = await readTextFile(path.join(projectDir, '.git', 'HEAD'));
+  if (!gitHead) {
+    return null;
+  }
+
+  const branchRefMatch = gitHead.match(/^ref:\s+refs\/heads\/(.+)$/m);
+  if (!branchRefMatch) {
+    return null;
+  }
+
+  const branchName = branchRefMatch[1].trim();
+  if (!branchName) {
+    return null;
+  }
+
+  const branchPlan = path.join(projectDir, '.ai-factory', 'plans', `${branchName}.md`);
+  if (await fileExists(branchPlan)) {
+    return branchPlan;
+  }
+
+  return null;
 }
 
 function pickProfile(config: SubagentsConfig, id?: string): SubagentProfile | null {
@@ -76,6 +104,10 @@ export async function runPlanScouting(
   focus: string,
   profileId?: string,
 ): Promise<SubagentRunResult> {
+  if (!config.enabled || config.mode === 'off' || config.mode === 'implement-only') {
+    throw new Error('Subagent plan scouting is disabled by configuration mode.');
+  }
+
   const profile = pickProfile(config, profileId);
   if (!profile) {
     throw new Error('No enabled subagent profile found. Run "ai-factory subagent init" first.');
@@ -108,12 +140,17 @@ export async function runImplementOrchestration(
   projectDir: string,
   config: SubagentsConfig,
 ): Promise<SubagentRunResult[]> {
-  const planPath = pickPlanFile(projectDir);
-  if (!(await fileExists(planPath))) {
-    throw new Error('PLAN.md not found in .ai-factory/. Create a plan before running implement orchestration.');
+  if (!config.enabled || config.mode === 'off' || config.mode === 'plan-only') {
+    throw new Error('Subagent implement orchestration is disabled by configuration mode.');
+  }
+
+  const planPath = await resolvePlanFile(projectDir);
+  if (!planPath) {
+    throw new Error('No plan file found (.ai-factory/PLAN.md or .ai-factory/plans/<current-branch>.md).');
   }
 
   const planContent = (await readTextFile(planPath)) ?? '';
+  const relativePlanPath = path.relative(projectDir, planPath) || '.ai-factory/PLAN.md';
   const tasks = parsePlanTasks(planContent);
 
   if (tasks.length === 0) {
@@ -153,7 +190,7 @@ export async function runImplementOrchestration(
         'Task executed in isolated subagent context.',
         'Returned compact task summary for orchestrator merge.',
       ].join('\n'),
-      contextSources: ['.ai-factory/PLAN.md', '.ai-factory/DESCRIPTION.md', '.ai-factory/ARCHITECTURE.md'],
+      contextSources: [relativePlanPath, '.ai-factory/DESCRIPTION.md', '.ai-factory/ARCHITECTURE.md'],
     };
 
     await persistRun(projectDir, result);

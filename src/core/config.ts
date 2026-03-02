@@ -37,6 +37,8 @@ export interface AiFactoryConfig {
 
 export type SubagentMode = 'off' | 'plan-only' | 'implement-only' | 'full';
 
+const SUBAGENT_MODES: Set<SubagentMode> = new Set(['off', 'plan-only', 'implement-only', 'full']);
+
 export interface SubagentProfile {
   id: string;
   role: 'planner-scout' | 'implementer' | 'reviewer' | 'verifier' | 'custom';
@@ -115,10 +117,17 @@ function normalizeSubagents(subagents?: Partial<SubagentsConfig>): SubagentsConf
       }))
     : defaults.profiles;
 
+  const mode = (typeof subagents?.mode === 'string' && SUBAGENT_MODES.has(subagents.mode as SubagentMode))
+    ? subagents.mode as SubagentMode
+    : defaults.mode;
+  const maxParallelTasks = Number.isFinite(subagents?.maxParallelTasks)
+    ? Math.max(1, Math.floor(subagents?.maxParallelTasks as number))
+    : defaults.maxParallelTasks;
+
   return {
     enabled: subagents?.enabled ?? defaults.enabled,
-    mode: subagents?.mode ?? defaults.mode,
-    maxParallelTasks: subagents?.maxParallelTasks ?? defaults.maxParallelTasks,
+    mode,
+    maxParallelTasks,
     profiles,
     routing: {
       plan: Array.isArray(subagents?.routing?.plan) ? subagents!.routing!.plan : defaults.routing.plan,

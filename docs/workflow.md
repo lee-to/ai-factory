@@ -231,7 +231,7 @@ ai-factory subagent run-implement
 ai-factory subagent status
 ```
 
-Optional CLI layer for teams that want the main orchestrator context to stay compact. `run-plan` performs focused scouting and returns condensed findings; `run-implement` assigns independent tasks from `.ai-factory/PLAN.md` to subagent profiles and stores per-run summaries in `.ai-factory/subagents/`.
+Optional CLI layer for teams that want the main orchestrator context to stay compact. `run-plan` performs focused scouting and returns condensed findings; `run-implement` assigns independent tasks from the active plan (`.ai-factory/PLAN.md` or `.ai-factory/plans/<current-branch>.md`) to subagent profiles and stores per-run summaries in `.ai-factory/subagents/`.
 
 ### `/aif-verify [--strict]` — check completeness
 

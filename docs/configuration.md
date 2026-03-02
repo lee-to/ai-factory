@@ -81,7 +81,7 @@ The optional `subagents` block enables orchestration for focused plan scouting a
 | Field | Type | Description |
 |-------|------|-------------|
 | `enabled` | `boolean` | Enables/disables subagent orchestration. |
-| `mode` | `off \| plan-only \| implement-only \| full` | Which phases use subagents. |
+| `mode` | `off \| plan-only \| implement-only \| full` | Which phases use subagents (`run-plan` requires `plan-only/full`, `run-implement` requires `implement-only/full`). |
 | `maxParallelTasks` | `number` | Max number of independent tasks scheduled in one implement orchestration pass. |
 | `profiles` | `array` | Subagent profiles (role, context cap, output format). |
 | `routing.plan` | `array<string>` | Profile IDs used for plan scouting. |

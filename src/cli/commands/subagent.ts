@@ -133,11 +133,16 @@ export async function subagentRunPlanCommand(focus: string): Promise<void> {
 
   const subagents = config.subagents ?? createDefaultSubagentsConfig();
   const profileId = subagents.routing.plan[0];
-  const result = await runPlanScouting(projectDir, subagents, focus, profileId);
 
-  console.log(chalk.green(`✓ Plan scouting completed by ${result.profileId}`));
-  console.log(chalk.dim(`  Run ID: ${result.runId}`));
-  console.log(chalk.dim(`  Task: ${result.task}`));
+  try {
+    const result = await runPlanScouting(projectDir, subagents, focus, profileId);
+    console.log(chalk.green(`✓ Plan scouting completed by ${result.profileId}`));
+    console.log(chalk.dim(`  Run ID: ${result.runId}`));
+    console.log(chalk.dim(`  Task: ${result.task}`));
+  } catch (error) {
+    console.log(chalk.red(`Error: ${(error as Error).message}`));
+    process.exit(1);
+  }
 }
 
 export async function subagentRunImplementCommand(): Promise<void> {
@@ -149,9 +154,15 @@ export async function subagentRunImplementCommand(): Promise<void> {
   }
 
   const subagents = config.subagents ?? createDefaultSubagentsConfig();
-  const results = await runImplementOrchestration(projectDir, subagents);
-  console.log(chalk.green(`✓ Implement orchestration completed (${results.length} task(s))`));
-  for (const run of results) {
-    console.log(chalk.dim(`  ${run.profileId} -> ${run.task}`));
+
+  try {
+    const results = await runImplementOrchestration(projectDir, subagents);
+    console.log(chalk.green(`✓ Implement orchestration completed (${results.length} task(s))`));
+    for (const run of results) {
+      console.log(chalk.dim(`  ${run.profileId} -> ${run.task}`));
+    }
+  } catch (error) {
+    console.log(chalk.red(`Error: ${(error as Error).message}`));
+    process.exit(1);
   }
 }

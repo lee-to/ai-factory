@@ -92,7 +92,8 @@ ai-factory subagent list
 # Run plan scouting subagent for focused discovery
 ai-factory subagent run-plan "auth + billing impact"
 
-# Run implement orchestration for independent tasks in .ai-factory/PLAN.md
+# Run implement orchestration for independent tasks in active plan
+# (supports .ai-factory/PLAN.md and .ai-factory/plans/<current-branch>.md)
 ai-factory subagent run-implement
 
 # Check recent subagent runs/artifacts
