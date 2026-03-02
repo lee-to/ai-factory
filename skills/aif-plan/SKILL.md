@@ -34,11 +34,31 @@ Use this context when:
 - Planning file structure (follow project conventions)
 - **Follow architecture guidelines from `.ai-factory/ARCHITECTURE.md` when planning file structure and task organization**
 
+**Read `.ai-factory/skill-context/aif-plan/SKILL.md`** — MANDATORY if the file exists.
+
+This file contains project-specific rules accumulated by `/aif-evolve` from patches,
+codebase conventions, and tech-stack analysis. These rules are tailored to the current project.
+
+**How to apply skill-context rules:**
+- Treat them as **project-level overrides** for this skill's general instructions
+- When a skill-context rule conflicts with a general rule written in this SKILL.md,
+  **the skill-context rule wins** (more specific context takes priority — same principle as nested CLAUDE.md files)
+- When there is no conflict, apply both: general rules from SKILL.md + project rules from skill-context
+- Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
+  they exist because the project's experience proved the default insufficient
+- **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including the PLAN.md
+  template and task format. The plan template from TASK-FORMAT.md is a **base structure**. If a
+  skill-context rule says "tasks MUST include X" or "plan MUST have section Y" — you MUST augment
+  the template accordingly. Generating a plan that violates skill-context rules is a bug.
+
+**Enforcement:** After generating any output artifact, verify it against all skill-context rules.
+If any rule is violated — fix the output before presenting it to the user.
+
 **OPTIONAL (recommended):** Read `.ai-factory/RESEARCH.md` if it exists:
 - Treat `## Active Summary (input for /aif-plan)` as an additional requirements source
 - Carry over constraints/decisions into tasks and plan settings
 - Prefer the summary over raw notes; use `## Sessions` only when you need deeper rationale
- - If the user omitted the feature description, use `Active Summary -> Topic:` as the default description
+- If the user omitted the feature description, use `Active Summary -> Topic:` as the default description
 
 ### Step 0.1: Ensure Git Repository
 

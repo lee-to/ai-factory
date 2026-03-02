@@ -38,6 +38,27 @@ Read .ai-factory/DESCRIPTION.md
 
 Store project context for later steps. If absent, Step 2 detects everything.
 
+**Read `.ai-factory/skill-context/aif-dockerize/SKILL.md`** — MANDATORY if the file exists.
+
+This file contains project-specific rules accumulated by `/aif-evolve` from patches,
+codebase conventions, and tech-stack analysis. These rules are tailored to the current project.
+
+**How to apply skill-context rules:**
+- Treat them as **project-level overrides** for this skill's general instructions
+- When a skill-context rule conflicts with a general rule written in this SKILL.md,
+  **the skill-context rule wins** (more specific context takes priority — same principle as nested CLAUDE.md files)
+- When there is no conflict, apply both: general rules from SKILL.md + project rules from skill-context
+- Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
+  they exist because the project's experience proved the default insufficient
+- **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including Dockerfile,
+  compose files, .dockerignore, and deploy scripts. Templates in this skill are **base structures**.
+  If a skill-context rule says "Dockerfile MUST include X" or "compose MUST have service Y" —
+  you MUST augment the templates accordingly. Generating Docker config that violates skill-context
+  rules is a bug.
+
+**Enforcement:** After generating any output artifact, verify it against all skill-context rules.
+If any rule is violated — fix the output before presenting it to the user.
+
 ---
 
 ## Step 1: Detect Existing Docker Files & Determine Mode

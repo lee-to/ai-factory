@@ -144,6 +144,7 @@ AI Factory can generate and maintain your project docs with a single command:
 | [Development Workflow](docs/workflow.md) | Workflow diagram, when to use what, spec-driven approach |
 | [Reflex Loop](docs/loop.md) | Iterative generate → evaluate → critique → refine workflow |
 | [Core Skills](docs/skills.md) | All slash commands — explore, plan, fix, implement, evolve, docs, and more |
+| [Skill Evolution](docs/evolve.md) | How /aif-fix patches feed into /aif-evolve to generate smarter skill rules |
 | [Plan Files](docs/plan-files.md) | Plan files, self-improvement patches, skill acquisition |
 | [Security](docs/security.md) | Two-level security scanning for external skills |
 | [Extensions](docs/extensions.md) | Writing and installing extensions — commands, injections, MCP, agents |

@@ -12,6 +12,26 @@ Universal code quality guidelines applicable to any language or framework.
 
 **Context:** If `.ai-factory/ARCHITECTURE.md` exists, follow its folder structure, dependency rules, and module boundaries alongside these guidelines.
 
+**Read `.ai-factory/skill-context/aif-best-practices/SKILL.md`** — MANDATORY if the file exists.
+
+This file contains project-specific rules accumulated by `/aif-evolve` from patches,
+codebase conventions, and tech-stack analysis. These rules are tailored to the current project.
+
+**How to apply skill-context rules:**
+- Treat them as **project-level overrides** for this skill's general instructions
+- When a skill-context rule conflicts with a general rule written in this SKILL.md,
+  **the skill-context rule wins** (more specific context takes priority — same principle as nested CLAUDE.md files)
+- When there is no conflict, apply both: general rules from SKILL.md + project rules from skill-context
+- Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
+  they exist because the project's experience proved the default insufficient
+- **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including the
+  recommendations, examples, and checklists you present. If a skill-context rule says "best practices
+  MUST prioritize X" or "examples MUST follow convention Y" — you MUST comply. Presenting guidance
+  that contradicts skill-context rules is a bug.
+
+**Enforcement:** After generating any output artifact, verify it against all skill-context rules.
+If any rule is violated — fix the output before presenting it to the user.
+
 ## Quick Reference
 
 - `/aif-best-practices` — Full overview

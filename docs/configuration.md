@@ -152,6 +152,11 @@ your-project/
 │   │       └── extension.json
 │   ├── plans/                 # Plans from /aif-plan full
 │   │   └── <branch-name>.md
+│   ├── skill-context/         # Project-specific rules for built-in skills (from /aif-evolve)
+│   │   ├── aif-fix/
+│   │   │   └── SKILL.md
+│   │   └── aif-review/
+│   │       └── SKILL.md
 │   ├── patches/               # Self-improvement patches (from /aif-fix)
 │   │   └── 2026-02-07-14.30.md
 │   ├── evolutions/            # Evolution logs (from /aif-evolve)

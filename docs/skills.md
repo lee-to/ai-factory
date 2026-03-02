@@ -1,4 +1,4 @@
-[← Development Workflow](workflow.md) · [Back to README](../README.md) · [Plan Files →](plan-files.md)
+[← Development Workflow](workflow.md) · [Back to README](../README.md) · [Skill Evolution →](evolve.md)
 
 # Core Skills
 

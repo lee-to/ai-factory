@@ -1,4 +1,4 @@
-[← Core Skills](skills.md) · [Back to README](../README.md) · [Security →](security.md)
+[← Skill Evolution](evolve.md) · [Back to README](../README.md) · [Security →](security.md)
 
 # Plan Files
 
