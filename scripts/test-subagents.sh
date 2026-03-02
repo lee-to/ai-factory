@@ -29,6 +29,22 @@ cat > .ai-factory/PLAN.md <<'MD'
 MD
 node "$CLI" subagent run-plan "auth impact" >/dev/null
 node "$CLI" subagent run-implement >/dev/null
+
+# completed tasks ([x]) must not be scheduled
+cat > .ai-factory/PLAN.md <<'MD'
+- [x] Done task
+- [ ] Pending task
+MD
+node "$CLI" subagent run-implement >/dev/null
+node -e 'const fs=require("fs"); const runs=JSON.parse(fs.readFileSync(".ai-factory/subagents/runs.json","utf8")).runs; if(runs[0].task.includes("Done task")) process.exit(1);'
+
+# routed disabled profile must not execute
+node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); c.subagents.routing.implement=["implementer-a"]; const p=c.subagents.profiles.find(p=>p.id==="implementer-a"); p.enabled=false; fs.writeFileSync(".ai-factory.json", JSON.stringify(c,null,2));'
+if node "$CLI" subagent run-implement >/dev/null 2>&1; then
+  echo "expected run-implement to fail for disabled routed profile"
+  exit 1
+fi
+node "$CLI" subagent init >/dev/null
 node "$CLI" subagent status >/dev/null
 
 # implement should also work when only branch plan exists
@@ -66,5 +82,26 @@ node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(".ai-factory.
 
 node "$CLI" extension remove ext-subagent-test >/dev/null
 node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); const has=(c.subagents?.profiles||[]).some(p=>p.id==="ext-worker"); if(has) process.exit(1);'
+
+# profile ownership collision should restore user-owned profile on remove
+node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); c.subagents.profiles.push({id:"collision-worker",role:"reviewer",description:"user profile",maxContextChars:7000,outputFormat:"markdown",enabled:true}); fs.writeFileSync(".ai-factory.json", JSON.stringify(c,null,2));'
+cat > local-ext/extension.json <<'JSON'
+{
+  "name": "ext-subagent-test",
+  "version": "1.1.0",
+  "subagents": [
+    {
+      "id": "collision-worker",
+      "role": "implementer",
+      "description": "extension collision profile",
+      "maxContextChars": 9000,
+      "outputFormat": "markdown"
+    }
+  ]
+}
+JSON
+node "$CLI" extension add ./local-ext >/dev/null
+node "$CLI" extension remove ext-subagent-test >/dev/null
+node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync(".ai-factory.json","utf8")); const p=(c.subagents?.profiles||[]).find(p=>p.id==="collision-worker"); if(!p||p.description!=="user profile") process.exit(1);'
 
 echo "subagent tests passed"

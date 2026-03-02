@@ -5,7 +5,6 @@ description: >-
   nothing was forgotten, code compiles, tests pass, and quality standards are met.
   Use after "/aif-implement" completes, or when user says "verify", "check work", "did we miss anything".
 argument-hint: "[--strict]"
-allowed-tools: Read Edit Glob Grep Bash(git *) Bash(npm *) Bash(npx *) Bash(yarn *) Bash(pnpm *) Bash(bun *) Bash(go *) Bash(python *) Bash(php *) Bash(composer *) Bash(cargo *) Bash(make *) Bash(task *) Bash(just *) Bash(mage *) TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 metadata:
   author: AI Factory
@@ -136,7 +135,6 @@ If the project has tests and they were part of the plan:
 | `jest.config.*` or `vitest` | `npm test` |
 | `pytest` | `pytest` |
 | `go test` | `go test ./...` |
-| `phpunit.xml*` | `./vendor/bin/phpunit` |
 | `Cargo.toml` | `cargo test` |
 
 If tests fail → report which tests failed and whether they relate to the implemented tasks.
@@ -152,7 +150,6 @@ If linters are configured:
 | `eslint.config.*` / `.eslintrc*` | `npx eslint [changed files]` |
 | `.golangci.yml` | `golangci-lint run ./...` |
 | `ruff` in pyproject.toml | `ruff check [changed files]` |
-| `.php-cs-fixer*` | `./vendor/bin/php-cs-fixer fix --dry-run --diff` |
 
 Only lint the changed files to keep output focused.
 

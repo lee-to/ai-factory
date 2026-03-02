@@ -21,6 +21,7 @@ interface PlanTask {
   id: string;
   title: string;
   dependencies: string[];
+  completed: boolean;
 }
 
 const SUBAGENT_DIR = path.join('.ai-factory', 'subagents');
@@ -56,6 +57,7 @@ function parsePlanTasks(content: string): PlanTask[] {
       id: `T${index++}`,
       title: plainTask.trim(),
       dependencies,
+      completed: checkboxMatch ? checkboxMatch[1].toLowerCase() === 'x' : false,
     });
   }
 
@@ -93,7 +95,7 @@ async function resolvePlanFile(projectDir: string): Promise<string | null> {
 
 function pickProfile(config: SubagentsConfig, id?: string): SubagentProfile | null {
   if (id) {
-    return config.profiles.find(profile => profile.id === id) ?? null;
+    return config.profiles.find(profile => profile.id === id && profile.enabled) ?? null;
   }
   return config.profiles.find(profile => profile.enabled) ?? null;
 }
@@ -162,16 +164,25 @@ export async function runImplementOrchestration(
     throw new Error('No tasks found in active plan (expected checkbox or numbered tasks).');
   }
 
-  const implementerIds = config.routing.implement.length > 0
-    ? config.routing.implement
-    : config.profiles.filter(p => p.enabled).map(p => p.id);
+  const routedImplementers = config.routing.implement
+    .map(id => pickProfile(config, id))
+    .filter((profile): profile is SubagentProfile => Boolean(profile));
 
-  if (implementerIds.length === 0) {
+  const implementerProfiles = config.routing.implement.length > 0
+    ? routedImplementers
+    : config.profiles.filter(p => p.enabled);
+
+  if (implementerProfiles.length === 0) {
     throw new Error('No implement subagents available. Run "ai-factory subagent init" first.');
   }
 
-  const independentTasks = tasks.filter(task => task.dependencies.length === 0);
-  const scheduledTasks = independentTasks.length > 0 ? independentTasks : tasks;
+  const pendingTasks = tasks.filter(task => !task.completed);
+  if (pendingTasks.length === 0) {
+    throw new Error('No pending tasks found in active plan (all tasks are completed).');
+  }
+
+  const independentTasks = pendingTasks.filter(task => task.dependencies.length === 0);
+  const scheduledTasks = independentTasks.length > 0 ? independentTasks : pendingTasks;
   const results: SubagentRunResult[] = [];
 
   const limit = Math.max(1, config.maxParallelTasks || 1);
@@ -179,9 +190,7 @@ export async function runImplementOrchestration(
 
   for (let i = 0; i < selectedTasks.length; i++) {
     const task = selectedTasks[i];
-    const profileId = implementerIds[i % implementerIds.length];
-    const profile = pickProfile(config, profileId);
-    if (!profile) continue;
+    const profile = implementerProfiles[i % implementerProfiles.length];
 
     const runId = nowRunId();
     const result: SubagentRunResult = {

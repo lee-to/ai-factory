@@ -41,7 +41,6 @@ permissions:
 
 | Language | Setup Action | Cache Option |
 |----------|-------------|--------------|
-| PHP | `shivammathur/setup-php@v2` | `tools:` installs from cache |
 | Node.js | `actions/setup-node@v4` | `cache: npm\|pnpm\|yarn` |
 | Python | `actions/setup-python@v5` | `cache: pip` |
 | Python (uv) | `astral-sh/setup-uv@v5` | `enable-cache: true` |
@@ -73,7 +72,6 @@ Rules:
 strategy:
   fail-fast: false          # Don't cancel siblings on first failure
   matrix:
-    php-version: ['8.2', '8.3', '8.4']
 ```
 
 Rules:
@@ -233,7 +231,6 @@ test:
 **Code quality report format** (Code Climate JSON):
 
 Tools that support GitLab format natively:
-- PHPStan: `--error-format=gitlab`
 - golangci-lint: `--out-format code-climate`
 - Ruff: `--output-format=gitlab`
 - ESLint: requires `eslint-formatter-gitlab` or JSON + converter
@@ -243,11 +240,8 @@ Tools that support GitLab format natively:
 Use YAML anchors or `extends:` for shared configuration:
 
 ```yaml
-.php-setup:
-  image: php:8.3-cli
   before_script:
     - apt-get update && apt-get install -y git unzip
-    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
     - composer install --no-interaction --prefer-dist
   cache:
     - key:
@@ -257,38 +251,23 @@ Use YAML anchors or `extends:` for shared configuration:
         - vendor/
       policy: pull
 
-phpstan:
-  extends: .php-setup
   stage: lint
   script:
-    - vendor/bin/phpstan analyse
 ```
 
 ---
 
 ## 3. Per-Language Conventions
 
-### 3.1 PHP
 
-**Mandatory CI tools for PHP projects:**
 
-1. **Tests** (PHPUnit or Pest) — always
-2. **Static analysis** (PHPStan or Psalm) — always if config exists
-3. **Code style** (PHP-CS-Fixer, Pint, or PHPCS) — always if config exists
-4. **Rector** — if `rector.php` exists
 5. **Composer audit** — recommended
 
-**PHP-specific CI patterns:**
 
-- Use `shivammathur/setup-php@v2` for GitHub Actions (supports extensions, tools, coverage drivers)
 - Set `coverage: xdebug` or `coverage: pcov` (pcov is faster) for coverage
 - Set `coverage: none` on lint/SA jobs for faster setup
-- Use `--memory-limit=512M` on PHPStan to avoid OOM
 - For Pest: use `--ci` flag for CI-friendly output
 
-**PHP version matrix:**
-- Include all versions from `composer.json` `require.php` constraint
-- Example: `"php": ">=8.2"` -> test on `['8.2', '8.3', '8.4']`
 
 ### 3.2 Python
 
@@ -420,7 +399,6 @@ Before writing the pipeline, verify:
 
 | Language | Setup Action | Cache Key File | Cache Path |
 |----------|-------------|----------------|------------|
-| PHP | `shivammathur/setup-php@v2` | `composer.lock` | `~/.composer/cache` |
 | Node.js | `actions/setup-node@v4` | `package-lock.json` | `~/.npm` |
 | Python (pip) | `actions/setup-python@v5` | `requirements*.txt` | `~/.cache/pip` |
 | Python (uv) | `astral-sh/setup-uv@v5` | `uv.lock` | `~/.cache/uv` |
@@ -433,7 +411,6 @@ Before writing the pipeline, verify:
 
 | Language | Image | Cache Key File | Cache Path |
 |----------|-------|----------------|------------|
-| PHP | `php:<ver>-cli` | `composer.lock` | `vendor/`, `.composer/cache/` |
 | Node.js | `node:<ver>-slim` | `package-lock.json` | `node_modules/`, `.npm/` |
 | Python | `python:<ver>-slim` | `uv.lock` / `requirements.txt` | `.venv/`, `.uv-cache/` |
 | Go | `golang:<ver>` | `go.sum` | `.go/pkg/mod/` |

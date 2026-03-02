@@ -98,7 +98,6 @@ Check $ARGUMENTS:
 
 Read these files (if they exist):
 - `package.json` → Node.js dependencies
-- `composer.json` → PHP (Laravel, Symfony)
 - `requirements.txt` / `pyproject.toml` → Python
 - `go.mod` → Go
 - `Cargo.toml` → Rust

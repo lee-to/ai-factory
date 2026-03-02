@@ -38,10 +38,8 @@ default:
 6. **Hidden jobs**: Use `.setup` anchors for shared `before_script` and cache config
 7. **Coverage regex**: Add `coverage:` regex for test jobs
 
-## PHP-Specific GitLab Patterns
 
 ```yaml
-image: php:8.3-cli
 
 variables:
   COMPOSER_HOME: $CI_PROJECT_DIR/.composer
@@ -49,17 +47,14 @@ variables:
 .composer-setup:
   before_script:
     - apt-get update && apt-get install -y git unzip
-    - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 ```
 
 ## Report Formats for GitLab Integration
 
 | Tool | Flag | Report Type |
 |------|------|-------------|
-| PHPStan | `--error-format=gitlab` | `codequality` |
 | ESLint | `--format json` | `codequality` |
 | Ruff | `--output-format=gitlab` | `codequality` |
 | golangci-lint | `--out-format code-climate` | `codequality` |
-| PHPUnit | `--log-junit report.xml` | `junit` |
 | Jest | `--reporters=jest-junit` | `junit` |
 | pytest | `--junitxml=report.xml` | `junit` |

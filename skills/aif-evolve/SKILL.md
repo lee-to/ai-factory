@@ -53,7 +53,6 @@ Group patches by tags and categories. Identify:
 **1.3: Read codebase conventions**
 
 Scan the project for patterns:
-- Linter configs (`.eslintrc`, `phpstan.neon`, `ruff.toml`, etc.)
 - Existing test patterns (test file structure, assertions used)
 - Error handling patterns (try/catch style, error types)
 - Logging patterns (logger used, format, levels)

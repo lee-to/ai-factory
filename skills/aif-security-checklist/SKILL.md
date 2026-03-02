@@ -138,7 +138,6 @@ This checks:
 - [ ] Breach detection (HaveIBeenPwned API)
 ```
 
-For implementation patterns (argon2, bcrypt, PHP, Laravel) → read `references/AUTH-PATTERNS.md`
 
 ### Session Management
 ```
@@ -214,10 +213,6 @@ const username = z.string().parse(req.body.username);
 // ✅ If HTML needed: DOMPurify.sanitize(userInput)
 ```
 
-```php
-// ❌ VULNERABLE: <?= $userInput ?> / {!! $userInput !!}
-// ✅ SAFE: {{ $userInput }} (Blade) / htmlspecialchars($input, ENT_QUOTES, 'UTF-8')
-```
 
 ### Content Security Policy
 

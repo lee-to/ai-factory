@@ -27,6 +27,7 @@ export interface ExtensionRecord {
   version: string;
   replacedSkills?: string[];
   subagentProfileIds?: string[];
+  subagentProfileBackups?: Record<string, SubagentProfile | null>;
 }
 
 export interface AiFactoryConfig {
@@ -47,6 +48,7 @@ export interface SubagentProfile {
   maxContextChars: number;
   outputFormat: 'json' | 'markdown';
   enabled: boolean;
+  sourceExtension?: string;
 }
 
 export interface SubagentRouting {
@@ -115,6 +117,7 @@ function normalizeSubagents(subagents?: Partial<SubagentsConfig>): SubagentsConf
         maxContextChars: profile.maxContextChars ?? 12000,
         outputFormat: profile.outputFormat ?? 'markdown',
         enabled: profile.enabled ?? true,
+        sourceExtension: profile.sourceExtension,
       }))
     : defaults.profiles;
 

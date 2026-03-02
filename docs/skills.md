@@ -251,7 +251,6 @@ Generates, enhances, or audits Docker configuration for your project:
 
 **Generated file structure:**
 - Root: `Dockerfile`, `compose.yml`, `compose.override.yml`, `compose.production.yml`, `.dockerignore`, `.env.example` — only files Docker expects by convention
-- `docker/` — service configs (angie/, postgres/, php/, redis/) — only directories that are needed
 - `deploy/scripts/` — 6 production ops scripts: deploy, update, logs, health-check, rollback, backup (with tiered retention)
 
 **Interactive setup** — when generating from scratch, asks about infrastructure: database (PostgreSQL, MySQL, MongoDB), reverse proxy (Angie preferred over Nginx, Traefik), cache (Redis, Memcached), queue (RabbitMQ).
@@ -266,7 +265,6 @@ Generates, enhances, or audits Docker configuration for your project:
 
 After completion, suggests `/aif-build-automation` and `/aif-docs`.
 
-Supports Go, Node.js, Python, and PHP with framework-specific configurations.
 
 ### `/aif-build-automation [makefile|taskfile|justfile|mage]`
 Generates or enhances build automation files:
@@ -293,7 +291,6 @@ Generates or enhances build automation files:
 - Suggests creating `AGENTS.md` with build commands for AI agents
 - Finds and updates any markdown files that already list project commands
 
-Supports Go, Node.js, Python, and PHP with framework-specific targets (Laravel artisan, Next.js, FastAPI, etc.).
 
 ### `/aif-ci [github|gitlab] [--enhance]`
 Generates, enhances, or audits CI/CD pipeline configuration:
@@ -310,13 +307,11 @@ Generates, enhances, or audits CI/CD pipeline configuration:
 3. **Audit** — full CI setup exists → audits against best practices, reports issues, fixes gaps
 
 **One workflow per concern** — separate files, not a monolith:
-- `lint.yml` — code-style, static analysis, rector (PHPStan, ESLint, Clippy, golangci-lint)
 - `tests.yml` — test suite with optional matrix builds and service containers
 - `build.yml` — compilation/bundling verification
 - `security.yml` — dependency audit + dependency review (composer audit, govulncheck, cargo deny)
 
 **Per-language tools detected automatically:**
-- **PHP**: PHP-CS-Fixer/Pint/PHPCS, PHPStan/Psalm, Rector, PHPUnit/Pest
 - **Python**: Ruff/Black+isort+Flake8, mypy, pytest, bandit (supports both uv and pip)
 - **Node.js/TypeScript**: ESLint/Prettier/Biome, tsc, Jest/Vitest
 - **Go**: golangci-lint, go test, govulncheck
@@ -384,7 +379,6 @@ Security audit based on OWASP Top 10 and best practices:
 /aif-security-checklist race-condition   # Race conditions & TOCTOU
 ```
 
-Each category includes a checklist, vulnerable/safe code examples (TypeScript, PHP), and an automated audit script.
 
 **Ignoring items** — if a finding is intentionally accepted, mark it as ignored:
 ```

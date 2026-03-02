@@ -121,7 +121,6 @@ Scan the project thoroughly — every decision in the generated pipeline depends
 
 | File | Language |
 |------|----------|
-| `composer.json` | PHP |
 | `package.json` | Node.js / TypeScript |
 | `pyproject.toml` / `setup.py` / `setup.cfg` | Python |
 | `go.mod` | Go |
@@ -135,7 +134,6 @@ Detect the project's language version to use in CI:
 
 | Language | Version Source | Example |
 |----------|---------------|---------|
-| PHP | `composer.json` -> `require.php` | `>=8.2` -> `['8.2', '8.3', '8.4']` |
 | Node.js | `package.json` -> `engines.node`, `.nvmrc`, `.node-version` | `>=18` -> `[18, 20, 22]` |
 | Python | `pyproject.toml` -> `requires-python`, `.python-version` | `>=3.11` -> `['3.11', '3.12', '3.13']` |
 | Go | `go.mod` -> `go` directive | `go 1.23` -> `'1.23'` |
@@ -166,7 +164,6 @@ Store: `PACKAGE_MANAGER`, `LOCK_FILE`, `INSTALL_CMD`.
 
 Detect project tools by scanning config files and dependencies. For the complete tool-to-command mapping → read `references/TOOL-COMMANDS.md`
 
-Categories: **Linters & Formatters** (PHP-CS-Fixer, ESLint, Prettier, Biome, Ruff, golangci-lint, clippy, Checkstyle), **Static Analysis** (PHPStan, Psalm, Rector, mypy, tsc), **Test Frameworks** (PHPUnit, Pest, Jest, Vitest, pytest, go test, cargo test) with coverage flags, **Security Audit** (composer audit, npm audit, pip-audit, govulncheck, cargo audit).
 
 ### 2.8 Services Detection
 
@@ -189,7 +186,6 @@ Does the project have a build step?
 | Go | Yes | `go build ./...` |
 | Rust | Yes | `cargo build --release` |
 | Java | Yes | `mvn package -DskipTests -B` / `./gradlew assemble` |
-| PHP | Usually no | — |
 | Python | Usually no | — |
 
 ### Summary
@@ -220,7 +216,6 @@ Select templates matching the platform and language:
 
 | Language | Template |
 |----------|----------|
-| PHP | `templates/github/php.yml` |
 | Node.js | `templates/github/node.yml` |
 | Python | `templates/github/python.yml` |
 | Go | `templates/github/go.yml` |
@@ -231,7 +226,6 @@ Select templates matching the platform and language:
 
 | Language | Template |
 |----------|----------|
-| PHP | `templates/gitlab/php.yml` |
 | Node.js | `templates/gitlab/node.yml` |
 | Python | `templates/gitlab/python.yml` |
 | Go | `templates/gitlab/go.yml` |
@@ -296,8 +290,6 @@ permissions:
 |-----|---------|-----------------|
 | `code-style` | Formatting (CS-Fixer, Prettier, Ruff format, rustfmt) | Formatter detected |
 | `lint` | Linting (ESLint, Ruff check, Clippy, golangci-lint) | Linter detected |
-| `static-analysis` | Type checking / SA (PHPStan, Psalm, mypy, tsc) | SA tools detected |
-| `rector` | Rector dry-run (PHP only) | Rector detected |
 
 All jobs run in parallel (no `needs`). If only one tool detected (e.g. Go with just golangci-lint) — single job in the file is fine.
 
@@ -327,7 +319,6 @@ Matrix builds (multiple language versions) only in this file.
 
 1. Each job gets its own setup (checkout, language setup, cache, dependency install)
 2. Use language-specific setup actions with built-in cache:
-   - PHP: `shivammathur/setup-php@v2` with `tools:` parameter
    - Node.js: `actions/setup-node@v4` with `cache:` parameter
    - Python: `astral-sh/setup-uv@v5` (if uv) or `actions/setup-python@v5` (if pip)
    - Go: `actions/setup-go@v5` (auto-caches)
@@ -352,7 +343,6 @@ tests:
 **Combining linter jobs:**
 
 If the project has both a formatter AND a linter from the same ecosystem, combine them into one job:
-- PHP: `php-cs-fixer` check + other lint -> `code-style` job
 - Node.js: `eslint` + `prettier` -> `lint` job. **Biome replaces BOTH ESLint and Prettier** — if Biome is detected, use only `npx biome check .` in a single `lint` job
 - Python: `ruff check` + `ruff format --check` -> `lint` job (Ruff handles both)
 - Rust: `cargo fmt` + `cargo clippy` -> can be separate (fmt is fast, clippy needs compilation)

@@ -125,7 +125,6 @@ Some services need specific capabilities even with `cap_drop: ALL`:
   - Node.js: use `console.log/error` or structured logger (pino, winston) writing to stdout
   - Python: `logging.StreamHandler(sys.stdout)` or `uvicorn --log-config`
   - Go: `log.SetOutput(os.Stdout)` or structured logger (slog, zerolog)
-  - PHP: `php-fpm` → set `catch_workers_output = yes`, `access.log = /proc/self/fd/2`
 - [ ] **Log rotation configured on every service** in compose:
   ```yaml
   logging:

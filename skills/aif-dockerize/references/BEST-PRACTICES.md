@@ -23,7 +23,6 @@ Comprehensive reference for generating production-grade Docker configurations.
 | `scratch` | 0 MB | No | No | Go static binaries |
 | `distroless` | ~2-20 MB | No | No | Go, Java, Node.js |
 | `alpine` | ~7 MB | Yes | apk | General purpose |
-| `*-slim` | ~45 MB | Yes | apt | Python, Node.js, PHP |
 | Full Debian | ~130 MB | Yes | apt | Build stages only |
 
 ### Multi-Stage Build Pattern

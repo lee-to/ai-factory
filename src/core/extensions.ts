@@ -33,7 +33,7 @@ export interface ExtensionMcpServer {
 
 export interface ExtensionSubagentDef {
   id: string;
-  role: string;
+  role: 'planner-scout' | 'implementer' | 'reviewer' | 'verifier' | 'custom' | string;
   description?: string;
   maxContextChars?: number;
   outputFormat?: 'json' | 'markdown';

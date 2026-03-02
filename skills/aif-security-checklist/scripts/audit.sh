@@ -19,7 +19,7 @@ ISSUES=0
 
 # 1. Check for secrets in code
 echo "📝 Checking for hardcoded secrets..."
-SECRETS=$(grep -rn --include="*.ts" --include="*.js" --include="*.py" --include="*.php" \
+SECRETS=$(grep -rn --include="*.ts" --include="*.js" --include="*.py" \
   -E "(password|secret|api_key|apikey|token|private_key)\s*[:=]" . 2>/dev/null | \
   grep -v node_modules | grep -v ".git" | grep -v "test" | head -20 || true)
 
@@ -83,7 +83,7 @@ echo ""
 
 # 6. Check for TODO security items
 echo "📝 Checking for security TODOs..."
-TODOS=$(grep -rn --include="*.ts" --include="*.js" --include="*.py" --include="*.php" \
+TODOS=$(grep -rn --include="*.ts" --include="*.js" --include="*.py" \
   -i "todo.*security\|fixme.*security\|xxx.*security\|hack" . 2>/dev/null | \
   grep -v node_modules | head -10 || true)
 

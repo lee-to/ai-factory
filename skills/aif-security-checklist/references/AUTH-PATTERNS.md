@@ -17,25 +17,6 @@ const hashedPassword = await hash(password, {
 const isValid = await verify(hashedPassword, inputPassword);
 ```
 
-```php
-// ✅ Good: PHP password hashing
-$hash = password_hash($password, PASSWORD_ARGON2ID, [
-    'memory_cost' => 65536,
-    'time_cost' => 4,
-    'threads' => 3,
-]);
-
-// ✅ Good: Timing-safe verification
-if (password_verify($inputPassword, $storedHash)) {
-    // Valid password
-}
-
-// ✅ Laravel: Uses bcrypt by default
-$user->password = Hash::make($password);
-if (Hash::check($inputPassword, $user->password)) {
-    // Valid
-}
-```
 
 ## Session Management
 

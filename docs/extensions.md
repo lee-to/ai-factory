@@ -146,9 +146,9 @@ Only `name` and `version` are required. All other fields are optional.
 | `skills` | `array` | Paths to skill directories within the extension. |
 | `replaces` | `object` | Maps extension skill paths to base skill names they replace (e.g. `{"skills/my-commit": "aif-commit"}`). |
 | `mcpServers` | `array` | MCP server configurations to merge into agent settings. |
-| `subagents` | `array` | Subagent profile definitions consumable by orchestration-aware tooling. |
+| `subagents` | `array` | Subagent profile definitions consumable by orchestration-aware tooling (preserves declared `role` when recognized). |
 
-When an extension with `subagents` is installed, those profiles are merged into `.ai-factory.json > subagents.profiles` and tracked on the extension record. On `ai-factory extension remove`, tracked profiles are removed from config (including routing references).
+When an extension with `subagents` is installed, those profiles are merged into `.ai-factory.json > subagents.profiles` and tracked on the extension record. On `ai-factory extension remove`, tracked profiles are removed from config (including routing references). If an extension profile temporarily overrides a user-owned profile with the same `id`, the original profile is restored on uninstall.
 
 ---
 

@@ -43,7 +43,6 @@ handleSubmit                     submit
 - Functions: verb + noun (`fetchUser`, `validateInput`)
 - Constants: SCREAMING_SNAKE_CASE
 - Classes/Types: PascalCase
-- Variables/functions: camelCase (JS/TS/PHP) or snake_case (Python/Rust)
 
 ### Files & Directories
 ```
@@ -85,16 +84,6 @@ function processOrder(order) {
 }
 ```
 
-```php
-// ✅ Good: PHP with type declarations
-function calculateDiscount(float $price, float $discountPercent): float
-{
-    if ($discountPercent < 0 || $discountPercent > 100) {
-        throw new InvalidArgumentException('Discount must be between 0 and 100');
-    }
-    return $price * (1 - $discountPercent / 100);
-}
-```
 
 **Rules:**
 - Single Responsibility: one function = one job

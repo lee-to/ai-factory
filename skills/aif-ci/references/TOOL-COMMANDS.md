@@ -4,12 +4,9 @@ Detect existing tools by scanning config files and dependency files.
 
 ## Linters & Formatters
 
-### PHP (scan `composer.json` → `require-dev`)
 
 | Tool | Config File | CI Command |
 |------|-------------|------------|
-| PHP-CS-Fixer | `.php-cs-fixer.php`, `.php-cs-fixer.dist.php` | `vendor/bin/php-cs-fixer fix --dry-run --diff` |
-| PHP_CodeSniffer | `phpcs.xml`, `phpcs.xml.dist` | `vendor/bin/phpcs` |
 | Pint | `pint.json` | `vendor/bin/pint --test` |
 
 ### Node.js (scan `package.json` → `devDependencies`)
@@ -53,13 +50,10 @@ Detect existing tools by scanning config files and dependency files.
 
 ## Static Analysis Tools
 
-### PHP (scan `composer.json` → `require-dev`)
 
 | Tool | Config File | CI Command |
 |------|-------------|------------|
-| PHPStan | `phpstan.neon`, `phpstan.neon.dist` | `vendor/bin/phpstan analyse --memory-limit=512M` |
 | Psalm | `psalm.xml`, `psalm.xml.dist` | `vendor/bin/psalm --no-cache` |
-| Rector | `rector.php` | `vendor/bin/rector process --dry-run` |
 
 ### Python
 
@@ -84,8 +78,6 @@ Detect existing tools by scanning config files and dependency files.
 
 | Language | Detect By | Test Command |
 |----------|-----------|--------------|
-| PHP | `phpunit/phpunit` in composer.json | `vendor/bin/phpunit` |
-| PHP | `pestphp/pest` in composer.json | `vendor/bin/pest --ci` |
 | Node.js | `jest` in package.json | `npx jest --ci` |
 | Node.js | `vitest` in package.json | `npx vitest run` |
 | Python | `pytest` in pyproject.toml | `pytest -v` |
@@ -97,7 +89,6 @@ Detect existing tools by scanning config files and dependency files.
 
 | Language | Coverage Flag |
 |----------|--------------|
-| PHP | `--coverage-clover coverage.xml` |
 | Node.js (Jest) | `--coverage` |
 | Node.js (Vitest) | `--coverage` |
 | Python | `--cov=src --cov-report=xml` |
@@ -109,7 +100,6 @@ Detect existing tools by scanning config files and dependency files.
 
 | Language | Tool | CI Command |
 |----------|------|------------|
-| PHP | Composer audit | `composer audit` |
 | Node.js | npm audit | `npm audit --audit-level=high` |
 | Python | pip-audit | `pip-audit` or `uv run pip-audit` (dependency vulnerabilities) |
 | Python | bandit | `bandit -r src/` or `uv run bandit -r src/` (code security) |

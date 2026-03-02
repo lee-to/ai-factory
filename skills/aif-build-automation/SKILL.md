@@ -110,7 +110,6 @@ Check for these files (first match wins):
 | `package.json` | Node.js / JavaScript / TypeScript |
 | `pyproject.toml` or `setup.py` or `setup.cfg` | Python |
 | `Cargo.toml` | Rust |
-| `composer.json` | PHP |
 | `Gemfile` | Ruby |
 | `build.gradle` or `pom.xml` | Java/Kotlin |
 | `*.csproj` or `*.sln` | C# / .NET |
@@ -145,11 +144,9 @@ For Python projects, check `pyproject.toml` or imports for:
 - `django` → Django
 - `flask` → Flask
 
-For PHP projects, check `composer.json` require for:
 - `laravel/framework` → Laravel
 - `symfony/framework-bundle` → Symfony
 - `slim/slim` → Slim
-- `cakephp/cakephp` → CakePHP
 
 For Go projects, check `go.mod` for:
 - `gin-gonic/gin` → Gin
@@ -268,16 +265,11 @@ Also read the "Cross-Cutting Concerns" section for standard targets.
 
 Pick the closest matching template based on `language` + `TARGET_TOOL`:
 
-| Tool | Go | Node.js | Python | PHP | Other |
 |------|----|---------|--------|-----|-------|
-| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | Use closest match |
-| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | Use closest match |
-| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | Use closest match |
 | Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | `magefile-basic.go` |
 
 For Magefile: use `magefile-full.go` if `HAS_DOCKER` or `has_migrations` is true, otherwise `magefile-basic.go`.
 
-For PHP + Magefile: Mage is Go-specific and not applicable to PHP projects. If the user explicitly requested `mage` for a PHP project, explain this and suggest Makefile as the closest alternative (universal, no install needed). Ask via `AskUserQuestion` whether to proceed with Makefile instead.
 
 Read the selected template:
 

@@ -481,9 +481,7 @@ func Deploy() error {
 
 ---
 
-## 5. PHP-Specific Patterns
 
-PHP projects don't have a dedicated build tool like Mage for Go. Use Makefile, Taskfile, or Justfile. The following patterns apply regardless of which tool wraps them.
 
 ### Composer as the Foundation
 
@@ -502,14 +500,6 @@ composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 When Laravel is detected (`artisan` file exists, `laravel/framework` in composer.json), include Artisan-based targets:
 
 ```
-serve       → php artisan serve
-migrate     → php artisan migrate
-seed        → php artisan db:seed
-fresh       → php artisan migrate:fresh --seed  (DANGEROUS — guard with confirm)
-tinker      → php artisan tinker
-routes      → php artisan route:list
-cache:clear → php artisan cache:clear + config:clear + route:clear + view:clear
-optimize    → php artisan config:cache + route:cache + view:cache
 ```
 
 ### Symfony Console Commands
@@ -517,35 +507,24 @@ optimize    → php artisan config:cache + route:cache + view:cache
 When Symfony is detected (`bin/console` exists, `symfony/framework-bundle` in composer.json):
 
 ```
-serve       → symfony server:start (or php -S localhost:8000 -t public/)
-migrate     → php bin/console doctrine:migrations:migrate
-cache:clear → php bin/console cache:clear
-routes      → php bin/console debug:router
 ```
 
 ### Testing Tools
 
 | Tool | Command | Detection |
 |------|---------|-----------|
-| PHPUnit | `./vendor/bin/phpunit` | `phpunit.xml` or `phpunit.xml.dist` |
-| Pest | `./vendor/bin/pest` | `pestphp/pest` in composer.json |
 | Paratest | `./vendor/bin/paratest` | `brianium/paratest` in composer.json |
 
 ### Linting & Static Analysis
 
 | Tool | Command | Detection |
 |------|---------|-----------|
-| PHP-CS-Fixer | `./vendor/bin/php-cs-fixer fix` | `.php-cs-fixer.php` or `.php-cs-fixer.dist.php` |
-| PHP_CodeSniffer | `./vendor/bin/phpcs` / `phpcbf` | `phpcs.xml` or `phpcs.xml.dist` |
-| PHPStan | `./vendor/bin/phpstan analyse` | `phpstan.neon` or `phpstan.neon.dist` |
 | Psalm | `./vendor/bin/psalm` | `psalm.xml` or `psalm.xml.dist` |
 | Pint (Laravel) | `./vendor/bin/pint` | `laravel/pint` in composer.json |
 
 ### Anti-Patterns to Avoid
 
 - **Never run `composer install` without `--no-interaction`** in CI — it hangs on prompts
-- **Never use `php artisan migrate:fresh` without a confirmation guard** — it drops all tables
-- **Never hardcode `php` path** — use a variable (`PHP ?= php`) for flexibility (e.g., `php8.2`)
 - **Never skip `--optimize-autoloader`** in production installs — significant performance impact
 - **Never cache config in development** — `config:cache` breaks `.env` loading with `env()` calls
 
@@ -578,8 +557,6 @@ Every build file should include these core targets:
 | `release` | Tag-based release workflow |
 | `install` / `setup` | First-time project setup |
 | `ci` | Aggregate target for CI pipelines |
-| `cache:clear` / `optimize` | PHP/Laravel framework detected |
-| `phpstan` / `typecheck` | Static analysis tool detected |
 
 ### Variable Naming
 

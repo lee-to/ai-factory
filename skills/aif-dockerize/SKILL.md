@@ -138,7 +138,6 @@ Scan the project thoroughly — every decision in the generated files depends on
 | `go.mod` | Go | `golang:<version>-alpine` / `distroless/static` |
 | `package.json` | Node.js | `node:<version>-alpine` |
 | `pyproject.toml` / `setup.py` | Python | `python:<version>-slim` |
-| `composer.json` | PHP | `php:<version>-fpm-alpine` |
 | `Cargo.toml` | Rust | `rust:<version>-slim` / `distroless` |
 
 **`<version>` = read from project files** (see Step 4.1). Never hardcode — always match what the project requires.
@@ -160,9 +159,6 @@ Read dependency files to detect the framework:
 - `django` → Django (port 8000, `manage.py runserver` / `gunicorn`)
 - `flask` → Flask (port 5000, `flask run --debug` / `gunicorn`)
 
-**PHP** (`composer.json` require):
-- `laravel/framework` → Laravel (port 8000, `artisan serve` / `php-fpm`)
-- `symfony/framework-bundle` → Symfony (port 8000, `symfony serve` / `php-fpm`)
 
 **Go** (`go.mod` require):
 - `gin-gonic/gin`, `labstack/echo`, `gofiber/fiber`, `go-chi/chi` → (port 8080, `air` / compiled binary)
@@ -189,8 +185,6 @@ Glob: src/index.ts, src/index.js, src/main.ts, src/main.js, index.ts, index.js, 
 Glob: main.py, app.py, src/main.py, src/app.py
 Read pyproject.toml → [project.scripts] or [tool.uvicorn]
 
-# PHP
-Glob: public/index.php, artisan, bin/console
 ```
 
 ### 2.5 Infrastructure Dependencies
@@ -211,7 +205,6 @@ Grep: rabbitmq|amqp|bullmq|celery|sidekiq
 # Reverse Proxy / Web Server
 Grep: nginx|angie|proxy_pass|upstream
 Glob: nginx.conf, nginx/, angie.conf, angie/
-# PHP projects (Laravel, Symfony) always need a reverse proxy → default to Angie
 
 # Search
 Grep: elasticsearch|opensearch|meilisearch|typesense|algolia
@@ -256,7 +249,6 @@ Glob: cmd/*/main.go → binary name from directory
 # Python
 Check for pyproject.toml [build-system]
 
-# PHP
 Check for public/ directory (web root)
 ```
 
@@ -297,7 +289,6 @@ Select the Dockerfile template matching the language:
 | Go | `templates/dockerfile-go` |
 | Node.js | `templates/dockerfile-node` |
 | Python | `templates/dockerfile-python` |
-| PHP | `templates/dockerfile-php` |
 
 Read selected template and the compose templates:
 
@@ -324,7 +315,6 @@ Using the language-specific template as a base:
   - Go: read `go` directive in `go.mod` → e.g. `go 1.24` → `golang:1.24-alpine`
   - Node.js: read `engines.node` in `package.json`, `.nvmrc`, or `.node-version` → e.g. `node:22-alpine`
   - Python: read `requires-python` in `pyproject.toml` or `.python-version` → e.g. `python:3.13-slim`
-  - PHP: read `require.php` in `composer.json` → e.g. `php:8.4-fpm-alpine`
   - Rust: read `rust-version` in `Cargo.toml` or `rust-toolchain.toml` → e.g. `rust:1.82-slim`
 - Entry point to match `entry_point`
 - Build command to match project's actual build script
@@ -404,7 +394,6 @@ Use the template as base, add language-specific exclusions:
 - Go: `bin/`, `*.exe`
 - Node.js: `node_modules/`, `.next/`, `out/`
 - Python: `__pycache__/`, `.venv/`, `*.pyc`, `.mypy_cache/`
-- PHP: `vendor/`, `storage/`, `bootstrap/cache/`
 
 ### Quality Checks (Before Writing)
 
@@ -460,7 +449,6 @@ For detailed file organization (directory layout, file tables per mode, .env.exa
 ### 6.0 Overview
 
 - **Root**: `Dockerfile`, `compose.yml`, `compose.override.yml`, `compose.production.yml`, `.dockerignore`
-- **`docker/`**: service configs (angie, postgres, php, redis) — only create what's needed
 - **`deploy/scripts/`**: production ops scripts (Step 8)
 
 ### 6.1 Generate Mode — write all root files + conditional docker/ dirs + deploy/scripts/

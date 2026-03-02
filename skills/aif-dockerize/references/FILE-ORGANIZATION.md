@@ -14,9 +14,6 @@ docker/
 │       └── default.conf
 ├── postgres/                 # DB init scripts (if needed)
 │   └── init.sql
-├── php/                      # PHP-FPM config (if PHP project)
-│   ├── php.ini
-│   └── php-fpm.conf
 └── redis/                    # Custom Redis config (if needed)
     └── redis.conf
 ```
@@ -53,7 +50,6 @@ deploy/
 |-----------|------|
 | `docker/angie/` | Reverse proxy selected (Angie/Nginx) |
 | `docker/postgres/` | Custom init scripts needed |
-| `docker/php/` | PHP project (php.ini, php-fpm.conf) |
 | `docker/redis/` | Custom Redis config needed |
 
 **Always created:**
