@@ -43,7 +43,7 @@ PYTHON=$(command -v python3 || command -v python || echo "")
 
 **Level 1 — Automated scan:**
 ```bash
-$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-skill-path>
+$PYTHON ~/{{skills_dir}}/aif/scripts/security-scan.py <installed-skill-path>
 ```
 - **Exit 0** → proceed to Level 2
 - **Exit 1 (BLOCKED)** → Remove immediately (`rm -rf <skill-path>`), warn user. **NEVER use.**
@@ -87,7 +87,7 @@ If any rule is violated — fix the output before presenting it to the user.
 For each recommended skill:
   1. Search: npx skills search <name>
   2. If found → Install: npx skills install {{skills_cli_agent_flag}} <name>
-  3. SECURITY: Scan installed EXTERNAL skill (never built-in aif*) → $PYTHON security-scan.py <path>
+  3. SECURITY: Scan installed EXTERNAL skill (never built-in aif*) → $PYTHON ~/{{skills_dir}}/aif/scripts/security-scan.py <path>
      - BLOCKED? → rm -rf <path>, warn user, skip this skill
      - WARNINGS? → show to user, ask confirmation
   4. If not found → Generate: /aif-skill-generator <name>
@@ -181,7 +181,7 @@ Proceed? [Y/n]
    ```bash
    npx skills install {{skills_cli_agent_flag}} <name>
    # AUTO-SCAN: immediately after install
-   $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-path>
+   $PYTHON ~/{{skills_dir}}/aif/scripts/security-scan.py <installed-path>
    ```
    - Exit 1 (BLOCKED) → `rm -rf <path>`, warn user, skip this skill
    - Exit 2 (WARNINGS) → show to user, ask confirmation
