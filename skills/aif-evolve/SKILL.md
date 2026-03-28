@@ -1,7 +1,7 @@
 ---
 name: aif-evolve
 description: Self-improve AI Factory skills based on project context, accumulated patches, and codebase patterns. Analyzes what went wrong, what works, and enhances skills to prevent future issues. Use when you want to make AI smarter for your project.
-argument-hint: '[skill-name or "all"]'
+argument-hint: '[skill-name or "all" or "all --global"]'
 allowed-tools: Read Write Edit Glob Grep Bash(git *) AskUserQuestion Questions
 disable-model-invocation: true
 ---
@@ -61,15 +61,23 @@ This is the ONLY correct target for built-in skill improvements. No exceptions.
 
 Rule: first, strip any leading `/` from the argument. Then: if the argument does not start with `aif-` AND a skill named `aif-<argument>` exists — use `aif-<argument>`. Otherwise use as-is.
 
-**After resolving the skill name:** verify that the resolved skill actually exists
-(check `{{skills_dir}}/<resolved-name>/SKILL.md` or `skills/<resolved-name>/SKILL.md`).
-If the skill is not found → report an error to the user and stop:
+**After resolving the skill name:** verify that the resolved skill actually exists by checking paths in order:
+1. `{{skills_dir}}/<resolved-name>/SKILL.md` (project-local installed path)
+2. `skills/<resolved-name>/SKILL.md` (project-local skills path)
+3. `{{home_skills_dir}}/<resolved-name>/SKILL.md` (global user skills)
+
+Use the first path that matches. After resolution, record the **scope** (built-in / project / global) for use in Step 7.
+
+If the skill is not found in any of the three paths → report an error to the user and stop:
 "Skill '<resolved-name>' not found. Use `/aif-evolve` without arguments to evolve
 all skills, or specify a valid skill name."
 
 **Determine which skills to evolve from `$ARGUMENTS`:**
 - If `$ARGUMENTS` contains a specific skill name → evolve only that skill
-- If `$ARGUMENTS` is "all" or empty → evolve all installed skills
+- If `$ARGUMENTS` is "all" or empty → evolve all project-local and built-in skills (global skills are NOT included by default)
+- If `$ARGUMENTS` is "all --global" → also include global skills from `{{home_skills_dir}}/`
+
+Rationale: global skills can be numerous (90+ in real setups). Including them by default would make "all" runs very heavy. Explicit opt-in via `--global` is safer.
 
 #### Step 0.2: Load Context
 
@@ -89,6 +97,8 @@ all skills, or specify a valid skill name."
 
 These contain previously accumulated project-specific rules for built-in skills.
 Keep them in memory — they affect gap analysis in Step 5.
+
+**Note on global skills:** skill-context files are NOT loaded for global skills. Global skills are standalone and do not read `.ai-factory/skill-context/`. Gap analysis (Step 5) for global skills checks only their base `SKILL.md`.
 
 Skill-context rules are **project-level overrides** — when they conflict with the base SKILL.md of the target skill, skill-context wins (same principle as nested CLAUDE.md files).
 
@@ -200,16 +210,22 @@ Scan the project for patterns:
 
 **Read ONLY the base SKILL.md files for target skills — not all skills.**
 
-- If evolving a **specific skill** (e.g., `/aif-evolve plan`) → read only that one:
-  `Read: {{skills_dir}}/aif-plan/SKILL.md` (or `skills/aif-plan/SKILL.md` if not installed)
-- If evolving **all skills** (`/aif-evolve` or `/aif-evolve all`) → read all:
+Read the base SKILL.md from the path resolved in Step 0.1:
+- **Built-in / project skills:** `{{skills_dir}}/<name>/SKILL.md` or `skills/<name>/SKILL.md`
+- **Global skills:** `{{home_skills_dir}}/<name>/SKILL.md`
+
+- If evolving a **specific skill** (e.g., `/aif-evolve plan`) → read only that one from its resolved path
+- If evolving **all skills** (`/aif-evolve` or `/aif-evolve all`) → read all project-local and built-in:
   `Glob: {{skills_dir}}/*/SKILL.md` (or `Glob: skills/*/SKILL.md` if not installed)
+- If evolving **all --global** → additionally read all global:
+  `Glob: {{home_skills_dir}}/*/SKILL.md`
 
 Keep loaded SKILL.md content in memory — Step 3 needs it for comparison (do NOT re-read).
 
 ### Step 3: Check for Stale Rules in Skill-Context
 
 **When:** Run this step for every **target** `aif-*` skill that has a skill-context file.
+Global skills do not use skill-context (they are standalone and do not read `.ai-factory/skill-context/`), so stale rule check does not apply to them.
 
 **For each rule in `.ai-factory/skill-context/<skill-name>/SKILL.md`:**
 
@@ -380,8 +396,9 @@ For each gap found, create a concrete improvement:
 Each improvement MUST explicitly state the target file path.
 Use the following target labels:
 
-- **`skill-context`** → `.ai-factory/skill-context/<skill-name>/SKILL.md`
-- **`SKILL.md`** → direct edit of the skill's own `SKILL.md` (only for custom/non-aif skills)
+- **`skill-context`** → `.ai-factory/skill-context/<skill-name>/SKILL.md` (built-in `aif-*` skills only)
+- **`SKILL.md`** → direct edit of the skill's own `SKILL.md` (project custom skills)
+- **`SKILL.md (global)`** → direct edit of `{{home_skills_dir}}/<name>/SKILL.md` (global user skills — skill-context not applicable)
 - **Nested file** → if the skill directory contains additional files (e.g., `templates/`, `checklists/`),
   specify the exact relative path within the skill directory
 
@@ -419,11 +436,19 @@ Based on:
    - **Rule:** "Log all Prisma queries in DEBUG mode"
 
 #### /my-custom-skill (N rules)
-**Target:** `skills/my-custom-skill/SKILL.md` (direct edit — custom skill)
+**Target:** `skills/my-custom-skill/SKILL.md` (direct edit — project custom skill)
 
 1. **Add pattern**
    - **Source:** codebase convention
    - **Why:** Missing guard in Step 2
+   - **Rule:** "..."
+
+#### /my-global-skill (N rules)
+**Target:** `{{home_skills_dir}}/my-global-skill/SKILL.md` (direct edit — global skill)
+
+1. **Add guard rule**
+   - **Source:** patch-2026-03-15.md
+   - **Why:** Recurring issue across projects
    - **Rule:** "..."
 ```
 
@@ -470,8 +495,20 @@ For each approved improvement, determine the target:
    only affected by stale rule removals (Step 4) but did NOT receive new improvements
    (those were already updated in item 4).
 
-**If the skill is a custom/project skill** (not `aif-*`):
+**If the skill is a custom/project skill** (not `aif-*`, resolved from project paths):
 1. Edit the skill's `SKILL.md` directly (existing behavior, unchanged)
+
+**If the skill is a global user skill** (resolved from `{{home_skills_dir}}/`):
+
+1. Always edit directly: `{{home_skills_dir}}/<skill-name>/SKILL.md`
+   (affects ALL projects using this skill).
+2. skill-context is NOT a valid target for global skills — global skills are
+   standalone and do not read `.ai-factory/skill-context/`. Writing rules there
+   would produce dead code that no skill ever loads.
+3. Before applying, warn the user **once per evolution run**:
+   "Global skill edits affect all projects. Proceed?"
+4. Edits follow the same rules as project custom skill edits:
+   read file first, add/update rules, preserve structure.
 
 **Context file template:**
 
@@ -538,6 +575,10 @@ Cursor update rules:
 - [change description] ← driven by: [tech stack / convention]
   **File:** `skills/[skill-name]/SKILL.md`
 
+### [skill-name] → SKILL.md (global)
+- [change description] ← driven by: [source]
+  **File:** `{{home_skills_dir}}/[skill-name]/SKILL.md`
+
 ## Patterns Identified
 - [pattern]: [frequency] occurrences
 - [pattern]: [frequency] occurrences
@@ -578,7 +619,7 @@ After completing evolution, suggest `/clear` or `/compact` — context is heavy 
 11. **No losing coverage** — do not remove rules unless they are stale (Steps 3-4).
     Merges in Step 7 (combining narrow rules into a broader one) are allowed as long
     as all prevention points are preserved in the merged rule.
-12. **Installed only** — do not evolve skills not installed in the project
+12. **Installed or global** — do not evolve skills that are neither installed in the project nor available globally in `{{home_skills_dir}}/`
 13. **Ownership boundary** — this command owns `.ai-factory/evolutions/*.md`, `.ai-factory/evolutions/patch-cursor.json`, and `.ai-factory/skill-context/*`; treat roadmap/rules/research/plan artifacts as read-only context unless explicitly asked
 
 ## Example
