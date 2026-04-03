@@ -18,8 +18,8 @@
 ai-factory/
 ├── src/                    # CLI source (TypeScript)
 │   ├── cli/
-│   │   ├── commands/       # init.ts, update.ts, upgrade.ts, extension.ts
-│   │   └── wizard/         # prompts.ts, skill-hints.ts
+│   │   ├── commands/       # init.ts, update.ts, upgrade.ts
+│   │   └── wizard/         # prompts.ts
 │   ├── core/               # installer.ts, config.ts, mcp.ts, agents.ts, template.ts, transformer.ts
 │   │   └── transformers/   # default.ts, antigravity.ts, kilocode.ts
 │   └── utils/              # fs.ts
@@ -27,7 +27,7 @@ ai-factory/
 │   ├── aif/                           # Main setup skill
 │   ├── aif-architecture/       # Architecture patterns
 │   ├── aif-best-practices/     # Code quality guidelines
-│   ├── aif-build-automation/   # Makefile/Taskfile/Justfile generator
+│   ├── aif-build-automation/   # Makefile/Taskfile/Justfile/Mage; unified stack detection (incl. JVM)
 │   ├── aif-ci/                 # GitHub Actions / GitLab CI generator
 │   ├── aif-commit/             # Conventional commits
 │   ├── aif-dockerize/          # Docker/compose generator
@@ -60,6 +60,10 @@ ai-factory/
 - **User skills**: `<agent-config-dir>/skills/` (e.g. `.claude/skills/`, `.opencode/skills/`, `.agents/skills/`)
 - **Agent transformer system**: `src/core/transformers/` adapts skill format per agent (e.g. Antigravity uses flat `.md`
   for workflow skills, KiloCode sanitizes dotted names)
+
+### aif-build-automation (unified stack detection)
+
+`skills/aif-build-automation/SKILL.md` defines how to generate or enhance Makefile, Taskfile, Justfile, or Mage. **Repository analysis uses one ordered pipeline for every stack:** primary language → package manager / build entrypoints → frameworks → Docker → CI → migrations → tests → linters → monorepo, then `PROJECT_PROFILE`. **Java/Kotlin (JVM) is not a separate side path:** Gradle/Maven, wrappers (`gradlew`, `mvnw`), `java_build`, frameworks from build files, and JVM linters follow the same section structure as Node (`package.json`), Python (`pyproject.toml`), etc. (skill §2.1–§2.8). If both Gradle signals and `pom.xml` are present, set `java_build.mixed_maven_gradle`, append to `PROJECT_PROFILE.warnings`, and wire generated targets to Gradle (skill §2.2).
 
 ### Working Directory
 
@@ -320,19 +324,15 @@ ai-factory update
 ai-factory upgrade
 ```
 
-This repo is **TypeScript/npm only** — there is **no JVM build** here. After changing CLI or wizard code, run `npm run build` and `npm test` (or your CI equivalent).
-
 ## Key Files to Know
 
 | File | Purpose |
 |------|---------|
-| `src/cli/index.ts` | CLI entry point, registers init/update/upgrade/extension commands |
+| `src/cli/index.ts` | CLI entry point, registers init/update/upgrade commands |
 | `src/cli/commands/init.ts` | Interactive wizard: select agents, skills, configure MCP |
 | `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
 | `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
-| `src/cli/commands/extension.ts` | List / validate AI Factory extensions |
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
-| `src/cli/wizard/skill-hints.ts` | Skill name formatting for wizard checkboxes |
 | `src/core/agents.ts` | Agent registry (15 agents) |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/mcp.ts` | MCP server configuration |
