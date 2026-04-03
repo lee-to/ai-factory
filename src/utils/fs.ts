@@ -75,8 +75,8 @@ export async function listDirectories(dirPath: string): Promise<string[]> {
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
     return entries
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name);
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name);
   } catch {
     return [];
   }
@@ -149,37 +149,4 @@ export async function removeDirectory(dirPath: string): Promise<void> {
 
 export async function removeFile(filePath: string): Promise<void> {
   await fs.remove(filePath);
-}
-
-/** Skip directories when walking (e.g. node_modules, .git, build output) */
-const SKIP_DIRS = new Set(['node_modules', '.git', 'build', 'dist', '.gradle', 'target', 'bin', 'out']);
-
-/**
- * Recursively find files matching a predicate.
- * @param dirPath Root directory to search
- * @param predicate Function returning true for files to include
- * @returns Array of absolute paths to matching files
- */
-export async function findFiles(
-  dirPath: string,
-  predicate: (relativePath: string, fullPath: string) => boolean
-): Promise<string[]> {
-  const results: string[] = [];
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name);
-      const relativePath = path.relative(dirPath, fullPath);
-      if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) {
-          results.push(...(await findFiles(fullPath, predicate)));
-        }
-      } else if (entry.isFile() && predicate(relativePath, fullPath)) {
-        results.push(fullPath);
-      }
-    }
-  } catch {
-    // Ignore permission errors, etc.
-  }
-  return results;
 }
