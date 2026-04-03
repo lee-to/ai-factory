@@ -10,7 +10,7 @@
   </a>
 </p>
 
-![logo](https://github.com/lee-to/ai-factory/raw/2.x/art/promo.png)
+![logo](https://github.com/lee-to/ai-factory/blob/2.x/art/aif1.jpg)
 
 # AI Factory
 
@@ -28,12 +28,12 @@ ai-factory init
 
 ## Why AI Factory?
 
-- **Zero configuration** — detects your stack, installs relevant skills, configures integrations
+- **Zero configuration** — installs relevant skills, configures integrations
 - **Best practices built-in** — logging, commits, code review, all following industry standards
 - **Spec-driven development** — AI follows plans, not random exploration. Predictable, resumable, reviewable
 - **Community skills** — leverage [skills.sh](https://skills.sh) ecosystem or generate custom skills
-- **Works with your stack** — Next.js, Laravel, Django, Express, and more
-- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, or [any agent](docs/getting-started.md#supported-agents)
+- **Stack-agnostic** — works with any language, framework, or platform
+- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
 
 ---
 
@@ -54,15 +54,17 @@ mise use -g npm:ai-factory
 ## Quick Start
 
 ```bash
-# In your project directory
+# In your project directory (interactive wizard)
 ai-factory init
+
+# Or non-interactive with flags
+ai-factory init --agents claude,codex --mcp playwright,github
 ```
 
 This will:
-- Ask which AI agent you use
-- Detect your project stack
-- Install relevant skills
-- Configure MCP servers (for supported agents)
+- Ask which AI agent you use (or use `--agents` flag)
+- Install relevant skills (or use `--skills` flag)
+- Configure MCP servers (or use `--mcp` flag)
 
 Then open your AI agent and start working:
 
@@ -82,21 +84,42 @@ Or running without installation via `npx`:
 npx ai-factory init
 ```
 
+### Non-interactive mode
+
+Pass `--agents` to skip the interactive wizard:
+
+```bash
+# Agents + MCP servers
+ai-factory init --agents claude,cursor --mcp github,playwright
+
+# With specific skills
+ai-factory init --agents claude --skills commit,plan
+
+# Without base skills
+ai-factory init --agents codex --no-skills --mcp github
+```
+
+Available MCP servers: `github`, `postgres`, `filesystem`, `chrome-devtools`, `playwright`
+
 ### Upgrading from v1 to v2
 
 ```bash
-# 1) Update the CLI package
-npm install -g ai-factory@latest
-
-# 2) Migrate existing skills to v2 naming
 ai-factory upgrade
 ```
 
 `ai-factory upgrade` removes old bare-named skills (`commit`, `feature`, etc.) and installs new `aif-*` prefixed versions. Custom skills are preserved.
 
+> **Note:** `ai-factory update` automatically checks npm for a newer CLI version and offers to install it before updating skills, then reports `changed/unchanged/skipped/removed` for installed base skills. Use `ai-factory update --force` for a clean reinstall of currently installed base skills.
+
 ### Example Workflow
 
 ```bash
+# Explore options and requirements before planning (optional)
+/aif-explore Add user authentication with OAuth
+
+# Need a strictly verified answer before changing anything?
+/aif-grounded Does this repo already support OAuth providers?
+
 # Plan a feature — creates branch, analyzes codebase, builds step-by-step plan
 /aif-plan Add user authentication with OAuth
 
@@ -105,6 +128,9 @@ ai-factory upgrade
 
 # Execute the plan — implements tasks one by one, commits at checkpoints
 /aif-implement
+
+# Create a knowledge reference from docs AI doesn't know about
+/aif-reference https://docs.example.com/api-reference --name example-api
 
 # Fix a bug — AI learns from every fix and gets smarter over time
 /aif-fix TypeError: Cannot read property 'name' of undefined
@@ -129,7 +155,7 @@ AI Factory can generate and maintain your project docs with a single command:
 
 - **Generates docs from scratch** — analyzes your codebase and creates a lean README + detailed `docs/` pages by topic
 - **Cleans up scattered files** — finds loose CONTRIBUTING.md, ARCHITECTURE.md, SETUP.md in your root and consolidates them into a structured `docs/` directory
-- **Keeps docs in sync** — integrates with `/aif-implement` so documentation is updated automatically after each feature
+- **Keeps docs in sync** — integrates with `/aif-implement` docs policy (`Docs: yes` = mandatory docs checkpoint routed to `/aif-docs`, `Docs: no` = visible `WARN [docs]`)
 - **Builds a docs website** — `--web` generates a static HTML site with navigation and dark mode, ready to host
 
 ---
@@ -139,20 +165,34 @@ AI Factory can generate and maintain your project docs with a single command:
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | What is AI Factory, supported agents, CLI commands |
-| [Development Workflow](docs/workflow.md) | Workflow diagram, when to use what, spec-driven approach |
+| [Development Workflow](docs/workflow.md) | Workflow diagram, when to use `explore` vs `grounded`, spec-driven approach |
 | [Reflex Loop](docs/loop.md) | Iterative generate → evaluate → critique → refine workflow |
-| [Core Skills](docs/skills.md) | All slash commands — feature, task, fix, implement, evolve, docs, and more |
+| [Subagents](docs/subagents.md) | Claude Code only: repo-local planning, implementation, and loop subagents with narrow role contracts |
+| [Core Skills](docs/skills.md) | All slash commands — explore, grounded, plan, fix, implement, evolve, docs, and more |
+| [Skill Evolution](docs/evolve.md) | How /aif-fix patches feed into /aif-evolve to generate smarter skill rules |
 | [Plan Files](docs/plan-files.md) | Plan files, self-improvement patches, skill acquisition |
 | [Security](docs/security.md) | Two-level security scanning for external skills |
+| [Extensions](docs/extensions.md) | Writing and installing extensions — commands, injections, MCP, agents |
 | [Configuration](docs/configuration.md) | `.ai-factory.json`, MCP servers, project structure, best practices |
+| [Config Reference](docs/config-reference.md) | Full `config.yaml` key reference and skill read/write matrix |
 
 ---
 
-![happy](https://github.com/lee-to/ai-factory/raw/2.x/art/happy.png)
+![happy](https://github.com/ilhm344/ai-factory/blob/2.x/art/aif2.jpg)
+
+## AIF Handoff
+
+Looking for an **Autonomous Kanban board where AI agents plan, implement, and review your tasks**? Check out [aif-handoff](https://github.com/lee-to/aif-handoff) — a visual task management system built on top of AI Factory.
+
+![ui-light](https://github.com/lee-to/aif-handoff/blob/main/art/ui-light.png)
+![ui-dark](https://github.com/lee-to/aif-handoff/blob/main/art/ui-dark.png)
+![ui-light-list](https://github.com/lee-to/aif-handoff/blob/main/art/ui-light-list.png)
+![ui-dark-list](https://github.com/lee-to/aif-handoff/blob/main/art/ui-dark-list.png)
 
 ## Links
 
 - [Official Website](https://aif.cutcode.dev) - AI Factory website
+- If AI Factory feels too simple for your goals, try [HLV](https://github.com/lee-to/hlv)
 - [skills.sh](https://skills.sh) - Skill marketplace
 - [Agent Skills Spec](https://agentskills.io) - Skill specification
 - [Claude Code](https://claude.ai/code) - Anthropic's AI coding agent

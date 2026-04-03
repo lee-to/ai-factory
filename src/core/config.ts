@@ -11,18 +11,36 @@ export interface McpConfig {
   filesystem: boolean;
   postgres: boolean;
   chromeDevtools: boolean;
+  playwright: boolean;
+}
+
+export interface ManagedArtifactState {
+  sourceHash: string;
+  installedHash: string;
 }
 
 export interface AgentInstallation {
   id: string;
   skillsDir: string;
   installedSkills: string[];
+  managedSkills?: Record<string, ManagedArtifactState>;
+  subagentsDir?: string;
+  installedSubagents?: string[];
+  managedSubagents?: Record<string, ManagedArtifactState>;
   mcp: McpConfig;
+}
+
+export interface ExtensionRecord {
+  name: string;
+  source: string;
+  version: string;
+  replacedSkills?: string[];
 }
 
 export interface AiFactoryConfig {
   version: string;
   agents: AgentInstallation[];
+  extensions?: ExtensionRecord[];
 }
 
 interface LegacyAiFactoryConfig {
@@ -36,7 +54,7 @@ interface LegacyAiFactoryConfig {
 const CONFIG_FILENAME = '.ai-factory.json';
 const CURRENT_VERSION: string = pkg.version;
 
-export function getConfigPath(projectDir: string): string {
+function getConfigPath(projectDir: string): string {
   return path.join(projectDir, CONFIG_FILENAME);
 }
 
@@ -46,6 +64,7 @@ function normalizeMcp(mcp?: Partial<McpConfig>): McpConfig {
     filesystem: mcp?.filesystem ?? false,
     postgres: mcp?.postgres ?? false,
     chromeDevtools: mcp?.chromeDevtools ?? false,
+    playwright: mcp?.playwright ?? false,
   };
 }
 
@@ -55,16 +74,35 @@ function createAgentInstallation(agentId: string, legacy?: LegacyAiFactoryConfig
     skillsDir: legacy?.skillsDir ?? agent.skillsDir,
     id: agentId,
     installedSkills: legacy?.installedSkills ?? [],
+    managedSkills: {},
+    subagentsDir: agent.subagentsDir,
+    installedSubagents: [],
+    managedSubagents: {},
     mcp: normalizeMcp(legacy?.mcp),
   };
 }
 
-export function createDefaultConfig(agentIds: string[] = ['claude']): AiFactoryConfig {
-  const uniqueAgentIds = Array.from(new Set(agentIds));
-  return {
-    version: CURRENT_VERSION,
-    agents: uniqueAgentIds.map(id => createAgentInstallation(id)),
-  };
+function normalizeManagedArtifacts(raw: unknown): Record<string, ManagedArtifactState> {
+  if (!raw || typeof raw !== 'object') {
+    return {};
+  }
+
+  const result: Record<string, ManagedArtifactState> = {};
+
+  for (const [skillName, state] of Object.entries(raw as Record<string, unknown>)) {
+    if (!skillName || typeof state !== 'object' || !state) {
+      continue;
+    }
+
+    const sourceHash = (state as { sourceHash?: unknown }).sourceHash;
+    const installedHash = (state as { installedHash?: unknown }).installedHash;
+
+    if (typeof sourceHash === 'string' && sourceHash.length > 0 && typeof installedHash === 'string' && installedHash.length > 0) {
+      result[skillName] = { sourceHash, installedHash };
+    }
+  }
+
+  return result;
 }
 
 export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | null> {
@@ -81,6 +119,10 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
         id: agent.id,
         skillsDir: agent.skillsDir || agentConfig.skillsDir,
         installedSkills: Array.isArray(agent.installedSkills) ? agent.installedSkills : [],
+        managedSkills: normalizeManagedArtifacts((agent as { managedSkills?: unknown }).managedSkills),
+        subagentsDir: agent.subagentsDir || agentConfig.subagentsDir,
+        installedSubagents: Array.isArray(agent.installedSubagents) ? agent.installedSubagents : [],
+        managedSubagents: normalizeManagedArtifacts((agent as { managedSubagents?: unknown }).managedSubagents),
         mcp: normalizeMcp(agent.mcp),
       };
     });
@@ -88,6 +130,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
     return {
       version: raw.version ?? CURRENT_VERSION,
       agents: normalizedAgents,
+      extensions: Array.isArray(raw.extensions) ? raw.extensions : [],
     };
   }
 
@@ -95,12 +138,14 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
     return {
       version: raw.version ?? CURRENT_VERSION,
       agents: [createAgentInstallation(raw.agent, raw)],
+      extensions: [],
     };
   }
 
   return {
     version: raw.version ?? CURRENT_VERSION,
     agents: [],
+    extensions: [],
   };
 }
 

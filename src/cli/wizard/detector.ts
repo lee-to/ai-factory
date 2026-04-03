@@ -243,8 +243,8 @@ async function detectPythonStack(projectDir: string): Promise<DetectedStack> {
   };
 }
 
-export function getRecommendedSkills(stack: DetectedStack | null): string[] {
-  const baseSkills = [
+export function getRecommendedSkills(_stack: DetectedStack | null): string[] {
+  return [
     'aif',
     'aif-skill-generator',
     'aif-plan',
@@ -255,18 +255,6 @@ export function getRecommendedSkills(stack: DetectedStack | null): string[] {
     'aif-architecture',
     'aif-security-checklist',
   ];
-
-  if (!stack) {
-    return baseSkills;
-  }
-
-  const skills = [...baseSkills];
-
-  if (['nextjs', 'react', 'vue', 'node-api', 'java', 'fastapi', 'django', 'flask', 'laravel', 'symfony'].includes(stack.name)) {
-    skills.push('aif-deploy');
-  }
-
-  return skills;
 }
 
 export function getRecommendedTemplate(stack: DetectedStack | null): string | null {

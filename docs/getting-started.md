@@ -4,11 +4,11 @@
 
 ## What is AI Factory?
 
-AI Factory is a CLI tool and skill system that:
+AI Factory is a **stack-agnostic** CLI tool and skill system that works with any language, framework, or platform:
 
-1. **Analyzes your project** — detects tech stack from package.json, composer.json, requirements.txt, etc.
+1. **Analyzes your project** — understands your codebase structure and conventions
 2. **Installs relevant skills** — downloads from [skills.sh](https://skills.sh) or generates custom ones
-3. **Configures MCP servers** — GitHub, Postgres, Filesystem based on your needs
+3. **Configures MCP servers** — GitHub, Postgres, Filesystem, Playwright based on your needs
 4. **Provides spec-driven workflow** — structured feature development with plans, tasks, and commits
 
 ## Supported Agents
@@ -21,7 +21,7 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Cursor | `.cursor/` | `.cursor/skills/` |
 | Windsurf | `.windsurf/` | `.windsurf/skills/` |
 | Roo Code | `.roo/` | `.roo/skills/` |
-| Kilo Code | `.kilocode/` | `.kilocode/skills/` |
+| Kilo Code | `.kilocode/` | `.kilocode/skills/`, `.kilocode/workflows/` |
 | Antigravity | `.agent/` | `.agent/skills/`, `.agent/workflows/` |
 | OpenCode | `.opencode/` | `.opencode/skills/` |
 | Warp | `.warp/` | `.warp/skills/` |
@@ -30,9 +30,12 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | GitHub Copilot | `.github/` | `.github/skills/` |
 | Gemini CLI | `.gemini/` | `.gemini/skills/` |
 | Junie | `.junie/` | `.junie/skills/` |
+| Qwen Code | `.qwen/` | `.qwen/skills/` |
 | Universal / Other | `.agents/` | `.agents/skills/` |
 
-MCP server configuration is supported for Claude Code, Cursor, Roo Code, Kilo Code, and OpenCode. Other agents get skills installed with correct paths but without MCP auto-configuration.
+When Claude Code is selected, AI Factory also installs bundled Claude subagents into `.claude/agents/` and tracks them in `.ai-factory.json`. This is Claude-only and is documented in [Subagents](subagents.md).
+
+MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, and Qwen Code. Other agents get skills installed with correct paths but without MCP auto-configuration.
 
 ## Your First Project
 
@@ -43,37 +46,65 @@ npm install -g ai-factory
 # 2. Go to your project
 cd my-project
 
-# 3. Initialize — pick one or more agents, detect stack, install skills
+# 3. Initialize — pick agents, install skills, configure MCP
 ai-factory init
+# Or non-interactively: ai-factory init --agents claude --mcp github,playwright
 
 # 4. Open your AI agent (Claude Code, Cursor, etc.) and run:
 /aif
 
-# 5. Start building
+# 5. Optional discovery before planning
+/aif-explore Add user authentication with OAuth
+
+# 6. Start building
 /aif-plan Add user authentication with OAuth
 ```
 
-From here, AI Factory creates a branch, builds a plan, and you run `/aif-implement` to execute it step by step.
+If scope is unclear, start with `/aif-explore` (optionally save results to `paths.research`, default: `.ai-factory/RESEARCH.md`); if the task is clear but the answer must be strictly verified, use `/aif-grounded`; if the direction is already clear, jump straight to `/aif-plan`. From there, AI Factory builds a plan, optionally creates a branch/worktree when git settings allow it, and you run `/aif-implement` to execute it step by step.
 
 ## CLI Commands
 
 ```bash
-# Update npm package to latest version
-npm install -g ai-factory@latest
-
-# Initialize project
+# Initialize project (interactive wizard)
 ai-factory init
 
-# Update skills to latest version
+# Initialize non-interactively with flags
+ai-factory init --agents claude,codex --mcp playwright,github
+ai-factory init --agents cursor --skills commit,plan
+ai-factory init --agents claude --no-skills --mcp github
+
+# Update skills to latest version (also checks for CLI updates)
 ai-factory update
+
+# Force clean reinstall of currently installed base skills
+ai-factory update --force
 
 # Migrate existing skills from v1 naming to v2 naming
 ai-factory upgrade
+
+# Install an extension (local path, git URL, or npm package)
+ai-factory extension add ./my-extension
+
+# List installed extensions
+ai-factory extension list
+
+# Update extensions from their sources
+ai-factory extension update
+
+# Update a specific extension (use --force to refresh unchanged versions)
+ai-factory extension update my-extension --force
+
+# Remove extension
+ai-factory extension remove my-extension
 ```
 
-For v1 -> v2 migration, run both commands in order:
-1. `npm install -g ai-factory@latest`
-2. `ai-factory upgrade`
+For v1 -> v2 migration, run `ai-factory upgrade` to rename old skills to the new `aif-*` prefix.
+
+`ai-factory update` now:
+- Checks for extension updates from their sources (npm, GitHub, etc.) before updating base skills
+- Prints per-agent status buckets for base skills (`changed`, `unchanged`, `skipped`, `removed`)
+- For Claude Code, also refreshes managed `.claude/agents/` subagents and prints a separate `Subagents` status block
+- Skills newly available in the package but not previously installed are shown as `skipped` (not auto-installed)
 
 ## Next Steps
 

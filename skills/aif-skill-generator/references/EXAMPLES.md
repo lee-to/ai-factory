@@ -66,7 +66,7 @@ Deploy to $ARGUMENTS environment:
 1. Verify all tests pass: `npm test`
 2. Check for uncommitted changes: `git status`
 3. Verify on correct branch: `git branch --show-current`
-4. Pull latest changes: `git pull origin main`
+4. Pull latest changes: `git pull origin <configured-base-branch>`
 
 ## Build
 1. Install dependencies: `npm ci`

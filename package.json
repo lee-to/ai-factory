@@ -1,6 +1,6 @@
 {
   "name": "ai-factory",
-  "version": "2.0.1",
+  "version": "2.9.2",
   "type": "module",
   "description": "CLI tool for automating AI agent context setup in projects",
   "main": "dist/cli/index.js",
@@ -12,6 +12,11 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "bash scripts/test-skills.sh",
+    "test:init": "bash scripts/test-init.sh",
+    "test:update": "bash scripts/test-update.sh",
+    "lint:unused": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "lint:dead": "knip --reporter compact",
+    "lint": "npm run lint:unused && npm run lint:dead",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
     "link": "npm run build && npm link"
@@ -26,6 +31,8 @@
     "warp",
     "zencoder",
     "junie",
+    "qwen",
+    "qwen-code",
     "gemini",
     "copilot",
     "roocode",
@@ -42,8 +49,18 @@
     "bin",
     "dist",
     "skills",
+    "subagents",
     "mcp"
   ],
+  "knip": {
+    "ignoreExportsUsedInFile": true,
+    "exclude": [
+      "types"
+    ],
+    "ignore": [
+      "examples/**"
+    ]
+  },
   "engines": {
     "node": ">=18.0.0"
   },
@@ -51,12 +68,15 @@
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "fs-extra": "^11.2.0",
-    "inquirer": "^9.2.15"
+    "inquirer": "^9.2.15",
+    "semver": "^7.7.4"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
     "@types/node": "^20.11.0",
+    "@types/semver": "^7.7.1",
+    "knip": "^5.85.0",
     "typescript": "^5.3.3"
   }
 }

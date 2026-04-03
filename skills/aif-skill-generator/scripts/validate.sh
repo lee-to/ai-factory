@@ -43,7 +43,7 @@ fi
 pass "SKILL.md exists"
 
 # Extract frontmatter (between first two --- lines)
-FRONTMATTER=$(awk '/^---$/{if(++n==1)next; if(n==2)exit} n==1' "$SKILL_MD")
+FRONTMATTER=$(tr -d '\r' < "$SKILL_MD" | awk '/^---$/{if(++n==1)next; if(n==2)exit} n==1')
 
 if [[ -z "$FRONTMATTER" ]]; then
     error "No YAML frontmatter found (must be between --- markers)"
@@ -88,7 +88,7 @@ else
 fi
 
 # Check description field - handle multiline (read directly from file to avoid quoting issues)
-DESC=$(awk '
+DESC=$(tr -d '\r' < "$SKILL_MD" | awk '
     /^---$/ { n++; next }
     n == 1 && /^description:/ {
         found = 1
@@ -105,7 +105,7 @@ DESC=$(awk '
     n == 1 && found && /^[^[:space:]]/ { exit }
     n == 2 { exit }
     END { print desc }
-' "$SKILL_MD")
+' )
 
 if [[ -z "$DESC" ]]; then
     error "Missing required 'description' field"
@@ -126,7 +126,7 @@ else
     fi
 fi
 
-# Check argument-hint quoting (unquoted [] breaks YAML in OpenCode/Kilo Code, crashes Claude Code TUI)
+# Check argument-hint quoting (unquoted [] breaks YAML in OpenCode/Kilo Code, crashes agent TUI)
 ARG_HINT_LINE=$(echo "$FRONTMATTER" | grep -E "^argument-hint:" | head -1)
 
 if [[ -n "$ARG_HINT_LINE" ]]; then
@@ -144,7 +144,7 @@ if [[ -n "$ARG_HINT_LINE" ]]; then
 fi
 
 # Count body lines (after second ---)
-BODY_LINES=$(awk '/^---$/{if(++n==2){found=1; next}} found' "$SKILL_MD" | wc -l | tr -d ' ')
+BODY_LINES=$(tr -d '\r' < "$SKILL_MD" | awk '/^---$/{if(++n==2){found=1; next}} found' | wc -l | tr -d ' ')
 
 if [[ $BODY_LINES -gt 500 ]]; then
     warn "SKILL.md body exceeds 500 lines ($BODY_LINES). Consider moving content to references/"

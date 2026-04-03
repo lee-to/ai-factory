@@ -41,8 +41,10 @@ for skill_dir in "$ROOT_DIR"/skills/*/; do
     if [[ "$skill_name" != "aif" && "$skill_name" != aif-* ]]; then
         continue
     fi
+    set +e
     OUTPUT=$(bash "$VALIDATOR" "$skill_dir" 2>&1)
     EXIT_CODE=$?
+    set -e
     WARNS=$(echo "$OUTPUT" | grep -c 'WARNING' || true)
     if [[ $EXIT_CODE -ne 0 ]]; then
         fail "$skill_name"
@@ -207,6 +209,167 @@ if [[ "$DOTTED_REFS" -eq 0 ]]; then
     pass "no dotted /aif.xxx invocations in docs"
 else
     fail "found $DOTTED_REFS dotted invocations in docs"
+fi
+
+# No hardcoded agent-specific values (must use {{template_vars}})
+# skills_dir patterns
+HARDCODED_SKILLS_DIR=$(grep -rE '\.(claude|cursor|codex|github|gemini|junie|qwen|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+if [[ "$HARDCODED_SKILLS_DIR" -eq 0 ]]; then
+    pass "no hardcoded skills_dir in skills/ and subagents/"
+else
+    fail "found $HARDCODED_SKILLS_DIR hardcoded skills_dir values (use {{skills_dir}} or {{home_skills_dir}})"
+    grep -rEn '\.(claude|cursor|codex|github|gemini|junie|qwen|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+fi
+
+# settings_file patterns
+HARDCODED_SETTINGS=$(grep -rE '(\.mcp\.json|settings\.local\.json|\.cursor/mcp\.json|\.vscode/mcp\.json|\.qwen/settings\.json)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+if [[ "$HARDCODED_SETTINGS" -eq 0 ]]; then
+    pass "no hardcoded settings_file in skills/ and subagents/"
+else
+    fail "found $HARDCODED_SETTINGS hardcoded settings_file values (use {{settings_file}})"
+    grep -rEn '(\.mcp\.json|settings\.local\.json|\.cursor/mcp\.json|\.vscode/mcp\.json|\.qwen/settings\.json)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+fi
+
+# skills_cli_agent_flag patterns
+HARDCODED_AGENT_FLAG=$(grep -rE '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+if [[ "$HARDCODED_AGENT_FLAG" -eq 0 ]]; then
+    pass "no hardcoded skills_cli_agent_flag in skills/ and subagents/"
+else
+    fail "found $HARDCODED_AGENT_FLAG hardcoded --agent flags (use {{skills_cli_agent_flag}})"
+    grep -rEn '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+fi
+
+# ─────────────────────────────────────────────
+# Part 4: Subagent integrity checks
+# ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== Subagent integrity checks ===${NC}\n"
+
+set +e
+SUBAGENT_LINT_OUTPUT=$(ROOT_DIR="$ROOT_DIR" node --input-type=module <<'EOF' 2>&1
+import fs from 'fs';
+import path from 'path';
+
+const root = process.env.ROOT_DIR;
+const subagentsDir = path.join(root, 'subagents');
+const docsPath = path.join(root, 'docs', 'subagents.md');
+const refsPath = path.join(root, '.references', 'CLAUDE-SUBAGENTS.md');
+
+const files = fs.readdirSync(subagentsDir).filter(file => file.endsWith('.md')).sort();
+const docsContent = fs.readFileSync(docsPath, 'utf8');
+const refsContent = fs.readFileSync(refsPath, 'utf8');
+const errors = [];
+
+function getFrontmatter(content, file) {
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) {
+    errors.push(`${file}: missing frontmatter`);
+    return '';
+  }
+  return match[1];
+}
+
+function getField(frontmatter, key) {
+  const match = frontmatter.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'));
+  return match ? match[1].trim() : null;
+}
+
+for (const file of files) {
+  const content = fs.readFileSync(path.join(subagentsDir, file), 'utf8');
+  const frontmatter = getFrontmatter(content, file);
+  const expectedName = path.basename(file, '.md');
+  const name = getField(frontmatter, 'name');
+  const tools = getField(frontmatter, 'tools') ?? '';
+  const background = getField(frontmatter, 'background') === 'true';
+  const hasWriterTools = /\bWrite\b|\bEdit\b/.test(tools);
+
+  if (name !== expectedName) {
+    errors.push(`${file}: frontmatter name "${name}" does not match filename "${expectedName}"`);
+  }
+
+  if (background && hasWriterTools) {
+    errors.push(`${file}: background agents must be read-only`);
+  }
+
+  if (docsContent.includes(`\`${expectedName}\``) === false) {
+    errors.push(`${file}: missing from docs/subagents.md inventory`);
+  }
+
+  if (refsContent.includes(`\`${expectedName}\``) === false) {
+    errors.push(`${file}: missing from .references/CLAUDE-SUBAGENTS.md inventory`);
+  }
+}
+
+if (errors.length > 0) {
+  for (const error of errors) {
+    console.error(error);
+  }
+  process.exit(1);
+}
+EOF
+)
+SUBAGENT_LINT_EXIT=$?
+set -e
+
+if [[ $SUBAGENT_LINT_EXIT -eq 0 ]]; then
+    pass "subagent inventory and frontmatter integrity"
+else
+    fail "subagent inventory and frontmatter integrity"
+    echo "$SUBAGENT_LINT_OUTPUT" | sed 's/^/      /'
+fi
+
+# ─────────────────────────────────────────────
+# Part 5: Internal security self-scan
+# ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== Internal security self-scan ===${NC}\n"
+
+set +e
+SELF_SCAN_OUTPUT=$(bash "$ROOT_DIR/scripts/security-self-scan.sh" 2>&1)
+SELF_SCAN_EXIT=$?
+set -e
+
+if [[ $SELF_SCAN_EXIT -eq 0 ]]; then
+    pass "self-scan passed (no critical threats after allowlist)"
+    echo "$SELF_SCAN_OUTPUT" | grep -E 'Critical:|Warnings:|Ignored by allowlist' | sed 's/^/      /' || true
+elif [[ $SELF_SCAN_EXIT -eq 3 ]]; then
+    pass "self-scan skipped ${YELLOW}(Python 3 not found)${NC}"
+    echo "      Install Python 3 to enable internal self-scan."
+else
+    fail "self-scan failed (critical threats or scanner error)"
+    echo "$SELF_SCAN_OUTPUT" | sed 's/^/      /'
+fi
+
+# ─────────────────────────────────────────────
+# Part 6: Update command smoke tests
+# ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== Update command smoke tests ===${NC}\n"
+
+set +e
+UPDATE_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-update.sh" 2>&1)
+UPDATE_SMOKE_EXIT=$?
+set -e
+
+if [[ $UPDATE_SMOKE_EXIT -eq 0 ]]; then
+    pass "update smoke tests"
+else
+    fail "update smoke tests"
+    echo "$UPDATE_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
+# ─────────────────────────────────────────────
+# Part 7: Init command smoke tests
+# ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== Init command smoke tests ===${NC}\n"
+
+set +e
+INIT_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-init.sh" 2>&1)
+INIT_SMOKE_EXIT=$?
+set -e
+
+if [[ $INIT_SMOKE_EXIT -eq 0 ]]; then
+    pass "init smoke tests"
+else
+    fail "init smoke tests"
+    echo "$INIT_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
 # ─────────────────────────────────────────────

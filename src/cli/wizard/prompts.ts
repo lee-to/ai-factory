@@ -1,7 +1,8 @@
 import inquirer from 'inquirer';
-import { detectStack, type DetectedStack } from './detector.js';
+import chalk from 'chalk';
 import { getAvailableSkills } from '../../core/installer.js';
 import { getAgentConfig, getAgentChoices } from '../../core/agents.js';
+import { formatSkillChoiceName } from './skill-hints.js';
 
 export interface AgentWizardSelection {
   id: string;
@@ -9,6 +10,7 @@ export interface AgentWizardSelection {
   mcpFilesystem: boolean;
   mcpPostgres: boolean;
   mcpChromeDevtools: boolean;
+  mcpPlaywright: boolean;
 }
 
 export interface WizardAnswers {
@@ -16,21 +18,11 @@ export interface WizardAnswers {
   agents: AgentWizardSelection[];
 }
 
-export async function runWizard(projectDir: string, defaultAgentIds: string[] = []): Promise<WizardAnswers> {
-  const detectedStack = await detectStack(projectDir);
+export async function runWizard(defaultAgentIds: string[] = []): Promise<WizardAnswers> {
   const availableSkills = await getAvailableSkills();
-  const selectedByDefault = new Set(defaultAgentIds.length > 0 ? defaultAgentIds : ['claude']);
+  const selectedByDefault = new Set(defaultAgentIds);
 
-  if (detectedStack) {
-    console.log(`\n📦 Detected: ${detectedStack.name}`);
-    if (detectedStack.frameworks.length > 0) {
-      console.log(`   Frameworks: ${detectedStack.frameworks.join(', ')}`);
-    }
-    console.log(`\n💡 Run /aif after setup to generate stack-specific skills.\n`);
-  } else {
-    console.log('\n📦 No existing project detected.');
-    console.log('💡 Run /aif after setup to analyze or describe your project.\n');
-  }
+  console.log('\n💡 Run /aif after setup to analyze your project and generate relevant skills.\n');
 
   const answers = await inquirer.prompt([
     {
@@ -53,7 +45,8 @@ export async function runWizard(projectDir: string, defaultAgentIds: string[] = 
       name: 'selectedSkills',
       message: 'Base skills to install:',
       choices: availableSkills.map(skill => ({
-        name: skill,
+        name: formatSkillChoiceName(skill, hint => chalk.gray(hint)),
+        short: skill,
         value: skill,
         checked: true, // All skills selected by default
       })),
@@ -69,6 +62,7 @@ export async function runWizard(projectDir: string, defaultAgentIds: string[] = 
       mcpFilesystem: false,
       mcpPostgres: false,
       mcpChromeDevtools: false,
+      mcpPlaywright: false,
     };
 
     if (agentConfig.supportsMcp) {
@@ -77,26 +71,23 @@ export async function runWizard(projectDir: string, defaultAgentIds: string[] = 
           type: 'confirm',
           name: 'configureMcp',
           message: `[${agentConfig.displayName}] Configure MCP servers?`,
-          default: detectedStack !== null,
+          default: false,
         },
       ]);
 
       if (configureMcp) {
-        const suggestPostgres = detectedStack?.name &&
-          ['laravel', 'symfony', 'django', 'fastapi', 'nextjs', 'node-api', 'java'].includes(detectedStack.name);
-
         mcpAnswers = await inquirer.prompt([
           {
             type: 'confirm',
             name: 'mcpGithub',
             message: `[${agentConfig.displayName}] GitHub MCP (PRs, issues, repo operations)?`,
-            default: true,
+            default: false,
           },
           {
             type: 'confirm',
             name: 'mcpPostgres',
             message: `[${agentConfig.displayName}] Postgres MCP (database queries)?`,
-            default: suggestPostgres,
+            default: false,
           },
           {
             type: 'confirm',
@@ -108,6 +99,12 @@ export async function runWizard(projectDir: string, defaultAgentIds: string[] = 
             type: 'confirm',
             name: 'mcpChromeDevtools',
             message: `[${agentConfig.displayName}] Chrome Devtools MCP (inspect, debug, performance insights, analyze network requests)?`,
+            default: false,
+          },
+          {
+            type: 'confirm',
+            name: 'mcpPlaywright',
+            message: `[${agentConfig.displayName}] Playwright MCP (browser automation, web testing, interaction via accessibility tree)?`,
             default: false,
           },
         ]);

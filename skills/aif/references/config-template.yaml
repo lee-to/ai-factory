@@ -1,0 +1,190 @@
+# AI Factory Configuration
+# This file configures AI Factory behavior for your project.
+# All sections are optional — defaults are used when not specified.
+
+# =============================================================================
+# Language Settings
+# =============================================================================
+# Controls the language used in AI-generated content and communication.
+
+language:
+  # Language for AI-agent communication (prompts, questions, explanations)
+  # Options: en, ru, de, fr, es, zh, ja, ko, pt, it
+  # Default: en
+  ui: en
+
+  # Language for generated artifacts (plans, specs, documentation)
+  # Options: en, ru, de, fr, es, zh, ja, ko, pt, it
+  # Default: en (same as ui if not specified)
+  artifacts: en
+
+  # How to handle technical terms in translations
+  # Options:
+  #   - keep: preserve original English terms (API, database, etc.)
+  #   - translate: translate where common translation exists
+  # Default: keep
+  technical_terms: keep
+
+# =============================================================================
+# Path Configuration
+# =============================================================================
+# Custom paths for AI Factory artifacts.
+# All paths are relative to project root.
+
+paths:
+  # Project description file
+  # Default: .ai-factory/DESCRIPTION.md
+  description: .ai-factory/DESCRIPTION.md
+
+  # Architecture guidelines file
+  # Default: .ai-factory/ARCHITECTURE.md
+  architecture: .ai-factory/ARCHITECTURE.md
+
+  # Detailed documentation directory used by /aif-docs
+  # README.md remains the landing page in the project root.
+  # Change this if you want docs pages under another folder like
+  # documentation/, handbook/, or site/docs/.
+  # Default: docs/
+  docs: docs/
+
+  # Roadmap file
+  # Default: .ai-factory/ROADMAP.md
+  roadmap: .ai-factory/ROADMAP.md
+
+  # Research notes file
+  # Default: .ai-factory/RESEARCH.md
+  research: .ai-factory/RESEARCH.md
+
+  # Top-level project rules file (axioms)
+  # Default: .ai-factory/RULES.md
+  rules_file: .ai-factory/RULES.md
+
+  # Fast-mode plan file
+  # Used by /aif-plan fast for a single quick plan.
+  # Keep this separate from paths.plans unless you want fast plans
+  # to live next to full named plans.
+  # Default: .ai-factory/PLAN.md
+  plan: .ai-factory/PLAN.md
+
+  # Full-mode plans directory
+  # /aif-plan full stores named plan files here.
+  # In git-aware mode this is typically branch-scoped.
+  # In no-git mode it stores slug-based plan files.
+  # Default: .ai-factory/plans/
+  plans: .ai-factory/plans/
+
+  # Fix plan file
+  # Default: .ai-factory/FIX_PLAN.md
+  fix_plan: .ai-factory/FIX_PLAN.md
+
+  # Security ignore-state file
+  # Default: .ai-factory/SECURITY.md
+  security: .ai-factory/SECURITY.md
+
+  # Knowledge references directory
+  # Default: .ai-factory/references/
+  references: .ai-factory/references/
+
+  # Self-improvement patches directory
+  # Default: .ai-factory/patches/
+  patches: .ai-factory/patches/
+
+  # Evolution logs directory
+  # Default: .ai-factory/evolutions/
+  evolutions: .ai-factory/evolutions/
+
+  # Reflex loop state directory
+  # Default: .ai-factory/evolution/
+  evolution: .ai-factory/evolution/
+
+  # Specs directory (archived plans)
+  # Default: .ai-factory/specs/
+  specs: .ai-factory/specs/
+
+  # Rules directory
+  # Default: .ai-factory/rules/
+  rules: .ai-factory/rules/
+
+# =============================================================================
+# Workflow Settings
+# =============================================================================
+# Controls AI Factory workflow behavior.
+
+workflow:
+  # Automatically create .ai-factory/ directories when missing
+  # Default: true
+  auto_create_dirs: true
+
+  # Plan ID format for new plans
+  # Options: slug, timestamp, uuid
+  # Default: slug (derived from branch or task description)
+  plan_id_format: slug
+
+  # Whether the setup/analyze flow updates ARCHITECTURE.md
+  # Default: true
+  analyze_updates_architecture: true
+
+  # Whether /aif-architecture updates ROADMAP.md
+  # Default: true
+  architecture_updates_roadmap: true
+
+  # Default verification mode
+  # Options: strict, normal, lenient
+  # Default: normal
+  verify_mode: normal
+
+# =============================================================================
+# Git Settings
+# =============================================================================
+
+git:
+  # Whether this project uses git-aware workflows
+  # If false:
+  #   - /aif-plan full does not create branches
+  #   - /aif-review and /aif-verify do not assume a base branch exists
+  #   - merge/push guidance is skipped
+  # Default: auto-detected from the repository (.git presence)
+  enabled: true
+
+  # Default branch for diff/review/merge targets
+  # Examples: main, master, develop, trunk, 2.x
+  # Default: auto-detected from git metadata, fallback main
+  base_branch: main
+
+  # Automatically create feature branches for plans
+  # Applies only when git.enabled = true
+  # If false, /aif-plan full still creates a full plan but stays on the
+  # current branch (or uses a slug-named full plan in no-git mode)
+  # Default: true when git is enabled
+  create_branches: true
+
+  # Branch name prefix for new features
+  # Applies only when create_branches = true
+  # Default: feature/
+  branch_prefix: feature/
+
+  # Skip push prompt after /aif-commit creates a commit
+  # If true:
+  #   - /aif-commit ends after successful local commit
+  #   - no "Push to remote?" prompt is shown
+  # Default: false
+  skip_push_after_commit: false
+
+# =============================================================================
+# Rules Configuration
+# =============================================================================
+# Configure the rules hierarchy for this project.
+
+rules:
+  # Base rules file (project-specific conventions)
+  # This file is created by /aif during project setup
+  # Default: .ai-factory/rules/base.md
+  base: .ai-factory/rules/base.md
+
+  # Area-specific rules files
+  # These are created by /aif-rules when you add area-specific conventions
+  # Uncomment and add paths as needed:
+  # api: .ai-factory/rules/api.md
+  # frontend: .ai-factory/rules/frontend.md
+  # backend: .ai-factory/rules/backend.md
+  # database: .ai-factory/rules/database.md

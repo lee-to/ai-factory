@@ -1,4 +1,4 @@
-[← Development Workflow](workflow.md) · [Back to README](../README.md) · [Core Skills →](skills.md)
+[← Development Workflow](workflow.md) · [Back to README](../README.md) · [Subagents →](subagents.md)
 
 # Reflex Loop
 
@@ -11,6 +11,8 @@
 5. Repeat until stop condition is reached
 
 It is designed for high-signal iteration with minimal storage overhead.
+
+Paths below show the default `.ai-factory/` layout. `config.yaml` can relocate the loop-state root via `paths.evolution`.
 
 Terminology:
 - **loop** = one full execution for a task alias (stored in `run.json`, identified by `run_id`)
@@ -50,10 +52,10 @@ This confirmation is mandatory even when the task prompt already contains criter
 4 files total for loop persistence (1 global pointer + 3 per-loop files). `current.json` exists only while a loop is active:
 
 ```text
-.ai-factory/evolution/current.json
-.ai-factory/evolution/<task-alias>/run.json
-.ai-factory/evolution/<task-alias>/history.jsonl
-.ai-factory/evolution/<task-alias>/artifact.md
+<paths.evolution>/current.json
+<paths.evolution>/<task-alias>/run.json
+<paths.evolution>/<task-alias>/history.jsonl
+<paths.evolution>/<task-alias>/artifact.md
 ```
 
 ### `current.json`
@@ -85,8 +87,8 @@ Single source of truth for current state:
   "phase": "A",
   "current_step": "PLAN",
   "task": {
-    "prompt": "OpenAPI 3.1 + DDD notes + JSON examples + PHP controller",
-    "ideal_result": "Spec + notes + examples + controller pass phase B"
+    "prompt": "OpenAPI 3.1 spec + DDD notes + JSON examples",
+    "ideal_result": "Spec + notes + examples pass phase B"
   },
   "criteria": {
     "name": "loop_default_v1",
@@ -120,6 +122,8 @@ Append-only event stream, one JSON object per line:
 ### `artifact.md`
 
 Single source of truth for artifact content. Written after PRODUCE and REFINE phases. Artifact content is never stored in `run.json` — always read from this file.
+
+Ownership note: `artifact.md` is owned by `/aif-loop` for the active run. Other workflow commands should treat loop artifacts as read-only context unless the user explicitly asks for manual edits.
 
 ## Phases
 
@@ -271,7 +275,7 @@ Hash: {first 8 chars of artifact SHA-256}
 Changed: {list of added/modified sections or "initial generation"}
 Failed: {rule IDs or "none"}
 Warnings: {rule IDs or "none"}
-Artifact: .ai-factory/evolution/<alias>/artifact.md
+Artifact: <paths.evolution>/<alias>/artifact.md
 ```
 
 If `passed=false`, append compact critique (rule ID + 1-line fix per issue).
@@ -321,5 +325,6 @@ The loop uses a phase model with targeted parallelism:
 ## See Also
 
 - [Development Workflow](workflow.md) - where `/aif-loop` fits in the overall process
+- [Subagents](subagents.md) - Claude-only loop roles used to split planning, generation, and evaluation
 - [Core Skills](skills.md) - full command reference including `/aif-loop`
 - [Configuration](configuration.md) - `.ai-factory/` storage layout

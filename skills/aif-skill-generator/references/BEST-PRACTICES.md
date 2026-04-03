@@ -208,7 +208,7 @@ ls -la skill-name/
 npx skills-ref validate ./skill-name
 
 # Integration test
-# Ask Claude to use the skill in various contexts
+# Ask agent to use the skill in various contexts
 ```
 
 ## Publishing Checklist

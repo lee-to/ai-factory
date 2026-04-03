@@ -34,7 +34,7 @@ description: A description of what this skill does and when to use it.
 | `metadata` | No | Key-value pairs for custom data |
 | `allowed-tools` | No | Space-delimited tool list |
 
-### Claude Code Extensions
+### Agent Extensions
 
 | Field | Description |
 |-------|-------------|

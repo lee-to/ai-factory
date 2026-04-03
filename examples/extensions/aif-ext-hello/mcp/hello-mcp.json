@@ -1,0 +1,7 @@
+{
+  "command": "npx",
+  "args": ["-y", "@example/hello-mcp-server"],
+  "env": {
+    "HELLO_API_KEY": "${HELLO_API_KEY}"
+  }
+}

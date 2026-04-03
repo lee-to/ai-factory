@@ -9,4 +9,11 @@ export class DefaultTransformer implements AgentTransformer {
       flat: false,
     };
   }
+
+  getWelcomeMessage(): string[] {
+    return [
+      '1. Open the agent in this directory',
+      '2. Run /aif to analyze project and generate project-relevant skills',
+    ];
+  }
 }

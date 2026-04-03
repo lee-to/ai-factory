@@ -12,9 +12,18 @@ Generate `.ai-factory/ARCHITECTURE.md` with architecture decisions tailored to t
 
 ## Workflow
 
-### Step 0: Load Project Context
+### Step 0: Load Config & Project Context
 
-**Read `.ai-factory/DESCRIPTION.md`** if it exists to understand:
+**FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
+- **Paths:** `paths.description` and `paths.architecture`
+- **Language:** `language.ui` for prompts and `language.artifacts` for generated architecture content
+
+If config.yaml doesn't exist, use defaults:
+- DESCRIPTION.md: `.ai-factory/DESCRIPTION.md`
+- ARCHITECTURE.md: `.ai-factory/ARCHITECTURE.md`
+- Language: `en` (English)
+
+**THEN:** Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists to understand:
 - Tech stack (language, framework, database, ORM)
 - Project size and complexity
 - Core features and requirements
@@ -32,6 +41,26 @@ Run /aif first to set up project context, or describe your project manually:
 ```
 
 Allow standalone usage — if user provides manual input, use that instead.
+
+**Read `.ai-factory/skill-context/aif-architecture/SKILL.md`** — MANDATORY if the file exists.
+
+This file contains project-specific rules accumulated by `/aif-evolve` from patches,
+codebase conventions, and tech-stack analysis. These rules are tailored to the current project.
+
+**How to apply skill-context rules:**
+- Treat them as **project-level overrides** for this skill's general instructions
+- When a skill-context rule conflicts with a general rule written in this SKILL.md,
+  **the skill-context rule wins** (more specific context takes priority — same principle as nested CLAUDE.md files)
+- When there is no conflict, apply both: general rules from SKILL.md + project rules from skill-context
+- Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
+  they exist because the project's experience proved the default insufficient
+- **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including the
+  ARCHITECTURE.md template. The template in this SKILL.md is a **base structure**. If a skill-context
+  rule says "architecture doc MUST include X" or "MUST cover section Y" — you MUST augment the
+  template accordingly. Generating ARCHITECTURE.md that violates skill-context rules is a bug.
+
+**Enforcement:** After generating any output artifact, verify it against all skill-context rules.
+If any rule is violated — fix the output before presenting it to the user.
 
 ### Step 1: Analyze & Recommend
 
@@ -65,13 +94,11 @@ Architecture options:
 - **Modular Monolith** — single deployment with strong module boundaries, good default for most projects
 - **Layered Architecture** — simple layers (presentation → business → data), good for smaller projects
 
-### Step 2: Generate .ai-factory/ARCHITECTURE.md
+### Step 2: Generate the Architecture Artifact
 
-```bash
-mkdir -p .ai-factory
-```
+Create the parent directory for the resolved architecture path if needed.
 
-Generate `.ai-factory/ARCHITECTURE.md` with the following structure, **adapted to the project's tech stack and language**:
+Generate the resolved architecture artifact (default: `.ai-factory/ARCHITECTURE.md`) with the following structure, **adapted to the project's tech stack and language**:
 
 ```markdown
 # Architecture: [Pattern Name]
@@ -131,11 +158,11 @@ Generate `.ai-factory/ARCHITECTURE.md` with the following structure, **adapted t
 
 ### Step 3: Update DESCRIPTION.md
 
-If `.ai-factory/DESCRIPTION.md` exists, add an `## Architecture` section (or update if it already exists):
+If the resolved DESCRIPTION.md path exists, add an `## Architecture` section (or update if it already exists):
 
 ```markdown
 ## Architecture
-See `.ai-factory/ARCHITECTURE.md` for detailed architecture guidelines.
+See the configured architecture artifact for detailed architecture guidelines.
 Pattern: [chosen pattern name]
 ```
 
@@ -164,6 +191,13 @@ Key rules:
 
 All workflow skills (/aif-plan, /aif-implement) will now follow these architecture guidelines.
 ```
+
+## Artifact Ownership
+
+- Primary ownership: `.ai-factory/ARCHITECTURE.md`.
+- Respect config overrides: write to the resolved architecture path from `config.yaml` when provided.
+- Allowed companion updates: architecture pointer in `.ai-factory/DESCRIPTION.md`, architecture row in `AGENTS.md` context table.
+- Read-only context: roadmap, rules, research, and plan artifacts unless user explicitly requests otherwise.
 
 ---
 

@@ -3,7 +3,7 @@
 Security Scanner for Agent Skills
 Detects prompt injection, data exfiltration, and malicious instructions in SKILL.md files.
 
-Usage: python security-scan.py <path-to-skill-directory-or-SKILL.md>
+Usage: python security-scan.py [--allowlist <file.json>] [--md-only] [--strict] <path-to-skill-directory-or-SKILL.md>
 
 Exit codes:
   0 - Clean (no threats detected)
@@ -16,6 +16,8 @@ import sys
 import os
 import re
 import base64
+import json
+import fnmatch
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 
@@ -116,7 +118,7 @@ _add(r'git\s+push\s+(-f|--force)\s+(origin\s+)?(main|master)',
 
 # ── 5. Configuration Tampering ────────────────────────────────────────────────
 
-_add(r'(write|modify|edit|change|overwrite|update)\s+.{0,30}(\.claude|\.cursor|\.codex|\.github|\.gemini|\.junie|\.ai|claude\.json|settings\.json|settings\.local\.json|CLAUDE\.md)',
+_add(r'(write|modify|edit|change|overwrite|update)\s+.{0,30}(\.claude|\.cursor|\.codex|\.github|\.gemini|\.junie|\.ai(?:/|\b(?!-))|claude\.json|settings\.json|settings\.local\.json|CLAUDE\.md)',
      'CRITICAL', 'Config tampering: modifies AI agent configuration')
 
 _add(r'(write|modify|edit|change|overwrite)\s+.{0,30}(\.bashrc|\.zshrc|\.profile|\.bash_profile|crontab|\.gitconfig)',
@@ -219,7 +221,7 @@ def check_base64_blocks(content: str) -> list:
 
 # ─── HTML comment detector ────────────────────────────────────────────────────
 
-def check_html_comments(content: str, code_ranges: list = None) -> list:
+def check_html_comments(content: str, code_ranges: list = None, strict: bool = False) -> list:
     """Detect hidden instructions in HTML comments."""
     findings = []
     if code_ranges is None:
@@ -235,7 +237,7 @@ def check_html_comments(content: str, code_ranges: list = None) -> list:
             line_num = content[:match.start()].count('\n') + 1
             in_code = is_in_code_block(line_num, code_ranges)
             findings.append({
-                'severity': 'WARNING' if in_code else 'CRITICAL',
+                'severity': 'CRITICAL' if strict else ('WARNING' if in_code else 'CRITICAL'),
                 'description': 'HTML comment contains suspicious instructions' + (' [in code block]' if in_code else ''),
                 'line': line_num,
                 'match': match.group()[:80]
@@ -293,7 +295,7 @@ def is_in_code_block(line_num: int, code_ranges: list) -> bool:
 
 # ─── Scanner ──────────────────────────────────────────────────────────────────
 
-def scan_file(filepath: str) -> dict:
+def scan_file(filepath: str, strict: bool = False) -> dict:
     """Scan a single file for security threats."""
     with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
         content = f.read()
@@ -315,7 +317,7 @@ def scan_file(filepath: str) -> dict:
             in_code = False
             if is_markdown and is_in_code_block(line_num, code_ranges):
                 in_code = True
-                if severity == 'CRITICAL':
+                if not strict and severity == 'CRITICAL':
                     effective_severity = 'WARNING'
 
             findings.append({
@@ -328,7 +330,7 @@ def scan_file(filepath: str) -> dict:
     # Run special detectors (base64/zero-width are always critical;
     # HTML comments are demoted to WARNING inside code blocks)
     findings.extend(check_base64_blocks(content))
-    findings.extend(check_html_comments(content, code_ranges))
+    findings.extend(check_html_comments(content, code_ranges, strict=strict))
     findings.extend(check_zero_width_chars(content))
 
     return {
@@ -339,18 +341,124 @@ def scan_file(filepath: str) -> dict:
     }
 
 
-def scan_skill(skill_path: str) -> dict:
+ALL_EXTENSIONS = ('.md', '.py', '.sh', '.js', '.ts', '.yaml', '.yml', '.json')
+MARKDOWN_EXTENSIONS = ('.md',)
+
+
+def _normalize_rel_path(path: str) -> str:
+    return path.replace(os.sep, '/')
+
+
+def _normalize_description(description: str) -> str:
+    suffix = ' [in code block]'
+    if description.endswith(suffix):
+        return description[:-len(suffix)]
+    return description
+
+
+def _allowlist_matches(rel_path: str, finding: dict, entry: dict) -> bool:
+    """Check whether a finding matches an allowlist entry."""
+    file_pattern = entry.get('file')
+    if file_pattern and not fnmatch.fnmatch(rel_path, file_pattern):
+        return False
+
+    severity = entry.get('severity')
+    if severity and finding['severity'] != severity:
+        return False
+
+    description = entry.get('description')
+    if description and _normalize_description(finding['description']) != description:
+        return False
+
+    match = entry.get('match')
+    if match and finding['match'] != match:
+        return False
+
+    return True
+
+
+def load_allowlist(filepath: str) -> list:
+    """Load allowlist entries from JSON file."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        print(f"{RED}ERROR:{NC} Allowlist file not found: {filepath}", file=sys.stderr)
+        sys.exit(3)
+    except json.JSONDecodeError as e:
+        print(f"{RED}ERROR:{NC} Invalid JSON in allowlist file {filepath}: {e}", file=sys.stderr)
+        sys.exit(3)
+
+    entries = data.get('entries') if isinstance(data, dict) else data
+    if not isinstance(entries, list):
+        print(f"{RED}ERROR:{NC} Allowlist must be a JSON array or {{\"entries\": [...]}}", file=sys.stderr)
+        sys.exit(3)
+
+    validated = []
+    for i, entry in enumerate(entries, 1):
+        if not isinstance(entry, dict):
+            print(f"{RED}ERROR:{NC} Allowlist entry #{i} must be an object.", file=sys.stderr)
+            sys.exit(3)
+
+        if 'file' not in entry or not isinstance(entry['file'], str) or not entry['file'].strip():
+            print(f"{RED}ERROR:{NC} Allowlist entry #{i} must include non-empty 'file'.", file=sys.stderr)
+            sys.exit(3)
+
+        if 'severity' not in entry or entry['severity'] not in ('CRITICAL', 'WARNING'):
+            print(f"{RED}ERROR:{NC} Allowlist entry #{i} must include 'severity' = CRITICAL|WARNING.", file=sys.stderr)
+            sys.exit(3)
+
+        has_description = 'description' in entry and isinstance(entry['description'], str) and bool(entry['description'].strip())
+        has_match = 'match' in entry and isinstance(entry['match'], str) and bool(entry['match'].strip())
+        if not (has_description or has_match):
+            print(f"{RED}ERROR:{NC} Allowlist entry #{i} needs non-empty 'description' or 'match'.", file=sys.stderr)
+            sys.exit(3)
+
+        validated.append(entry)
+
+    return validated
+
+
+def apply_allowlist(report: dict, allowlist_entries: list) -> dict:
+    """Filter findings using allowlist and recalculate counters."""
+    ignored_count = 0
+    path_is_dir = os.path.isdir(report['path'])
+
+    for file_result in report['file_results']:
+        rel_path = os.path.relpath(file_result['file'], report['path']) if path_is_dir else os.path.basename(file_result['file'])
+        rel_path = _normalize_rel_path(rel_path)
+
+        filtered_findings = []
+        for finding in file_result['findings']:
+            if any(_allowlist_matches(rel_path, finding, entry) for entry in allowlist_entries):
+                ignored_count += 1
+            else:
+                filtered_findings.append(finding)
+
+        file_result['findings'] = filtered_findings
+        file_result['critical_count'] = sum(1 for f in filtered_findings if f['severity'] == 'CRITICAL')
+        file_result['warning_count'] = sum(1 for f in filtered_findings if f['severity'] == 'WARNING')
+
+    report['total_critical'] = sum(r['critical_count'] for r in report['file_results'])
+    report['total_warnings'] = sum(r['warning_count'] for r in report['file_results'])
+    report['ignored_count'] = ignored_count
+
+    return report
+
+
+def scan_skill(skill_path: str, md_only: bool = False, strict: bool = False) -> dict:
     """Scan an entire skill directory or a single SKILL.md file."""
     results = []
+    extensions = MARKDOWN_EXTENSIONS if md_only else ALL_EXTENSIONS
 
     if os.path.isfile(skill_path):
-        results.append(scan_file(skill_path))
+        results.append(scan_file(skill_path, strict=strict))
     elif os.path.isdir(skill_path):
         for root, dirs, files in os.walk(skill_path):
             for fname in files:
-                if fname.endswith(('.md', '.py', '.sh', '.js', '.ts', '.yaml', '.yml', '.json')):
+                if fname.endswith(extensions):
                     fpath = os.path.join(root, fname)
-                    results.append(scan_file(fpath))
+                    results.append(scan_file(fpath, strict=strict))
     else:
         print(f"{RED}ERROR:{NC} Path not found: {skill_path}", file=sys.stderr)
         sys.exit(3)
@@ -364,6 +472,7 @@ def scan_skill(skill_path: str) -> dict:
         'file_results': results,
         'total_critical': total_critical,
         'total_warnings': total_warnings,
+        'ignored_count': 0,
     }
 
 
@@ -391,6 +500,8 @@ def print_report(report: dict):
     print(f"{BOLD}=== Summary ==={NC}")
     print(f"  Critical: {RED}{report['total_critical']}{NC}")
     print(f"  Warnings: {YELLOW}{report['total_warnings']}{NC}")
+    if report.get('ignored_count', 0) > 0:
+        print(f"  Ignored by allowlist: {GREEN}{report['ignored_count']}{NC}")
 
     if report['total_critical'] > 0:
         print(f"\n{RED}{BOLD}BLOCKED: Skill contains {report['total_critical']} critical security threat(s).{NC}")
@@ -409,10 +520,20 @@ def print_report(report: dict):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python security-scan.py <path-to-skill-or-SKILL.md>")
+        print("Usage: python security-scan.py [--allowlist <file.json>] [--md-only] [--strict] <path-to-skill-or-SKILL.md>")
         print("\nScans Agent Skills for prompt injection and security threats.")
+        print("\nOptions:")
+        print("  --md-only Scan only markdown files (.md)")
+        print("            Default: scan .md, .py, .sh, .js, .ts, .yaml, .yml, .json")
+        print("  --deep    Alias for default behavior (scan all supported files)")
+        print("  --strict  Do not demote code-block findings; treat markdown examples as real threats")
+        print("  --allowlist <file.json>")
+        print("            Ignore known benign findings for trusted/internal scans")
         print("\nExamples:")
         print("  python security-scan.py ./my-skill/")
+        print("  python security-scan.py --md-only ./my-skill/")
+        print("  python security-scan.py --strict ./my-skill/")
+        print("  python security-scan.py --allowlist ./allowlist.json ./skills/")
         print("  python security-scan.py ./my-skill/SKILL.md")
         print("\nExit codes:")
         print("  0 - Clean")
@@ -421,8 +542,59 @@ def main():
         print("  3 - Usage error")
         sys.exit(3)
 
-    target = sys.argv[1]
-    report = scan_skill(target)
+    md_only = False
+    strict = False
+    allowlist_path = None
+    args = []
+
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg in ('--help', '-h'):
+            print("Usage: python security-scan.py [--allowlist <file.json>] [--md-only] [--strict] <path-to-skill-or-SKILL.md>")
+            print("\nScans Agent Skills for prompt injection and security threats.")
+            print("\nOptions:")
+            print("  --md-only Scan only markdown files (.md)")
+            print("            Default: scan .md, .py, .sh, .js, .ts, .yaml, .yml, .json")
+            print("  --deep    Alias for default behavior (scan all supported files)")
+            print("  --strict  Do not demote code-block findings; treat markdown examples as real threats")
+            print("  --allowlist <file.json>")
+            print("            Ignore known benign findings for trusted/internal scans")
+            print("\nExit codes:")
+            print("  0 - Clean")
+            print("  1 - BLOCKED (critical threats)")
+            print("  2 - Warnings (review recommended)")
+            print("  3 - Usage error")
+            sys.exit(0)
+        elif arg == '--deep':
+            # Keep for backward compatibility; all-file scan is the default.
+            md_only = False
+        elif arg == '--strict':
+            strict = True
+        elif arg == '--md-only':
+            md_only = True
+        elif arg == '--allowlist':
+            if i + 1 >= len(sys.argv):
+                print(f"{RED}ERROR:{NC} --allowlist requires a file path.", file=sys.stderr)
+                sys.exit(3)
+            allowlist_path = sys.argv[i + 1]
+            i += 1
+        else:
+            args.append(arg)
+        i += 1
+
+    if not args:
+        print(f"{RED}ERROR:{NC} No path specified.", file=sys.stderr)
+        sys.exit(3)
+    if len(args) > 1:
+        print(f"{RED}ERROR:{NC} Multiple paths provided. Pass exactly one target path.", file=sys.stderr)
+        sys.exit(3)
+
+    target = args[0]
+    report = scan_skill(target, md_only=md_only, strict=strict)
+    if allowlist_path:
+        allowlist_entries = load_allowlist(allowlist_path)
+        report = apply_allowlist(report, allowlist_entries)
     exit_code = print_report(report)
     sys.exit(exit_code)
 

@@ -2,7 +2,7 @@
 name: aif-fix
 description: Fix a specific bug or problem in the codebase. Supports two modes - immediate fix or plan-first. Without arguments executes existing FIX_PLAN.md. Always suggests test coverage and adds logging. Use when user says "fix bug", "debug this", "something is broken", or pastes an error message.
 argument-hint: <bug description or error message>
-allowed-tools: Read Write Edit Glob Grep Bash AskUserQuestion Questions Task
+allowed-tools: Read Write Edit Glob Grep Bash AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 ---
 
@@ -12,50 +12,136 @@ Fix a specific bug or problem in the codebase. Supports two modes: immediate fix
 
 ## Workflow
 
-### Step 0: Check for Existing Fix Plan
+### Step 0 (pre): Detect Handoff Mode
 
-**BEFORE anything else**, check if `.ai-factory/FIX_PLAN.md` exists.
+Determine Handoff mode, task ID, and skip-review flag. If the caller passed `HANDOFF_MODE`, `HANDOFF_TASK_ID`, and `HANDOFF_SKIP_REVIEW` as explicit text in the prompt, use those values. Otherwise, use the Bash tool:
+
+```
+Bash: printenv HANDOFF_MODE || true
+Bash: printenv HANDOFF_TASK_ID || true
+Bash: printenv HANDOFF_SKIP_REVIEW || true
+```
+
+**Then check `HANDOFF_MODE`:**
+
+#### When `HANDOFF_MODE` is `1` (autonomous Handoff agent)
+
+The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Instead:
+
+- **No interactive questions:** Do not use `AskUserQuestion`. If `$ARGUMENTS` contains `--plan-first`, use "Plan first" mode. Otherwise default to "Fix now" mode. Always include tests and logging.
+- **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the fix plan file, before the title. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.** This applies to both Step 1.1 (creating new plan) and any plan rewrite.
+
+#### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session)
+
+Handoff sync is handled inline — see **Step 0.1** (after reading the fix plan file) for the task ID extraction and MCP sync trigger. The sync points are:
+
+- **Plan first (Step 1.1):** `"planning"` → `"plan_ready"` (after save)
+- **Fix now (Step 2→5):** `"implementing"` (Step 2 entry) → `"done"` if `HANDOFF_SKIP_REVIEW=1`, else `"review"` (Step 5)
+- **Execute existing plan (Step 0.1→5):** `"implementing"` (Step 0.1) → `"done"` if `HANDOFF_SKIP_REVIEW=1`, else `"review"` (Step 5)
+
+**CRITICAL:** Always pass `paused: true` with every `handoff_sync_status` call except `done`.
+
+When creating a new FIX_PLAN.md: if there is no existing annotation and no Handoff context, do not add the annotation.
+
+### Step 0: Load Config and Resolve Paths
+
+**FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
+
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.fix_plan`, and `paths.patches`
+- **Language:** `language.ui` for prompts
+- **Rules:** `rules.base` plus any named `rules.<area>` entries
+
+If config.yaml doesn't exist, use defaults:
+
+- DESCRIPTION.md: `.ai-factory/DESCRIPTION.md`
+- ARCHITECTURE.md: `.ai-factory/ARCHITECTURE.md`
+- RULES.md: `.ai-factory/RULES.md`
+- rules/: `.ai-factory/rules/`
+- FIX_PLAN.md: `.ai-factory/FIX_PLAN.md`
+- patches/: `.ai-factory/patches/`
+- Language: `en` (English)
+
+### Step 0.1: Check for Existing Fix Plan
+
+**BEFORE anything else after config resolution**, check the resolved fix plan path (default: `.ai-factory/FIX_PLAN.md`).
 
 **If the file EXISTS:**
-- Read `.ai-factory/FIX_PLAN.md`
+
+- Read the resolved fix plan file
+- **Immediately check the first line for `<!-- handoff:task:<uuid> -->`:**
+  - If found AND `HANDOFF_MODE` is NOT `1` (manual session): extract the task ID. Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`. (Status is `"implementing"` because we are executing an existing plan, not creating one.)
+  - If found AND `HANDOFF_MODE` is `1`: the Handoff coordinator handles sync — do nothing.
+  - If NOT found: no linked Handoff task — skip all MCP sync for the rest of this session.
 - Inform the user: "Found existing fix plan. Executing fix based on the plan."
-- **Skip Steps 0.1 through 1** — go directly to **Step 2: Investigate the Codebase**, using the plan as your guide
+- Skip **Step 1** (problem intake/mode choice), but still run **Step 0.2** to load context
+- Then continue to **Step 2: Investigate the Codebase**, using the plan as your guide
 - Follow each step of the plan sequentially
-- After the fix is fully applied and verified, **delete** `.ai-factory/FIX_PLAN.md`:
+- After the fix is fully applied and verified, **delete** the resolved fix plan file:
   ```bash
-  rm .ai-factory/FIX_PLAN.md
+  rm <resolved fix plan path>
   ```
 - Continue to Step 4 (Verify), Step 5 (Test suggestion), Step 6 (Patch)
 
 **If the file DOES NOT exist AND `$ARGUMENTS` is empty:**
+
 - Tell the user: "No fix plan found and no problem description provided. Please either provide a bug description (`/aif-fix <description>`) or create a fix plan first."
 - **STOP.**
 
 **If the file DOES NOT exist AND `$ARGUMENTS` is provided:**
-- Continue to Step 0.1 below.
 
-### Step 0.1: Load Project Context & Past Experience
+- Continue to Step 0.2 below.
 
-**Read `.ai-factory/DESCRIPTION.md`** if it exists to understand:
+### Step 0.2: Load Project Context & Past Experience
+
+**THEN:** Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists to understand:
+
 - Tech stack (language, framework, database)
 - Project architecture
 - Coding conventions
 
-**Read all patches from `.ai-factory/patches/`** if the directory exists:
-- Use `Glob` to find all `*.md` files in `.ai-factory/patches/`
-- Read each patch file to learn from past fixes
-- Pay attention to recurring patterns, root causes, and solutions
-- If the current problem resembles a past patch — apply the same approach or avoid the same mistakes
-- This is your accumulated experience. Use it.
+**Also read `.ai-factory/ARCHITECTURE.md`** (use path from config), the resolved RULES.md path, and the configured rules hierarchy when present to avoid fixes that violate project structure or local conventions.
+
+**Read `.ai-factory/skill-context/aif-fix/SKILL.md`** — MANDATORY if the file exists.
+
+This file contains project-specific rules accumulated by `/aif-evolve` from patches,
+codebase conventions, and tech-stack analysis. These rules are tailored to the current project.
+
+**How to apply skill-context rules:**
+
+- Treat them as **project-level overrides** for this skill's general instructions
+- When a skill-context rule conflicts with a general rule written in this SKILL.md,
+  **the skill-context rule wins** (more specific context takes priority — same principle as nested CLAUDE.md files)
+- When there is no conflict, apply both: general rules from SKILL.md + project rules from skill-context
+- Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
+  they exist because the project's experience proved the default insufficient
+- **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including the FIX_PLAN.md
+  template and patch files. The FIX_PLAN.md template in Step 1.1 is a **base structure**. If a
+  skill-context rule says "steps MUST include X" or "plan MUST have section Y" — you MUST augment
+  the template accordingly. Generating a FIX_PLAN.md or patch that violates skill-context rules is a bug.
+
+**Enforcement:** After generating any output artifact, verify it against all skill-context rules.
+If any rule is violated — fix the output before presenting it to the user.
+
+**Patch fallback (limited, only when skill-context is missing):**
+
+- If `.ai-factory/skill-context/aif-fix/SKILL.md` does not exist and the resolved patches dir exists:
+  - Use `Glob` to find `*.md` files in `<resolved patches dir>`
+  - Sort patch filenames ascending (lexical), then select the last **10** (or fewer if less exist)
+  - Read those selected patch files only
+  - Prioritize recurring **Root Cause** and **Prevention** patterns
+- If skill-context exists, do **not** read all patches by default.
+  - Optionally inspect a small, targeted subset of recent patches when tags/files clearly match the current bug.
 
 ### Step 1: Understand the Problem & Choose Mode
 
 From `$ARGUMENTS`, identify:
+
 - Error message or unexpected behavior
 - Where it occurs (file, function, endpoint)
 - Steps to reproduce (if provided)
 
 If unclear, ask:
+
 ```
 To fix this effectively, I need more context:
 
@@ -70,27 +156,34 @@ To fix this effectively, I need more context:
 Question: "How would you like to proceed with the fix?"
 
 Options:
+
 1. **Fix now** — Investigate and apply the fix immediately
 2. **Plan first** — Create a fix plan for review, then fix later
 
-**If user chooses "Plan first":**
-- Proceed to **Step 1.1: Create Fix Plan**
+**Based on choice:**
 
-**If user chooses "Fix now":**
-- Skip Step 1.1, proceed directly to **Step 2: Investigate the Codebase**
+- "Plan first" → Proceed to **Step 1.1: Create Fix Plan**
+- "Fix now" → Skip Step 1.1, proceed directly to **Step 2: Investigate the Codebase**
 
 ### Step 1.1: Create Fix Plan
+
+**Handoff sync (manual mode only):** If a Handoff task ID is known (from `HANDOFF_TASK_ID` or an existing annotation) AND `HANDOFF_MODE` is NOT `1`, call `handoff_sync_status` with `{ taskId: <id>, newStatus: "planning", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
 
 Investigate the codebase enough to understand the problem and create a plan.
 
 **Use the same parallel exploration approach as Step 2** — launch Explore agents to investigate the problem area, related code, and past patterns simultaneously.
 
 After agents return, synthesize findings to:
+
 1. Identify the root cause (or most likely candidates)
 2. Map affected files and functions
 3. Assess impact scope
 
-Then create `.ai-factory/FIX_PLAN.md` with this structure:
+Then create the resolved fix plan file (default: `.ai-factory/FIX_PLAN.md`).
+
+**Before writing:** If `HANDOFF_MODE` is `1` and `HANDOFF_TASK_ID` is non-empty, the very first line of the file MUST be `<!-- handoff:task:<HANDOFF_TASK_ID> -->` followed by a blank line, then the plan content below. If in manual mode and a task ID was extracted from an existing annotation, preserve it.
+
+Structure:
 
 ```markdown
 # Fix Plan: [Brief title]
@@ -101,6 +194,7 @@ Then create `.ai-factory/FIX_PLAN.md` with this structure:
 ## Analysis
 
 What was found during investigation:
+
 - Root cause (or suspected root cause)
 - Affected files and functions
 - Impact scope
@@ -135,16 +229,20 @@ Step-by-step plan for implementing the fix:
 ```
 ## Fix Plan Created ✅
 
-Plan saved to `.ai-factory/FIX_PLAN.md`.
+Plan saved to the resolved fix plan path.
 
 Review the plan and when you're ready to execute, run:
 
 /aif-fix
 ```
 
+**Handoff sync (manual mode only):** If a Handoff task ID is known AND `HANDOFF_MODE` is NOT `1`, call `handoff_push_plan` with `{ taskId: <id>, planContent: <full fix plan text> }`, then `handoff_sync_status` with `{ taskId: <id>, newStatus: "plan_ready", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
+
 **STOP here. Do NOT apply the fix.**
 
 ### Step 2: Investigate the Codebase
+
+**Handoff sync (manual mode, "Fix now" path only):** If a Handoff task ID is known AND `HANDOFF_MODE` is NOT `1`, call `handoff_sync_status` with `{ taskId: <id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
 
 **Use `Task` tool with `subagent_type: Explore` to investigate the problem in parallel.** This keeps the main context clean and allows simultaneous investigation of multiple angles.
 
@@ -171,11 +269,13 @@ Task(subagent_type: Explore, model: sonnet, prompt:
 ```
 
 **After agents return, synthesize findings to identify:**
+
 - The root cause (not just symptoms)
 - Related code that might be affected
 - Existing error handling
 
 **Fallback:** If Task tool is unavailable, investigate directly:
+
 - Find relevant files using Glob/Grep
 - Read the code around the issue
 - Trace the data flow
@@ -187,25 +287,26 @@ Task(subagent_type: Explore, model: sonnet, prompt:
 
 ```typescript
 // ✅ REQUIRED: Add logging around the fix
-console.log('[FIX] Processing user input', { userId, input });
+console.log("[FIX] Processing user input", { userId, input });
 
 try {
   // The actual fix
   const result = fixedLogic(input);
-  console.log('[FIX] Success', { userId, result });
+  console.log("[FIX] Success", { userId, result });
   return result;
 } catch (error) {
-  console.error('[FIX] Error in fixedLogic', {
+  console.error("[FIX] Error in fixedLogic", {
     userId,
     input,
     error: error.message,
-    stack: error.stack
+    stack: error.stack,
   });
   throw error;
 }
 ```
 
 **Logging is MANDATORY because:**
+
 - User needs to verify the fix works
 - If it doesn't work, logs help debug further
 - Feedback loop: user provides logs → we iterate
@@ -217,6 +318,11 @@ try {
 - Ensure no regressions introduced
 
 ### Step 5: Suggest Test Coverage
+
+**Handoff sync (manual mode ONLY — skip entirely when `HANDOFF_MODE` is `1`):** If a Handoff task ID is known AND `HANDOFF_MODE` is NOT `1`:
+1. Call `handoff_push_plan` with `{ taskId: <id>, planContent: <fix summary or updated plan> }`.
+2. If `HANDOFF_SKIP_REVIEW` is `1`: call `handoff_sync_status` with `{ taskId: <id>, newStatus: "done", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: false }`.
+3. Otherwise: call `handoff_sync_status` with `{ taskId: <id>, newStatus: "review", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
 
 **ALWAYS suggest covering this case with a test:**
 
@@ -249,10 +355,23 @@ describe('functionName', () => {
 });
 \`\`\`
 
-Would you like me to create this test?
-- [ ] Yes, create the test
-- [ ] No, skip for now
+AskUserQuestion: Would you like me to create this test?
+
+Options:
+1. Yes, create the test
+2. No, skip for now
 ```
+
+**Handling the user's response:**
+
+- **If "Yes, create the test":**
+  1. Create the test file in the appropriate test directory (follow project conventions)
+  2. Include the suggested test case and any additional edge cases related to the fix
+  3. Run the test to verify it passes
+  4. Then proceed to **Step 6: Create Self-Improvement Patch**
+
+- **If "No, skip for now":**
+  - Proceed directly to **Step 6: Create Self-Improvement Patch**
 
 ## Logging Requirements
 
@@ -266,14 +385,14 @@ Would you like me to create this test?
 
 ```typescript
 // Pattern for fixes
-const LOG_FIX = process.env.LOG_LEVEL === 'debug' || process.env.DEBUG_FIX;
+const LOG_FIX = process.env.LOG_LEVEL === "debug" || process.env.DEBUG_FIX;
 
 function fixedFunction(input) {
-  if (LOG_FIX) console.log('[FIX] Input:', input);
+  if (LOG_FIX) console.log("[FIX] Input:", input);
 
   // ... fix logic ...
 
-  if (LOG_FIX) console.log('[FIX] Output:', result);
+  if (LOG_FIX) console.log("[FIX] Output:", result);
   return result;
 }
 ```
@@ -285,6 +404,7 @@ function fixedFunction(input) {
 **User:** `/aif-fix TypeError: Cannot read property 'name' of undefined in UserProfile`
 
 **Actions:**
+
 1. Search for UserProfile component/function
 2. Find where `.name` is accessed
 3. Add null check with logging
@@ -295,6 +415,7 @@ function fixedFunction(input) {
 **User:** `/aif-fix /api/orders returns empty array for authenticated users`
 
 **Actions:**
+
 1. Find orders API endpoint
 2. Trace the query logic
 3. Find the bug (e.g., wrong filter)
@@ -306,6 +427,7 @@ function fixedFunction(input) {
 **User:** `/aif-fix email validation accepts invalid emails`
 
 **Actions:**
+
 1. Find email validation logic
 2. Check regex or validation library usage
 3. Fix the validation
@@ -314,18 +436,22 @@ function fixedFunction(input) {
 
 ## Important Rules
 
-1. **Check FIX_PLAN.md first** - Always check for existing plan before anything else
+1. **Check the fix plan first** - Always check the resolved fix plan path before anything else
 2. **Plan mode = plan only** - When user chooses "Plan first", create the plan and STOP. Do NOT fix.
-3. **Execute mode = follow the plan** - When FIX_PLAN.md exists, follow it step by step, then delete it
+3. **Execute mode = follow the plan** - When the resolved fix plan exists, follow it step by step, then delete it
 4. **NO reports** - Don't create summary documents (patches are learning artifacts, not reports)
 5. **ALWAYS log** - Every fix must have logging for feedback
 6. **ALWAYS suggest tests** - Help prevent regressions
 7. **Root cause** - Fix the actual problem, not symptoms
 8. **Minimal changes** - Don't refactor unrelated code
 9. **One fix at a time** - Don't scope creep
-10. **Clean up** - Delete FIX_PLAN.md after successful fix execution
+10. **Clean up** - Delete the resolved fix plan file after successful fix execution
+11. **Ownership boundary** - `/aif-fix` owns `paths.fix_plan` and `paths.patches`; treat `.ai-factory/DESCRIPTION.md`, roadmap, rules, and architecture context artifacts as read-only unless the user explicitly requests otherwise
+12. **Logging scope** - Keep `[FIX]` logging requirements for fixes; context-gate outputs in this command should use `WARN`/`ERROR` and must not change global logging policy in other skills
 
 ## After Fixing
+
+**Use this output template in Step 5** (before the AskUserQuestion about tests):
 
 ```
 ## Fix Applied ✅
@@ -338,13 +464,6 @@ function fixedFunction(input) {
 - path/to/file.ts (line X)
 
 **Logging added:** Yes, prefix `[FIX]`
-**Test suggested:** Yes
-
-Please test the fix and share logs if any issues.
-
-To add the suggested test:
-- [ ] Yes, create test
-- [ ] No, skip
 ```
 
 ### Step 6: Create Self-Improvement Patch
@@ -354,8 +473,9 @@ To add the suggested test:
 **Create the patch:**
 
 1. Create directory if it doesn't exist:
+
    ```bash
-   mkdir -p .ai-factory/patches
+   mkdir -p <resolved patches dir>
    ```
 
 2. Create a patch file with the current timestamp as filename.
@@ -379,6 +499,7 @@ Be specific — include the actual error or symptom.
 
 WHY the problem occurred. This is the most valuable part.
 Not "what was wrong" but "why it was wrong":
+
 - Logic error? Why was the logic incorrect?
 - Missing check? Why was it missing?
 - Wrong assumption? What was assumed?
@@ -392,6 +513,7 @@ Include the approach, not just "changed line X".
 ## Prevention
 
 How to prevent this class of problems in the future:
+
 - What pattern/practice should be followed?
 - What should be checked during code review?
 - What test would catch this?
@@ -444,23 +566,15 @@ default avatar URL. Also added a null check in the Avatar sub-component.
 
 ### Context Cleanup
 
-Context is heavy after investigation, fix, and patch generation. All results are saved — suggest freeing space:
-
-```
-AskUserQuestion: Free up context before continuing?
-
-Options:
-1. /clear — Full reset (recommended)
-2. /compact — Compress history
-3. Continue as is
-```
+Suggest the user to free up context space if needed: `/clear` (full reset) or `/compact` (compress history).
 
 ---
 
 **DO NOT:**
-- ❌ Apply a fix when user chose "Plan first" — only create FIX_PLAN.md and stop
-- ❌ Skip the FIX_PLAN.md check at the start
-- ❌ Leave FIX_PLAN.md after successful fix execution — always delete it
+
+- ❌ Apply a fix when user chose "Plan first" - only create the fix plan and stop
+- ❌ Skip the fix-plan check at the start
+- ❌ Leave the fix plan after successful fix execution - always delete it
 - ❌ Generate reports or summaries (patches are NOT reports — they are learning artifacts)
 - ❌ Refactor unrelated code
 - ❌ Add features while fixing

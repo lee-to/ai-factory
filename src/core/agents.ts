@@ -3,6 +3,7 @@ export interface AgentConfig {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  subagentsDir?: string;
   settingsFile: string | null;
   supportsMcp: boolean;
   skillsCliAgent: string | null;
@@ -14,6 +15,7 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     displayName: 'Claude Code',
     configDir: '.claude',
     skillsDir: '.claude/skills',
+    subagentsDir: '.claude/agents',
     settingsFile: '.mcp.json',
     supportsMcp: true,
     skillsCliAgent: 'claude-code',
@@ -41,8 +43,8 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     displayName: 'GitHub Copilot',
     configDir: '.github',
     skillsDir: '.github/skills',
-    settingsFile: null,
-    supportsMcp: false,
+    settingsFile: '.vscode/mcp.json',
+    supportsMcp: true,
     skillsCliAgent: 'github-copilot',
   },
   gemini: {
@@ -62,6 +64,15 @@ const AGENT_REGISTRY: Record<string, AgentConfig> = {
     settingsFile: null,
     supportsMcp: false,
     skillsCliAgent: 'junie',
+  },
+  qwen: {
+    id: 'qwen',
+    displayName: 'Qwen Code',
+    configDir: '.qwen',
+    skillsDir: '.qwen/skills',
+    settingsFile: '.qwen/settings.json',
+    supportsMcp: true,
+    skillsCliAgent: null,
   },
   windsurf: {
     id: 'windsurf',
@@ -150,4 +161,8 @@ export function getAgentChoices(): { name: string; value: string }[] {
     name: `${agent.displayName} (${agent.configDir}/)`,
     value: agent.id,
   }));
+}
+
+export function getAvailableAgentIds(): string[] {
+  return Object.keys(AGENT_REGISTRY);
 }

@@ -3,6 +3,9 @@
 ## Plan File Template
 
 ```markdown
+<!-- handoff:task:<HANDOFF_TASK_ID> -->
+<!-- ↑ First line: only when HANDOFF_MODE=1 and HANDOFF_TASK_ID is non-empty -->
+
 # Implementation Plan: [Feature Name]
 
 Branch: [current branch or "none"]
@@ -11,7 +14,21 @@ Created: [date]
 ## Settings
 - Testing: yes/no
 - Logging: verbose/standard/minimal
-- Docs: yes/no
+- Docs: yes/no  # yes => mandatory docs checkpoint in /aif-implement, no/unset => WARN [docs] only
+
+## Roadmap Linkage (optional)
+<!-- Only when .ai-factory/ROADMAP.md exists -->
+Milestone: "[milestone name from ROADMAP.md]"  # or "none"
+Rationale: [1 short sentence]
+
+## Research Context (optional)
+<!-- If .ai-factory/RESEARCH.md exists, copy/paste the Active Summary here -->
+Source: .ai-factory/RESEARCH.md (Active Summary)
+
+Goal:
+Constraints:
+Decisions:
+Open questions:
 
 ## Commit Plan
 <!-- For plans with 5+ tasks, define commit checkpoints -->

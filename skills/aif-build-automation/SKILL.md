@@ -6,7 +6,7 @@ description: >-
   Use when user says "generate makefile", "create taskfile", "add justfile", "setup mage", or "build automation".
 argument-hint: "[makefile|taskfile|justfile|mage]"
 allowed-tools: Read Edit Glob Grep Write Bash(git *) AskUserQuestion Questions
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   author: AI Factory
   version: "1.0"
@@ -32,6 +32,26 @@ Read .ai-factory/DESCRIPTION.md
 ```
 
 Store the project context (tech stack, framework, architecture) for use in later steps. If the file doesn't exist, that's fine — we'll detect everything in Step 2.
+
+**Read `.ai-factory/skill-context/aif-build-automation/SKILL.md`** — MANDATORY if the file exists.
+
+This file contains project-specific rules accumulated by `/aif-evolve` from patches,
+codebase conventions, and tech-stack analysis. These rules are tailored to the current project.
+
+**How to apply skill-context rules:**
+- Treat them as **project-level overrides** for this skill's general instructions
+- When a skill-context rule conflicts with a general rule written in this SKILL.md,
+  **the skill-context rule wins** (more specific context takes priority — same principle as nested CLAUDE.md files)
+- When there is no conflict, apply both: general rules from SKILL.md + project rules from skill-context
+- Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
+  they exist because the project's experience proved the default insufficient
+- **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including the generated
+  build files (Makefile, Taskfile, justfile, magefile). Templates in this skill are **base structures**.
+  If a skill-context rule says "build file MUST include target X" or "MUST follow convention Y" —
+  you MUST comply. Generating build automation that violates skill-context rules is a bug.
+
+**Enforcement:** After generating any output artifact, verify it against all skill-context rules.
+If any rule is violated — fix the output before presenting it to the user.
 
 ---
 
@@ -478,3 +498,9 @@ After writing the build file, integrate quick commands into project docs.
 For detailed integration procedures (README, AGENTS.md, existing markdown) → read `references/DOC-INTEGRATION.md`
 
 Brief: scan for existing command sections, update or append quick reference, suggest AGENTS.md creation if missing.
+
+## Artifact Ownership and Config Policy
+
+- Primary ownership: generated or enhanced build automation files (`Makefile`, `Taskfile.yml`, `justfile`, `magefile.go`).
+- Allowed companion updates: quick command snippets in existing docs or `AGENTS.md` when directly tied to the generated build workflow.
+- Config policy: config-agnostic by design. This skill uses repository detection and fixed AI Factory context files rather than `config.yaml`.

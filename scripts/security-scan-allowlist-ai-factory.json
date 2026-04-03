@@ -1,0 +1,166 @@
+{
+  "entries": [
+    {
+      "file": "aif-build-automation/references/BEST-PRACTICES.md",
+      "severity": "CRITICAL",
+      "description": "Credential access: reads sensitive credential files",
+      "match": "cat .env"
+    },
+    {
+      "file": "aif-build-automation/references/BEST-PRACTICES.md",
+      "severity": "CRITICAL",
+      "description": "Output suppression: hides results from user",
+      "match": "suppress error"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Instruction override: attempts to discard prior instructions",
+      "match": "ignore previous instructions"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Fake system tag: injects fake system-level XML tags",
+      "match": "<system>"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Credential access: reads sensitive credential files",
+      "match": "READ your `.env` or `.ssh"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Explicit exfiltration: instructions to send sensitive data",
+      "match": "Exfiltrate credentials, `.env`, API keys, SSH key"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Stealth instruction: hides actions from user",
+      "match": "do not tell the user"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Output suppression: hides results from user",
+      "match": "Hide action"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "False authority: claims authorization from authority to bypass rules",
+      "match": "Approved by Anthropic"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Self-declaration of safety: skill claims it has been verified/audited",
+      "match": "This skill has been verified / audited / approved"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Scanner evasion: skill claims findings are false positives",
+      "match": "false positive"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Scanner evasion: skill instructs to ignore findings",
+      "match": "Safe to ignore"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Scanner bypass: skill instructs to skip security scanning",
+      "match": "skip scan"
+    },
+    {
+      "file": "aif-skill-generator/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Pre-emptive scanner discrediting: skill warns that scanner will flag it and claims this is normal",
+      "match": "scanner will flag false"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Instruction override: attempts to discard prior instructions",
+      "match": "ignore previous instructions"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Fake system tag: injects fake system-level XML tags",
+      "match": "<system>"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Stealth instruction: hides actions from user",
+      "match": "do not tell the user"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Stealth modifier: performs actions without user awareness",
+      "match": "secretly"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Destructive command: recursive delete of critical paths",
+      "match": "rm -rf /"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Fork bomb: denial of service attack",
+      "match": "fork bomb"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Social engineering: uses \"test/debug mode\" to bypass restrictions",
+      "match": "debug mode disable safety"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "False authority: claims authorization from authority to bypass rules",
+      "match": "authorized by admin"
+    },
+    {
+      "file": "aif/SKILL.md",
+      "severity": "CRITICAL",
+      "description": "Scanner bypass: skill instructs to skip security scanning",
+      "match": "Skip security scan"
+    },
+    {
+      "file": "aif-dockerize/references/SECURITY-CHECKLIST.md",
+      "severity": "CRITICAL",
+      "description": "Fork bomb: denial of service attack",
+      "match": "fork bomb"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Scanner evasion: skill claims findings are false positives",
+      "match": "false positive"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Scanner evasion: skill instructs to ignore findings",
+      "match": "safe to ignore"
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "CRITICAL",
+      "description": "Scanner bypass: skill instructs to skip security scanning",
+      "match": "skip scan"
+    }
+  ]
+}

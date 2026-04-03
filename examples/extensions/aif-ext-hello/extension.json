@@ -1,0 +1,44 @@
+{
+  "name": "aif-ext-hello",
+  "version": "1.0.0",
+  "description": "Test extension: hello world command, implement injection, custom skill, skill replacement, custom agent, MCP server",
+  "commands": [
+    {
+      "name": "hello",
+      "description": "Say hello from extension",
+      "module": "./commands/hello.js"
+    }
+  ],
+  "agents": [
+    {
+      "id": "test-agent",
+      "displayName": "Test Agent",
+      "configDir": ".test-agent",
+      "skillsDir": ".test-agent/skills",
+      "settingsFile": null,
+      "supportsMcp": false,
+      "skillsCliAgent": null
+    }
+  ],
+  "injections": [
+    {
+      "target": "aif-implement",
+      "position": "append",
+      "file": "./injections/implement-extra.md"
+    }
+  ],
+  "skills": [
+    "skills/aif-hello-world",
+    "skills/hello-commit"
+  ],
+  "replaces": {
+    "skills/hello-commit": "aif-commit"
+  },
+  "mcpServers": [
+    {
+      "key": "hello-mcp",
+      "template": "./mcp/hello-mcp.json",
+      "instruction": "Hello MCP: Set HELLO_API_KEY environment variable"
+    }
+  ]
+}
