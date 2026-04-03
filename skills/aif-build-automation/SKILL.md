@@ -118,66 +118,30 @@ Store the chosen tool as `TARGET_TOOL`.
 
 ## Step 2: Analyze Project
 
-Detect the project profile by scanning the repository. Run these checks using `Glob` and `Grep`:
-
-### 2.0 Java / JVM projects
-
-Detect **Gradle vs Maven** by scanning the repo (no special tooling required):
-
-**Gradle** — any of: `settings.gradle`, `settings.gradle.kts`, `build.gradle`, `build.gradle.kts`, `gradle/wrapper/gradle-wrapper.properties`.
-
-**Maven** — `pom.xml` when the project is not Gradle.
-
-**Stack hints** (read build files / `gradle/libs.versions.toml`):
-
-| Signal | How to detect |
-|--------|----------------|
-| Spring Boot | `spring-boot`, `spring-boot-starter`, `spring-boot-parent` in Gradle/Maven |
-| gRPC / protobuf | `*.proto` or deps on `grpc`, `protobuf`, `spring-grpc` |
-| Liquibase | `db.changelog*`, `liquibase` resources |
-| Flyway | `V*__*.sql` migrations |
-| Version catalog | `gradle/libs.versions.toml` → document `./gradlew` in generated targets |
-| Jakarta vs javax | Prefer **Jakarta** for Java 9+ / Spring Boot 3+ (`sourceCompatibility`, `<maven.compiler.release>`, `<java.version>`) |
-
-**Standard commands to wire** into Makefile / Taskfile / Just (use `gradlew.bat` on Windows where relevant):
-
-| Goal | Gradle | Maven |
-|------|--------|--------|
-| Full compile + checks | `./gradlew build` | `mvn verify` |
-| Unit / integration tests | `./gradlew test` | `mvn test` |
-| Verification (tests + static analysis where configured) | `./gradlew check` | `mvn verify` |
-| Package only | `./gradlew assemble` or `jar`/`bootJar` task | `mvn package` |
-| Spring Boot — run locally | `./gradlew bootRun` | `mvn spring-boot:run` |
-| Spring Boot — runnable JAR | `./gradlew bootJar` | `mvn package` (with spring-boot repackage) |
-| Clean | `./gradlew clean` | `mvn clean` |
-| Multi-module | `./gradlew :subproject:build` | `mvn -pl module -am package` |
-
-Use **`./mvnw`** / **`mvnw.cmd`** when a Maven wrapper exists; same for Gradle wrapper vs system `gradle`/`mvn`.
-
-**Lint / format** — discover from the repo: Checkstyle (`checkstyle.xml`, `config/checkstyle/`), Spotless/SpotBugs if present, plus `.editorconfig` and language-specific configs (see Step 2.8).
+Detect the project profile by scanning the repository with `Glob` and `Grep`. **Use the same flow for every stack:** primary language → package manager / build entrypoints → frameworks → Docker → CI → migrations → tests → linters → monorepo, then the Summary object. JVM projects are handled **inside those steps** (not a separate pipeline).
 
 ### 2.1 Primary Language
 
-Check for these files (first match wins). **For Java/JVM**, apply **Step 2.0** before the generic table — if Gradle/Maven signals match, set primary language to **Java** (or **Kotlin** if `build.gradle.kts` and Kotlin plugins dominate).
+Check for these files (first match wins in the table order below). For **Java / Kotlin (JVM)**, infer language from build files: default **Java** unless Kotlin plugins / `kotlin("jvm")` / dominant `.kt` layout suggests **Kotlin**.
 
-| File | Language |
-|------|----------|
+| File / signal | Language |
+|----------------|----------|
 | `go.mod` | Go |
 | `package.json` | Node.js / JavaScript / TypeScript |
 | `pyproject.toml` or `setup.py` or `setup.cfg` | Python |
 | `Cargo.toml` | Rust |
 | `composer.json` | PHP |
 | `Gemfile` | Ruby |
-| Gradle roots or wrapper (see Step 2.0) | Java / Kotlin (JVM) |
-| `pom.xml` (when not Gradle) | Java / Kotlin (JVM) |
+| JVM: Gradle root or wrapper (see §2.2) | Java / Kotlin (JVM) |
+| JVM: `pom.xml` | Java / Kotlin (JVM) |
 | `*.csproj` or `*.sln` | C# / .NET |
 
-### 2.2 Package Manager
+### 2.2 Package manager & build entrypoints
 
-Check lock files:
+**Lock files and wrappers (same idea as `package-lock.json` → npm):**
 
-| File | Package Manager |
-|------|-----------------|
+| File | Package manager / tool |
+|------|-------------------------|
 | `bun.lockb` | bun |
 | `pnpm-lock.yaml` | pnpm |
 | `yarn.lock` | yarn |
@@ -185,8 +149,36 @@ Check lock files:
 | `poetry.lock` | poetry |
 | `uv.lock` | uv |
 | `Pipfile.lock` | pipenv |
-| `gradle/wrapper/gradle-wrapper.properties` | Gradle (use `./gradlew` / `gradlew.bat` in targets) |
-| `pom.xml` (with Maven layout) | Maven (`mvn`, `mvnw` if wrapper present) |
+| `gradle/wrapper/gradle-wrapper.properties` | Gradle — use `./gradlew` / `gradlew.bat` in generated targets |
+| `mvnw` / `mvnw.cmd` | Maven wrapper — prefer over system `mvn` when present |
+| `pom.xml` (Maven layout) | Maven (`mvn` or `./mvnw`) |
+
+**Java / Kotlin (JVM) — Gradle vs Maven:** Detect Gradle with **one batch** of checks (single `Glob` over the paths below, or parallel existence checks — avoid redundant sequential walks):
+
+- `settings.gradle`, `settings.gradle.kts`, `build.gradle`, `build.gradle.kts` (repo root), `gradle/wrapper/gradle-wrapper.properties`
+
+If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Maven. Set `PROJECT_PROFILE.java_build.build_tool` from this table:
+
+| Condition | `build_tool` | Notes |
+|-----------|--------------|--------|
+| Gradle signals present | `gradle` | Wire targets to Gradle commands below. |
+| No Gradle, `pom.xml` present | `maven` | Wire targets to Maven commands below. |
+| Gradle **and** `pom.xml` | `gradle` | Set `java_build.mixed_maven_gradle: true` and append a **warning** to `PROJECT_PROFILE.warnings` (both builds present; recipes follow Gradle — user confirms authoritative build). |
+
+**Version catalog:** If `gradle/libs.versions.toml` exists, set `java_build.has_version_catalog` and document `./gradlew` / catalog usage in comments where helpful.
+
+**Commands to wire** into Makefile / Taskfile / Just for JVM (same role as `npm run build` / `pytest` for other stacks; use `gradlew.bat` on Windows):
+
+| Goal | Gradle | Maven |
+|------|--------|--------|
+| Full compile + checks | `./gradlew build` | `mvn verify` |
+| Unit / integration tests | `./gradlew test` | `mvn test` |
+| Verification (tests + static analysis where configured) | `./gradlew check` | `mvn verify` |
+| Package only | `./gradlew assemble` (or `jar` / `bootJar`) | `mvn package` |
+| Spring Boot — run locally | `./gradlew bootRun` | `mvn spring-boot:run` |
+| Spring Boot — runnable JAR | `./gradlew bootJar` | `mvn package` (spring-boot repackage) |
+| Clean | `./gradlew clean` | `mvn clean` |
+| Multi-module | `./gradlew :subproject:build` | `mvn -pl module -am package` |
 
 ### 2.3 Framework Detection
 
@@ -216,12 +208,18 @@ For Go projects, check `go.mod` for:
 - `gofiber/fiber` → Fiber
 - `go-chi/chi` → Chi
 
-For **Java / JVM** projects (Step 2.0), combine `frameworks[]` from Gradle/Maven content:
+For Java / JVM projects, read `pom.xml`, `build.gradle*`, and `gradle/libs.versions.toml` (when present) for dependencies and plugins — same discovery depth as `package.json` for Node:
 
-- Spring Boot → see Spring signals in Step 2.0
-- gRPC → proto files or grpc/protobuf dependencies
-- Liquibase / Flyway → as in Step 2.0
-- Quarkus / Micronaut / Vert.x → if present in build files, note in `framework` for target naming (`quarkus:dev`, etc.)
+- `spring-boot`, `spring-boot-starter`, `spring-boot-parent` → Spring Boot
+- `grpc`, `protobuf`, `spring-grpc` or `*.proto` in repo → gRPC / protobuf
+- `quarkus`, `io.quarkus` → Quarkus (e.g. `quarkus:dev` for dev)
+- `micronaut` → Micronaut
+- `vertx` / Vert.x stack → Vert.x
+- `liquibase` in deps or `db.changelog*` → Liquibase (see §2.6)
+- Flyway plugin or `V*__*.sql` → Flyway (see §2.6)
+- Prefer **Jakarta** (`jakarta.*`) for Java 9+ / Spring Boot 3+; flag legacy `javax.*` migration if both appear
+
+Map findings into `framework` / `java_build` flags (`spring_boot`, `grpc`, `liquibase`, `flyway`) like other ecosystems map Express vs NestJS.
 
 ### 2.4 Docker (Deep Scan)
 
@@ -272,8 +270,8 @@ Check for:
 - `drizzle.config.ts` → Drizzle
 - `alembic/` directory → Alembic
 - `migrations/` directory → Generic migrations
-- **Java:** Liquibase changelogs (`db.changelog*`, `liquibase` in Gradle/Maven) → Liquibase
-- **Java:** Flyway `V*__*.sql` layouts → Flyway
+- Liquibase — `db.changelog*`, `liquibase` in Gradle/Maven or resources → Liquibase (JVM and others)
+- Flyway — `V*__*.sql` naming, Flyway plugin in Gradle/Maven → Flyway (JVM and others)
 
 ### 2.7 Test Framework
 
@@ -283,7 +281,7 @@ Check for:
 | Python | `pytest` in pyproject.toml/requirements, `unittest` imports |
 | Go | Go has built-in testing; check for `testify` in go.mod |
 | Rust | Built-in; check for integration test directory `tests/` |
-| **Java / JVM** | `junit-jupiter`, `junit-jupiter-api`, `JUnitPlatform`, `JUnit5`, `testcontainers`, `mockito`, `rest-assured`, `cucumber` in Gradle/Maven / `libs.versions.toml` |
+| Java / Kotlin (JVM) | `junit-jupiter`, `junit-jupiter-api`, `JUnitPlatform`, `JUnit5`, `testcontainers`, `mockito`, `rest-assured`, `cucumber` in Gradle/Maven / `libs.versions.toml` |
 
 ### 2.8 Linters & Formatters
 
@@ -294,6 +292,7 @@ Glob: .eslintrc*, eslint.config.*, .prettierrc*, biome.json, biome.jsonc, .golan
 Glob: checkstyle.xml, .checkstyle.xml, config/checkstyle/checkstyle.xml, .editorconfig
 Glob: ruff.toml, .ruff.toml, .flake8, phpcs.xml, phpcs.xml.dist
 Grep in pyproject.toml: ruff|black|flake8|pylint|isort
+Grep in build.gradle*, pom.xml: spotless|spotbugs|pmd|errorprone|checkstyle (when not covered by config files alone)
 ```
 
 ### 2.9 Monorepo Detection
@@ -306,9 +305,10 @@ Glob: turbo.json, nx.json, lerna.json, pnpm-workspace.yaml
 
 Build a `PROJECT_PROFILE` object with:
 - `language`: primary language
-- `package_manager`: detected PM
-- `framework`: detected framework (if any)
-- `java_build`: optional — when JVM: `{ build_tool: "gradle"|"maven", has_version_catalog: boolean, spring_boot: boolean, grpc: boolean, liquibase: boolean, flyway: boolean }`
+- `package_manager`: detected PM / build entrypoint (npm, pnpm, Gradle, Maven, …)
+- `framework`: detected framework (if any); JVM frameworks map here the same way as NestJS or Django
+- `warnings`: optional string array (e.g. mixed Maven+Gradle from §2.2)
+- `java_build`: optional — when language is JVM: `{ build_tool: "gradle"|"maven", mixed_maven_gradle?: boolean, has_version_catalog: boolean, spring_boot: boolean, grpc: boolean, liquibase: boolean, flyway: boolean }`
 - `has_docker`: boolean
 - `docker_profile`: `DOCKER_PROFILE` object (if `has_docker`)
 - `ci_system`: detected CI (if any)
@@ -344,16 +344,14 @@ Pick the closest matching template based on `language` + `TARGET_TOOL`:
 
 | Tool | Go | Node.js | Python | PHP | Java / JVM |
 |------|----|---------|--------|-----|------------|
-| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | Use closest match (often `makefile-node.mk` structure for multi-command wrappers) or a **minimal custom Makefile** with `./gradlew` / `mvnw` recipes from Step 2.0 |
-| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | Same as “Other” — prefer Taskfile/Makefile with **Gradle/Maven** targets |
-| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | Same — wire `build`, `test`, `check` to Gradle/Maven |
-| Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | `magefile-basic.go` only if the repo is already Go+Mage; **pure JVM** → Makefile/Taskfile/Just |
+| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | Same pattern as Node/Python: multi-command wrapper — use **`./gradlew` / `./mvnw` / `mvn`** recipes from §2.2 (or minimal custom Makefile) |
+| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | Same as other stacks — delegate `build`, `test`, `check` to Gradle/Maven |
+| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | Same — wire targets to §2.2 commands |
+| Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | Mage is Go-native; pure JVM → Makefile / Taskfile / Just unless the repo already uses Mage for other reasons |
 
 For Magefile: use `magefile-full.go` if `HAS_DOCKER` or `has_migrations` is true, otherwise `magefile-basic.go`.
 
 For PHP + Magefile: Mage is Go-specific and not applicable to PHP projects. If the user explicitly requested `mage` for a PHP project, explain this and suggest Makefile as the closest alternative (universal, no install needed). Ask via `AskUserQuestion` whether to proceed with Makefile instead.
-
-**Java / JVM:** Prefer targets that delegate to **`./gradlew`** or **`mvnw`** / **`mvn`** (and Spring Boot `bootRun` / `bootJar` only when Spring is detected). Do not invent a Node-only workflow for a Gradle project.
 
 Read the selected template:
 
@@ -379,7 +377,7 @@ Using the `PROJECT_PROFILE`, best practices, and template as reference, generate
    - Deploy targets → only if CI/CD detected
    - Generate target → only if code generation detected
    - Typecheck target → only if TypeScript or mypy detected
-4. **Use correct package manager / build entrypoints** — JVM: commands from Step 2.0 (`./gradlew`, `./mvnw` / `mvn`); Node/Python/Go: match the detected stack (do not use npm for a Gradle-only repo)
+4. **Use correct package manager / build entrypoints** — match `PROJECT_PROFILE` (§2.2): JVM → `./gradlew` / `./mvnw` / `mvn`; Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
 5. **Include CI aggregate target** that runs lint + test + build
 6. **Follow the template's structure** for organization and grouping
 7. **Adapt variable names** to match the actual project (module name, binary name, source dirs)
@@ -448,9 +446,9 @@ Only generate `docker-*` exec variants if the project appears to be Docker-first
 
 - **Binary name**: Use the actual project name from `go.mod`, `package.json`, or directory name
 - **Source directory**: Use actual src dir (e.g., `src/`, `app/`, `cmd/`)
-- **Dev server command**: Match the framework's dev server (e.g., `next dev`, `uvicorn --reload`, `air`)
-- **Test command**: Match the detected test runner
-- **Lint command**: Match the detected linters
+- **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM Spring Boot → `./gradlew bootRun` / `mvn spring-boot:run`, Quarkus → `quarkus:dev` when detected)
+- **Test command**: Match the detected test runner (§2.7)
+- **Lint command**: Match the detected linters (§2.8)
 - **Migration commands**: Match the detected migration tool exactly
 - **Port numbers**: Use framework defaults (3000 for Node, 8000 for Python, 8080 for Go)
 
@@ -479,6 +477,7 @@ Compare `EXISTING_CONTENT` against the `PROJECT_PROFILE` and best practices. Bui
 - Typecheck target (if TypeScript/mypy detected but no typecheck target)
 - Generate target (if code generation tools detected)
 - Coverage target (if test target exists but no coverage variant)
+- JVM: `build` / `test` / `check` delegating to `./gradlew` or `./mvnw` / `mvn` when `java_build` is set (not only generic shell or wrong ecosystem)
 
 **Quality issues** — Check for anti-patterns from best practices:
 - Targets without descriptions/documentation
@@ -516,7 +515,7 @@ CHANGES = [
 Before writing the file, verify:
 - [ ] All targets have descriptions/documentation (## comments, desc:, [doc()], doc comments)
 - [ ] No hardcoded paths that should be variables
-- [ ] Package manager detection is correct
+- [ ] Package manager / build entrypoint detection matches the repo (Gradle/Maven wrappers, npm/pnpm, etc.)
 - [ ] Self-documenting help target is included
 - [ ] `.PHONY` declarations for all non-file targets (Makefile only)
 - [ ] Dangerous operations have confirmations (Justfile) or warnings
