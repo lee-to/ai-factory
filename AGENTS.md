@@ -18,8 +18,8 @@
 ai-factory/
 ├── src/                    # CLI source (TypeScript)
 │   ├── cli/
-│   │   ├── commands/       # init.ts, update.ts, upgrade.ts
-│   │   └── wizard/         # prompts.ts
+│   │   ├── commands/       # init.ts, update.ts, upgrade.ts, extension.ts
+│   │   └── wizard/         # prompts.ts, skill-hints.ts
 │   ├── core/               # installer.ts, config.ts, mcp.ts, agents.ts, template.ts, transformer.ts
 │   │   └── transformers/   # default.ts, antigravity.ts, kilocode.ts
 │   └── utils/              # fs.ts
@@ -320,15 +320,19 @@ ai-factory update
 ai-factory upgrade
 ```
 
+This repo is **TypeScript/npm only** — there is **no JVM build** here. After changing CLI or wizard code, run `npm run build` and `npm test` (or your CI equivalent).
+
 ## Key Files to Know
 
 | File | Purpose |
 |------|---------|
-| `src/cli/index.ts` | CLI entry point, registers init/update/upgrade commands |
+| `src/cli/index.ts` | CLI entry point, registers init/update/upgrade/extension commands |
 | `src/cli/commands/init.ts` | Interactive wizard: select agents, skills, configure MCP |
 | `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
 | `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
+| `src/cli/commands/extension.ts` | List / validate AI Factory extensions |
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
+| `src/cli/wizard/skill-hints.ts` | Skill name formatting for wizard checkboxes |
 | `src/core/agents.ts` | Agent registry (15 agents) |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/mcp.ts` | MCP server configuration |
