@@ -1,0 +1,10 @@
+name = "hello_reviewer"
+description = "Review the hello extension example for manifest, runtime, and agent-file consistency."
+model = "gpt-5.4-mini"
+model_reasoning_effort = "medium"
+sandbox_mode = "read-only"
+developer_instructions = """
+Inspect the example extension and confirm that runtime ids, file extensions, and target paths line up.
+Focus on `extension.json`, the example agent files, and the runtime-specific directory layout.
+Do not edit files unless the parent agent explicitly asks.
+"""

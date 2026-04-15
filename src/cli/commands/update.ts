@@ -5,6 +5,7 @@ import {execSync} from 'child_process';
 import inquirer from 'inquirer';
 import {getCurrentVersion, loadConfig, saveConfig} from '../../core/config.js';
 import {compareExtensionVersions, getExtensionsDir, getNpmVersionCheckResult, loadExtensionManifest} from '../../core/extensions.js';
+import { hydrateProjectAgentRegistry } from '../../core/agents.js';
 import {
   buildManagedSkillsState,
   buildManagedSubagentsState,
@@ -159,6 +160,10 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
     process.exit(1);
   }
 
+  await hydrateProjectAgentRegistry(projectDir, {
+    extensionNames: config.extensions?.map(extension => extension.name) ?? [],
+  });
+
   const currentVersion = getCurrentVersion();
 
   console.log(chalk.dim(`Config version: ${config.version}`));
@@ -212,6 +217,10 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
         `Extensions: ${extensionSummary.updated.length} updated, ${extensionSummary.unchanged.length} unchanged, ${extensionSummary.failed.length} failed\n`,
       ),
     );
+
+    await hydrateProjectAgentRegistry(projectDir, {
+      extensionNames: config.extensions?.map(extension => extension.name) ?? [],
+    });
   }
 
   console.log(chalk.dim('Updating skills and agent assets...\n'));
@@ -236,7 +245,7 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       skillEntriesByAgent.set(agent.id, result.entries);
 
       const subagentResult = await updateSubagents(agent, projectDir, { force });
-      agent.installedSubagents = subagentResult.installedSubagents;
+      agent.installedAgentFiles = subagentResult.installedAgentFiles;
       subagentEntriesByAgent.set(agent.id, subagentResult.entries);
     }
 
@@ -316,8 +325,8 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       const { base: baseSkills } = partitionSkills(agent.installedSkills);
       const managedBaseSkills = baseSkills.filter(skill => availableSkills.includes(skill) && !finalReplacedSkills.has(skill));
       agent.managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills);
-      if (agent.subagentsDir) {
-        agent.managedSubagents = await buildManagedSubagentsState(projectDir, agent, agent.installedSubagents ?? []);
+      if (agent.agentsDir) {
+        agent.managedAgentFiles = await buildManagedSubagentsState(projectDir, agent, agent.installedAgentFiles ?? []);
       }
     }
 
@@ -386,10 +395,10 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       }
 
       const subagentEntries = subagentEntriesByAgent.get(agent.id) ?? [];
-      if (agent.subagentsDir || subagentEntries.length > 0) {
+      if (agent.agentsDir || subagentEntries.length > 0) {
         const groupedSubagents = groupAndSortEntriesByStatus(subagentEntries, e => e.subagent);
 
-        console.log(chalk.bold(`[${agent.id}] Subagents:`));
+        console.log(chalk.bold(`[${agent.id}] Agent files:`));
         console.log(chalk.dim(`  changed: ${groupedSubagents.changed.length}`));
         console.log(chalk.dim(`  unchanged: ${groupedSubagents.unchanged.length}`));
         console.log(chalk.dim(`  skipped: ${groupedSubagents.skipped.length}`));
@@ -422,7 +431,7 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
           'source-missing',
         ].includes(entry.reason));
         if (recoveredSubagents.length > 0) {
-          console.log(chalk.yellow('  WARN: managed subagent state recovered for:'));
+          console.log(chalk.yellow('  WARN: managed agent file state recovered for:'));
           for (const entry of recoveredSubagents) {
             console.log(chalk.yellow(`    - ${entry.subagent} (${formatReason(entry.reason)})`));
           }

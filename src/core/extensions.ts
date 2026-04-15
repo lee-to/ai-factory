@@ -135,7 +135,7 @@ export async function fetchLatestNpmPackageVersion(packageName: string): Promise
     }
 
     const data = await response.json() as NpmRegistryVersionResponse;
-    if (typeof data.version !== 'string' || !isValidVersionString(data.version)) {
+    if (!isValidVersionString(data.version)) {
       logExtension('warn', 'npm package metadata missing version', {
         sourceType: 'npm',
         packageName,
@@ -220,9 +220,17 @@ export interface ExtensionAgentDef {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  agentsDir?: string;
+  agentFileExtension?: '.md' | '.toml';
   settingsFile: string | null;
   supportsMcp: boolean;
   skillsCliAgent: string | null;
+}
+
+export interface ExtensionAgentFile {
+  runtime: string;
+  source: string;
+  target: string;
 }
 
 export interface ExtensionMcpServer {
@@ -237,10 +245,68 @@ export interface ExtensionManifest {
   description?: string;
   commands?: ExtensionCommand[];
   agents?: ExtensionAgentDef[];
+  agentFiles?: ExtensionAgentFile[];
   injections?: ExtensionInjection[];
   skills?: string[];
   replaces?: Record<string, string>;
   mcpServers?: ExtensionMcpServer[];
+}
+
+function isSafeRelativeAssetPath(filePath: string): boolean {
+  const windowsDriveAbsolute = /^[a-zA-Z]:[\\/]/.test(filePath);
+  const windowsUncAbsolute = /^(\\\\|\/\/)/.test(filePath);
+
+  if (!filePath || path.isAbsolute(filePath) || windowsDriveAbsolute || windowsUncAbsolute) {
+    return false;
+  }
+
+  const normalized = filePath.replaceAll('\\', '/').replace(/^\.\//, '');
+
+  return !normalized.split('/').some(segment => segment === '..' || segment.length === 0);
+}
+
+function validateRuntimeAwareAgentDefinition(agent: ExtensionAgentDef, extensionName: string): void {
+  if (!agent.id || !agent.displayName || !agent.configDir || !agent.skillsDir) {
+    throw new Error(
+      `Extension "${extensionName}" defines an invalid runtime. Required fields: id, displayName, configDir, skillsDir.`,
+    );
+  }
+
+  if ((agent.agentsDir && !agent.agentFileExtension) || (!agent.agentsDir && agent.agentFileExtension)) {
+    throw new Error(
+      `Extension "${extensionName}" runtime "${agent.id}" must set both "agentsDir" and "agentFileExtension" together.`,
+    );
+  }
+
+  if (agent.agentsDir && !isSafeRelativeAssetPath(agent.agentsDir)) {
+    throw new Error(
+      `Extension "${extensionName}" runtime "${agent.id}" has an invalid "agentsDir". It must be a safe relative path without "..".`,
+    );
+  }
+
+  if (agent.agentFileExtension && agent.agentFileExtension !== '.md' && agent.agentFileExtension !== '.toml') {
+    throw new Error(
+      `Extension "${extensionName}" runtime "${agent.id}" has unsupported "agentFileExtension": ${agent.agentFileExtension}.`,
+    );
+  }
+}
+
+function validateExtensionAgentFile(manifest: ExtensionManifest, agentFile: ExtensionAgentFile): void {
+  if (!agentFile.runtime) {
+    throw new Error(`Extension "${manifest.name}" has an agentFiles entry without "runtime".`);
+  }
+
+  if (!isSafeRelativeAssetPath(agentFile.source)) {
+    throw new Error(
+      `Extension "${manifest.name}" agentFiles entry for runtime "${agentFile.runtime}" has an invalid "source" path.`,
+    );
+  }
+
+  if (!isSafeRelativeAssetPath(agentFile.target)) {
+    throw new Error(
+      `Extension "${manifest.name}" agentFiles entry for runtime "${agentFile.runtime}" has an invalid "target" path.`,
+    );
+  }
 }
 
 function validateExtensionManifest(manifest: ExtensionManifest): void {
@@ -254,6 +320,27 @@ function validateExtensionManifest(manifest: ExtensionManifest): void {
     for (const baseSkillName of Object.values(manifest.replaces)) {
       validateSkillName(baseSkillName);
     }
+  }
+
+  const runtimeIds = new Set<string>();
+  for (const agent of manifest.agents ?? []) {
+    validateRuntimeAwareAgentDefinition(agent, manifest.name);
+    if (runtimeIds.has(agent.id)) {
+      throw new Error(`Extension "${manifest.name}" declares duplicate runtime id "${agent.id}".`);
+    }
+    runtimeIds.add(agent.id);
+  }
+
+  const ownedTargets = new Set<string>();
+  for (const agentFile of manifest.agentFiles ?? []) {
+    validateExtensionAgentFile(manifest, agentFile);
+    const ownershipKey = `${agentFile.runtime}::${agentFile.target}`;
+    if (ownedTargets.has(ownershipKey)) {
+      throw new Error(
+        `Extension "${manifest.name}" declares duplicate agent file target "${agentFile.target}" for runtime "${agentFile.runtime}".`,
+      );
+    }
+    ownedTargets.add(ownershipKey);
   }
 }
 

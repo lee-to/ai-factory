@@ -4,16 +4,22 @@ import { runWizard, type WizardAnswers } from '../wizard/prompts.js';
 import { buildManagedSkillsState, buildManagedSubagentsState, installSkills, installSubagents, getAvailableSkills } from '../../core/installer.js';
 import { saveConfig, configExists, loadConfig, getCurrentVersion, type AgentInstallation } from '../../core/config.js';
 import { configureMcp, getMcpInstructions } from '../../core/mcp.js';
-import { getAgentConfig, getAvailableAgentIds } from '../../core/agents.js';
+import { getAgentConfig, getAvailableAgentIds, hydrateProjectAgentRegistry } from '../../core/agents.js';
 import { cleanupAgentSetup, getAgentOnboarding } from '../../core/transformer.js';
-import { removeDirectory, removeFile } from '../../utils/fs.js';
+import { removeDirectory, removeFile, copyFile, fileExists, getSkillsDir } from '../../utils/fs.js';
 import { applyExtensionInjections } from '../../core/injections.js';
-import { collectReplacedSkills } from '../../core/extension-ops.js';
+import {
+  assertNoAgentFileConflicts,
+  collectReplacedSkills,
+  installExtensionAgentFilesForAllAgents,
+} from '../../core/extension-ops.js';
+import { loadAllExtensions } from '../../core/extensions.js';
 
 export interface InitOptions {
   agents?: string;
   mcp?: string;
   skills?: string | boolean;
+  config?: boolean;
 }
 
 const VALID_MCP_KEYS: Record<string, string> = {
@@ -80,13 +86,13 @@ async function removeAgentSetup(projectDir: string, agent: AgentInstallation): P
   const agentConfig = getAgentConfig(agent.id);
   await removeDirectory(path.join(projectDir, agent.skillsDir));
 
-  // Remove only AI Factory-managed subagents, not the entire directory.
+  // Remove only AI Factory-managed agent files, not the entire directory.
   // The directory may contain user-created custom agents unrelated to AI Factory.
-  const subagentsDir = agent.subagentsDir ?? agentConfig.subagentsDir;
-  if (subagentsDir) {
-    const managedFiles = agent.installedSubagents ?? [];
+  const agentsDir = agent.agentsDir ?? agentConfig.agentsDir;
+  if (agentsDir) {
+    const managedFiles = agent.installedAgentFiles ?? [];
     for (const relPath of managedFiles) {
-      await removeFile(path.join(projectDir, subagentsDir, relPath));
+      await removeFile(path.join(projectDir, agentsDir, relPath));
     }
   }
 
@@ -101,6 +107,9 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
 
   const hasExistingConfig = await configExists(projectDir);
   const existingConfig = hasExistingConfig ? await loadConfig(projectDir) : null;
+  await hydrateProjectAgentRegistry(projectDir, {
+    extensionNames: existingConfig?.extensions?.map(extension => extension.name) ?? [],
+  });
 
   if (hasExistingConfig) {
     console.log(chalk.yellow('Warning: .ai-factory.json already exists.'));
@@ -143,10 +152,11 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
         skills: answers.selectedSkills,
         agentId: agentSelection.id,
       });
-      const installedSubagents = agentConfig.subagentsDir
+      const installedAgentFiles = agentConfig.agentsDir
         ? await installSubagents({
           projectDir,
-          subagentsDir: agentConfig.subagentsDir,
+          agentId: agentSelection.id,
+          agentsDir: agentConfig.agentsDir,
         })
         : [];
 
@@ -166,9 +176,9 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
         id: agentSelection.id,
         skillsDir: agentConfig.skillsDir,
         installedSkills,
-        ...(agentConfig.subagentsDir ? {
-          subagentsDir: agentConfig.subagentsDir,
-          installedSubagents,
+        ...(agentConfig.agentsDir ? {
+          agentsDir: agentConfig.agentsDir,
+          installedAgentFiles,
         } : {}),
         mcp: {
           github: agentSelection.mcpGithub,
@@ -184,6 +194,21 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
 
     // Re-apply extension injections after skill installation
     if (existingExtensions.length > 0) {
+      const loadedExtensions = await loadAllExtensions(projectDir, existingExtensions.map(extension => extension.name));
+      const conflictCheckConfig = existingConfig ?? {
+        version: getCurrentVersion(),
+        agents: installedAgents,
+        extensions: existingExtensions,
+      };
+      for (const { dir, manifest } of loadedExtensions) {
+        await assertNoAgentFileConflicts(projectDir, {
+          ...conflictCheckConfig,
+          extensions: existingExtensions,
+          agents: installedAgents,
+        }, manifest);
+        await installExtensionAgentFilesForAllAgents(projectDir, installedAgents, dir, manifest);
+      }
+
       let totalInjections = 0;
       for (const agent of installedAgents) {
         totalInjections += await applyExtensionInjections(projectDir, agent, existingExtensions);
@@ -197,8 +222,8 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     for (const agent of installedAgents) {
       const managedBaseSkills = agent.installedSkills.filter(skill => !replacedSkills.has(skill));
       agent.managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills);
-      if (agent.subagentsDir) {
-        agent.managedSubagents = await buildManagedSubagentsState(projectDir, agent, agent.installedSubagents ?? []);
+      if (agent.agentsDir) {
+        agent.managedAgentFiles = await buildManagedSubagentsState(projectDir, agent, agent.installedAgentFiles ?? []);
       }
     }
 
@@ -210,6 +235,18 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
 
     console.log(chalk.green('✓ Configuration saved to .ai-factory.json'));
 
+    if (options.config) {
+      const configDest = path.join(projectDir, '.ai-factory', 'config.yaml');
+      const configAlreadyExists = await fileExists(configDest);
+      if (configAlreadyExists) {
+        console.log(chalk.yellow('⚠ .ai-factory/config.yaml already exists, skipping (use --force to overwrite)'));
+      } else {
+        const templateSrc = path.join(getSkillsDir(), 'aif', 'references', 'config-template.yaml');
+        await copyFile(templateSrc, configDest);
+        console.log(chalk.green('✓ Default config.yaml created in .ai-factory/'));
+      }
+    }
+
     console.log(chalk.bold.green('\n✅ Setup complete!\n'));
 
     for (const agent of installedAgents) {
@@ -218,9 +255,9 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       console.log(chalk.bold(`${agentConfig.displayName}:`));
       console.log(chalk.dim(`  Skills directory: ${path.join(projectDir, agent.skillsDir)}`));
       console.log(chalk.dim(`  Installed skills: ${agent.installedSkills.length}`));
-      if (agent.subagentsDir) {
-        console.log(chalk.dim(`  Subagents directory: ${path.join(projectDir, agent.subagentsDir)}`));
-        console.log(chalk.dim(`  Installed subagents: ${agent.installedSubagents?.length ?? 0}`));
+      if (agent.agentsDir) {
+        console.log(chalk.dim(`  Agent files directory: ${path.join(projectDir, agent.agentsDir)}`));
+        console.log(chalk.dim(`  Installed agent files: ${agent.installedAgentFiles?.length ?? 0}`));
       }
 
       const configuredMcp = mcpSummary[agent.id];

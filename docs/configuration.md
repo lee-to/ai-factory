@@ -11,9 +11,9 @@
     {
       "id": "claude",
       "skillsDir": ".claude/skills",
-      "subagentsDir": ".claude/agents",
+      "agentsDir": ".claude/agents",
       "installedSkills": ["aif", "aif-plan", "aif-improve", "aif-implement", "aif-commit", "aif-build-automation"],
-      "installedSubagents": [
+      "installedAgentFiles": [
         "best-practices-sidecar.md",
         "commit-preparer.md",
         "docs-auditor.md",
@@ -44,6 +44,7 @@
     {
       "id": "codex",
       "skillsDir": ".codex/skills",
+      "agentsDir": ".codex/agents",
       "installedSkills": ["aif", "aif-plan", "aif-implement"],
       "mcp": {
         "github": false,
@@ -64,7 +65,7 @@
 }
 ```
 
-The `agents` array can include any supported agent IDs: `claude`, `cursor`, `windsurf`, `roocode`, `kilocode`, `antigravity`, `opencode`, `warp`, `zencoder`, `codex`, `copilot`, `gemini`, `junie`, or `universal`. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Claude Code agents also persist `subagentsDir` and `installedSubagents`, so `ai-factory update` can refresh `.claude/agents/` alongside skills. AI Factory additionally stores internal `managedSkills` and `managedSubagents` hash maps in `.ai-factory.json`; they are omitted from the example above for brevity.
+The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. AI Factory additionally stores internal `managedSkills` and `managedAgentFiles` hash maps in `.ai-factory.json`; they are omitted from the example above for brevity. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names.
 
 The optional `extensions` array tracks installed extensions by name, original source, and version. `ai-factory update` now refreshes these extensions from their saved sources before base-skill updates, and `ai-factory extension update [name] --force` refreshes them without running the full base-skill update flow.
 

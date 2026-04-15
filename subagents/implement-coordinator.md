@@ -159,8 +159,8 @@ Workflow for single-task execution:
 2. Implement the target task using direct tool calls (Read, Write, Edit, Glob, Grep, Bash).
 3. Run one `aif-verify`-compatible verification pass scoped to the changed files.
 4. Launch read-only quality sidecars in background on the changed scope:
-    - `review-sidecar` — correctness, regression, performance risks
-    - `security-sidecar` — security audit
+    - `review-sidecar` — correctness, regression, performance risks — **skip if `HANDOFF_SKIP_REVIEW=1`**
+    - `security-sidecar` — security audit — **skip if `HANDOFF_SKIP_REVIEW=1`**
     - `best-practices-sidecar` — maintainability problems
 5. Near completion, also launch `docs-auditor` and `commit-preparer` to assess follow-ups.
 6. Feed only material findings back into the next refinement round:

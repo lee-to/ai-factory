@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import path from 'path';
-import { loadConfig, saveConfig } from '../../core/config.js';
+import { loadConfig, saveConfig, type AiFactoryConfig } from '../../core/config.js';
+import { hydrateProjectAgentRegistry } from '../../core/agents.js';
 import {
   resolveExtension,
   removeExtensionFiles,
@@ -11,24 +12,42 @@ import { removeExtensionMcpServers } from '../../core/mcp.js';
 import {
   removeSkillsForAllAgents,
   collectReplacedSkills,
+  removeExtensionAgentFilesForAllAgents,
   restoreBaseSkills,
   stripInjectionsForAllAgents,
   removeCustomSkillsForAllAgents,
   commitResolvedExtension,
   refreshExtensions,
+  getManifestRuntimeIds,
+  assertNoConfiguredRuntimeOrphans,
 } from '../../core/extension-ops.js';
+
+async function loadHydratedExtensionConfig(
+  projectDir: string,
+  options: { showInitHint?: boolean } = {},
+): Promise<AiFactoryConfig> {
+  const config = await loadConfig(projectDir);
+  if (!config) {
+    console.log(chalk.red('Error: No .ai-factory.json found.'));
+    if (options.showInitHint) {
+      console.log(chalk.dim('Run "ai-factory init" to set up your project first.'));
+    }
+    process.exit(1);
+  }
+
+  await hydrateProjectAgentRegistry(projectDir, {
+    extensionNames: config.extensions?.map(extension => extension.name) ?? [],
+  });
+
+  return config;
+}
 
 export async function extensionAddCommand(source: string): Promise<void> {
   const projectDir = process.cwd();
 
   console.log(chalk.bold.blue('\n🏭 AI Factory - Install Extension\n'));
 
-  const config = await loadConfig(projectDir);
-  if (!config) {
-    console.log(chalk.red('Error: No .ai-factory.json found.'));
-    console.log(chalk.dim('Run "ai-factory init" to set up your project first.'));
-    process.exit(1);
-  }
+  const config = await loadHydratedExtensionConfig(projectDir, { showInitHint: true });
 
   console.log(chalk.dim(`Installing from: ${source}\n`));
 
@@ -75,11 +94,7 @@ export async function extensionRemoveCommand(name: string): Promise<void> {
 
   console.log(chalk.bold.blue('\n🏭 AI Factory - Remove Extension\n'));
 
-  const config = await loadConfig(projectDir);
-  if (!config) {
-    console.log(chalk.red('Error: No .ai-factory.json found.'));
-    process.exit(1);
-  }
+  const config = await loadHydratedExtensionConfig(projectDir);
 
   const extensions = config.extensions ?? [];
   const index = extensions.findIndex(e => e.name === name);
@@ -92,6 +107,16 @@ export async function extensionRemoveCommand(name: string): Promise<void> {
   try {
     const extensionDir = path.join(getExtensionsDir(projectDir), name);
     const manifest = await loadExtensionManifest(extensionDir);
+    assertNoConfiguredRuntimeOrphans(config, getManifestRuntimeIds(manifest), name, 'remove');
+
+    if (manifest?.agentFiles?.length) {
+      const removedAgentFiles = await removeExtensionAgentFilesForAllAgents(projectDir, config.agents, manifest);
+      for (const [agentId, files] of removedAgentFiles) {
+        if (files.length > 0) {
+          console.log(chalk.green(`✓ Agent files removed for ${agentId}: ${files.join(', ')}`));
+        }
+      }
+    }
 
     // Strip injections before removing files
     await stripInjectionsForAllAgents(projectDir, config.agents, name, manifest);
@@ -151,11 +176,7 @@ export async function extensionRemoveCommand(name: string): Promise<void> {
 export async function extensionListCommand(): Promise<void> {
   const projectDir = process.cwd();
 
-  const config = await loadConfig(projectDir);
-  if (!config) {
-    console.log(chalk.red('Error: No .ai-factory.json found.'));
-    process.exit(1);
-  }
+  const config = await loadHydratedExtensionConfig(projectDir);
 
   const extensions = config.extensions ?? [];
 
@@ -200,12 +221,7 @@ export async function extensionUpdateCommand(name?: string, options?: { force?: 
     console.log(chalk.dim('Force mode: refreshing all extensions regardless of version\n'));
   }
 
-  const config = await loadConfig(projectDir);
-  if (!config) {
-    console.log(chalk.red('Error: No .ai-factory.json found.'));
-    console.log(chalk.dim('Run "ai-factory init" to set up your project first.'));
-    process.exit(1);
-  }
+  const config = await loadHydratedExtensionConfig(projectDir, { showInitHint: true });
 
   const extensions = config.extensions ?? [];
 
@@ -278,4 +294,3 @@ export async function extensionUpdateCommand(name?: string, options?: { force?: 
     process.exit(1);
   }
 }
-

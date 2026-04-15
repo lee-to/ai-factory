@@ -2,7 +2,7 @@
 
 # Extensions
 
-Extensions let third-party developers add new capabilities to AI Factory — custom CLI commands, MCP servers, skill injections, agent definitions, and more. Extensions survive `ai-factory update` (injections are automatically re-applied after skills are refreshed).
+Extensions let third-party developers add new capabilities to AI Factory — custom CLI commands, MCP servers, skill injections, runtime definitions, runtime-specific agent files, and more. Extensions survive `ai-factory update` (injections and managed agent files are automatically re-applied after skills are refreshed).
 
 ## For Users
 
@@ -43,9 +43,11 @@ ai-factory extension remove aif-ext-example
 1. Extension files are copied to `.ai-factory/extensions/<name>/`
 2. Extension is recorded in `.ai-factory.json` under `extensions`
 3. Extension skills (from `skills`) are installed into configured agents
-4. Injections are applied to matching skill files (e.g. appending extra instructions to `/aif-implement`)
-5. MCP servers are merged into each agent's settings file (e.g. `.mcp.json`)
-6. Custom CLI commands become available immediately
+4. Runtime definitions from `agents` are added to the effective registry for future `ai-factory init` runs
+5. Agent files from `agentFiles` are copied into matching runtime `agentsDir` locations
+6. Injections are applied to matching skill files (e.g. appending extra instructions to `/aif-implement`)
+7. MCP servers are merged into each agent's settings file (e.g. `.mcp.json`)
+8. Custom CLI commands become available immediately
 
 ### What Happens on Update
 
@@ -175,9 +177,23 @@ my-extension/
       "displayName": "My Agent",
       "configDir": ".my-agent",
       "skillsDir": ".my-agent/skills",
+      "agentsDir": ".my-agent/agents",
+      "agentFileExtension": ".toml",
       "settingsFile": null,
       "supportsMcp": false,
       "skillsCliAgent": null
+    }
+  ],
+  "agentFiles": [
+    {
+      "runtime": "claude",
+      "source": "agent-files/claude/review-helper.md",
+      "target": "review-helper.md"
+    },
+    {
+      "runtime": "my-agent",
+      "source": "agent-files/my-agent/coordinator.toml",
+      "target": "coordinator.toml"
     }
   ],
   "injections": [
@@ -214,7 +230,8 @@ Only `name` and `version` are required. All other fields are optional.
 | `version` | `string` | **Required.** Version string (SemVer is recommended). |
 | `description` | `string` | Human-readable description. |
 | `commands` | `array` | CLI commands to register. |
-| `agents` | `array` | Agent definitions (id, directories, MCP support). |
+| `agents` | `array` | Runtime definitions that become available to `ai-factory init`, `--agents`, and core runtime lookups once the extension is installed. |
+| `agentFiles` | `array` | Runtime-aware agent assets copied into `agentsDir` for built-in or extension-defined runtimes. |
 | `injections` | `array` | Content to inject into existing skill files. |
 | `skills` | `array` | Paths to skill directories within the extension. |
 | `replaces` | `object` | Maps extension skill paths to base skill names they replace (e.g. `{"skills/my-commit": "aif-commit"}`). |
@@ -338,7 +355,7 @@ The template is merged into the agent's settings file under `mcpServers.<key>` (
 
 ### Agents
 
-Extensions can declare new agent configurations. These are currently stored in the manifest and shown during installation. Agent integration with the interactive wizard (`ai-factory init`) is planned for a future release.
+Extensions can declare new runtime configurations. Once the extension is installed, these runtime ids are loaded into the effective registry before `ai-factory init`, `--agents` validation, MCP routing, injections, and installer lookups.
 
 ```json
 {
@@ -361,6 +378,33 @@ Extensions can declare new agent configurations. These are currently stored in t
 | `settingsFile` | Path to the agent's MCP settings file, or `null`. |
 | `supportsMcp` | Whether this agent supports MCP server configuration. |
 | `skillsCliAgent` | Value for `--agent` flag in skills CLI, or `null`. |
+
+When a runtime supports custom agent files, set both:
+
+| Field | Description |
+|-------|-------------|
+| `agentsDir` | Runtime-local directory for custom agents (for example `.codex/agents`). |
+| `agentFileExtension` | Required file extension for agent assets (`.md` or `.toml`). |
+
+### Agent Files
+
+Use `agentFiles` to provide runtime-specific custom agent assets without conflating them with runtime definitions:
+
+```json
+{
+  "agentFiles": [
+    { "runtime": "claude", "source": "agent-files/claude/review-helper.md", "target": "review-helper.md" },
+    { "runtime": "codex", "source": "agent-files/codex/committee.toml", "target": "committee.toml" }
+  ]
+}
+```
+
+Rules:
+- `runtime` must exist in the effective registry (built-in or provided by an installed extension, including the current manifest).
+- `source` and `target` must be safe relative paths.
+- Source and target extensions must match the runtime's `agentFileExtension`.
+- Ownership is exclusive per `runtime + target`; conflicts with bundled Claude files or another extension are rejected before install.
+- Bundled Claude filenames are reserved by target path from the package `subagents/` inventory; an extension cannot claim the same `claude` target filename even if the local managed copy was later edited or removed.
 
 ---
 

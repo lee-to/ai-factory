@@ -1,5 +1,6 @@
 import path from 'path';
 import type { AgentInstallation, AiFactoryConfig, ExtensionRecord } from './config.js';
+import { findAgentConfig, hydrateProjectAgentRegistry } from './agents.js';
 import {
   type ExtensionManifest,
   classifyExtensionSource,
@@ -9,9 +10,18 @@ import {
   resolveExtension,
   getExtensionsDir,
   loadExtensionManifest,
+  loadAllExtensions,
   type ResolvedExtension,
 } from './extensions.js';
-import { installSkills, getAvailableSkills, installExtensionSkills, removeExtensionSkills } from './installer.js';
+import {
+  installSkills,
+  getAvailableSkills,
+  getAvailableSubagents,
+  installExtensionAgentFiles,
+  installExtensionSkills,
+  removeExtensionAgentFiles,
+  removeExtensionSkills,
+} from './installer.js';
 import { applySingleExtensionInjections, stripAllExtensionInjections, stripInjectionsByExtensionName } from './injections.js';
 import { configureExtensionMcpServers, removeExtensionMcpServers, validateMcpTemplate, type McpServerConfig } from './mcp.js';
 import { copyDirectory, ensureDir, fileExists, readJsonFile, removeDirectory } from '../utils/fs.js';
@@ -26,6 +36,7 @@ export interface ExtensionAssetInstallResult {
     agentCount: number;
   }>;
   customSkillInstalls: Map<string, string[]>;
+  agentFileInstalls: Map<string, string[]>;
   injectionCount: number;
   configuredMcpServers: string[];
 }
@@ -103,6 +114,135 @@ export async function installExtensionSkillsForAllAgents(
   return results;
 }
 
+export async function installExtensionAgentFilesForAllAgents(
+  projectDir: string,
+  agents: AgentInstallation[],
+  extensionDir: string,
+  manifest: ExtensionManifest,
+): Promise<Map<string, string[]>> {
+  const results = new Map<string, string[]>();
+
+  for (const agent of agents) {
+    try {
+      const installed = await installExtensionAgentFiles(
+        projectDir,
+        agent,
+        extensionDir,
+        manifest.agentFiles ?? [],
+      );
+      results.set(agent.id, installed);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  return results;
+}
+
+export async function removeExtensionAgentFilesForAllAgents(
+  projectDir: string,
+  agents: AgentInstallation[],
+  manifest: ExtensionManifest,
+): Promise<Map<string, string[]>> {
+  const results = new Map<string, string[]>();
+
+  for (const agent of agents) {
+    const targets = (manifest.agentFiles ?? [])
+      .filter(agentFile => agentFile.runtime === agent.id)
+      .map(agentFile => agentFile.target);
+    const removed = await removeExtensionAgentFiles(projectDir, agent, targets);
+    results.set(agent.id, removed);
+  }
+
+  return results;
+}
+
+export function getManifestRuntimeIds(manifest?: ExtensionManifest | null): string[] {
+  return manifest?.agents?.map(agent => agent.id) ?? [];
+}
+
+export function assertNoConfiguredRuntimeOrphans(
+  config: AiFactoryConfig,
+  runtimeIds: string[],
+  extensionName: string,
+  action: 'remove' | 'update',
+): void {
+  if (runtimeIds.length === 0) {
+    return;
+  }
+
+  const configured = config.agents
+    .filter(agent => runtimeIds.includes(agent.id))
+    .map(agent => agent.id);
+
+  if (configured.length > 0) {
+    throw new Error(
+      `Cannot ${action} extension "${extensionName}" because it would orphan configured runtime(s): ${configured.join(', ')}. ` +
+      `Re-run "ai-factory init" without them first.`,
+    );
+  }
+}
+
+export async function assertNoAgentFileConflicts(
+  projectDir: string,
+  config: AiFactoryConfig,
+  manifest: ExtensionManifest,
+): Promise<void> {
+  const extensionNames = (config.extensions ?? []).map(extension => extension.name);
+  await hydrateProjectAgentRegistry(projectDir, {
+    extensionNames,
+    extraManifests: [{ name: manifest.name, agents: manifest.agents }],
+  });
+
+  for (const agentFile of manifest.agentFiles ?? []) {
+    const runtime = findAgentConfig(agentFile.runtime);
+    if (!runtime) {
+      throw new Error(
+        `Extension "${manifest.name}" references unknown runtime "${agentFile.runtime}" in agentFiles.`,
+      );
+    }
+
+    if (!runtime.agentsDir || !runtime.agentFileExtension) {
+      throw new Error(
+        `Runtime "${agentFile.runtime}" does not support managed agent files, but extension "${manifest.name}" declares one.`,
+      );
+    }
+
+    const sourceExt = path.extname(agentFile.source).toLowerCase();
+    const targetExt = path.extname(agentFile.target).toLowerCase();
+    if (sourceExt !== runtime.agentFileExtension || targetExt !== runtime.agentFileExtension) {
+      throw new Error(
+        `Extension "${manifest.name}" agent file "${agentFile.target}" must use ${runtime.agentFileExtension} for runtime "${agentFile.runtime}".`,
+      );
+    }
+  }
+
+  const ownership = new Map<string, string>();
+  const otherExtensionNames = extensionNames.filter(name => name !== manifest.name);
+  const installedManifests = await loadAllExtensions(projectDir, otherExtensionNames);
+
+  for (const { manifest: installedManifest } of installedManifests) {
+    for (const agentFile of installedManifest.agentFiles ?? []) {
+      ownership.set(`${agentFile.runtime}::${agentFile.target}`, installedManifest.name);
+    }
+  }
+
+  const bundledClaudeFiles = await getAvailableSubagents();
+  for (const relPath of bundledClaudeFiles) {
+    ownership.set(`claude::${relPath}`, 'AI Factory bundled Claude agent files');
+  }
+
+  for (const agentFile of manifest.agentFiles ?? []) {
+    const key = `${agentFile.runtime}::${agentFile.target}`;
+    const owner = ownership.get(key);
+    if (owner) {
+      throw new Error(
+        `Extension "${manifest.name}" cannot manage "${agentFile.target}" for runtime "${agentFile.runtime}" because it is already owned by ${owner}.`,
+      );
+    }
+  }
+}
+
 /**
  * Collect all replaced skills from extensions, optionally excluding one extension by name.
  */
@@ -166,6 +306,10 @@ export async function removePreviousExtensionState(
   oldRecord?: ExtensionRecord | null,
   oldManifest?: ExtensionManifest | null,
 ): Promise<void> {
+  if (oldManifest?.agentFiles?.length) {
+    await removeExtensionAgentFilesForAllAgents(projectDir, agents, oldManifest);
+  }
+
   await stripInjectionsForAllAgents(projectDir, agents, extensionName, oldManifest);
 
   if (oldManifest?.mcpServers?.length) {
@@ -192,6 +336,15 @@ async function cleanupPartialExtensionState(
   manifest: ExtensionManifest,
   partialAssetInstall?: ExtensionAssetInstallResult | null,
 ): Promise<void> {
+  if (manifest.agentFiles?.length) {
+    for (const agent of agents) {
+      const installedTargets = partialAssetInstall?.agentFileInstalls.get(agent.id) ?? [];
+      if (installedTargets.length > 0) {
+        await removeExtensionAgentFiles(projectDir, agent, installedTargets);
+      }
+    }
+  }
+
   await stripInjectionsForAllAgents(projectDir, agents, extensionName, manifest);
 
   if (manifest.mcpServers?.length) {
@@ -292,6 +445,7 @@ export async function installExtensionAssetsForAllAgents(
     replacedSkills: [],
     replacementOutcomes: [],
     customSkillInstalls: new Map<string, string[]>(),
+    agentFileInstalls: new Map<string, string[]>(),
     injectionCount: 0,
     configuredMcpServers: [],
   };
@@ -361,6 +515,13 @@ export async function installExtensionAssetsForAllAgents(
       }
     }
 
+    if (manifest.agentFiles?.length) {
+      const results = await installExtensionAgentFilesForAllAgents(projectDir, agents, extensionDir, manifest);
+      for (const [agentId, installed] of results) {
+        partialResult.agentFileInstalls.set(agentId, installed);
+      }
+    }
+
     if (manifest.injections?.length) {
       for (const agent of agents) {
         partialResult.injectionCount += await applySingleExtensionInjections(projectDir, agent, extensionDir, manifest);
@@ -417,6 +578,11 @@ export async function commitResolvedExtension(
     ? await loadExtensionManifest(extensionDir)
     : null;
 
+  const removedRuntimeIds = oldManifest
+    ? getManifestRuntimeIds(oldManifest).filter(id => !getManifestRuntimeIds(manifest).includes(id))
+    : [];
+  assertNoConfiguredRuntimeOrphans(config, removedRuntimeIds, manifest.name, 'update');
+  await assertNoAgentFileConflicts(projectDir, config, manifest);
   assertNoReplacementConflicts(extensions, manifest, manifest.name);
 
   let backupDir: string | null = null;
@@ -468,6 +634,12 @@ export async function commitResolvedExtension(
   for (const [agentId, installed] of assetInstall.customSkillInstalls) {
     if (installed.length > 0) {
       log('info', `Skills installed for ${agentId}: ${installed.join(', ')}`);
+    }
+  }
+
+  for (const [agentId, installed] of assetInstall.agentFileInstalls) {
+    if (installed.length > 0) {
+      log('info', `Agent files installed for ${agentId}: ${installed.join(', ')}`);
     }
   }
 

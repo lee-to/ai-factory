@@ -3,7 +3,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { loadConfig, saveConfig, getCurrentVersion } from '../../core/config.js';
 import { buildManagedSkillsState, buildManagedSubagentsState, installSkills, installSubagents, getAvailableSkills, partitionSkills } from '../../core/installer.js';
-import { getAgentConfig } from '../../core/agents.js';
+import { getAgentConfig, hydrateProjectAgentRegistry } from '../../core/agents.js';
 import { fileExists, removeDirectory, removeFile } from '../../utils/fs.js';
 
 // Old v1 skill directory names that were renamed to aif-* in v2
@@ -120,6 +120,10 @@ export async function upgradeCommand(): Promise<void> {
     process.exit(1);
   }
 
+  await hydrateProjectAgentRegistry(projectDir, {
+    extensionNames: config.extensions?.map(extension => extension.name) ?? [],
+  });
+
   // Step 1: Migrate legacy plan directories to .ai-factory/plans/
   // Also ensure newer v2 working directories exist.
   const aiFactoryDir = path.join(projectDir, '.ai-factory');
@@ -209,17 +213,18 @@ export async function upgradeCommand(): Promise<void> {
       skills: availableSkills,
       agentId: agent.id,
     });
-    const installedSubagents = agent.subagentsDir
+    const installedAgentFiles = agent.agentsDir
       ? await installSubagents({
         projectDir,
-        subagentsDir: agent.subagentsDir,
+        agentId: agent.id,
+        agentsDir: agent.agentsDir,
       })
       : [];
 
     agent.installedSkills = [...installedSkills, ...customSkills];
-    if (agent.subagentsDir) {
-      agent.installedSubagents = installedSubagents;
-      agent.managedSubagents = await buildManagedSubagentsState(projectDir, agent, installedSubagents);
+    if (agent.agentsDir) {
+      agent.installedAgentFiles = installedAgentFiles;
+      agent.managedAgentFiles = await buildManagedSubagentsState(projectDir, agent, installedAgentFiles);
     }
     agent.managedSkills = await buildManagedSkillsState(projectDir, agent, installedSkills);
   }

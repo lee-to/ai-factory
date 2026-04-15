@@ -1,7 +1,7 @@
 import path from 'path';
 import { createRequire } from 'module';
 import { readJsonFile, writeJsonFile, fileExists } from '../utils/fs.js';
-import { getAgentConfig } from './agents.js';
+import { findAgentConfig, getAgentConfig } from './agents.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
@@ -24,9 +24,9 @@ export interface AgentInstallation {
   skillsDir: string;
   installedSkills: string[];
   managedSkills?: Record<string, ManagedArtifactState>;
-  subagentsDir?: string;
-  installedSubagents?: string[];
-  managedSubagents?: Record<string, ManagedArtifactState>;
+  agentsDir?: string;
+  installedAgentFiles?: string[];
+  managedAgentFiles?: Record<string, ManagedArtifactState>;
   mcp: McpConfig;
 }
 
@@ -48,6 +48,20 @@ interface LegacyAiFactoryConfig {
   agent?: string;
   skillsDir?: string;
   installedSkills?: string[];
+  mcp?: Partial<McpConfig>;
+}
+
+interface LegacyAgentInstallationShape {
+  id: string;
+  skillsDir?: string;
+  installedSkills?: string[];
+  managedSkills?: unknown;
+  agentsDir?: string;
+  installedAgentFiles?: string[];
+  managedAgentFiles?: unknown;
+  subagentsDir?: string;
+  installedSubagents?: string[];
+  managedSubagents?: unknown;
   mcp?: Partial<McpConfig>;
 }
 
@@ -75,9 +89,9 @@ function createAgentInstallation(agentId: string, legacy?: LegacyAiFactoryConfig
     id: agentId,
     installedSkills: legacy?.installedSkills ?? [],
     managedSkills: {},
-    subagentsDir: agent.subagentsDir,
-    installedSubagents: [],
-    managedSubagents: {},
+    agentsDir: agent.agentsDir,
+    installedAgentFiles: [],
+    managedAgentFiles: {},
     mcp: normalizeMcp(legacy?.mcp),
   };
 }
@@ -114,16 +128,37 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
 
   if (Array.isArray(raw.agents)) {
     const normalizedAgents = raw.agents.map(agent => {
-      const agentConfig = getAgentConfig(agent.id);
+      const legacyAgent = agent as unknown as LegacyAgentInstallationShape;
+      const agentConfig = findAgentConfig(agent.id);
+      const skillsDir = legacyAgent.skillsDir || agentConfig?.skillsDir;
+
+      if (!skillsDir) {
+        throw new Error(
+          `Configured agent "${agent.id}" is missing "skillsDir" and no runtime definition is currently registered for it.`,
+        );
+      }
+
+      const agentsDir = legacyAgent.agentsDir
+        || legacyAgent.subagentsDir
+        || agentConfig?.agentsDir;
+      const installedAgentFiles = Array.isArray(legacyAgent.installedAgentFiles)
+        ? legacyAgent.installedAgentFiles
+        : Array.isArray(legacyAgent.installedSubagents)
+          ? legacyAgent.installedSubagents
+          : [];
+      const managedAgentFiles = normalizeManagedArtifacts(
+        legacyAgent.managedAgentFiles ?? legacyAgent.managedSubagents,
+      );
+
       return {
         id: agent.id,
-        skillsDir: agent.skillsDir || agentConfig.skillsDir,
-        installedSkills: Array.isArray(agent.installedSkills) ? agent.installedSkills : [],
-        managedSkills: normalizeManagedArtifacts((agent as { managedSkills?: unknown }).managedSkills),
-        subagentsDir: agent.subagentsDir || agentConfig.subagentsDir,
-        installedSubagents: Array.isArray(agent.installedSubagents) ? agent.installedSubagents : [],
-        managedSubagents: normalizeManagedArtifacts((agent as { managedSubagents?: unknown }).managedSubagents),
-        mcp: normalizeMcp(agent.mcp),
+        skillsDir,
+        installedSkills: Array.isArray(legacyAgent.installedSkills) ? legacyAgent.installedSkills : [],
+        managedSkills: normalizeManagedArtifacts(legacyAgent.managedSkills),
+        agentsDir,
+        installedAgentFiles,
+        managedAgentFiles,
+        mcp: normalizeMcp(legacyAgent.mcp),
       };
     });
 
