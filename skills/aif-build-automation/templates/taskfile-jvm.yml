@@ -1,0 +1,84 @@
+version: '3'
+
+# --- JVM Taskfile ---
+# Covers Gradle and Maven projects
+
+vars:
+  PROJECT:
+    sh: basename $(pwd)
+  ENTRYPOINT: ./gradlew # Will be resolved to ./gradlew, ./mvnw during generation
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: "{{.DOCKER_REGISTRY}}/{{.PROJECT}}"
+
+tasks:
+  default:
+    desc: List all tasks
+    cmds:
+      - task --list
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - "{{.ENTRYPOINT}} clean"
+
+  build:
+    desc: Full build including tests and checks
+    cmds:
+      - "{{.ENTRYPOINT}} build"
+
+  assemble:
+    desc: Build project and package artifacts
+    cmds:
+      - "{{.ENTRYPOINT}} assemble"
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - "{{.ENTRYPOINT}} test"
+
+  check:
+    desc: Run tests and static analysis
+    cmds:
+      - "{{.ENTRYPOINT}} check"
+
+  dev:
+    desc: Run application locally
+    cmds:
+      - "{{.ENTRYPOINT}} bootRun"
+
+  lint:
+    desc: Run linter/static analysis
+    cmds:
+      - "{{.ENTRYPOINT}} checkstyleMain"
+
+  fmt:
+    desc: Format source code
+    cmds:
+      - "{{.ENTRYPOINT}} spotlessApply"
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t {{.DOCKER_IMAGE}}:{{.VERSION}} -t {{.DOCKER_IMAGE}}:latest .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.VERSION}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  db:migrate:
+    desc: Run database migrations
+    cmds:
+      - "{{.ENTRYPOINT}} liquibaseUpdate"
+
+  ci:
+    desc: Run full CI pipeline locally
+    cmds:
+      - task: clean
+      - task: check
+      - task: assemble

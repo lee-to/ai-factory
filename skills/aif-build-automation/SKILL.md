@@ -149,9 +149,8 @@ Check for these files (first match wins in the table order below). For **Java / 
 | `poetry.lock` | poetry |
 | `uv.lock` | uv |
 | `Pipfile.lock` | pipenv |
-| `gradle/wrapper/gradle-wrapper.properties` | Gradle — use `./gradlew` / `gradlew.bat` in generated targets |
-| `mvnw` / `mvnw.cmd` | Maven wrapper — prefer over system `mvn` when present |
-| `pom.xml` (Maven layout) | Maven (`mvn` or `./mvnw`) |
+| `gradle/wrapper/gradle-wrapper.properties` | `./gradlew` |
+| `pom.xml` | `./mvnw` |
 
 **Java / Kotlin (JVM) — Gradle vs Maven:** Detect Gradle with **one batch** of checks (single `Glob` over the paths below, or parallel existence checks — avoid redundant sequential walks):
 
@@ -171,14 +170,14 @@ If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Mave
 
 | Goal | Gradle | Maven |
 |------|--------|--------|
-| Full compile + checks | `./gradlew build` | `mvn verify` |
-| Unit / integration tests | `./gradlew test` | `mvn test` |
-| Verification (tests + static analysis where configured) | `./gradlew check` | `mvn verify` |
-| Package only | `./gradlew assemble` (or `jar` / `bootJar`) | `mvn package` |
-| Spring Boot — run locally | `./gradlew bootRun` | `mvn spring-boot:run` |
-| Spring Boot — runnable JAR | `./gradlew bootJar` | `mvn package` (spring-boot repackage) |
-| Clean | `./gradlew clean` | `mvn clean` |
-| Multi-module | `./gradlew :subproject:build` | `mvn -pl module -am package` |
+| Full compile + checks | `./gradlew build` | `mvnw verify` |
+| Unit / integration tests | `./gradlew test` | `mvnw test` |
+| Verification (tests + static analysis where configured) | `./gradlew check` | `mvnw verify` |
+| Package only | `./gradlew assemble` (or `jar` / `bootJar`) | `mvnw package` |
+| Spring Boot — run locally | `./gradlew bootRun` | `mvnw spring-boot:run` |
+| Spring Boot — runnable JAR | `./gradlew bootJar` | `mvnw package` (spring-boot repackage) |
+| Clean | `./gradlew clean` | `mvnw clean` |
+| Multi-module | `./gradlew :subproject:build` | `mvnw -pl module -am package` |
 
 ### 2.3 Framework Detection
 
@@ -342,12 +341,14 @@ Also read the "Cross-Cutting Concerns" section for standard targets.
 
 Pick the closest matching template based on `language` + `TARGET_TOOL`:
 
-| Tool | Go | Node.js | Python | PHP | Java / JVM |
-|------|----|---------|--------|-----|------------|
-| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | Same pattern as Node/Python: multi-command wrapper — use **`./gradlew` / `./mvnw` / `mvn`** recipes from §2.2 (or minimal custom Makefile) |
-| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | Same as other stacks — delegate `build`, `test`, `check` to Gradle/Maven |
-| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | Same — wire targets to §2.2 commands |
-| Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | Mage is Go-native; pure JVM → Makefile / Taskfile / Just unless the repo already uses Mage for other reasons |
+| Tool | Go | Node.js | Python | PHP | Java / JVM | Other |
+|------|----|---------|--------|-----|------------|------------------------|
+| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | `makefile-jvm.mk` | Use closest match |
+| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | `taskfile-jvm.yml` | Use closest match |
+| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | `justfile-jvm` | Use closest match |
+| Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | N/A (use Makefile) | N/A (use Makefile) |
+
+If `language` is not in the core columns, use the **Node.js** template as the structural fallback and adapt it to the detected `build_entrypoint` and language conventions (e.g., `cargo build`, `bundle exec rake`, `dotnet build`).
 
 For Magefile: use `magefile-full.go` if `HAS_DOCKER` or `has_migrations` is true, otherwise `magefile-basic.go`.
 
@@ -377,7 +378,7 @@ Using the `PROJECT_PROFILE`, best practices, and template as reference, generate
    - Deploy targets → only if CI/CD detected
    - Generate target → only if code generation detected
    - Typecheck target → only if TypeScript or mypy detected
-4. **Use correct package manager / build entrypoints** — match `PROJECT_PROFILE` (§2.2): JVM → `./gradlew` / `./mvnw` / `mvn`; Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
+4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `./gradlew` / `./mvnw`; Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
 5. **Include CI aggregate target** that runs lint + test + build
 6. **Follow the template's structure** for organization and grouping
 7. **Adapt variable names** to match the actual project (module name, binary name, source dirs)
