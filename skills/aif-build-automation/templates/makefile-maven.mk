@@ -12,8 +12,7 @@ MAKEFLAGS += --no-builtin-rules
 PROJECT ?= $(shell basename $(CURDIR))
 
 # --- Entrypoint ---
-# Will be resolved to ./mvnw or mvn during generation
-ENTRYPOINT ?= ./mvnw
+ENTRYPOINT ?= $(shell if [ -f ./mvnw ]; then echo "./mvnw"; else echo "mvn"; fi)
 
 # --- Git ---
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")

@@ -5,7 +5,8 @@ version: '3'
 vars:
   PROJECT:
     sh: basename $(pwd)
-  ENTRYPOINT: ./mvnw # Will be resolved to ./mvnw or mvn during generation
+  ENTRYPOINT:
+    sh: if [ -f ./mvnw ]; then echo "./mvnw"; else echo "mvn"; fi
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
   COMMIT:

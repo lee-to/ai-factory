@@ -5,7 +5,8 @@ version: '3'
 vars:
   PROJECT:
     sh: basename $(pwd)
-  ENTRYPOINT: ./gradlew # Will be resolved to ./gradlew or gradle during generation
+  ENTRYPOINT:
+    sh: if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gradle"; fi
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
   COMMIT:

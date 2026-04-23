@@ -12,8 +12,7 @@ MAKEFLAGS += --no-builtin-rules
 PROJECT ?= $(shell basename $(CURDIR))
 
 # --- Entrypoint ---
-# Will be resolved to ./gradlew or gradle during generation
-ENTRYPOINT ?= ./gradlew
+ENTRYPOINT ?= $(shell if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gradle"; fi)
 
 # --- Git ---
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")

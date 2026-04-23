@@ -6,8 +6,7 @@ project := `basename $(pwd)`
 version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
 commit  := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 
-# Will be resolved to ./mvnw or mvn during generation
-entrypoint := "./mvnw"
+entrypoint := `if [ -f ./mvnw ]; then echo "./mvnw"; else echo "mvn"; fi`
 
 docker-registry := "ghcr.io"
 docker-image    := docker-registry + "/" + project
