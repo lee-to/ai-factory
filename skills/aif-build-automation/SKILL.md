@@ -174,14 +174,14 @@ If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Mave
 
 | Goal | Gradle | Maven |
 |------|--------|--------|
-| Full compile + checks | `./gradlew build` | `mvnw verify` |
-| Unit / integration tests | `./gradlew test` | `mvnw test` |
-| Verification (tests + static analysis where configured) | `./gradlew check` | `mvnw verify` |
-| Package only | `./gradlew assemble` (or `jar` / `bootJar`) | `mvnw package` |
-| Spring Boot — run locally | `./gradlew bootRun` | `mvnw spring-boot:run` |
-| Spring Boot — runnable JAR | `./gradlew bootJar` | `mvnw package` (spring-boot repackage) |
-| Clean | `./gradlew clean` | `mvnw clean` |
-| Multi-module | `./gradlew :subproject:build` | `mvnw -pl module -am package` |
+| Full compile + checks | `<build_entrypoint> build` | `<build_entrypoint> verify` |
+| Unit / integration tests | `<build_entrypoint> test` | `<build_entrypoint> test` |
+| Verification (tests + static analysis where configured) | `<build_entrypoint> check` | `<build_entrypoint> verify` |
+| Package only | `<build_entrypoint> assemble` (or `jar` / `bootJar`) | `<build_entrypoint> package` |
+| Spring Boot — run locally | `<build_entrypoint> bootRun` | `<build_entrypoint> spring-boot:run` |
+| Spring Boot — runnable JAR | `<build_entrypoint> bootJar` | `<build_entrypoint> package` (spring-boot repackage) |
+| Clean | `<build_entrypoint> clean` | `<build_entrypoint> clean` |
+| Multi-module | `<build_entrypoint> :subproject:build` | `<build_entrypoint> -pl module -am package` |
 
 ### 2.3 Framework Detection
 
@@ -359,7 +359,7 @@ If `language` is not in the core columns, use the **Node.js** template as the st
 
 For Magefile: use `magefile-full.go` if `HAS_DOCKER` or `has_migrations` is true, otherwise `magefile-basic.go`.
 
-For PHP + Magefile: Mage is Go-specific and not applicable to PHP projects. If the user explicitly requested `mage` for a PHP project, explain this and suggest Makefile as the closest alternative (universal, no install needed). Ask via `AskUserQuestion` whether to proceed with Makefile instead.
+For PHP or Java/JVM + Magefile: Mage is Go-specific and not generally applicable to PHP or JVM projects. If the user explicitly requested `mage` for a PHP or JVM project, explain this and suggest Makefile as the closest alternative (universal, no install needed). Ask via `AskUserQuestion` whether to proceed with Makefile instead.
 
 Read the selected template:
 
@@ -385,7 +385,7 @@ Using the `PROJECT_PROFILE`, best practices, and template as reference, generate
    - Deploy targets → only if CI/CD detected
    - Generate target → only if code generation detected
    - Typecheck target → only if TypeScript or mypy detected
-4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `./gradlew` / `./mvnw`; Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
+4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `<build_entrypoint>` (from §2.2); Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
 5. **Include CI aggregate target** that runs lint + test + build
 6. **Follow the template's structure** for organization and grouping
 7. **Adapt variable names** to match the actual project (module name, binary name, source dirs)
@@ -454,7 +454,7 @@ Only generate `docker-*` exec variants if the project appears to be Docker-first
 
 - **Binary name**: Use the actual project name from `go.mod`, `package.json`, or directory name
 - **Source directory**: Use actual src dir (e.g., `src/`, `app/`, `cmd/`)
-- **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM Spring Boot → `./gradlew bootRun` / `mvn spring-boot:run`, Quarkus → `quarkus:dev` when detected)
+- **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM Spring Boot → `<build_entrypoint> bootRun` / `<build_entrypoint> spring-boot:run`, Quarkus → `quarkus:dev` when detected)
 - **Test command**: Match the detected test runner (§2.7)
 - **Lint command**: Match the detected linters (§2.8)
 - **Migration commands**: Match the detected migration tool exactly
@@ -485,7 +485,7 @@ Compare `EXISTING_CONTENT` against the `PROJECT_PROFILE` and best practices. Bui
 - Typecheck target (if TypeScript/mypy detected but no typecheck target)
 - Generate target (if code generation tools detected)
 - Coverage target (if test target exists but no coverage variant)
-- JVM: `build` / `test` / `check` delegating to `./gradlew` or `./mvnw` / `mvn` when `java_build` is set (not only generic shell or wrong ecosystem)
+- JVM: `build` / `test` / `check` delegating to `<build_entrypoint>` when `java_build` is set (not only generic shell or wrong ecosystem)
 
 **Quality issues** — Check for anti-patterns from best practices:
 - Targets without descriptions/documentation

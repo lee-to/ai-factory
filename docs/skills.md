@@ -342,7 +342,7 @@ Generates or enhances build automation files:
 - Suggests creating `AGENTS.md` with build commands for AI agents
 - Finds and updates any markdown files that already list project commands
 
-**Stack support:** Go, Node.js, Python, PHP, Rust, and Ruby when markers are present, plus **Java/Kotlin (Gradle/Maven)** with `./gradlew` / `./mvnw` / `mvn` as detected.
+**Stack support:** Go, Node.js, Python, PHP, Rust, and Ruby when markers are present, plus **Java/Kotlin (Gradle/Maven)** with `./gradlew` / `gradle` / `./mvnw` / `mvn` as detected.
 - **PHP:** Laravel (`artisan`), Symfony (`bin/console`), Slim, CakePHP, and Composer-driven workflows when detected.
 - **Node.js, Python, Go, Rust:** framework-specific targets (e.g. Next.js, FastAPI, Gin, `cargo`/`clippy`/`fmt`) per `PROJECT_PROFILE`.
 - **Java/Kotlin:** Spring Boot (`bootRun`, `bootJar` / `spring-boot:run`, packaged JAR), gRPC/protobuf, Quarkus (`quarkus:dev`), Micronaut, Vert.x — from Gradle/Maven and repo layout; Liquibase/Flyway, JUnit-style tests, and JVM static analysis tie into the same pipeline as in **Project detection** above.
