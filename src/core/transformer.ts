@@ -32,6 +32,7 @@ export const WORKFLOW_SKILLS = new Set([
   'aif-implement',
   'aif-improve',
   'aif-plan',
+  'aif-rules-check',
   'aif-verify',
 ]);
 

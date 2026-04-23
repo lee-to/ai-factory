@@ -18,6 +18,8 @@ Generate `.ai-factory/ARCHITECTURE.md` with architecture decisions tailored to t
 - **Paths:** `paths.description` and `paths.architecture`
 - **Language:** `language.ui` for prompts and `language.artifacts` for generated architecture content
 
+When invoked by `/aif`, assume `.ai-factory/config.yaml` has already been written for the current setup run and already contains the resolved `language.ui` / `language.artifacts` values.
+
 If config.yaml doesn't exist, use defaults:
 - DESCRIPTION.md: `.ai-factory/DESCRIPTION.md`
 - ARCHITECTURE.md: `.ai-factory/ARCHITECTURE.md`
@@ -158,45 +160,48 @@ Generate the resolved architecture artifact (default: `.ai-factory/ARCHITECTURE.
 
 ### Step 3: Update DESCRIPTION.md
 
-If the resolved DESCRIPTION.md path exists, add an `## Architecture` section (or update if it already exists):
+If the resolved DESCRIPTION.md path exists, add or update an architecture-pointer section in resolved `language.artifacts`.
+Use the resolved architecture path from config, not the default path literal.
 
 ```markdown
-## Architecture
-See the configured architecture artifact for detailed architecture guidelines.
-Pattern: [chosen pattern name]
+## [Localized heading: Architecture]
+[Localized sentence in resolved artifacts language referencing the resolved architecture artifact path for detailed architecture guidelines.]
+[Localized label: Pattern]: [chosen pattern name]
 ```
 
 ### Step 4: Update AGENTS.md
 
-If `AGENTS.md` exists in the project root, add `.ai-factory/ARCHITECTURE.md` to the "AI Context Files" table:
+If `AGENTS.md` exists in the project root, add the resolved architecture artifact path to the localized "AI Context Files" table in resolved `language.artifacts`:
 
 ```markdown
-| .ai-factory/ARCHITECTURE.md | Architecture decisions and guidelines |
+| [resolved-architecture-path] | [Localized architecture artifact description in resolved artifacts language] |
 ```
 
-Only add if not already present.
+Only add if the resolved architecture path is not already present.
 
 ### Step 5: Confirm
 
+Present the confirmation in resolved `language.ui` and report the resolved architecture path:
+
 ```
-✅ Architecture document generated!
+[Localized success heading in `language.ui`]
 
-Pattern: [chosen pattern]
-File: .ai-factory/ARCHITECTURE.md
+[Localized pattern label in `language.ui`]: [chosen pattern]
+[Localized file label in `language.ui`]: [resolved architecture path]
 
-Key rules:
+[Localized key-rules heading in `language.ui`]:
 - [rule 1]
 - [rule 2]
 - [rule 3]
 
-All workflow skills (/aif-plan, /aif-implement) will now follow these architecture guidelines.
+[Localized closing sentence in `language.ui` about workflow skills following these architecture guidelines.]
 ```
 
 ## Artifact Ownership
 
-- Primary ownership: `.ai-factory/ARCHITECTURE.md`.
+- Primary ownership: the resolved architecture artifact path (default: `.ai-factory/ARCHITECTURE.md`).
 - Respect config overrides: write to the resolved architecture path from `config.yaml` when provided.
-- Allowed companion updates: architecture pointer in `.ai-factory/DESCRIPTION.md`, architecture row in `AGENTS.md` context table.
+- Allowed companion updates: architecture pointer in the resolved DESCRIPTION path from `config.yaml`, architecture row in `AGENTS.md` context table.
 - Read-only context: roadmap, rules, research, and plan artifacts unless user explicitly requests otherwise.
 
 ---

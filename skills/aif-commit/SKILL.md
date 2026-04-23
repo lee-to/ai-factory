@@ -54,6 +54,7 @@ If any rule is violated — fix the output before presenting it to the user.
    - Check rules hierarchy (resolved `paths.rules_file` + `rules.base` + named `rules.<area>`) for commit conventions
    - Missing optional files (`ROADMAP.md`, `RULES.md`) are `WARN`, not blockers
    - Never modify context artifacts from this command
+   - If the user wants a standalone rules-only pass, suggest `/aif-rules-check`; keep `/aif-commit` gate labels at `WARN` / `ERROR`
 
 3. **Determine Commit Type**
    - `feat`: New feature

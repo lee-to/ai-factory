@@ -65,7 +65,14 @@
 }
 ```
 
-The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. AI Factory additionally stores internal `managedSkills` and `managedAgentFiles` hash maps in `.ai-factory.json`; they are omitted from the example above for brevity. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names.
+The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
+
+Extension-provided agent files can target non-Claude runtimes such as Codex. Those files are often bounded helper workers (for example, one-shot reviewers or plan polishers), not automatic equivalents of the bundled Claude coordinator agents. Documentation and prompts should describe those support boundaries explicitly instead of implying full parity across runtimes. AI Factory copies those runtime-specific agent files verbatim; runtime-local keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` belong in the agent file itself rather than in `.ai-factory.json` or workflow prompts. For bounded Codex helpers, prefer read-only advisory workers unless the runtime-native agent truly owns writes to a specific artifact.
+
+Agent-file lifecycle is now consistent across the CLI:
+- `extension add` installs the file, records `installedAgentFiles`, records `agentFileSources`, and writes fresh `managedAgentFiles` hashes immediately.
+- `ai-factory update` preserves tracked extension-owned agent files even when an extension manifest is temporarily missing, warns, and skips only the source-driven drift healing that cannot be resolved safely.
+- `extension remove` deletes the runtime-local file and prunes `installedAgentFiles`, `agentFileSources`, and `managedAgentFiles` together.
 
 The optional `extensions` array tracks installed extensions by name, original source, and version. `ai-factory update` now refreshes these extensions from their saved sources before base-skill updates, and `ai-factory extension update [name] --force` refreshes them without running the full base-skill update flow.
 
@@ -86,6 +93,12 @@ For the complete key-by-key schema plus the built-in skill read/write matrix, se
 **Two-file architecture:**
 - `.ai-factory.json` — CLI state (agents, installed skills, MCP config) — managed by ai-factory package
 - `config.yaml` — User preferences (language, paths, workflow) — edited by developers
+
+`/aif` creates the initial `config.yaml` from `skills/aif/references/config-template.yaml`, so the commented template structure is preserved instead of being rewritten as a minimal YAML blob.
+
+On setup reruns, `/aif` updates only the managed key subset it owns (`language.*`, `paths.*`, `workflow.*`, selected `git.*`, and `rules.base`). Existing comments, manual customizations outside the targeted keys, unknown sections, and `rules.<area>` registrations are preserved.
+
+Those comments are intentional: they are part of the human-editable experience for `config.yaml`, not disposable formatting noise.
 
 ```yaml
 # AI Factory Configuration
@@ -121,6 +134,7 @@ paths:
   evolution: .ai-factory/evolution/
   specs: .ai-factory/specs/
   rules: .ai-factory/rules/
+  qa: .ai-factory/qa/
 
 # Workflow Settings
 workflow:
@@ -148,8 +162,8 @@ rules:
 ```
 
 **Current config-aware skills** read `config.yaml` at Step 0. This currently includes:
-- Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
-- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-security-checklist`
+- Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
+- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-security-checklist`, `/aif-qa`
 
 Other skills are config-agnostic for now and rely on repository context, explicit arguments, or fixed non-configurable paths such as `skill-context`.
 
@@ -157,11 +171,12 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
 
 **Git workflow semantics:**
 - `git.enabled: false` disables branch/worktree assumptions entirely. `/aif-plan full` still creates a rich full plan, but it stores it in `paths.plans/<slug>.md` without running git commands.
-- `git.base_branch` is the branch used for diff, review, verify, and merge guidance. Skills must not hardcode `main`.
+- `git.base_branch` is the branch used for diff, review, verify, rules-check, and merge guidance. Skills must not hardcode `main`.
 - `git.create_branches: false` keeps git awareness enabled but disables automatic branch creation. This lets teams keep full plans without forcing branch-per-feature flow.
 - `git.skip_push_after_commit: true` makes `/aif-commit` stop after local commit without showing push prompt.
 - `paths.plan` remains the default fast-plan file. If you prefer fast plans inside `paths.plans/`, change `paths.plan` manually in `config.yaml`.
 - `paths.docs` controls where `/aif-docs` writes the detailed documentation pages. `README.md` remains the landing page in the project root.
+- `paths.qa` controls where `/aif-qa` stores QA artifacts. A derived branch slug is appended automatically: `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`. The slug is a deterministic, filesystem-safe, stable derived value with a short hash suffix for collision resistance — see `skills/aif-qa/SKILL.md` for the full algorithm.
 
 **Current schema limits:** `config.yaml` still leaves `.ai-factory/skill-context/` fixed by command contract. `README.md` and `docs-html/` remain fixed by current documentation workflow.
 
@@ -282,12 +297,17 @@ your-project/
 │   ├── evolutions/            # Evolution logs (from /aif-evolve)
 │   │   ├── 2026-02-08-10.00.md
 │   │   └── patch-cursor.json  # Incremental evolve cursor (latest processed patch)
-│   └── evolution/             # Active reflex loop state (from /aif-loop)
-│       ├── current.json
-│       └── <task-alias>/
-│           ├── run.json
-│           ├── history.jsonl
-│           └── artifact.md
+│   ├── evolution/             # Active reflex loop state (from /aif-loop)
+│   │   ├── current.json
+│   │   └── <task-alias>/
+│   │       ├── run.json
+│   │       ├── history.jsonl
+│   │       └── artifact.md
+│   └── qa/                    # QA artifacts (from /aif-qa)
+│       └── <branch-slug>/
+│           ├── change-summary.md
+│           ├── test-plan.md
+│           └── test-cases.md
 ├── .mcp.json                  # MCP servers config (Claude Code project scope)
 └── .ai-factory.json           # AI Factory config
 ```
@@ -316,7 +336,7 @@ For full phase contracts and stop conditions, see [Reflex Loop](loop.md).
 
 ### Artifact Ownership and Context Gates
 - Keep context artifact ownership command-scoped (roadmap by `/aif-roadmap`, rules by `/aif-rules`, architecture by `/aif-architecture`, research by `/aif-explore`).
-- Treat `/aif-commit`, `/aif-review`, and `/aif-verify` as read-only consumers of context artifacts by default.
+- Treat `/aif-rules-check`, `/aif-commit`, `/aif-review`, and `/aif-verify` as read-only consumers of context artifacts by default.
 - Use `WARN` for non-blocking gate findings (missing optional files, ambiguous mapping) and `ERROR` for blocking violations.
 
 ### Logging

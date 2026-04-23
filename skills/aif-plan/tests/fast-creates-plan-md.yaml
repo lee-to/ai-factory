@@ -1,0 +1,94 @@
+scenario: fast-creates-plan-md
+description: |
+  Fast-mode planning should write `.ai-factory/PLAN.md` at the repo root and
+  the plan body must contain at least one markdown checkbox (`- [ ]`).
+  No explicit max_turns — uses the internal safety cap; hitting it prints a
+  warning, not a failure.
+skill: aif-plan
+argument: "fast add GET /health endpoint that returns 200 OK"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  # Keep the run focused — no subagent exploration and no Handoff MCP calls.
+  # The skill gracefully degrades when MCP tools aren't available (manual mode,
+  # no HANDOFF_TASK_ID annotation → skip sync).
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo API
+
+        Tiny Node.js API skeleton.
+    - path: package.json
+      content: |
+        {
+          "name": "demo-api",
+          "version": "0.1.0",
+          "type": "module",
+          "dependencies": { "express": "^4.0.0" }
+        }
+    - path: src/index.ts
+      content: |
+        import express from 'express';
+
+        const app = express();
+        app.get('/', (_req, res) => res.send('ok'));
+        app.listen(3000, () => console.log('listening on :3000'));
+
+user_responses:
+  - match_question: "(?i)\\b(fast|full)\\b"
+    choose: "Fast"
+  - match_question: "(?i)test"
+    choose: "Yes, include tests"
+  - match_question: "(?i)(requirement|constraint|clarif)"
+    choose: "None"
+  - match_question: "(?i)(roadmap|milestone|linkage)"
+    choose: "Skip — no linkage"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: writes-plan-md-with-checkboxes
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/PLAN\\.md$"
+      content: "- \\[ \\]"
+    weight: 3
+
+  - id: writes-plan-md-path
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/PLAN\\.md$"
+    weight: 1
+
+  - id: not-writing-full-mode-path
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/"
+
+  - id: stay-in-sandbox
+    type: no_path_escape
+    # Defaults cover Read/Write/Edit/Glob/Grep. The skill legitimately reads
+    # its own source tree (installed at `.claude/skills/aif-plan/`) which is
+    # inside the sandbox, so no allow_outside entries are needed.

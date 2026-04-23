@@ -45,9 +45,10 @@ ai-factory extension remove aif-ext-example
 3. Extension skills (from `skills`) are installed into configured agents
 4. Runtime definitions from `agents` are added to the effective registry for future `ai-factory init` runs
 5. Agent files from `agentFiles` are copied into matching runtime `agentsDir` locations
-6. Injections are applied to matching skill files (e.g. appending extra instructions to `/aif-implement`)
-7. MCP servers are merged into each agent's settings file (e.g. `.mcp.json`)
-8. Custom CLI commands become available immediately
+6. Agent-file tracking is updated immediately: `installedAgentFiles`, `agentFileSources`, and `managedAgentFiles` are written together for affected runtimes
+7. Injections are applied to matching skill files (e.g. appending extra instructions to `/aif-implement`)
+8. MCP servers are merged into each agent's settings file (e.g. `.mcp.json`)
+9. Custom CLI commands become available immediately
 
 ### What Happens on Update
 
@@ -61,9 +62,12 @@ Running `ai-factory update`:
    - Extensions with unchanged versions are skipped
 3. **Base skill update** — updates installed base skills, reports per-agent status (`changed`, `unchanged`, `skipped`, `removed`)
 4. **Reinstall replacement skills** — re-installs skills from extension manifests
-5. **Re-apply injections** — re-applies all extension injections automatically
+5. **Reinstall tracked extension agent files** — refreshes extension-managed runtime files and reports them in the per-agent agent-file section
+6. **Re-apply injections** — re-applies all extension injections automatically
 
 `ai-factory update --force` forces a clean reinstall of base skills AND forces extension refresh regardless of version changes.
+
+If an installed extension manifest is temporarily missing or invalid during ordinary `ai-factory update`, AI Factory keeps the tracked `installedAgentFiles`, `agentFileSources`, and `managedAgentFiles` entries instead of clearing them. In that case it warns and skips only the source-driven healing it can no longer prove safe.
 
 #### Extension Update Behavior
 
@@ -116,8 +120,9 @@ Summary:
 
 1. Injection markers are stripped from all skill files
 2. MCP server entries are removed from agent settings files
-3. Extension directory is deleted from `.ai-factory/extensions/`
-4. Extension record is removed from `.ai-factory.json`
+3. Extension-owned agent files are deleted from runtime `agentsDir` locations and pruned from `installedAgentFiles`, `agentFileSources`, and `managedAgentFiles`
+4. Extension directory is deleted from `.ai-factory/extensions/`
+5. Extension record is removed from `.ai-factory.json`
 
 ---
 
@@ -405,6 +410,10 @@ Rules:
 - Source and target extensions must match the runtime's `agentFileExtension`.
 - Ownership is exclusive per `runtime + target`; conflicts with bundled Claude files or another extension are rejected before install.
 - Bundled Claude filenames are reserved by target path from the package `subagents/` inventory; an extension cannot claim the same `claude` target filename even if the local managed copy was later edited or removed.
+- AI Factory validates ownership, path safety, runtime existence, and file extension, then copies the asset verbatim. Runtime-specific internals of the file remain the runtime's responsibility.
+- After install, AI Factory tracks the target in `installedAgentFiles`, records its source in `agentFileSources`, and stores source/install hashes in `managedAgentFiles`.
+- For Codex `.toml` helpers, keep runtime-local settings such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` inside the agent file instead of assuming an extension injection or workflow skill can pass them dynamically.
+- Prefer read-only one-shot helpers for Codex-style support workers. If a helper is allowed to write, document the owned artifact scope explicitly in `developer_instructions`.
 
 ---
 

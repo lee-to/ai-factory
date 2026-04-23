@@ -115,6 +115,8 @@ Gate result severity:
 - `WARN` for non-blocking inconsistencies or missing optional files.
 - `ERROR` only for explicit blocking criteria requested by the user/review policy.
 
+If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep `/aif-review` gate labels at `WARN` / `ERROR`.
+
 `/aif-review` is read-only for context artifacts by default. Do not modify context files unless user explicitly asks.
 
 ### Project Context

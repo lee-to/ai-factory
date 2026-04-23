@@ -40,6 +40,7 @@ const ext = program
 
 ext
   .command('add <source>')
+  .allowExcessArguments(false)
   .description('Install extension from npm package, git URL, or local path')
   .action(extensionAddCommand);
 

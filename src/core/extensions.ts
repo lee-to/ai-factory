@@ -1,4 +1,5 @@
 import path from 'path';
+import { execFileSync } from 'child_process';
 import fs from 'fs-extra';
 import * as semver from 'semver';
 import { readJsonFile, removeDirectory, ensureDir } from '../utils/fs.js';
@@ -89,6 +90,159 @@ function logExtension(level: ExtensionLogLevel, message: string, context?: Recor
   }
 
   console.log(line);
+}
+
+function isMissingCommandError(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as NodeJS.ErrnoException).code === 'ENOENT';
+}
+
+export interface ResolveNpmCommandOptions {
+  platform?: NodeJS.Platform;
+  execPath?: string;
+  pathEnv?: string;
+  pathDelimiter?: string;
+  pathExists?: (targetPath: string) => Promise<boolean>;
+}
+
+interface ResolvedNpmCommand {
+  command: string;
+  argsPrefix: string[];
+}
+
+const npmCommandResolutionCache = new Map<string, Promise<ResolvedNpmCommand>>();
+
+function getNpmCliCandidates(execPath: string): string[] {
+  const nodeDir = path.dirname(execPath);
+  return [
+    path.join(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.resolve(nodeDir, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.resolve(nodeDir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  ];
+}
+
+function getPathDelimiter(platform: NodeJS.Platform, override?: string): string {
+  if (override) {
+    return override;
+  }
+
+  return platform === 'win32' ? ';' : ':';
+}
+
+async function findWindowsPathNpmCli(
+  pathEnv: string,
+  fallbackExecPath: string,
+  pathDelimiter: string,
+  pathExists: (targetPath: string) => Promise<boolean>,
+): Promise<ResolvedNpmCommand | null> {
+  const npmCommandPaths = pathEnv
+    .split(pathDelimiter)
+    .map(entry => entry.trim())
+    .filter(Boolean)
+    .map(entry => path.join(entry, 'npm.cmd'));
+
+  for (const npmCommandPath of npmCommandPaths) {
+    if (!await pathExists(npmCommandPath)) {
+      continue;
+    }
+
+    const npmRoot = path.dirname(npmCommandPath);
+    const npmCliPath = path.join(npmRoot, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+
+    if (!await pathExists(npmCliPath)) {
+      continue;
+    }
+
+    const bundledNodePath = path.join(npmRoot, 'node.exe');
+    const command = await pathExists(bundledNodePath) ? bundledNodePath : fallbackExecPath;
+
+    logExtension('debug', '[FIX] Resolved Windows npm-cli.js from PATH', {
+      npmCliPath,
+      command,
+      pathDelimiter,
+    });
+
+    return {
+      command,
+      argsPrefix: [npmCliPath],
+    };
+  }
+
+  return null;
+}
+
+function getNpmCommandResolutionCacheKey(
+  platform: NodeJS.Platform,
+  execPath: string,
+  pathEnv: string,
+  pathDelimiter: string,
+  pathExists?: ResolveNpmCommandOptions['pathExists'],
+): string | null {
+  if (pathExists) {
+    return null;
+  }
+
+  return JSON.stringify([platform, execPath, pathEnv, pathDelimiter]);
+}
+
+async function resolveNpmCommandUncached(
+  platform: NodeJS.Platform,
+  execPath: string,
+  pathEnv: string,
+  pathDelimiter: string,
+  pathExists: (targetPath: string) => Promise<boolean>,
+): Promise<ResolvedNpmCommand> {
+  for (const candidate of new Set(getNpmCliCandidates(execPath))) {
+    if (await pathExists(candidate)) {
+      return {
+        command: execPath,
+        argsPrefix: [candidate],
+      };
+    }
+  }
+
+  if (platform === 'win32') {
+    // Resolve npm-cli.js directly so package specs never pass through cmd.exe parsing.
+    logExtension('debug', '[FIX] Resolving Windows npm-cli.js from PATH', {
+      pathDelimiter,
+    });
+    const resolvedFromPath = await findWindowsPathNpmCli(pathEnv, execPath, pathDelimiter, pathExists);
+    if (resolvedFromPath) {
+      return resolvedFromPath;
+    }
+
+    throw new Error(
+      'Unable to locate npm-cli.js for a safe Windows npm invocation. Reinstall Node.js/npm or ensure npm.cmd points to a standard npm installation.',
+    );
+  }
+
+  return {
+    command: 'npm',
+    argsPrefix: [],
+  };
+}
+
+export async function resolveNpmCommand(options: ResolveNpmCommandOptions = {}): Promise<ResolvedNpmCommand> {
+  const platform = options.platform ?? process.platform;
+  const execPath = options.execPath ?? process.execPath;
+  const pathEnv = options.pathEnv ?? process.env.PATH ?? '';
+  const pathDelimiter = getPathDelimiter(platform, options.pathDelimiter);
+  const pathExists = options.pathExists ?? fs.pathExists;
+  const cacheKey = getNpmCommandResolutionCacheKey(platform, execPath, pathEnv, pathDelimiter, options.pathExists);
+
+  if (!cacheKey) {
+    return resolveNpmCommandUncached(platform, execPath, pathEnv, pathDelimiter, pathExists);
+  }
+
+  let cachedResolution = npmCommandResolutionCache.get(cacheKey);
+  if (!cachedResolution) {
+    cachedResolution = resolveNpmCommandUncached(platform, execPath, pathEnv, pathDelimiter, pathExists);
+    npmCommandResolutionCache.set(cacheKey, cachedResolution);
+  }
+
+  return cachedResolution;
 }
 
 function isValidVersionString(version: string): boolean {
@@ -252,6 +406,11 @@ export interface ExtensionManifest {
   mcpServers?: ExtensionMcpServer[];
 }
 
+export interface InstalledExtensionManifest {
+  dir: string;
+  manifest: ExtensionManifest;
+}
+
 function isSafeRelativeAssetPath(filePath: string): boolean {
   const windowsDriveAbsolute = /^[a-zA-Z]:[\\/]/.test(filePath);
   const windowsUncAbsolute = /^(\\\\|\/\/)/.test(filePath);
@@ -377,9 +536,9 @@ export async function loadExtensionManifest(extensionDir: string): Promise<Exten
 export async function loadAllExtensions(
   projectDir: string,
   registeredNames: string[],
-): Promise<{ dir: string; manifest: ExtensionManifest }[]> {
+): Promise<InstalledExtensionManifest[]> {
   const extensionsDir = getExtensionsDir(projectDir);
-  const results: { dir: string; manifest: ExtensionManifest }[] = [];
+  const results: InstalledExtensionManifest[] = [];
 
   for (const name of registeredNames) {
     try {
@@ -772,13 +931,34 @@ async function resolveFromLocal(sourcePath: string): Promise<ResolvedExtension> 
 }
 
 async function resolveFromNpm(projectDir: string, packageName: string): Promise<ResolvedExtension> {
-  const { execFileSync } = await import('child_process');
   const tmpDir = path.join(getExtensionsDir(projectDir), '.tmp-install');
+  const npmRunner = await resolveNpmCommand();
   logExtension('debug', 'Resolving npm extension source', { packageName, tmpDir });
   await removeDirectory(tmpDir);
   await ensureDir(tmpDir);
 
-  execFileSync('npm', ['pack', packageName, '--pack-destination', tmpDir], { stdio: 'pipe' });
+  try {
+    logExtension('debug', '[FIX] Starting npm pack for extension source', {
+      packageName,
+      command: npmRunner.command,
+      argsPrefix: npmRunner.argsPrefix,
+    });
+    execFileSync(
+      npmRunner.command,
+      [...npmRunner.argsPrefix, 'pack', packageName, '--pack-destination', tmpDir],
+      { stdio: 'pipe' },
+    );
+  } catch (error) {
+    await removeDirectory(tmpDir);
+    if (isMissingCommandError(error)) {
+      if (npmRunner.argsPrefix.length > 0) {
+        throw new Error('A safe npm entrypoint was resolved, but the npm command could not be started. Reinstall Node.js/npm and rerun with LOG_LEVEL=debug to inspect the resolved command.');
+      }
+
+      throw new Error('npm is required to install npm-based extensions but was not found in PATH. Rerun with LOG_LEVEL=debug for resolver details.');
+    }
+    throw error;
+  }
 
   const files = await fs.readdir(tmpDir);
   const tgzFile = files.find(f => f.endsWith('.tgz'));
@@ -789,7 +969,15 @@ async function resolveFromNpm(projectDir: string, packageName: string): Promise<
 
   const extractDir = path.join(tmpDir, 'extracted');
   await ensureDir(extractDir);
-  execFileSync('tar', ['-xzf', path.join(tmpDir, tgzFile), '-C', extractDir], { stdio: 'pipe' });
+  try {
+    execFileSync('tar', ['-xzf', path.join(tmpDir, tgzFile), '-C', extractDir], { stdio: 'pipe' });
+  } catch (error) {
+    await removeDirectory(tmpDir);
+    if (isMissingCommandError(error)) {
+      throw new Error('tar is required to extract npm-based extensions but was not found in PATH.');
+    }
+    throw error;
+  }
 
   const packageDir = path.join(extractDir, 'package');
   const manifest = await loadExtensionManifest(packageDir);
@@ -808,7 +996,6 @@ async function resolveFromNpm(projectDir: string, packageName: string): Promise<
 }
 
 async function resolveFromGit(projectDir: string, url: string): Promise<ResolvedExtension> {
-  const { execFileSync } = await import('child_process');
   const tmpDir = path.join(getExtensionsDir(projectDir), '.tmp-clone');
   const gitSource = parseGitSource(url);
   const sourceType = classifyExtensionSource(url);
@@ -838,7 +1025,15 @@ async function resolveFromGit(projectDir: string, url: string): Promise<Resolved
     cloneArgs.push('--branch', gitSource.ref, '--single-branch');
   }
   cloneArgs.push(gitSource.cloneUrl, tmpDir);
-  execFileSync('git', cloneArgs, { stdio: 'pipe' });
+  try {
+    execFileSync('git', cloneArgs, { stdio: 'pipe' });
+  } catch (error) {
+    await removeDirectory(tmpDir);
+    if (isMissingCommandError(error)) {
+      throw new Error('git is required to install extensions from Git sources but was not found in PATH.');
+    }
+    throw error;
+  }
 
   const manifest = await loadExtensionManifest(tmpDir);
   if (!manifest) {

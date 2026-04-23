@@ -7,7 +7,7 @@
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (22 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
+2. **Built-in skills** (25 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 15 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
    Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
@@ -43,6 +43,8 @@ ai-factory/
 │   ├── aif-review/             # Code review
 │   ├── aif-roadmap/            # Strategic project roadmap
 │   ├── aif-rules/              # Project rules and conventions
+│   ├── aif-rules-check/        # Standalone rules compliance gate
+│   ├── aif-qa/                 # QA workflow: change summary → test plan → test cases
 │   ├── aif-security-checklist/ # Security audit
 │   ├── aif-skill-generator/    # Generate new skills
 │   └── aif-verify/             # Verify implementation against plan
@@ -77,6 +79,9 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/skill-context/<skill>/SKILL.md` — project-specific overrides for skills (from /aif-evolve)
 - `.ai-factory/evolutions/*.md` — evolution logs (from /aif-evolve)
 - `.ai-factory/evolutions/patch-cursor.json` — incremental evolve cursor (latest processed patch)
+- `.ai-factory/qa/<branch-slug>/change-summary.md` — QA change summary (from /aif-qa)
+- `.ai-factory/qa/<branch-slug>/test-plan.md` — QA test plan (from /aif-qa)
+- `.ai-factory/qa/<branch-slug>/test-cases.md` — QA test cases (from /aif-qa)
 - `.ai-factory/evolution/current.json` — active loop pointer (from /aif-loop)
 - `.ai-factory/evolution/<alias>/run.json` — current loop state
 - `.ai-factory/evolution/<alias>/history.jsonl` — loop event history (append-only)
@@ -86,21 +91,23 @@ artifacts, but the paths below remain the default layout:
 
 Artifact writers are command-scoped to prevent ownership conflicts:
 
-| Artifact                                                         | Primary writer command | Notes                                                                                            |
-|------------------------------------------------------------------|------------------------|--------------------------------------------------------------------------------------------------|
-| `.ai-factory/DESCRIPTION.md`                                     | `/aif`                 | `/aif-implement` may update only when implementation materially changed context facts            |
-| `paths.architecture` (default: `.ai-factory/ARCHITECTURE.md`)    | `/aif-architecture`    | `/aif-implement` may update structure notes when structure changes                               |
-| `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)              | `/aif-roadmap`         | `/aif-implement` may mark completed milestones with evidence                                     |
-| `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules`           | top-level conventions plus area-rule files and registration                                     |
-| `paths.research` (default: `.ai-factory/RESEARCH.md`)            | `/aif-explore`         | explore-mode writable artifact                                                                   |
-| `paths.plan` / `paths.plans/<branch-or-slug>.md`                 | `/aif-plan`            | defaults shown; `/aif-improve` refines existing plans                                            |
-| `paths.fix_plan` and `paths.patches/*.md`                        | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
-| `README.md` and `paths.docs/*`                                   | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
-| `.ai-factory/skill-context/*`                                    | `/aif-evolve`          | skill-context overrides for built-in skills                                                      |
-| `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json` | `/aif-evolve`          | evolution logs and incremental patch cursor                                                      |
-| `.ai-factory/evolution/*` artifacts                              | `/aif-loop`            | loop state ownership                                                                             |
+| Artifact                                                                                      | Primary writer command | Notes                                                                                            |
+|-----------------------------------------------------------------------------------------------|------------------------|--------------------------------------------------------------------------------------------------|
+| `.ai-factory/DESCRIPTION.md`                                                                  | `/aif`                 | `/aif-implement` may update only when implementation materially changed context facts            |
+| `.ai-factory/config.yaml`                                                                     | `/aif`                 | initial create uses the commented template; reruns refresh only managed keys and preserve comments/manual edits; `/aif-rules` owns `rules.<area>` |
+| `paths.architecture` (default: `.ai-factory/ARCHITECTURE.md`)                                 | `/aif-architecture`    | `/aif-implement` may update structure notes when structure changes                               |
+| `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-roadmap`         | `/aif-implement` may mark completed milestones with evidence                                     |
+| `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules`           | top-level conventions plus area-rule files and registration                                      |
+| `paths.research` (default: `.ai-factory/RESEARCH.md`)                                         | `/aif-explore`         | explore-mode writable artifact                                                                   |
+| `paths.plan` / `paths.plans/<branch-or-slug>.md`                                              | `/aif-plan`            | defaults shown; `/aif-improve` refines existing plans                                            |
+| `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
+| `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
+| `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills                                                      |
+| `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor                                                      |
+| `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
+| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`              | change-summary, test-plan, test-cases artifacts; branch slug used as subdirectory                |
 
-Quality commands (`/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
+Quality commands (`/aif-rules-check`, `/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
 
 The locations shown in the ownership table are the default paths. `config.yaml` may relocate plan, fix, reference,
 documentation, security, evolution, and other AI Factory artifacts; ownership stays with the same command even when the path changes.
@@ -111,15 +118,17 @@ Context gate policy for quality commands:
 - Roadmap mismatch is warning-first in normal mode, blocking in strict mode when mismatch is clear.
 - Missing roadmap milestone linkage for `feat`/`fix`/`perf` is warning-first by default, even in strict verify when a
   roadmap exists.
+- `/aif-rules-check` is the standalone rules-only companion and uses `PASS` / `WARN` / `FAIL`; `/aif-commit`,
+  `/aif-review`, and `/aif-verify` keep `WARN` / `ERROR`.
 
 ### Config-Aware Skills
 
 `config.yaml` is not universal yet. The current config-aware skills are:
 
 - Core workflow and quality: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`,
-  `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
+  `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
 - Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`,
-  `/aif-security-checklist`
+  `/aif-security-checklist`, `/aif-qa`
 
 Current config-agnostic built-ins:
 
@@ -128,7 +137,7 @@ Current config-agnostic built-ins:
 
 Current config keys in active use:
 
-- `paths.*` - artifact discovery for description, architecture, roadmap, research, RULES.md, plan files, fix plans,
+- `paths.*` - artifact discovery for description, architecture, roadmap, research, RULES.md, plan files, fix plans, QA artifacts,
   references, security state, patches, evolutions, loop state, and rules
 - `language.ui` / `language.artifacts` - prompt language vs generated artifact language
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
@@ -175,6 +184,11 @@ Check: has arguments? has project files?
 │   → Ask "What are you building?" → Stack selection → Setup  │
 └─────────────────────────────────────────────────────────────┘
     ↓
+/aif config.yaml contract
+    ↓
+Initial create → copy from `skills/aif/references/config-template.yaml` and set resolved values without dropping comments
+Rerun update → deterministic merge of managed keys only; preserve manual comments, unknown sections, and existing `rules.<area>`
+    ↓
 /aif-architecture → Generate ARCHITECTURE.md
     ↓
 STOP (does NOT implement)
@@ -186,6 +200,23 @@ No `area:` prefix → append/update project-wide axioms in configured `paths.rul
     ↓
 Workflow skills resolve conventions with the same hierarchy:
 `rules.<area>` → `rules/base.md` → `paths.rules_file`
+
+/aif-rules-check [git ref]
+    ↓
+Reads resolved rules hierarchy from `config.yaml` with fallback to `.ai-factory/RULES.md`
+    ↓
+Collects changed files from staged diff, working tree, or `<git ref>...HEAD`
+    ↓
+Optionally reads the active plan only to disambiguate scope/area relevance
+    ↓
+Evaluates rules in read-only mode
+    ↓
+Reports standalone verdict:
+    - PASS → applicable rules checked and no clear violations found
+    - WARN → missing/ambiguous rules or no changed files
+    - FAIL → explicit hard-rule violation tied to diff evidence
+    ↓
+Suggests `/aif-rules` when rules need to be added or clarified
 
 /aif-roadmap [vision or requirements]
     ↓
@@ -251,6 +282,19 @@ Docs policy:
     - Docs: no or unset → WARN [docs] only (no mandatory prompt)
     ↓
 Offers to delete PLAN.md when done (keeps feature-*.md)
+
+/aif-qa [--all] [change-summary | test-plan | test-cases] [<branch>]
+    ↓
+Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + config.yaml for context
+    ↓
+change-summary → collects git diff, checks commit/diff size limits, explores key files in parallel
+               → saves .ai-factory/qa/<branch-slug>/change-summary.md
+    ↓
+test-plan      → reads change-summary → determines scope and test types → saves test-plan.md
+    ↓
+test-cases     → reads change-summary + test-plan → writes TC-NNN scenarios → saves test-cases.md
+    ↓
+--all          → runs all three stages in sequence without inter-stage prompts
 
 /aif-fix <bug description>
     ↓

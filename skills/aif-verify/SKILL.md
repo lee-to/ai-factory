@@ -302,6 +302,8 @@ Logging/reporting format:
 - Non-blocking findings: `WARN [gate-name] ...`
 - Blocking findings: `ERROR [gate-name] ...`
 
+If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep `/aif-verify` gate labels at `WARN` / `ERROR`.
+
 ### 3.6 Context Drift (Optional Remediation)
 
 `/aif-verify` is **read-only** for context artifacts. Do not edit or regenerate `.ai-factory/*` files here.

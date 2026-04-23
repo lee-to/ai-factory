@@ -1,0 +1,4 @@
+skills_dir: ./skills
+defaults:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions

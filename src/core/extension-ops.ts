@@ -1,5 +1,5 @@
 import path from 'path';
-import type { AgentInstallation, AiFactoryConfig, ExtensionRecord } from './config.js';
+import type { AgentFileSource, AgentInstallation, AiFactoryConfig, ExtensionRecord } from './config.js';
 import { findAgentConfig, hydrateProjectAgentRegistry } from './agents.js';
 import {
   type ExtensionManifest,
@@ -17,10 +17,12 @@ import {
   installSkills,
   getAvailableSkills,
   getAvailableSubagents,
+  buildExtensionAgentFileSources,
   installExtensionAgentFiles,
   installExtensionSkills,
   removeExtensionAgentFiles,
   removeExtensionSkills,
+  rebuildManagedAgentFilesForAgents,
 } from './installer.js';
 import { applySingleExtensionInjections, stripAllExtensionInjections, stripInjectionsByExtensionName } from './injections.js';
 import { configureExtensionMcpServers, removeExtensionMcpServers, validateMcpTemplate, type McpServerConfig } from './mcp.js';
@@ -139,6 +141,119 @@ export async function installExtensionAgentFilesForAllAgents(
   return results;
 }
 
+export function collectManifestAgentFileTargets(
+  manifest?: ExtensionManifest | null,
+): Map<string, string[]> {
+  const targets = new Map<string, string[]>();
+
+  for (const agentFile of manifest?.agentFiles ?? []) {
+    const existing = targets.get(agentFile.runtime) ?? [];
+    existing.push(agentFile.target);
+    targets.set(agentFile.runtime, existing);
+  }
+
+  return targets;
+}
+
+export function collectTrackedExtensionAgentFileTargets(
+  agents: AgentInstallation[],
+  extensionName: string,
+): Map<string, string[]> {
+  const targets = new Map<string, string[]>();
+
+  for (const agent of agents) {
+    const trackedTargets = Object.entries(agent.agentFileSources ?? {})
+      .filter(([, source]) => source.kind === 'extension' && source.extensionName === extensionName)
+      .map(([relPath]) => relPath);
+
+    if (trackedTargets.length > 0) {
+      targets.set(agent.id, trackedTargets);
+    }
+  }
+
+  return targets;
+}
+
+export function mergeInstalledAgentFiles(
+  agents: AgentInstallation[],
+  agentFileInstalls: Map<string, string[]>,
+): void {
+  for (const [agentId, installedFiles] of agentFileInstalls) {
+    const agent = agents.find(candidate => candidate.id === agentId);
+    if (!agent || installedFiles.length === 0) {
+      continue;
+    }
+
+    agent.installedAgentFiles = Array.from(
+      new Set([...(agent.installedAgentFiles ?? []), ...installedFiles]),
+    ).sort();
+  }
+}
+
+export function mergeAgentFileSources(
+  agents: AgentInstallation[],
+  agentFileSources: Map<string, Record<string, AgentFileSource>>,
+): void {
+  for (const [agentId, installedSources] of agentFileSources) {
+    const agent = agents.find(candidate => candidate.id === agentId);
+    if (!agent || Object.keys(installedSources).length === 0) {
+      continue;
+    }
+
+    agent.agentFileSources = {
+      ...(agent.agentFileSources ?? {}),
+      ...installedSources,
+    };
+  }
+}
+
+export function pruneInstalledAgentFiles(
+  agents: AgentInstallation[],
+  targetsByAgent: Map<string, string[]>,
+): void {
+  for (const [agentId, targets] of targetsByAgent) {
+    const agent = agents.find(candidate => candidate.id === agentId);
+    if (!agent || targets.length === 0 || !agent.installedAgentFiles?.length) {
+      continue;
+    }
+
+    const blocked = new Set(targets);
+    agent.installedAgentFiles = agent.installedAgentFiles.filter(relPath => !blocked.has(relPath));
+  }
+}
+
+export function pruneAgentFileSources(
+  agents: AgentInstallation[],
+  targetsByAgent: Map<string, string[]>,
+): void {
+  for (const [agentId, targets] of targetsByAgent) {
+    const agent = agents.find(candidate => candidate.id === agentId);
+    if (!agent || targets.length === 0 || !agent.agentFileSources) {
+      continue;
+    }
+
+    for (const target of targets) {
+      delete agent.agentFileSources[target];
+    }
+  }
+}
+
+export function pruneManagedAgentFiles(
+  agents: AgentInstallation[],
+  targetsByAgent: Map<string, string[]>,
+): void {
+  for (const [agentId, targets] of targetsByAgent) {
+    const agent = agents.find(candidate => candidate.id === agentId);
+    if (!agent || targets.length === 0 || !agent.managedAgentFiles) {
+      continue;
+    }
+
+    for (const target of targets) {
+      delete agent.managedAgentFiles[target];
+    }
+  }
+}
+
 export async function removeExtensionAgentFilesForAllAgents(
   projectDir: string,
   agents: AgentInstallation[],
@@ -150,6 +265,22 @@ export async function removeExtensionAgentFilesForAllAgents(
     const targets = (manifest.agentFiles ?? [])
       .filter(agentFile => agentFile.runtime === agent.id)
       .map(agentFile => agentFile.target);
+    const removed = await removeExtensionAgentFiles(projectDir, agent, targets);
+    results.set(agent.id, removed);
+  }
+
+  return results;
+}
+
+export async function removeAgentFilesForAllAgentsByTargets(
+  projectDir: string,
+  agents: AgentInstallation[],
+  targetsByAgent: Map<string, string[]>,
+): Promise<Map<string, string[]>> {
+  const results = new Map<string, string[]>();
+
+  for (const agent of agents) {
+    const targets = targetsByAgent.get(agent.id) ?? [];
     const removed = await removeExtensionAgentFiles(projectDir, agent, targets);
     results.set(agent.id, removed);
   }
@@ -593,6 +724,8 @@ export async function commitResolvedExtension(
   }
 
   let assetInstall: ExtensionAssetInstallResult;
+  const oldAgentFileTargets = collectManifestAgentFileTargets(oldManifest);
+  const newAgentFileSources = buildExtensionAgentFileSources(manifest);
 
   try {
     await commitExtensionInstall(projectDir, resolved);
@@ -620,6 +753,13 @@ export async function commitResolvedExtension(
       await removeDirectory(backupDir);
     }
   }
+
+  pruneInstalledAgentFiles(config.agents, oldAgentFileTargets);
+  pruneAgentFileSources(config.agents, oldAgentFileTargets);
+  pruneManagedAgentFiles(config.agents, oldAgentFileTargets);
+  mergeInstalledAgentFiles(config.agents, assetInstall.agentFileInstalls);
+  mergeAgentFileSources(config.agents, newAgentFileSources);
+  await rebuildManagedAgentFilesForAgents(projectDir, config.agents);
 
   for (const outcome of assetInstall.replacementOutcomes) {
     if (outcome.status === 'installed') {

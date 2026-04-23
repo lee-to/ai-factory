@@ -22,9 +22,13 @@ export function getMcpDir(): string {
   return path.join(getPackageRoot(), 'mcp');
 }
 
-export async function copyDirectory(src: string, dest: string): Promise<void> {
+export interface CopyDirectoryOptions {
+  filter?: (srcPath: string, destPath: string) => boolean;
+}
+
+export async function copyDirectory(src: string, dest: string, options?: CopyDirectoryOptions): Promise<void> {
   await fs.ensureDir(dest);
-  await fs.copy(src, dest, { overwrite: true });
+  await fs.copy(src, dest, { overwrite: true, filter: options?.filter });
 }
 
 export async function copyFile(src: string, dest: string): Promise<void> {
@@ -87,8 +91,13 @@ export async function writeTextFile(filePath: string, content: string): Promise<
   await fs.writeFile(filePath, content, 'utf-8');
 }
 
-export async function listFilesRecursive(dirPath: string): Promise<string[]> {
+export interface ListFilesOptions {
+  skipDirectory?: (absPath: string, name: string) => boolean;
+}
+
+export async function listFilesRecursive(dirPath: string, options?: ListFilesOptions): Promise<string[]> {
   const files: string[] = [];
+  const skipDirectory = options?.skipDirectory;
 
   async function walk(currentDir: string): Promise<void> {
     const entries = await fs.readdir(currentDir, { withFileTypes: true });
@@ -97,6 +106,9 @@ export async function listFilesRecursive(dirPath: string): Promise<string[]> {
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
+        if (skipDirectory?.(fullPath, entry.name)) {
+          continue;
+        }
         await walk(fullPath);
       } else if (entry.isFile()) {
         files.push(fullPath);
@@ -118,8 +130,8 @@ export async function listFilesRecursive(dirPath: string): Promise<string[]> {
   return files;
 }
 
-export async function hashDirectory(dirPath: string): Promise<string | null> {
-  const files = await listFilesRecursive(dirPath);
+export async function hashDirectory(dirPath: string, options?: ListFilesOptions): Promise<string | null> {
+  const files = await listFilesRecursive(dirPath, options);
   if (files.length === 0) {
     return null;
   }

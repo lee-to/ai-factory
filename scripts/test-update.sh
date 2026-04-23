@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/test-extension-fixtures.sh"
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -66,6 +67,20 @@ assert_not_exists() {
   if [[ -e "$path" ]]; then
     echo "Assertion failed: $hint"
     echo "Unexpected path: $path"
+    exit 1
+  fi
+}
+
+assert_not_contains() {
+  local file="$1"
+  local pattern="$2"
+  local hint="$3"
+  if grep -qE "$pattern" "$file"; then
+    echo "Assertion failed: $hint"
+    echo "Pattern: $pattern"
+    echo "--- output ---"
+    cat "$file"
+    echo "--------------"
     exit 1
   fi
 }
@@ -181,8 +196,8 @@ assert_not_exists "$AG_PROJECT_DIR/.agent/skills/aif-docs/references/stale.md" "
 echo "antigravity force smoke tests passed"
 
 # -------------------------------------------------------------------
-# Kilo Code workflow smoke: action skills should install as workflows
-# and no longer remain under .kilocode/skills/.
+# Kilo Code workflow smoke: workflow-classified skills should install
+# as workflows and no longer remain under .kilocode/skills/.
 # -------------------------------------------------------------------
 
 KILO_PROJECT_DIR="$TMPDIR/update-smoke-kilocode"
@@ -195,7 +210,7 @@ cat > "$KILO_PROJECT_DIR/.ai-factory.json" << 'EOF'
     {
       "id": "kilocode",
       "skillsDir": ".kilocode/skills",
-      "installedSkills": ["aif", "aif-plan", "aif-commit", "aif-docs"],
+      "installedSkills": ["aif", "aif-plan", "aif-commit", "aif-rules-check", "aif-docs"],
       "mcp": {
         "github": false,
         "filesystem": false,
@@ -217,11 +232,13 @@ assert_contains "$KILO_OUTPUT" "\[kilocode\] Status:" "kilocode status section m
 assert_exists "$KILO_PROJECT_DIR/.kilocode/workflows/aif.md" "aif workflow must be installed for Kilo Code"
 assert_exists "$KILO_PROJECT_DIR/.kilocode/workflows/aif-plan.md" "aif-plan workflow must be installed for Kilo Code"
 assert_exists "$KILO_PROJECT_DIR/.kilocode/workflows/aif-commit.md" "aif-commit workflow must be installed for Kilo Code"
+assert_exists "$KILO_PROJECT_DIR/.kilocode/workflows/aif-rules-check.md" "aif-rules-check workflow must be installed for Kilo Code"
 assert_contains "$KILO_PROJECT_DIR/.kilocode/workflows/aif-plan.md" "/aif:[a-z-]+" "Kilo workflow content must use Kilo invocation syntax"
 assert_exists "$KILO_PROJECT_DIR/.kilocode/skills/aif-docs/SKILL.md" "non-workflow Kilo skills must remain in skills/"
 assert_not_exists "$KILO_PROJECT_DIR/.kilocode/skills/aif" "workflow skill should not remain in skills/"
 assert_not_exists "$KILO_PROJECT_DIR/.kilocode/skills/aif-plan" "workflow skill should not remain in skills/"
 assert_not_exists "$KILO_PROJECT_DIR/.kilocode/skills/aif-commit" "workflow skill should not remain in skills/"
+assert_not_exists "$KILO_PROJECT_DIR/.kilocode/skills/aif-rules-check" "workflow skill should not remain in skills/"
 
 echo "kilocode workflow smoke tests passed"
 
@@ -270,7 +287,7 @@ assert_exists "$CLAUDE_PROJECT_DIR/.claude/agents/plan-polisher.md" "planning ag
 assert_exists "$CLAUDE_PROJECT_DIR/.claude/agents/review-sidecar.md" "review sidecar must be installed"
 assert_exists "$CLAUDE_PROJECT_DIR/.claude/agents/security-sidecar.md" "security sidecar must be installed"
 
-node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.agentsDir!=='.claude/agents')process.exit(1);if(!Array.isArray(a.installedAgentFiles)||!a.installedAgentFiles.includes('best-practices-sidecar.md')||!a.installedAgentFiles.includes('commit-preparer.md')||!a.installedAgentFiles.includes('docs-auditor.md')||!a.installedAgentFiles.includes('implement-worker.md')||!a.installedAgentFiles.includes('loop-orchestrator.md')||!a.installedAgentFiles.includes('plan-polisher.md')||!a.installedAgentFiles.includes('review-sidecar.md')||!a.installedAgentFiles.includes('security-sidecar.md'))process.exit(1);if(!a.managedAgentFiles||!a.managedAgentFiles['best-practices-sidecar.md']||!a.managedAgentFiles['commit-preparer.md']||!a.managedAgentFiles['docs-auditor.md']||!a.managedAgentFiles['implement-worker.md']||!a.managedAgentFiles['loop-orchestrator.md']||!a.managedAgentFiles['plan-polisher.md']||!a.managedAgentFiles['review-sidecar.md']||!a.managedAgentFiles['security-sidecar.md'])process.exit(1);" "$CLAUDE_PROJECT_DIR/.ai-factory.json"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.agentsDir!=='.claude/agents')process.exit(1);if(!Array.isArray(a.installedAgentFiles)||!a.installedAgentFiles.includes('best-practices-sidecar.md')||!a.installedAgentFiles.includes('commit-preparer.md')||!a.installedAgentFiles.includes('docs-auditor.md')||!a.installedAgentFiles.includes('implement-worker.md')||!a.installedAgentFiles.includes('loop-orchestrator.md')||!a.installedAgentFiles.includes('plan-polisher.md')||!a.installedAgentFiles.includes('review-sidecar.md')||!a.installedAgentFiles.includes('security-sidecar.md'))process.exit(1);if(!a.managedAgentFiles||!a.managedAgentFiles['best-practices-sidecar.md']||!a.managedAgentFiles['commit-preparer.md']||!a.managedAgentFiles['docs-auditor.md']||!a.managedAgentFiles['implement-worker.md']||!a.managedAgentFiles['loop-orchestrator.md']||!a.managedAgentFiles['plan-polisher.md']||!a.managedAgentFiles['review-sidecar.md']||!a.managedAgentFiles['security-sidecar.md'])process.exit(1);if(!a.agentFileSources||a.agentFileSources['plan-polisher.md']?.kind!=='bundled')process.exit(1);" "$CLAUDE_PROJECT_DIR/.ai-factory.json"
 
 # Modify one managed agent file to simulate local drift, then update again.
 echo "" >> "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md"
@@ -325,3 +342,84 @@ assert_contains "$LEGACY_CLAUDE_OUTPUT" "\[claude\] Agent files:" "legacy claude
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if('subagentsDir' in a || 'installedSubagents' in a || 'managedSubagents' in a)process.exit(1);if(a.agentsDir!=='.claude/agents')process.exit(1);if(!Array.isArray(a.installedAgentFiles)||!a.installedAgentFiles.includes('plan-polisher.md'))process.exit(1);if(!a.managedAgentFiles||!a.managedAgentFiles['plan-polisher.md'])process.exit(1);" "$LEGACY_CLAUDE_PROJECT_DIR/.ai-factory.json"
 
 echo "legacy claude migration smoke tests passed"
+
+# -------------------------------------------------------------------
+# Legacy extension agent file migration smoke: update should backfill
+# agentFileSources for pre-metadata configs without dropping tracked
+# extension-managed files.
+# -------------------------------------------------------------------
+
+LEGACY_EXTENSION_DIR="$TMPDIR/legacy-extension-agent-files"
+LEGACY_EXTENSION_PROJECT_DIR="$TMPDIR/update-smoke-legacy-extension-agent-files"
+create_bounded_helper_extension_fixture "$LEGACY_EXTENSION_DIR"
+mkdir -p "$LEGACY_EXTENSION_PROJECT_DIR"
+
+(cd "$LEGACY_EXTENSION_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents claude,codex --skills aif,aif-improve > "$TMPDIR/update-legacy-extension-base.log" 2>&1)
+(cd "$LEGACY_EXTENSION_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" extension add "$LEGACY_EXTENSION_DIR" > "$TMPDIR/update-legacy-extension-add.log" 2>&1)
+
+node - "$LEGACY_EXTENSION_PROJECT_DIR/.ai-factory.json" <<'EOF'
+const fs = require('fs');
+const configPath = process.argv[2];
+const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+const codex = cfg.agents.find(agent => agent.id === 'codex');
+if (!codex) process.exit(1);
+delete codex.agentFileSources;
+fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
+EOF
+
+LEGACY_EXTENSION_OUTPUT="$TMPDIR/update-legacy-extension.log"
+(cd "$LEGACY_EXTENSION_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$LEGACY_EXTENSION_OUTPUT" 2>&1)
+assert_contains "$LEGACY_EXTENSION_OUTPUT" "bounded-plan-polisher\\.toml \(extension refresh\)" "legacy extension agent file config must still refresh managed extension files"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const codex=c.agents.find(a=>a.id==='codex');if(!codex)process.exit(1);if(!Array.isArray(codex.installedAgentFiles)||!codex.installedAgentFiles.includes('bounded-plan-polisher.toml'))process.exit(1);if(!codex.managedAgentFiles||!codex.managedAgentFiles['bounded-plan-polisher.toml'])process.exit(1);if(!codex.agentFileSources||codex.agentFileSources['bounded-plan-polisher.toml']?.kind!=='extension'||codex.agentFileSources['bounded-plan-polisher.toml']?.extensionName!=='aif-ext-bounded-helpers')process.exit(1);" "$LEGACY_EXTENSION_PROJECT_DIR/.ai-factory.json"
+
+echo "legacy extension agent file migration smoke tests passed"
+
+# -------------------------------------------------------------------
+# Bounded helper extension update smoke: update should re-apply the
+# canonical /aif-improve injection contract and heal bounded Codex
+# helper drift.
+# -------------------------------------------------------------------
+
+BOUNDED_EXTENSION_DIR="$TMPDIR/bounded-helper-extension"
+BOUNDED_PROJECT_DIR="$TMPDIR/update-smoke-bounded-helper-extension"
+create_bounded_helper_extension_fixture "$BOUNDED_EXTENSION_DIR"
+mkdir -p "$BOUNDED_PROJECT_DIR"
+
+(cd "$BOUNDED_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents claude,codex --skills aif,aif-improve > "$TMPDIR/update-bounded-base.log" 2>&1)
+(cd "$BOUNDED_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" extension add "$BOUNDED_EXTENSION_DIR" > "$TMPDIR/update-bounded-add.log" 2>&1)
+(cd "$BOUNDED_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents claude,codex --skills aif,aif-improve > "$TMPDIR/update-bounded-reinit.log" 2>&1)
+
+echo "<!-- drift -->" >> "$BOUNDED_PROJECT_DIR/.claude/skills/aif-improve/SKILL.md"
+rm "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml"
+
+BOUNDED_UPDATE_OUTPUT="$TMPDIR/update-bounded.log"
+(cd "$BOUNDED_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$BOUNDED_UPDATE_OUTPUT" 2>&1)
+
+assert_contains "$BOUNDED_PROJECT_DIR/.claude/skills/aif-improve/SKILL.md" "canonical refinement command for this extension workflow" "bounded helper update must re-apply the canonical improve override"
+assert_contains "$BOUNDED_PROJECT_DIR/.codex/skills/aif-improve/SKILL.md" "canonical refinement command for this extension workflow" "bounded helper update must keep Codex improve override in sync"
+assert_contains "$BOUNDED_PROJECT_DIR/.claude/skills/aif-improve/SKILL.md" "runtime-specific delegation prompts" "bounded helper update must preserve the runtime warning"
+assert_not_contains "$BOUNDED_PROJECT_DIR/.claude/skills/aif-improve/SKILL.md" "<!-- drift -->" "bounded helper update must heal local drift in injected improve skill copies"
+assert_exists "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" "bounded helper update must restore the Codex plan-polisher helper"
+assert_contains "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" "Bounded one-shot worker" "bounded helper update must restore the current Codex helper contract"
+assert_contains "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" 'model = "gpt-5.4-mini"' "bounded helper update must restore the bounded mini model"
+assert_contains "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" 'model_reasoning_effort = "medium"' "bounded helper update must restore the canonical reasoning key"
+assert_contains "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" 'sandbox_mode = "read-only"' "bounded helper update must restore the read-only sandbox mode"
+assert_contains "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" "advisory only" "bounded helper update must restore the advisory-only contract"
+assert_not_contains "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" '^reasoning_effort = ' "bounded helper update must not restore legacy reasoning key"
+assert_not_contains "$BOUNDED_PROJECT_DIR/.codex/agents/bounded-plan-polisher.toml" '^prompt = """' "bounded helper update must not restore legacy prompt key"
+assert_contains "$BOUNDED_UPDATE_OUTPUT" "bounded-plan-polisher\\.toml \(extension refresh\)" "bounded helper update must report extension-managed refreshes"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const codex=c.agents.find(a=>a.id==='codex');if(!codex||!Array.isArray(codex.installedAgentFiles)||!codex.installedAgentFiles.includes('bounded-plan-polisher.toml'))process.exit(1);if(!codex.managedAgentFiles||!codex.managedAgentFiles['bounded-plan-polisher.toml'])process.exit(1);if(!codex.agentFileSources||codex.agentFileSources['bounded-plan-polisher.toml']?.kind!=='extension'||codex.agentFileSources['bounded-plan-polisher.toml']?.extensionName!=='aif-ext-bounded-helpers')process.exit(1);" "$BOUNDED_PROJECT_DIR/.ai-factory.json"
+
+rm "$BOUNDED_PROJECT_DIR/.ai-factory/extensions/aif-ext-bounded-helpers/extension.json"
+BROKEN_BOUNDED_UPDATE_OUTPUT="$TMPDIR/update-bounded-broken-manifest.log"
+(cd "$BOUNDED_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$BROKEN_BOUNDED_UPDATE_OUTPUT" 2>&1)
+assert_contains "$BROKEN_BOUNDED_UPDATE_OUTPUT" 'agent file manifest missing — preserving tracked agent file state' "ordinary update must warn when extension manifest is missing"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const codex=c.agents.find(a=>a.id==='codex');if(!codex)process.exit(1);if(!Array.isArray(codex.installedAgentFiles)||!codex.installedAgentFiles.includes('bounded-plan-polisher.toml'))process.exit(1);if(!codex.managedAgentFiles||!codex.managedAgentFiles['bounded-plan-polisher.toml'])process.exit(1);if(!codex.agentFileSources||codex.agentFileSources['bounded-plan-polisher.toml']?.extensionName!=='aif-ext-bounded-helpers')process.exit(1);" "$BOUNDED_PROJECT_DIR/.ai-factory.json"
+
+printf '{ invalid json' > "$BOUNDED_PROJECT_DIR/.ai-factory/extensions/aif-ext-bounded-helpers/extension.json"
+MALFORMED_BOUNDED_UPDATE_OUTPUT="$TMPDIR/update-bounded-malformed-manifest.log"
+(cd "$BOUNDED_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$MALFORMED_BOUNDED_UPDATE_OUTPUT" 2>&1)
+assert_contains "$MALFORMED_BOUNDED_UPDATE_OUTPUT" 'agent file manifest missing' "ordinary update must warn when extension manifest is invalid"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const codex=c.agents.find(a=>a.id==='codex');if(!codex)process.exit(1);if(!Array.isArray(codex.installedAgentFiles)||!codex.installedAgentFiles.includes('bounded-plan-polisher.toml'))process.exit(1);if(!codex.managedAgentFiles||!codex.managedAgentFiles['bounded-plan-polisher.toml'])process.exit(1);if(!codex.agentFileSources||codex.agentFileSources['bounded-plan-polisher.toml']?.extensionName!=='aif-ext-bounded-helpers')process.exit(1);" "$BOUNDED_PROJECT_DIR/.ai-factory.json"
+
+echo "bounded helper extension update smoke tests passed"

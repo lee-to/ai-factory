@@ -2,7 +2,9 @@
 
 # Core Skills
 
-**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, and `/aif-security-checklist`.
+**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-security-checklist`, and `/aif-qa`.
+
+`/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
 Config-agnostic built-ins in the current model: `/aif-best-practices`, `/aif-build-automation`, `/aif-ci`, `/aif-dockerize`, `/aif-grounded`, and `/aif-skill-generator`.
 
@@ -417,6 +419,22 @@ Reviews staged changes or PR diffs:
 - Checks correctness, security, performance, and maintainability
 - Adds read-only context-gate findings (architecture/roadmap/rules) to review output
 - Uses `WARN` for non-blocking context drift and `ERROR` only for explicitly blocking review criteria
+- If you only need the rules gate, use `/aif-rules-check`
+
+### `/aif-rules-check [git ref]`
+Runs a standalone read-only rules compliance gate:
+```
+/aif-rules-check
+/aif-rules-check main
+```
+- Reads `.ai-factory/config.yaml` for `paths.rules_file`, `paths.rules`, `paths.plan`, `paths.plans`, `language.ui`, `git.enabled`, `git.base_branch`, `rules.base`, and any named `rules.<area>`
+- Resolves rules with graceful fallback: if `paths.rules_file` is omitted, it defaults to `.ai-factory/RULES.md`
+- Checks staged changes, working-tree diff, or a provided git ref against the resolved rules hierarchy
+- Uses standalone verdicts: `PASS` when checked rules are satisfied, `WARN` when rules are missing/ambiguous or no changed files are available, `FAIL` only for explicit hard-rule violations tied to rule text
+- Output sections: overall verdict, files checked, gate results, blocking violations, suggested fixes, suggested rule updates
+- Remains read-only; if rules need to change, route that through `/aif-rules`
+
+- Config policy: config-aware; reads rule paths, optional active plan context, and git diff defaults from `config.yaml`
 
 ### `/aif-reference <url|path> [url2|path2] [--name <ref-name>] [--update]`
 Creates knowledge references from external sources for AI agents:
@@ -490,6 +508,33 @@ Each category includes a checklist, vulnerable/safe code examples (TypeScript, P
 - Reads `.ai-factory/config.yaml` for `paths.security` and `language.ui`
 
 - Config policy: config-aware; persistent ignore state uses `paths.security`
+
+### `/aif-qa [--all] [change-summary | test-plan | test-cases] [<branch>]`
+
+Three-stage QA workflow for manual testing of a feature or fix:
+
+```
+/aif-qa change-summary          # Analyze what changed on current branch
+/aif-qa change-summary feat/x   # Analyze a specific branch
+/aif-qa test-plan               # Create test plan (requires change-summary artifact)
+/aif-qa test-cases              # Write test cases (requires test-plan artifact)
+/aif-qa --all                   # Run all three stages in sequence
+/aif-qa --all feat/x            # Full pipeline for a specific branch
+```
+
+Each stage builds on the previous one and saves its artifact to `paths.qa/<branch-slug>/`:
+
+| Stage            | Artifact            | What it produces                                    |
+|------------------|---------------------|-----------------------------------------------------|
+| `change-summary` | `change-summary.md` | Risk-annotated summary of git changes               |
+| `test-plan`      | `test-plan.md`      | Scoped test plan with types and acceptance criteria |
+| `test-cases`     | `test-cases.md`     | Concrete TC-NNN scenarios with steps and test data  |
+
+For large branches the `change-summary` stage checks commit count (>20) and diff size (>1000 lines) before proceeding — both gates ask the user how to continue rather than silently truncating.
+
+The `--all` flag runs all three stages in sequence without inter-stage prompts. If any stage fails, the pipeline stops and reports the failing stage.
+
+- Config policy: config-aware; reads `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `git.base_branch`
 
 ## See Also
 

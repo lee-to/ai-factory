@@ -4,6 +4,7 @@ description: Plan implementation for a feature or task. Two modes — fast (sing
 argument-hint: "[fast | full] [--parallel | --list | --cleanup <branch>] <description>"
 allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
+version: 1.0.0
 ---
 
 # Plan - Implementation Planning

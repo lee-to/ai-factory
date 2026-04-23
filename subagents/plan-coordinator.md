@@ -38,7 +38,13 @@ The Handoff coordinator already manages status transitions and DB writes directl
 
 **When `HANDOFF_MODE` is NOT `1`** (manual Claude Code session):
 
-After reading an existing plan file (if polishing), extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line (if present). Pass the extracted ID to plan-polisher invocations so they preserve the annotation. If no annotation exists, skip all MCP sync — there is no linked Handoff task.
+After reading an existing plan file (if polishing), extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line (if present). Pass the extracted ID to every plan-polisher invocation as explicit text:
+
+```
+HANDOFF_TASK_ID: <value from plan annotation>
+```
+
+Do this even though `HANDOFF_MODE` stays unset or non-`1` in manual sessions. The explicit task ID keeps the annotation stable across refinements. If no annotation exists, skip all MCP sync — there is no linked Handoff task.
 
 If a task ID IS found in the plan annotation, sync with Handoff via MCP tools:
 
@@ -59,11 +65,13 @@ The user provides a planning request — the same input they would give to `/aif
 | Parameter      | Default | Description                                                          |
 |----------------|---------|----------------------------------------------------------------------|
 | max_iterations | 3       | Maximum critique→improve cycles                                      |
-| mode           | fast    | Planning mode: `fast` or `full`                                      |
+| mode           | full    | Planning mode: `fast` or `full`                                      |
 | tests          | infer   | Include test tasks: `yes`, `no`, or `infer` (auto-detect from project) |
 | docs           | infer   | Include docs tasks: `yes`, `no`, or `infer` (auto-detect from project) |
 
 Override via input: `max_iterations: 5, mode: full, tests: yes, docs: yes`
+
+If the caller omitted `mode`, default to `full`. This coordinator exists to return a polished, implementation-ready plan, so it must not silently downshift to the quick `fast` contract unless the caller explicitly asked for it.
 
 ## Execution algorithm
 
@@ -96,10 +104,11 @@ report summary
   - iteration number and max
   - plan file path (after first pass)
   - remaining issues from previous critique
-  - `mode: fast` or `mode: full` (from user config or default)
+  - `mode: fast` or `mode: full` (from user config or default `full`)
   - `tests: yes/no/infer` (from user config or default `infer`)
   - `docs: yes/no/infer` (from user config or default `infer`)
-  - `HANDOFF_MODE` and `HANDOFF_TASK_ID` values (only when `HANDOFF_MODE=1`)
+  - `HANDOFF_MODE` and `HANDOFF_TASK_ID` values when `HANDOFF_MODE=1`
+  - `HANDOFF_TASK_ID` by itself when manual mode is refining a plan that already has a Handoff annotation
 - Do NOT pass raw plan content — let plan-polisher read the file itself.
 - On the first dispatch, always include the mode explicitly so plan-polisher uses the correct file location.
 

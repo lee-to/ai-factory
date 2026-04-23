@@ -1,6 +1,6 @@
 {
   "name": "ai-factory",
-  "version": "2.9.3",
+  "version": "2.10.0",
   "type": "module",
   "description": "CLI tool for automating AI agent context setup in projects",
   "main": "dist/cli/index.js",
@@ -49,6 +49,8 @@
     "bin",
     "dist",
     "skills",
+    "!skills/**/tests",
+    "!skills/**/tests/**",
     "subagents",
     "mcp"
   ],
@@ -58,7 +60,11 @@
       "types"
     ],
     "ignore": [
-      "examples/**"
+      "examples/**",
+      "skills/aif/references/update-config.mjs"
+    ],
+    "ignoreDependencies": [
+      "@cutcode/ai-tester"
     ]
   },
   "engines": {
@@ -72,6 +78,7 @@
     "semver": "^7.7.4"
   },
   "devDependencies": {
+    "@cutcode/ai-tester": "^0.2.0",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
     "@types/node": "^20.11.0",

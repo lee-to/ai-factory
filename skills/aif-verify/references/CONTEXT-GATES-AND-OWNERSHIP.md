@@ -56,6 +56,15 @@ Gate outputs must use:
 - **Warn:** `.ai-factory/ROADMAP.md` missing, ambiguous milestone mapping, or no milestone linkage for `feat`/`fix`/`perf` work.
 - **Fail (strict verify only):** Clear mismatch with roadmap direction after all available roadmap context is considered.
 
+## Standalone Rules Gate
+
+`/aif-rules-check` is the standalone, read-only rules-only companion to these context gates.
+
+- It evaluates the resolved rules hierarchy plus changed files/diff and reports `PASS` / `WARN` / `FAIL`.
+- Missing or non-applicable rules remain `WARN`.
+- Explicit hard-rule violations may become `FAIL`.
+- This does not change the `WARN` / `ERROR` reporting contract used by `/aif-commit`, `/aif-review`, and `/aif-verify`.
+
 ## Threshold Decisions (Resolved)
 
 ### Verify normal mode

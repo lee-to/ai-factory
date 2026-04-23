@@ -211,6 +211,272 @@ else
     fail "found $DOTTED_REFS dotted invocations in docs"
 fi
 
+# /aif localization contract regression checks
+AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
+AIF_ARCH_SKILL="$ROOT_DIR/skills/aif-architecture/SKILL.md"
+MODE1_SECTION="$(awk '
+    /^### Mode 1: Analyze Existing Project$/ { capture=1 }
+    capture { print }
+    capture && /^---$/ { exit }
+' "$AIF_SKILL")"
+MODE2_SECTION="$(awk '
+    /^### Mode 2: New Project with Description$/ { capture=1 }
+    capture { print }
+    capture && /^---$/ { exit }
+' "$AIF_SKILL")"
+MODE3_SECTION="$(awk '
+    /^### Mode 3: Interactive New Project \(Empty Directory\)$/ { capture=1 }
+    capture { print }
+    capture && /^---$/ { exit }
+' "$AIF_SKILL")"
+AGENTS_TEMPLATE_SECTION="$(awk '
+    /^## AGENTS\.md Generation$/ { in_section=1 }
+    in_section && /^\*\*Template:\*\*$/ { capture=1 }
+    capture { print }
+    capture && /^\*\*Rules for AGENTS\.md:\*\*$/ { exit }
+' "$AIF_SKILL")"
+SUMMARY_SECTION="$(awk '
+    /^Present the completion summary and next-step recommendations in resolved `language\.ui`\. Cover:$/ { capture=1 }
+    capture { print }
+    /^\*\*For existing projects \(Mode 1\), also suggest next steps:\*\*$/ { if (capture) exit }
+' "$AIF_SKILL")"
+EXISTING_PROJECT_SUGGESTIONS_SECTION="$(awk '
+    /^Present these suggestions in resolved `language\.ui`:$/ { capture=1 }
+    capture { print }
+    /^Present these as `AskUserQuestion` with multi-select options:$/ { if (capture) exit }
+' "$AIF_SKILL")"
+AIF_ARCH_DESCRIPTION_SECTION="$(awk '
+    /^### Step 3: Update DESCRIPTION\.md$/ { capture=1 }
+    capture { print }
+    /^### Step 4: Update AGENTS\.md$/ { if (capture) exit }
+' "$AIF_ARCH_SKILL")"
+AIF_ARCH_AGENTS_SECTION="$(awk '
+    /^### Step 4: Update AGENTS\.md$/ { capture=1 }
+    capture { print }
+    /^### Step 5: Confirm$/ { if (capture) exit }
+' "$AIF_ARCH_SKILL")"
+AIF_ARCH_CONFIRM_SECTION="$(awk '
+    /^### Step 5: Confirm$/ { capture=1 }
+    capture { print }
+    /^## Artifact Ownership$/ { if (capture) exit }
+' "$AIF_ARCH_SKILL")"
+AIF_ARCH_OWNERSHIP_SECTION="$(awk '
+    /^## Artifact Ownership$/ { capture=1 }
+    capture { print }
+    capture && /^---$/ { exit }
+' "$AIF_ARCH_SKILL")"
+
+if grep -Fq 'Immediately after determining Mode 1, Mode 2, or Mode 3, resolve the project language settings for the entire `/aif` run.' "$AIF_SKILL"; then
+    pass "/aif resolves language immediately after mode detection"
+else
+    fail "/aif language resolution order missing immediate post-mode contract"
+fi
+
+if grep -Fq 'Write or update `.ai-factory/config.yaml` immediately after resolving the run-scoped language state.' "$AIF_SKILL" \
+   && grep -Fq 'This write MUST happen before writing the first setup artifact and before invoking `/aif-architecture`.' "$AIF_SKILL"; then
+    pass "/aif writes config before first artifact and /aif-architecture"
+else
+    fail "/aif config write ordering contract missing"
+fi
+
+if grep -Fq 'Never reconstruct `config.yaml` from memory or by free-writing YAML text.' "$AIF_SKILL" \
+   && grep -Fq 'Always use `skills/aif/references/update-config.mjs` with `skills/aif/references/config-template.yaml` as the canonical source.' "$AIF_SKILL" \
+   && grep -Fq 'If the helper reports an unsafe structure or invalid payload, STOP. Do **not** fall back to free-form YAML generation.' "$AIF_SKILL"; then
+    pass "/aif uses helper-only deterministic config updates"
+else
+    fail "/aif helper-only config update contract missing"
+fi
+
+if grep -Fq '`paths.*` (including current schema keys such as `paths.qa`)' "$AIF_SKILL" \
+   && grep -Fq '"paths.qa": ".ai-factory/qa/"' "$AIF_SKILL"; then
+    pass "/aif helper contract includes current paths.qa schema"
+else
+    fail "/aif helper contract missing paths.qa coverage"
+fi
+
+if grep -Fq '`language.technical_terms` — preserve the existing value if it is already set; default to `keep` only when the key is missing' "$AIF_SKILL" \
+   && grep -Fq 'Preserve `language.technical_terms` from existing config when present; otherwise set it to `keep` when writing config.' "$AIF_SKILL"; then
+    pass "/aif preserves language.technical_terms semantics"
+else
+    fail "/aif language.technical_terms preservation contract missing"
+fi
+
+if grep -Fq 'use for all `AskUserQuestion` prompts, intermediate explanations, final summary, and next-step recommendations' "$AIF_SKILL" \
+   && grep -Fq 'use for all setup-time text artifacts created in this run:' "$AIF_SKILL"; then
+    pass "/aif documents language.ui vs language.artifacts split"
+else
+    fail "/aif language.ui vs language.artifacts split missing"
+fi
+
+if grep -Fq 'After creating DESCRIPTION.md, resolve the project language settings.' "$AIF_SKILL"; then
+    fail "late language resolution wording reintroduced in /aif"
+else
+    pass "no late language resolution wording in /aif"
+fi
+
+if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then
+    fail "hard-coded English DESCRIPTION placeholder reintroduced in /aif"
+else
+    pass "no hard-coded English DESCRIPTION placeholder in /aif"
+fi
+
+if printf '%s\n' "$MODE2_SECTION" | grep -Fq '# [Localized project title in resolved artifacts language]' \
+   && printf '%s\n' "$MODE2_SECTION" | grep -Fq '## [Localized heading: Tech Stack]' \
+   && printf '%s\n' "$MODE2_SECTION" | grep -Fq '**[Localized label: Programming language]:** [user choice]'; then
+    pass "/aif DESCRIPTION template uses localized artifact placeholders"
+else
+    fail "/aif DESCRIPTION template localization placeholders missing"
+fi
+
+MODE1_PERSIST_LINE=$(printf '%s\n' "$MODE1_SECTION" | grep -nF '**Step 3: Persist config.yaml**' | cut -d: -f1 | head -n1)
+MODE1_DESCRIPTION_LINE=$(printf '%s\n' "$MODE1_SECTION" | grep -nF '**Step 4: Generate .ai-factory/DESCRIPTION.md**' | cut -d: -f1 | head -n1)
+if [[ -n "$MODE1_PERSIST_LINE" && -n "$MODE1_DESCRIPTION_LINE" && "$MODE1_PERSIST_LINE" -lt "$MODE1_DESCRIPTION_LINE" ]]; then
+    pass "/aif Mode 1 persists config before DESCRIPTION generation"
+else
+    fail "/aif Mode 1 config/DESCRIPTION ordering is wrong"
+fi
+
+MODE2_PERSIST_LINE=$(printf '%s\n' "$MODE2_SECTION" | grep -nF '**Step 2: Persist config.yaml**' | cut -d: -f1 | head -n1)
+MODE2_STACK_LINE=$(printf '%s\n' "$MODE2_SECTION" | grep -nF '**Step 3: Interactive Stack Selection**' | cut -d: -f1 | head -n1)
+MODE2_DESCRIPTION_LINE=$(printf '%s\n' "$MODE2_SECTION" | grep -nF '**Step 4: Create .ai-factory/DESCRIPTION.md**' | cut -d: -f1 | head -n1)
+if [[ -n "$MODE2_PERSIST_LINE" && -n "$MODE2_STACK_LINE" && -n "$MODE2_DESCRIPTION_LINE" && "$MODE2_PERSIST_LINE" -lt "$MODE2_STACK_LINE" && "$MODE2_STACK_LINE" -lt "$MODE2_DESCRIPTION_LINE" ]]; then
+    pass "/aif Mode 2 persists config immediately after language resolution"
+else
+    fail "/aif Mode 2 config timing is wrong"
+fi
+
+MODE3_PERSIST_LINE=$(printf '%s\n' "$MODE3_SECTION" | grep -nF '**Step 2: Persist config.yaml**' | cut -d: -f1 | head -n1)
+MODE3_ASK_LINE=$(printf '%s\n' "$MODE3_SECTION" | grep -nF '**Step 3: Ask Project Description**' | cut -d: -f1 | head -n1)
+if [[ -n "$MODE3_PERSIST_LINE" && -n "$MODE3_ASK_LINE" && "$MODE3_PERSIST_LINE" -lt "$MODE3_ASK_LINE" ]]; then
+    pass "/aif Mode 3 persists config immediately after language resolution"
+else
+    fail "/aif Mode 3 config timing is wrong"
+fi
+
+if printf '%s\n' "$MODE2_SECTION" | grep -Fq '# Project: [Project Name]' \
+   || printf '%s\n' "$MODE2_SECTION" | grep -Fq '## Overview' \
+   || printf '%s\n' "$MODE2_SECTION" | grep -Fq '## Core Features' \
+   || printf '%s\n' "$MODE2_SECTION" | grep -Fq '## Tech Stack' \
+   || printf '%s\n' "$MODE2_SECTION" | grep -Fq '## Architecture Notes' \
+   || printf '%s\n' "$MODE2_SECTION" | grep -Fq '## Non-Functional Requirements'; then
+    fail "English DESCRIPTION template headings reintroduced in /aif"
+else
+    pass "no English DESCRIPTION template headings in /aif"
+fi
+
+if printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '| [Localized header: File] | [Localized header: Purpose] |' \
+   && printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '| [Localized header: Document] | [Localized header: Path] | [Localized header: Description] |' \
+   && printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '**[Localized label: Framework]:** [framework]' \
+   && printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '[Localized shell-command decomposition rule in resolved artifacts language]'; then
+    pass "/aif AGENTS template uses localized artifact placeholders"
+else
+    fail "/aif AGENTS template localization placeholders missing"
+fi
+
+if printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '| File | Purpose |' \
+   || printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '| Document | Path | Description |' \
+   || printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq 'Project landing page' \
+   || printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '**Programming language:** [language]' \
+   || printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '**Framework:** [framework]' \
+   || printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '**Database:** [database]' \
+   || printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq '**ORM:** [orm]' \
+   || printf '%s\n' "$AGENTS_TEMPLATE_SECTION" | grep -Fq 'Never combine shell commands with `&&`, `||`, or `;`'; then
+    fail "English AGENTS template text reintroduced in /aif"
+else
+    pass "no English AGENTS template text in /aif"
+fi
+
+if printf '%s\n' "$SUMMARY_SECTION" | grep -Fq '[Localized completion heading in `language.ui`]' \
+   && printf '%s\n' "$SUMMARY_SECTION" | grep -Fq '[Localized roadmap recommendation in `language.ui`]' \
+   && printf '%s\n' "$SUMMARY_SECTION" | grep -Fq '[Localized execution recommendation in `language.ui`]'; then
+    pass "/aif summary template uses localized UI placeholders"
+else
+    fail "/aif summary template localization placeholders missing"
+fi
+
+if printf '%s\n' "$SUMMARY_SECTION" | grep -Fq -- '- Project description:' \
+   || printf '%s\n' "$SUMMARY_SECTION" | grep -Fq -- '- Skills installed:' \
+   || printf '%s\n' "$SUMMARY_SECTION" | grep -Fq -- '- Next steps:'; then
+    fail "English summary template text reintroduced in /aif"
+else
+    pass "no English summary template text in /aif"
+fi
+
+if printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq '[Localized documentation recommendation in `language.ui`]' \
+   && printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq '[Localized CI recommendation in `language.ui`]' \
+   && printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq '[Localized containerization recommendation in `language.ui`]'; then
+    pass "/aif existing-project suggestions use localized UI placeholders"
+else
+    fail "/aif existing-project suggestions localization placeholders missing"
+fi
+
+if printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq 'Generate project documentation' \
+   || printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq 'Add project-specific rules and conventions' \
+   || printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq 'Configure build scripts and automation' \
+   || printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq 'Set up CI/CD pipeline' \
+   || printf '%s\n' "$EXISTING_PROJECT_SUGGESTIONS_SECTION" | grep -Fq 'Containerize the project'; then
+    fail "English existing-project suggestions reintroduced in /aif"
+else
+    pass "no English existing-project suggestions in /aif"
+fi
+
+if printf '%s\n' "$AIF_ARCH_DESCRIPTION_SECTION" | grep -Fq 'resolved `language.artifacts`' \
+   && printf '%s\n' "$AIF_ARCH_DESCRIPTION_SECTION" | grep -Fq 'Use the resolved architecture path from config, not the default path literal.' \
+   && printf '%s\n' "$AIF_ARCH_DESCRIPTION_SECTION" | grep -Fq '## [Localized heading: Architecture]' \
+   && printf '%s\n' "$AIF_ARCH_DESCRIPTION_SECTION" | grep -Fq '[Localized sentence in resolved artifacts language referencing the resolved architecture artifact path for detailed architecture guidelines.]'; then
+    pass "/aif-architecture keeps DESCRIPTION companion update path-aware and localized"
+else
+    fail "/aif-architecture DESCRIPTION companion update contract missing"
+fi
+
+if printf '%s\n' "$AIF_ARCH_DESCRIPTION_SECTION" | grep -Fq '## Architecture' \
+   || printf '%s\n' "$AIF_ARCH_DESCRIPTION_SECTION" | grep -Fq 'Pattern: [chosen pattern name]'; then
+    fail "English DESCRIPTION companion update reintroduced in /aif-architecture"
+else
+    pass "no English DESCRIPTION companion update in /aif-architecture"
+fi
+
+if printf '%s\n' "$AIF_ARCH_AGENTS_SECTION" | grep -Fq 'resolved `language.artifacts`' \
+   && printf '%s\n' "$AIF_ARCH_AGENTS_SECTION" | grep -Fq '| [resolved-architecture-path] | [Localized architecture artifact description in resolved artifacts language] |' \
+   && printf '%s\n' "$AIF_ARCH_AGENTS_SECTION" | grep -Fq 'Only add if the resolved architecture path is not already present.'; then
+    pass "/aif-architecture keeps AGENTS companion update path-aware and localized"
+else
+    fail "/aif-architecture AGENTS companion update contract missing"
+fi
+
+if printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq 'resolved `language.ui`' \
+   && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized pattern label in `language.ui`]: [chosen pattern]' \
+   && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized file label in `language.ui`]: [resolved architecture path]' \
+   && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized success heading in `language.ui`]' \
+   && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized closing sentence in `language.ui` about workflow skills following these architecture guidelines.]'; then
+    pass "/aif-architecture confirmation uses resolved UI language and path"
+else
+    fail "/aif-architecture confirmation localization/path contract missing"
+fi
+
+if printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq 'Architecture document generated!' \
+   || printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq 'Pattern: [chosen pattern]' \
+   || printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq 'File: .ai-factory/ARCHITECTURE.md' \
+   || printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq 'Key rules:' \
+   || printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq 'All workflow skills (/aif-plan, /aif-implement) will now follow these architecture guidelines.'; then
+    fail "English default-path confirmation text reintroduced in /aif-architecture"
+else
+    pass "no English default-path confirmation text in /aif-architecture"
+fi
+
+if printf '%s\n' "$AIF_ARCH_OWNERSHIP_SECTION" | grep -Fq 'resolved DESCRIPTION path from `config.yaml`' \
+   && printf '%s\n' "$AIF_ARCH_OWNERSHIP_SECTION" | grep -Fq 'architecture row in `AGENTS.md` context table.'; then
+    pass "/aif-architecture Artifact Ownership keeps companion updates path-aware"
+else
+    fail "/aif-architecture Artifact Ownership companion update contract missing"
+fi
+
+if printf '%s\n' "$AIF_ARCH_OWNERSHIP_SECTION" | grep -Fq '.ai-factory/DESCRIPTION.md'; then
+    fail "default DESCRIPTION path leaked into /aif-architecture Artifact Ownership"
+else
+    pass "no default DESCRIPTION path leak in /aif-architecture Artifact Ownership"
+fi
+
 # No hardcoded agent-specific values (must use {{template_vars}})
 # skills_dir patterns
 HARDCODED_SKILLS_DIR=$(grep -rE '\.(claude|cursor|codex|github|gemini|junie|qwen|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
@@ -245,7 +511,8 @@ fi
 echo -e "\n${BOLD}=== Subagent integrity checks ===${NC}\n"
 
 set +e
-SUBAGENT_LINT_OUTPUT=$(ROOT_DIR="$ROOT_DIR" node --input-type=module <<'EOF' 2>&1
+SUBAGENT_LINT_OUTPUT=$(
+ROOT_DIR="$ROOT_DIR" node --input-type=module - 2>&1 <<'EOF'
 import fs from 'fs';
 import path from 'path';
 
@@ -262,7 +529,7 @@ const errors = [];
 function getFrontmatter(content, file) {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) {
-    errors.push(`${file}: missing frontmatter`);
+    errors.push(file + ': missing frontmatter');
     return '';
   }
   return match[1];
@@ -283,19 +550,19 @@ for (const file of files) {
   const hasWriterTools = /\bWrite\b|\bEdit\b/.test(tools);
 
   if (name !== expectedName) {
-    errors.push(`${file}: frontmatter name "${name}" does not match filename "${expectedName}"`);
+    errors.push(file + ': frontmatter name "' + name + '" does not match filename "' + expectedName + '"');
   }
 
   if (background && hasWriterTools) {
-    errors.push(`${file}: background agents must be read-only`);
+    errors.push(file + ': background agents must be read-only');
   }
 
-  if (docsContent.includes(`\`${expectedName}\``) === false) {
-    errors.push(`${file}: missing from docs/subagents.md inventory`);
+  if (docsContent.includes('`' + expectedName + '`') === false) {
+    errors.push(file + ': missing from docs/subagents.md inventory');
   }
 
-  if (refsContent.includes(`\`${expectedName}\``) === false) {
-    errors.push(`${file}: missing from .references/CLAUDE-SUBAGENTS.md inventory`);
+  if (refsContent.includes('`' + expectedName + '`') === false) {
+    errors.push(file + ': missing from .references/CLAUDE-SUBAGENTS.md inventory');
   }
 }
 
@@ -318,8 +585,104 @@ else
 fi
 
 # ─────────────────────────────────────────────
+# Part 4.5: Planner parity contract regressions
+# ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== Planner parity contract checks ===${NC}\n"
+
+if grep -qE 'git checkout main|git pull origin main' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    fail "plan-polisher must not hardcode main as the base branch"
+else
+    pass "plan-polisher base-branch contract"
+fi
+
+if grep -qF '| mode           | full' "$ROOT_DIR/subagents/plan-coordinator.md" \
+    && grep -qF -- '- mode: `full`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    pass "planner defaults stay on the richer full contract"
+else
+    fail "planner defaults stay on the richer full contract"
+fi
+
+if grep -qF '`paths.plan`' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF '`paths.plans`' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF '`git.base_branch`' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF '`git.create_branches`' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF '`git.branch_prefix`' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF 'Treat the current branch as an AI Factory feature branch only if it starts with the configured `git.branch_prefix`.' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    pass "plan-polisher stays config-aware for plan paths and branch prefix"
+else
+    fail "plan-polisher config-aware path/branch-prefix contract missing"
+fi
+
+if grep -qF 'Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`:' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF 'the configured `paths.plan`' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF 'files under the configured `paths.plans`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    pass "plan-polisher write scope follows resolved config paths"
+else
+    fail "plan-polisher write scope must follow resolved config paths"
+fi
+
+if grep -qF 'Your write scope is limited to `.ai-factory/PLAN.md`, `.ai-factory/plans/*.md`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    fail "plan-polisher must not hardcode write scope to default .ai-factory paths"
+else
+    pass "plan-polisher avoids hardcoded default write scope"
+fi
+
+if grep -qF 'contains `/` in the name' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    fail "plan-polisher must not use slash-presence branch heuristic"
+else
+    pass "plan-polisher avoids slash-presence branch heuristic"
+fi
+
+if grep -qF 'Do not discard, stash, or overwrite them.' "$ROOT_DIR/subagents/plan-polisher.md" \
+    && grep -qF 'If `origin` is unavailable or the remote base branch cannot be reached, skip `git pull`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    pass "plan-polisher branch safety fallback contract"
+else
+    fail "plan-polisher branch safety fallback contract missing"
+fi
+
+if grep -qF 'If `git.enabled = false` or `git.create_branches = false` → do NOT create or switch branches.' "$ROOT_DIR/subagents/plan-polisher.md"; then
+    pass "plan-polisher disables branch creation when config says so"
+else
+    fail "plan-polisher must disable branch creation when config says so"
+fi
+
+if grep -qF 'HANDOFF_TASK_ID: <value from plan annotation>' "$ROOT_DIR/subagents/plan-coordinator.md" \
+    && grep -qF 'Do this even though `HANDOFF_MODE` stays unset or non-`1` in manual sessions.' "$ROOT_DIR/subagents/plan-coordinator.md" \
+    && grep -qF '`HANDOFF_TASK_ID` by itself when manual mode is refining a plan that already has a Handoff annotation' "$ROOT_DIR/subagents/plan-coordinator.md"; then
+    pass "plan-coordinator preserves manual handoff task ids"
+else
+    fail "plan-coordinator manual handoff dispatch contract missing"
+fi
+
+if grep -qF 'bounded helper workers' "$ROOT_DIR/docs/configuration.md" \
+    && grep -qF 'runtime-local settings such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions`' "$ROOT_DIR/docs/extensions.md" \
+    && grep -qF 'one-shot workers' "$ROOT_DIR/docs/subagents.md"; then
+    pass "extension runtime helper docs stay synchronized"
+else
+    fail "extension runtime helper docs stay synchronized"
+fi
+
+# ─────────────────────────────────────────────
 # Part 5: Internal security self-scan
 # ─────────────────────────────────────────────
+if grep -qE '^[[:space:]]*reasoning_effort = |^[[:space:]]*prompt = """' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/codex/hello_reviewer.toml" \
+    || grep -qE '^[[:space:]]*reasoning_effort = |^[[:space:]]*prompt = """' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/test-agent/hello_helper.toml"; then
+    fail "example extension agent files must use canonical TOML keys"
+else
+    pass "example extension agent file schema"
+fi
+
+if grep -qF 'model = "gpt-5.4-mini"' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/codex/hello_reviewer.toml" \
+    && grep -qF 'model_reasoning_effort = "medium"' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/codex/hello_reviewer.toml" \
+    && grep -qF 'sandbox_mode = "read-only"' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/codex/hello_reviewer.toml" \
+    && grep -qF 'developer_instructions = """' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/codex/hello_reviewer.toml" \
+    && grep -qF 'model_reasoning_effort = "medium"' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/test-agent/hello_helper.toml" \
+    && grep -qF 'sandbox_mode = "read-only"' "$ROOT_DIR/examples/extensions/aif-ext-hello/agent-files/test-agent/hello_helper.toml"; then
+    pass "example extension agent file runtime contract"
+else
+    fail "example extension agent file runtime contract"
+fi
+
 echo -e "\n${BOLD}=== Internal security self-scan ===${NC}\n"
 
 set +e
@@ -339,8 +702,22 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Part 6: Update command smoke tests
+# Part 6: /aif config helper regression tests
 # ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== /aif config helper regression tests ===${NC}\n"
+
+set +e
+CONFIG_HELPER_OUTPUT=$(bash "$ROOT_DIR/scripts/test-aif-config.sh" 2>&1)
+CONFIG_HELPER_EXIT=$?
+set -e
+
+if [[ $CONFIG_HELPER_EXIT -eq 0 ]]; then
+    pass "aif config helper regression tests"
+else
+    fail "aif config helper regression tests"
+    echo "$CONFIG_HELPER_OUTPUT" | sed 's/^/      /'
+fi
+
 echo -e "\n${BOLD}=== Update command smoke tests ===${NC}\n"
 
 set +e
@@ -356,7 +733,7 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Part 7: Init command smoke tests
+# Part 8: Init command smoke tests
 # ─────────────────────────────────────────────
 echo -e "\n${BOLD}=== Init command smoke tests ===${NC}\n"
 
@@ -373,8 +750,53 @@ else
 fi
 
 # ─────────────────────────────────────────────
+# Part 8: aif-qa skill smoke tests
+# ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== Extension resolver unit tests ===${NC}\n"
+
+set +e
+EXTENSION_UNIT_OUTPUT=$(bash "$ROOT_DIR/scripts/test-extensions.sh" 2>&1)
+EXTENSION_UNIT_EXIT=$?
+set -e
+
+if [[ $EXTENSION_UNIT_EXIT -eq 0 ]]; then
+    pass "extension resolver unit tests"
+else
+    fail "extension resolver unit tests"
+    echo "$EXTENSION_UNIT_OUTPUT" | sed 's/^/      /'
+fi
+
+echo -e "\n${BOLD}=== aif-qa skill smoke tests ===${NC}\n"
+
+set +e
+QA_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-aif-qa.sh" 2>&1)
+QA_SMOKE_EXIT=$?
+set -e
+
+if [[ $QA_SMOKE_EXIT -eq 0 ]]; then
+    pass "aif-qa smoke tests"
+else
+    fail "aif-qa smoke tests"
+    echo "$QA_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
+# ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────
+echo -e "\n${BOLD}=== aif-rules-check skill smoke tests ===${NC}\n"
+
+set +e
+RULES_CHECK_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-aif-rules-check.sh" 2>&1)
+RULES_CHECK_SMOKE_EXIT=$?
+set -e
+
+if [[ $RULES_CHECK_SMOKE_EXIT -eq 0 ]]; then
+    pass "aif-rules-check smoke tests"
+else
+    fail "aif-rules-check smoke tests"
+    echo "$RULES_CHECK_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
 echo -e "\n${BOLD}=== Results ===${NC}"
 echo -e "  Total:    $TOTAL"
 echo -e "  Passed:   ${GREEN}$PASSED${NC}"
