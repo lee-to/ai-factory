@@ -1,12 +1,11 @@
 version: '3'
 
-# --- JVM Taskfile ---
-# Covers Gradle and Maven projects
+# --- Maven Taskfile ---
 
 vars:
   PROJECT:
     sh: basename $(pwd)
-  ENTRYPOINT: ./gradlew # Will be resolved to ./gradlew, ./mvnw during generation
+  ENTRYPOINT: ./mvnw # Will be resolved to ./mvnw or mvn during generation
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
   COMMIT:
@@ -28,12 +27,12 @@ tasks:
   build:
     desc: Full build including tests and checks
     cmds:
-      - "{{.ENTRYPOINT}} build"
+      - "{{.ENTRYPOINT}} verify"
 
   assemble:
     desc: Build project and package artifacts
     cmds:
-      - "{{.ENTRYPOINT}} assemble"
+      - "{{.ENTRYPOINT}} package"
 
   test:
     desc: Run unit tests
@@ -43,22 +42,22 @@ tasks:
   check:
     desc: Run tests and static analysis
     cmds:
-      - "{{.ENTRYPOINT}} check"
+      - "{{.ENTRYPOINT}} verify"
 
   dev:
     desc: Run application locally
     cmds:
-      - "{{.ENTRYPOINT}} bootRun"
+      - "{{.ENTRYPOINT}} spring-boot:run"
 
   lint:
     desc: Run linter/static analysis
     cmds:
-      - "{{.ENTRYPOINT}} checkstyleMain"
+      - "{{.ENTRYPOINT}} checkstyle:check"
 
   fmt:
     desc: Format source code
     cmds:
-      - "{{.ENTRYPOINT}} spotlessApply"
+      - "{{.ENTRYPOINT}} spotless:apply"
 
   docker:build:
     desc: Build Docker image
@@ -74,7 +73,7 @@ tasks:
   db:migrate:
     desc: Run database migrations
     cmds:
-      - "{{.ENTRYPOINT}} liquibaseUpdate"
+      - "{{.ENTRYPOINT}} liquibase:update"
 
   ci:
     desc: Run full CI pipeline locally

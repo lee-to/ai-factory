@@ -1,4 +1,4 @@
-# --- Makefile for JVM Projects (Gradle/Maven) ---
+# --- Makefile for JVM Projects (Gradle) ---
 # Usage: make [target]
 
 SHELL := bash
@@ -12,7 +12,7 @@ MAKEFLAGS += --no-builtin-rules
 PROJECT ?= $(shell basename $(CURDIR))
 
 # --- Entrypoint ---
-# Will be resolved to ./gradlew, ./mvnw during generation
+# Will be resolved to ./gradlew or gradle during generation
 ENTRYPOINT ?= ./gradlew
 
 # --- Git ---

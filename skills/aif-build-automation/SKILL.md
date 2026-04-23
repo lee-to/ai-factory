@@ -150,7 +150,7 @@ Check for these files (first match wins in the table order below). For **Java / 
 | `uv.lock` | uv |
 | `Pipfile.lock` | pipenv |
 | `gradle/wrapper/gradle-wrapper.properties` | `./gradlew` |
-| `pom.xml` | `./mvnw` |
+| `.mvn/wrapper/maven-wrapper.properties` | `./mvnw` |
 
 **Java / Kotlin (JVM) — Gradle vs Maven:** Detect Gradle with **one batch** of checks (single `Glob` over the paths below, or parallel existence checks — avoid redundant sequential walks):
 
@@ -164,7 +164,11 @@ If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Mave
 | No Gradle, `pom.xml` present | `maven` | Wire targets to Maven commands below. |
 | Gradle **and** `pom.xml` | `gradle` | Set `java_build.mixed_maven_gradle: true` and append a **warning** to `PROJECT_PROFILE.warnings` (both builds present; recipes follow Gradle — user confirms authoritative build). |
 
-**Version catalog:** If `gradle/libs.versions.toml` exists, set `java_build.has_version_catalog` and document `./gradlew` / catalog usage in comments where helpful.
+**Concrete JVM Entrypoint:** Persist the detected entrypoint in `PROJECT_PROFILE.build_entrypoint` based on wrapper presence:
+- If `build_tool` is `gradle`: use `./gradlew` if `gradlew` or `gradle/wrapper/gradle-wrapper.properties` exists, else fallback to `gradle`.
+- If `build_tool` is `maven`: use `./mvnw` if `mvnw` or `.mvn/wrapper/maven-wrapper.properties` exists, else fallback to `mvn`.
+
+**Version catalog:** If `gradle/libs.versions.toml` exists, set `java_build.has_version_catalog` and document `PROJECT_PROFILE.build_entrypoint` / catalog usage in comments where helpful.
 
 **Commands to wire** into Makefile / Taskfile / Just for JVM (same role as `npm run build` / `pytest` for other stacks; use `gradlew.bat` on Windows):
 
@@ -304,7 +308,8 @@ Glob: turbo.json, nx.json, lerna.json, pnpm-workspace.yaml
 
 Build a `PROJECT_PROFILE` object with:
 - `language`: primary language
-- `package_manager`: detected PM / build entrypoint (npm, pnpm, Gradle, Maven, …)
+- `package_manager`: detected PM (npm, pnpm, Gradle, Maven, …)
+- `build_entrypoint`: the exact entrypoint command detected (e.g. `./gradlew`, `mvn`, `npm`, `cargo`)
 - `framework`: detected framework (if any); JVM frameworks map here the same way as NestJS or Django
 - `warnings`: optional string array (e.g. mixed Maven+Gradle from §2.2)
 - `java_build`: optional — when language is JVM: `{ build_tool: "gradle"|"maven", mixed_maven_gradle?: boolean, has_version_catalog: boolean, spring_boot: boolean, grpc: boolean, liquibase: boolean, flyway: boolean }`
@@ -343,10 +348,12 @@ Pick the closest matching template based on `language` + `TARGET_TOOL`:
 
 | Tool | Go | Node.js | Python | PHP | Java / JVM | Other |
 |------|----|---------|--------|-----|------------|------------------------|
-| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | `makefile-jvm.mk` | Use closest match |
-| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | `taskfile-jvm.yml` | Use closest match |
-| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | `justfile-jvm` | Use closest match |
+| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | `makefile-gradle.mk` or `makefile-maven.mk` | Use closest match |
+| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | `taskfile-gradle.yml` or `taskfile-maven.yml` | Use closest match |
+| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | `justfile-gradle` or `justfile-maven` | Use closest match |
 | Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | N/A (use Makefile) | N/A (use Makefile) |
+
+For Java / JVM, select the Gradle or Maven template based on `PROJECT_PROFILE.java_build.build_tool`.
 
 If `language` is not in the core columns, use the **Node.js** template as the structural fallback and adapt it to the detected `build_entrypoint` and language conventions (e.g., `cargo build`, `bundle exec rake`, `dotnet build`).
 

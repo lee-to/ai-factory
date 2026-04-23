@@ -1,4 +1,4 @@
-# --- Justfile for JVM Projects (Gradle/Maven) ---
+# --- Justfile for JVM Projects (Maven) ---
 
 set shell := ["bash", "-c"]
 
@@ -6,8 +6,8 @@ project := `basename $(pwd)`
 version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
 commit  := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 
-# Will be resolved to ./gradlew, ./mvnw during generation
-entrypoint := "./gradlew"
+# Will be resolved to ./mvnw or mvn during generation
+entrypoint := "./mvnw"
 
 docker-registry := "ghcr.io"
 docker-image    := docker-registry + "/" + project
@@ -21,27 +21,27 @@ clean:
     {{entrypoint}} clean
 
 build:
-    {{entrypoint}} build
+    {{entrypoint}} verify
 
 assemble:
-    {{entrypoint}} assemble
+    {{entrypoint}} package
 
 dev:
-    {{entrypoint}} bootRun
+    {{entrypoint}} spring-boot:run
 
 # --- Testing ---
 test:
     {{entrypoint}} test
 
 check:
-    {{entrypoint}} check
+    {{entrypoint}} verify
 
 # --- Quality ---
 lint:
-    {{entrypoint}} checkstyleMain
+    {{entrypoint}} checkstyle:check
 
 fmt:
-    {{entrypoint}} spotlessApply
+    {{entrypoint}} spotless:apply
 
 # --- Docker ---
 docker-build:
@@ -58,7 +58,7 @@ docker-push:
 
 # --- Database ---
 db-migrate:
-    {{entrypoint}} liquibaseUpdate
+    {{entrypoint}} liquibase:update
 
 # --- CI ---
 ci: clean check assemble
