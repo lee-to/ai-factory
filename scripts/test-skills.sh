@@ -204,7 +204,7 @@ else
 fi
 
 # No dotted /aif. invocations in markdown (slash-command context only, not URLs)
-DOTTED_REFS=$(grep -rE "(^|[[:space:]\`\"(>])/aif\\.[a-z]" "$ROOT_DIR/skills/" "$ROOT_DIR/docs/" "$ROOT_DIR/README.md" "$ROOT_DIR/AGENTS.md" --include='*.md' 2>/dev/null | grep -v 'ai-factory\.json' | wc -l | tr -d ' ' || true)
+DOTTED_REFS=$(grep -rE "(^|[[:space:]\`\"(>])/aif\\.[a-z]" "$ROOT_DIR/skills/" "$ROOT_DIR/README.md" "$ROOT_DIR/AGENTS.md" --include='*.md' 2>/dev/null | grep -v 'ai-factory\.json' | wc -l | tr -d ' ' || true)
 if [[ "$DOTTED_REFS" -eq 0 ]]; then
     pass "no dotted /aif.xxx invocations in docs"
 else
@@ -502,11 +502,6 @@ AIF_MCP_SECTION=$(awk '
   capture && /^---$/ { exit }
   capture { print }
 ' "$ROOT_DIR/skills/aif/SKILL.md")
-DOCS_MCP_SECTION=$(awk '
-  /^## MCP Configuration$/ { capture=1; next }
-  capture && /^## / { exit }
-  capture { print }
-' "$ROOT_DIR/docs/configuration.md")
 
 if [[ -z "$AIF_MCP_SECTION" ]]; then
     fail "/aif MCP Configuration section missing"
@@ -537,30 +532,7 @@ if grep -Eiq '(all|every|any).*(supported )?(agents|runtimes).*(mcpServers)|mcpS
 else
     pass "/aif MCP section does not imply universal mcpServers usage"
 fi
-
-if [[ -z "$DOCS_MCP_SECTION" ]]; then
-    fail "docs MCP Configuration section missing"
-else
-    pass "docs MCP Configuration section present"
-fi
-
-if grep -Fq '../skills/aif/SKILL.md#mcp-configuration' <<< "$DOCS_MCP_SECTION" && grep -Fq 'Source of truth' <<< "$DOCS_MCP_SECTION"; then
-    pass "docs MCP section links to canonical /aif MCP source-of-truth"
-else
-    fail "docs MCP section must link to canonical /aif MCP source-of-truth"
-fi
-
-if grep -Fq 'mcpServers.<server>' <<< "$DOCS_MCP_SECTION" && grep -Fq 'mcp.<server>' <<< "$DOCS_MCP_SECTION" && grep -Fq 'servers.<server>' <<< "$DOCS_MCP_SECTION"; then
-    pass "docs MCP section includes runtime key mapping reminders"
-else
-    fail "docs MCP section missing runtime key mapping reminders"
-fi
-
-if grep -Fq '| Runtime | Root key | Entry shape |' <<< "$DOCS_MCP_SECTION"; then
-    fail "docs MCP section reintroduced duplicated runtime matrix table"
-else
-    pass "docs MCP section avoids duplicated runtime matrix table"
-fi
+# Local user-facing docs live in the external docs site, not in this package.
 
 # skills_cli_agent_flag patterns
 HARDCODED_AGENT_FLAG=$(grep -rE '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
@@ -584,11 +556,9 @@ import path from 'path';
 
 const root = process.env.ROOT_DIR;
 const subagentsDir = path.join(root, 'subagents');
-const docsPath = path.join(root, 'docs', 'subagents.md');
 const refsPath = path.join(root, '.references', 'CLAUDE-SUBAGENTS.md');
 
 const files = fs.readdirSync(subagentsDir).filter(file => file.endsWith('.md')).sort();
-const docsContent = fs.readFileSync(docsPath, 'utf8');
 const refsContent = fs.readFileSync(refsPath, 'utf8');
 const errors = [];
 
@@ -621,10 +591,6 @@ for (const file of files) {
 
   if (background && hasWriterTools) {
     errors.push(file + ': background agents must be read-only');
-  }
-
-  if (docsContent.includes('`' + expectedName + '`') === false) {
-    errors.push(file + ': missing from docs/subagents.md inventory');
   }
 
   if (refsContent.includes('`' + expectedName + '`') === false) {
@@ -718,14 +684,6 @@ if grep -qF 'HANDOFF_TASK_ID: <value from plan annotation>' "$ROOT_DIR/subagents
     pass "plan-coordinator preserves manual handoff task ids"
 else
     fail "plan-coordinator manual handoff dispatch contract missing"
-fi
-
-if grep -qF 'bounded helper workers' "$ROOT_DIR/docs/configuration.md" \
-    && grep -qF 'runtime-local settings such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions`' "$ROOT_DIR/docs/extensions.md" \
-    && grep -qF 'one-shot workers' "$ROOT_DIR/docs/subagents.md"; then
-    pass "extension runtime helper docs stay synchronized"
-else
-    fail "extension runtime helper docs stay synchronized"
 fi
 
 # ─────────────────────────────────────────────

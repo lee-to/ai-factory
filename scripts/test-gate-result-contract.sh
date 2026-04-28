@@ -7,7 +7,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONTRACT_REF="$ROOT_DIR/skills/aif-verify/references/GATE-RESULT-CONTRACT.md"
-DOCS_REF="$ROOT_DIR/docs/quality-gates.md"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -201,25 +200,6 @@ done
 assert_contains "$ROOT_DIR/skills/aif-rules-check/SKILL.md" 'PASS` -> `pass`, `WARN` -> `warn`, and `FAIL` -> `fail`' "rules skill documents explicit verdict mapping"
 assert_contains "$ROOT_DIR/skills/aif-rules-check/SKILL.md" 'Do not use `/aif-review` in the JSON `suggested_next.command`' "rules skill separates disallowed review command"
 assert_contains "$ROOT_DIR/skills/aif-security-checklist/SKILL.md" 'Do not append this gate block for the `ignore <item>` writer flow' "security skill documents ignore writer-flow exception"
-
-echo -e "\n${BOLD}=== Gate result docs ===${NC}\n"
-
-assert_file_exists "$DOCS_REF" "quality gate docs page exists"
-assert_contains "$DOCS_REF" '```aif-gate-result' "docs include parseable fence examples"
-assert_contains "$DOCS_REF" 'parse only the last `aif-gate-result` fenced block' "docs document trailing fence parsing"
-assert_contains "$DOCS_REF" '"schema_version": 1' "docs include schema_version"
-assert_contains "$DOCS_REF" '"gate": "verify"' "docs include verify example"
-assert_contains "$DOCS_REF" '"gate": "review"' "docs include review example"
-assert_contains "$DOCS_REF" '"gate": "security"' "docs include security example"
-assert_contains "$DOCS_REF" '"gate": "rules"' "docs include rules example"
-assert_contains "$DOCS_REF" '"status": "fail"' "docs include fail example"
-assert_contains "$DOCS_REF" '"status": "warn"' "docs include warn example"
-assert_contains "$DOCS_REF" '"status": "pass"' "docs include pass example"
-assert_contains "$DOCS_REF" '"blocking": true' "docs include blocking true example"
-assert_contains "$DOCS_REF" '"blocking": false' "docs include blocking false example"
-assert_contains "$DOCS_REF" '"blockers": [' "docs include blockers array"
-assert_contains "$DOCS_REF" '"affected_files": [' "docs include affected_files array"
-assert_contains "$DOCS_REF" '"suggested_next": {' "docs include suggested_next object"
 
 echo -e "\n${BOLD}=== Gate result fixture validation ===${NC}\n"
 

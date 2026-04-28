@@ -33,7 +33,7 @@ ai-factory init
 - **Spec-driven development** — AI follows plans, not random exploration. Predictable, resumable, reviewable
 - **Community skills** — leverage [skills.sh](https://skills.sh) ecosystem or generate custom skills
 - **Stack-agnostic** — works with any language, framework, or platform
-- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
+- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](https://aif.cutcode.dev/docs/getting-started#supported-agents)
 
 ---
 
@@ -72,7 +72,7 @@ Then open your AI agent and start working:
 /aif
 ```
 
-Need CLI flags, update/upgrade details, or extension commands? See [Getting Started](docs/getting-started.md). Need slash-command reference? See [Core Skills](docs/skills.md).
+Need CLI flags, update/upgrade details, or extension commands? See [Getting Started](https://aif.cutcode.dev/docs/getting-started) for CLI flags, update/upgrade details, extension commands, supported agents, and slash-command reference.
 
 ## Example Workflow
 
@@ -105,26 +105,13 @@ Need CLI flags, update/upgrade details, or extension commands? See [Getting Star
 /aif-docs
 ```
 
-See the full [Development Workflow](docs/workflow.md) with diagram and decision table.
+See the full [Development Workflow](https://aif.cutcode.dev/docs/essentials/development-workflow) with diagram and decision table.
 
 ---
 
 ## Documentation
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](docs/getting-started.md) | What is AI Factory, supported agents, CLI commands |
-| [Development Workflow](docs/workflow.md) | Workflow diagram, when to use `explore` vs `grounded`, spec-driven approach |
-| [Reflex Loop](docs/loop.md) | Iterative generate → evaluate → critique → refine workflow |
-| [Subagents](docs/subagents.md) | Claude Code only: repo-local planning, implementation, and loop subagents with narrow role contracts |
-| [Core Skills](docs/skills.md) | All slash commands — explore, grounded, plan, fix, implement, evolve, docs, and more |
-| [Quality Gates](docs/quality-gates.md) | Machine-readable `aif-gate-result` summaries for verify, review, security, and rules gates |
-| [Skill Evolution](docs/evolve.md) | How /aif-fix patches feed into /aif-evolve to generate smarter skill rules |
-| [Plan Files](docs/plan-files.md) | Plan files, self-improvement patches, skill acquisition |
-| [Security](docs/security.md) | Two-level security scanning for external skills |
-| [Extensions](docs/extensions.md) | Writing and installing extensions — commands, injections, MCP, agents |
-| [Configuration](docs/configuration.md) | `.ai-factory.json`, MCP servers, project structure, best practices |
-| [Config Reference](docs/config-reference.md) | Full `config.yaml` key reference and skill read/write matrix |
+Full documentation is available at [aif.cutcode.dev/docs](https://aif.cutcode.dev/docs/).
 
 ## Links
 - [Official Website](https://aif.cutcode.dev) - AI Factory website
