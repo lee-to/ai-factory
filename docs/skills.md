@@ -255,12 +255,13 @@ Typical sequence when both are useful:
 
 For the workflow view of where these fit, see [Development Workflow](workflow.md).
 
-### `/aif-architecture [clean|ddd|microservices|monolith|layers]`
+### `/aif-architecture [structured|explicit|vertical|microservices|layers]`
 Generates architecture guidelines tailored to your project:
 ```
 /aif-architecture           # Analyze project and recommend
-/aif-architecture clean     # Use Clean Architecture
-/aif-architecture monolith  # Use Modular Monolith
+/aif-architecture explicit  # Use Explicit Architecture
+/aif-architecture vertical  # Use Vertical Slice + Explicit Architecture
+/aif-architecture structured # Use Structured Modules
 ```
 - Reads the resolved description artifact for project context
 - Recommends architecture pattern based on team size, domain complexity, and tech stack
