@@ -107,6 +107,13 @@ function getInstallCommand(version: string): string {
   return `npm install -g ai-factory@${version}`;
 }
 
+function printPackageUpdateHint(latestVersion: string): void {
+  const installCmd = getInstallCommand(latestVersion);
+  console.log(chalk.cyan(`Run: ${installCmd}`));
+  console.log(chalk.dim('New CLI commands and package-level features are available only after updating the ai-factory package.'));
+  console.log(chalk.dim('After updating, re-run `ai-factory update` in the project to refresh skills and agent assets.\n'));
+}
+
 async function selfUpdate(currentVersion: string): Promise<boolean> {
   const latestVersion = await getLatestVersion();
   if (!latestVersion) {
@@ -122,7 +129,8 @@ async function selfUpdate(currentVersion: string): Promise<boolean> {
   console.log(chalk.cyan(`📦 New version available: ${currentVersion} → ${latestVersion}`));
 
   if (!process.stdin.isTTY) {
-    console.log(chalk.dim('Non-interactive mode — skipping self-update\n'));
+    console.log(chalk.dim('Non-interactive mode — skipping self-update.'));
+    printPackageUpdateHint(latestVersion);
     return false;
   }
 
@@ -134,7 +142,8 @@ async function selfUpdate(currentVersion: string): Promise<boolean> {
   }]);
 
   if (!shouldUpdate) {
-    console.log(chalk.dim('Skipping package update\n'));
+    console.log(chalk.dim('Skipping package update.'));
+    printPackageUpdateHint(latestVersion);
     return false;
   }
 
@@ -148,6 +157,7 @@ async function selfUpdate(currentVersion: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.log(chalk.yellow(`⚠ Self-update failed: ${(error as Error).message}`));
+    printPackageUpdateHint(latestVersion);
     return false;
   }
 }

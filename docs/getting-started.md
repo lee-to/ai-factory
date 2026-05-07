@@ -82,6 +82,9 @@ ai-factory update --force
 # Migrate existing skills from v1 naming to v2 naming
 ai-factory upgrade
 
+# Audit artifact metadata links (frontmatter id/depends_on/affects/etc.)
+ai-factory audit-artifacts
+
 # Install an extension (local path, git URL, or npm package)
 ai-factory extension add ./my-extension
 
@@ -98,6 +101,8 @@ ai-factory extension update my-extension --force
 ai-factory extension remove my-extension
 ```
 
+See [Plan Files](plan-files.md) for the artifact frontmatter schema, default scan paths, `--json` output, `--strict` exit behavior, and path boundary rules.
+
 ### `ai-factory init` Flags
 
 - `--agents` - Comma-separated target agents (for example `claude,codex`)
@@ -110,6 +115,7 @@ ai-factory extension remove my-extension
 Run `ai-factory upgrade` to migrate old bare-named skills (`commit`, `feature`, etc.) to `aif-*` names. Custom skills are preserved.
 
 `ai-factory update` now:
+- Checks whether a newer `ai-factory` package is available and prints the exact global install command when package-level CLI features require an npm package update
 - Checks for extension updates from their sources (npm, GitHub, etc.) before updating base skills
 - Prints per-agent status buckets for base skills (`changed`, `unchanged`, `skipped`, `removed`)
 - For runtimes with managed agent files, also refreshes bundled package-managed agent files (Claude today) and prints a separate `Agent files` status block
