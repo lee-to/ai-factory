@@ -20,6 +20,7 @@
     "lint:dead": "knip --reporter compact",
     "lint": "npm run lint:unused && npm run lint:dead",
     "clean": "rm -rf dist",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build",
     "link": "npm run build && npm link"
   },
@@ -27,6 +28,7 @@
     "claude",
     "cursor",
     "codex",
+    "codex-app",
     "opencode",
     "kilocode",
     "windsurf",

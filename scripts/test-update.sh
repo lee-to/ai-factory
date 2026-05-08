@@ -125,6 +125,106 @@ assert_contains "$FORCE_OUTPUT" "force reinstall" "force reason should be visibl
 echo "update smoke tests passed"
 
 # -------------------------------------------------------------------
+# Codex app update smoke: repo skills should keep Codex $ invocations,
+# custom skills should be preserved, and incompatible shared repo skills
+# runtime configs should fail before mutation.
+# -------------------------------------------------------------------
+
+CODEX_APP_PROJECT_DIR="$TMPDIR/update-smoke-codex-app"
+mkdir -p "$CODEX_APP_PROJECT_DIR/.agents/skills/custom/local-helper"
+
+cat > "$CODEX_APP_PROJECT_DIR/.ai-factory.json" << 'EOF'
+{
+  "version": "2.4.0",
+  "agents": [
+    {
+      "id": "codex-app",
+      "skillsDir": ".agents/skills",
+      "installedSkills": ["aif", "aif-plan", "custom/local-helper"],
+      "mcp": {
+        "github": false,
+        "filesystem": false,
+        "postgres": false,
+        "chromeDevtools": false,
+        "playwright": false
+      }
+    }
+  ],
+  "extensions": []
+}
+EOF
+
+cat > "$CODEX_APP_PROJECT_DIR/.agents/skills/custom/local-helper/SKILL.md" << 'EOF'
+---
+name: local-helper
+description: local custom skill
+---
+EOF
+
+CODEX_APP_FIRST_OUTPUT="$TMPDIR/update-codex-app-first.log"
+CODEX_APP_FORCE_OUTPUT="$TMPDIR/update-codex-app-force.log"
+
+(cd "$CODEX_APP_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CODEX_APP_FIRST_OUTPUT" 2>&1)
+assert_contains "$CODEX_APP_FIRST_OUTPUT" "\[codex-app\] Status:" "codex-app status section must be printed"
+assert_contains "$CODEX_APP_FIRST_OUTPUT" "WARN: managed state recovered" "codex-app managed state recovery warning expected on first run"
+assert_exists "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" "codex-app update must install aif into repo skills"
+assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skill-generator' "codex-app update must keep Codex $ invocation"
+assert_not_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '(^|[^$])`/aif-skill-generator`' "codex-app update must not keep slash invocation examples"
+assert_exists "$CODEX_APP_PROJECT_DIR/.agents/skills/custom/local-helper/SKILL.md" "codex-app update must preserve custom skills"
+
+(cd "$CODEX_APP_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update --force > "$CODEX_APP_FORCE_OUTPUT" 2>&1)
+assert_contains "$CODEX_APP_FORCE_OUTPUT" "Force mode enabled" "codex-app force update must print force mode"
+assert_contains "$CODEX_APP_FORCE_OUTPUT" "aif \(force reinstall\)" "codex-app force update must reinstall base skills"
+assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skill-generator' "codex-app force update must keep Codex $ invocation"
+assert_exists "$CODEX_APP_PROJECT_DIR/.agents/skills/custom/local-helper/SKILL.md" "codex-app force update must preserve custom skills"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='codex-app')process.exit(1);if(a.skillsDir!=='.agents/skills')process.exit(1);if(!Array.isArray(a.installedSkills)||!a.installedSkills.includes('custom/local-helper'))process.exit(1);if(!a.managedSkills||!a.managedSkills.aif||!a.managedSkills['aif-plan'])process.exit(1);" "$CODEX_APP_PROJECT_DIR/.ai-factory.json"
+
+CONFLICT_UPDATE_PROJECT_DIR="$TMPDIR/update-smoke-codex-app-universal-conflict"
+mkdir -p "$CONFLICT_UPDATE_PROJECT_DIR"
+cat > "$CONFLICT_UPDATE_PROJECT_DIR/.ai-factory.json" << 'EOF'
+{
+  "version": "2.4.0",
+  "agents": [
+    {
+      "id": "universal",
+      "skillsDir": ".agents/skills",
+      "installedSkills": ["aif"],
+      "mcp": {
+        "github": false,
+        "filesystem": false,
+        "postgres": false,
+        "chromeDevtools": false,
+        "playwright": false
+      }
+    },
+    {
+      "id": "codex-app",
+      "skillsDir": ".agents/skills",
+      "installedSkills": ["aif"],
+      "mcp": {
+        "github": false,
+        "filesystem": false,
+        "postgres": false,
+        "chromeDevtools": false,
+        "playwright": false
+      }
+    }
+  ],
+  "extensions": []
+}
+EOF
+
+if (cd "$CONFLICT_UPDATE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$TMPDIR/update-codex-app-conflict.log" 2>&1); then
+  echo "Assertion failed: update must reject universal and codex-app sharing .agents/skills"
+  cat "$TMPDIR/update-codex-app-conflict.log"
+  exit 1
+fi
+assert_contains "$TMPDIR/update-codex-app-conflict.log" "universal, codex-app" "update conflict error must include both runtime ids"
+assert_contains "$TMPDIR/update-codex-app-conflict.log" "\.agents/skills" "update conflict error must include the shared skillsDir"
+
+echo "codex app update smoke tests passed"
+
+# -------------------------------------------------------------------
 # Antigravity force behavior smoke: preserve custom workflow refs,
 # and clean stale files under .agent/skills/<skill>.
 # -------------------------------------------------------------------

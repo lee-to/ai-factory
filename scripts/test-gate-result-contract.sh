@@ -180,15 +180,18 @@ assert_contains "$CONTRACT_REF" '/aif-commit' "contract documents commit as clea
 
 echo -e "\n${BOLD}=== Gate skill output contracts ===${NC}\n"
 
-declare -A GATE_SKILLS=(
-  ["verify"]="$ROOT_DIR/skills/aif-verify/SKILL.md"
-  ["review"]="$ROOT_DIR/skills/aif-review/SKILL.md"
-  ["security"]="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
-  ["rules"]="$ROOT_DIR/skills/aif-rules-check/SKILL.md"
-)
+gate_skill_file() {
+    case "$1" in
+        verify) printf "%s\n" "$ROOT_DIR/skills/aif-verify/SKILL.md" ;;
+        review) printf "%s\n" "$ROOT_DIR/skills/aif-review/SKILL.md" ;;
+        security) printf "%s\n" "$ROOT_DIR/skills/aif-security-checklist/SKILL.md" ;;
+        rules) printf "%s\n" "$ROOT_DIR/skills/aif-rules-check/SKILL.md" ;;
+        *) return 1 ;;
+    esac
+}
 
 for gate in verify review security rules; do
-    file="${GATE_SKILLS[$gate]}"
+    file="$(gate_skill_file "$gate")"
     assert_contains "$file" '```aif-gate-result' "$gate skill includes aif-gate-result fence"
     assert_contains "$file" '"gate": "' "$gate skill includes gate field in JSON example"
     assert_contains "$file" '"status": "pass|warn|fail"' "$gate skill documents pass/warn/fail status"

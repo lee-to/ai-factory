@@ -54,6 +54,18 @@
         "chromeDevtools": false,
         "playwright": false
       }
+    },
+    {
+      "id": "codex-app",
+      "skillsDir": ".agents/skills",
+      "installedSkills": ["aif", "aif-plan"],
+      "mcp": {
+        "github": true,
+        "postgres": false,
+        "filesystem": true,
+        "chromeDevtools": false,
+        "playwright": true
+      }
     }
   ],
   "extensions": [
@@ -66,7 +78,7 @@
 }
 ```
 
-The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
+The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. Codex app is currently skills-first: it installs Codex-style skills into `.agents/skills` and can write MCP config to `.codex/config.toml`, but it does not define a runtime-global `agentsDir`. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
 
 Extension-provided agent files can target non-Claude runtimes such as Codex. Those files are often bounded helper workers (for example, one-shot reviewers or plan polishers), not automatic equivalents of the bundled Claude coordinator agents. Documentation and prompts should describe those support boundaries explicitly instead of implying full parity across runtimes. AI Factory copies those runtime-specific agent files verbatim; runtime-local keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` belong in the agent file itself rather than in `.ai-factory.json` or workflow prompts. For bounded Codex helpers, prefer read-only advisory workers unless the runtime-native agent truly owns writes to a specific artifact.
 
@@ -213,7 +225,7 @@ AI Factory can configure these MCP servers:
 | Chrome Devtools | Browser inspection, debugging, performance | - |
 | Playwright | Browser automation, web testing | - |
 
-Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode).
+Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.codex/config.toml` for Codex app).
 
 ### Runtime Format Contract
 
@@ -224,10 +236,11 @@ Quick key mapping:
 - Standard MCP runtimes use `mcpServers.<server>`
 - OpenCode uses `mcp.<server>`
 - GitHub Copilot uses `servers.<server>`
+- Codex app uses TOML tables under `mcp_servers.<server>`
 
 ### Environment Variables
 
-MCP configs use `${VAR}` placeholders for credentials. OpenCode stores credentials under `environment`, while GitHub Copilot receives `${env:VAR}` in `.vscode/mcp.json`. Set them before launching the agent:
+MCP configs use `${VAR}` placeholders for credentials. OpenCode stores credentials under `environment`, GitHub Copilot receives `${env:VAR}` in `.vscode/mcp.json`, and Codex app receives credential names in `env_vars` inside `.codex/config.toml`. Set them before launching the agent:
 
 ```bash
 export GITHUB_TOKEN="ghp_your_token"
@@ -311,6 +324,7 @@ your-project/
 │           ├── test-plan.md
 │           └── test-cases.md
 ├── .mcp.json                  # MCP servers config (Claude Code project scope)
+├── .codex/config.toml         # Codex app MCP config when Codex app is selected
 └── .ai-factory.json           # AI Factory config
 ```
 

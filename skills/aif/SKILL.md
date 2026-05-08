@@ -509,6 +509,7 @@ AI Factory writes MCP config to `{{settings_file}}`, but the outer settings shap
 | Standard MCP runtimes (Claude Code, Cursor, Roo Code, Kilo Code, Qwen Code) | `mcpServers.<server>` | `{ "command": "...", "args": [...], "env": {...} }` |
 | OpenCode | `mcp.<server>` | `{ "type": "local", "command": ["...", "..."], "environment": {...} }` |
 | GitHub Copilot | `servers.<server>` | `{ "type": "stdio", "command": "...", "args": [...], "env": {...} }` |
+| Codex app | `[mcp_servers.<server>]` in `.codex/config.toml` | `command = "..."`, optional `args = [...]`, credential placeholders as `env_vars = ["VAR"]`, literal values under `[mcp_servers.<server>.env]` |
 
 Use the canonical server templates below as the source values, then wrap them using the runtime-specific format above.
 
@@ -606,7 +607,20 @@ GitHub Copilot (`servers` + `type: "stdio"`):
 }
 ```
 
-For GitHub Copilot, convert credential placeholders from `${VAR}` to `${env:VAR}` in the final config file. For OpenCode, use `environment` instead of `env` when the server requires credentials.
+Codex app (`.codex/config.toml` + `mcp_servers` TOML tables):
+
+```toml
+[mcp_servers.filesystem]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "."]
+
+[mcp_servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+env_vars = ["GITHUB_TOKEN"]
+```
+
+For GitHub Copilot, convert credential placeholders from `${VAR}` to `${env:VAR}` in the final config file. For OpenCode, use `environment` instead of `env` when the server requires credentials. For Codex app, convert credential placeholders from `${VAR}` to `env_vars = ["VAR"]`; only literal values belong under `[mcp_servers.<server>.env]`.
 
 ---
 

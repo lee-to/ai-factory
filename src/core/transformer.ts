@@ -24,6 +24,11 @@ export interface AgentOnboarding {
   invocationHint: string | null;
 }
 
+export interface SkillTargetRuntime {
+  id: string;
+  skillsDir: string;
+}
+
 export const WORKFLOW_SKILLS = new Set([
   'aif',
   'aif-commit',
@@ -66,7 +71,7 @@ export function removeFrontmatter(content: string): string {
   return content.replace(/^---\n[\s\S]*?\n---\n?/, '');
 }
 
-const INVOCATION_PATTERN = /(^|[^A-Za-z0-9_-])\/(aif(?:-[a-z0-9-]+)?)/g;
+const INVOCATION_PATTERN = /(^|[^A-Za-z0-9_.~\/}-])\/(aif(?:-[a-z0-9-]+)?)/g;
 
 export function rewriteInvocationPrefix(
   content: string,
@@ -78,16 +83,79 @@ export function rewriteInvocationPrefix(
   );
 }
 
-const registry: Record<string, () => AgentTransformer> = {
-  codex: () => new CodexTransformer(),
-  kilocode: () => new KiloCodeTransformer(),
-  qwen: () => new QwenTransformer(),
-  antigravity: () => new AntigravityTransformer(),
+interface TransformerRegistration {
+  create: () => AgentTransformer;
+  identity: string;
+}
+
+const DEFAULT_TRANSFORMER_IDENTITY = 'default';
+
+const registry: Record<string, TransformerRegistration> = {
+  codex: {
+    create: () => new CodexTransformer(),
+    identity: 'codex',
+  },
+  'codex-app': {
+    create: () => new CodexTransformer('Codex app'),
+    identity: 'codex',
+  },
+  kilocode: {
+    create: () => new KiloCodeTransformer(),
+    identity: 'kilocode',
+  },
+  qwen: {
+    create: () => new QwenTransformer(),
+    identity: 'qwen',
+  },
+  antigravity: {
+    create: () => new AntigravityTransformer(),
+    identity: 'antigravity',
+  },
 };
 
 export function getTransformer(agentId: string): AgentTransformer {
-  const factory = registry[agentId];
-  return factory ? factory() : new DefaultTransformer();
+  const registration = registry[agentId];
+  return registration ? registration.create() : new DefaultTransformer();
+}
+
+export function getTransformerIdentity(agentId: string): string {
+  return registry[agentId]?.identity ?? DEFAULT_TRANSFORMER_IDENTITY;
+}
+
+function normalizeSkillsDir(skillsDir: string): string {
+  return skillsDir.replaceAll('\\', '/').replace(/\/+$/, '');
+}
+
+export function assertCompatibleSkillTargets(targets: SkillTargetRuntime[]): void {
+  const targetsByDir = new Map<string, SkillTargetRuntime[]>();
+
+  for (const target of targets) {
+    const normalizedDir = normalizeSkillsDir(target.skillsDir);
+    targetsByDir.set(normalizedDir, [...(targetsByDir.get(normalizedDir) ?? []), target]);
+  }
+
+  for (const [skillsDir, groupedTargets] of targetsByDir) {
+    const identities = new Map<string, string[]>();
+    for (const target of groupedTargets) {
+      const identity = getTransformerIdentity(target.id);
+      identities.set(identity, [...(identities.get(identity) ?? []), target.id]);
+    }
+
+    if (identities.size <= 1) {
+      continue;
+    }
+
+    const runtimeIds = groupedTargets.map(target => target.id).join(', ');
+    const transformerSummary = [...identities.entries()]
+      .map(([identity, ids]) => `${identity}: ${ids.join(', ')}`)
+      .join('; ');
+
+    throw new Error(
+      `Incompatible agent skill targets: ${runtimeIds} all write to "${skillsDir}" ` +
+      `but use different skill transformers (${transformerSummary}). ` +
+      'Select only one of these agents for this project or configure separate skills directories.',
+    );
+  }
 }
 
 export function getAgentOnboarding(agentId: string): AgentOnboarding {

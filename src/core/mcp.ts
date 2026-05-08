@@ -1,6 +1,7 @@
 import path from 'path';
-import { readJsonFile, writeJsonFile, getMcpDir, ensureDir, fileExists } from '../utils/fs.js';
+import { readJsonFile, writeJsonFile, getMcpDir, ensureDir, fileExists, readTextFile, writeTextFile } from '../utils/fs.js';
 import { getAgentConfig } from './agents.js';
+import { removeCodexMcpServersToml, upsertCodexMcpServersToml } from './mcp-toml.js';
 
 export interface McpServerConfig {
   command: string;
@@ -58,7 +59,7 @@ export interface McpOptions {
   playwright: boolean;
 }
 
-type McpSettingsFormat = 'standard' | 'opencode' | 'vscode';
+type McpSettingsFormat = 'standard' | 'opencode' | 'vscode' | 'codex-toml';
 
 interface McpServerDefinition {
   key: keyof McpOptions;
@@ -151,6 +152,9 @@ async function loadSettings(settingsPath: string): Promise<Record<string, unknow
 }
 
 function resolveMcpSettingsFormat(agentId: string): McpSettingsFormat {
+  if (agentId === 'codex-app') {
+    return 'codex-toml';
+  }
   if (agentId === 'opencode') {
     return 'opencode';
   }
@@ -161,6 +165,9 @@ function resolveMcpSettingsFormat(agentId: string): McpSettingsFormat {
 }
 
 function getContainerKey(format: McpSettingsFormat): 'mcp' | 'mcpServers' | 'servers' {
+  if (format === 'codex-toml') {
+    throw new Error('Codex TOML MCP settings do not use a JSON container key');
+  }
   if (format === 'opencode') {
     return 'mcp';
   }
@@ -176,6 +183,10 @@ function applyServerConfig(
   key: string,
   template: McpServerConfig,
 ): void {
+  if (format === 'codex-toml') {
+    throw new Error('Codex TOML MCP settings must be written through the TOML settings editor');
+  }
+
   if (format === 'opencode') {
     ensureNestedRecord(settings, 'mcp')[key] = toOpenCodeFormat(template);
     return;
@@ -187,6 +198,34 @@ function applyServerConfig(
   }
 
   ensureNestedRecord(settings, 'mcpServers')[key] = template;
+}
+
+async function writeCodexTomlMcpSettings(
+  settingsPath: string,
+  servers: { key: string; template: McpServerConfig }[],
+): Promise<void> {
+  try {
+    const currentSettings = await readTextFile(settingsPath);
+    await writeTextFile(settingsPath, upsertCodexMcpServersToml(currentSettings ?? '', servers));
+  } catch (error) {
+    const keys = servers.map(server => server.key).join(', ');
+    throw new Error(`Failed to write Codex MCP TOML settings at ${settingsPath} for MCP server key(s) ${keys}: ${(error as Error).message}`);
+  }
+}
+
+async function removeCodexTomlMcpSettings(settingsPath: string, keys: string[]): Promise<void> {
+  try {
+    const currentSettings = await readTextFile(settingsPath);
+    if (currentSettings === null) {
+      return;
+    }
+    const nextSettings = removeCodexMcpServersToml(currentSettings, keys);
+    if (nextSettings !== currentSettings) {
+      await writeTextFile(settingsPath, nextSettings);
+    }
+  } catch (error) {
+    throw new Error(`Failed to remove Codex MCP TOML settings at ${settingsPath} for MCP server key(s) ${keys.join(', ')}: ${(error as Error).message}`);
+  }
 }
 
 export async function configureMcp(projectDir: string, options: McpOptions, agentId: string = 'claude'): Promise<string[]> {
@@ -204,7 +243,7 @@ export async function configureMcp(projectDir: string, options: McpOptions, agen
   await ensureDir(settingsDir);
 
   const mcpTemplatesDir = path.join(getMcpDir(), 'templates');
-  const settings = await loadSettings(settingsPath);
+  const selectedServers: { key: string; template: McpServerConfig }[] = [];
 
   for (const server of MCP_SERVERS) {
     if (!options[server.key]) {
@@ -216,11 +255,21 @@ export async function configureMcp(projectDir: string, options: McpOptions, agen
       continue;
     }
 
-    applyServerConfig(settings, format, server.key, template);
+    selectedServers.push({ key: server.key, template });
     configuredServers.push(server.key);
   }
 
-  if (configuredServers.length > 0) {
+  if (configuredServers.length === 0) {
+    return configuredServers;
+  }
+
+  if (format === 'codex-toml') {
+    await writeCodexTomlMcpSettings(settingsPath, selectedServers);
+  } else {
+    const settings = await loadSettings(settingsPath);
+    for (const server of selectedServers) {
+      applyServerConfig(settings, format, server.key, server.template);
+    }
     await writeJsonFile(settingsPath, settings);
   }
 
@@ -247,8 +296,14 @@ export async function configureExtensionMcpServers(
   const format = resolveMcpSettingsFormat(agentId);
   const settingsPath = path.join(projectDir, agent.settingsFile);
   await ensureDir(path.dirname(settingsPath));
-  const settings = await loadSettings(settingsPath);
   const configured: string[] = [];
+
+  if (format === 'codex-toml') {
+    await writeCodexTomlMcpSettings(settingsPath, servers);
+    return servers.map(server => server.key);
+  }
+
+  const settings = await loadSettings(settingsPath);
 
   for (const { key, template } of servers) {
     applyServerConfig(settings, format, key, template);
@@ -274,6 +329,12 @@ export async function removeExtensionMcpServers(
 
   const format = resolveMcpSettingsFormat(agentId);
   const settingsPath = path.join(projectDir, agent.settingsFile);
+
+  if (format === 'codex-toml') {
+    await removeCodexTomlMcpSettings(settingsPath, keys);
+    return;
+  }
+
   const settings = await loadSettings(settingsPath);
   const containerKey = getContainerKey(format);
   const container = settings[containerKey];

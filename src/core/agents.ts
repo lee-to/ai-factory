@@ -68,6 +68,16 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsCliAgent: 'codex',
     source: 'builtin',
   },
+  'codex-app': {
+    id: 'codex-app',
+    displayName: 'Codex app',
+    configDir: '.agents',
+    skillsDir: '.agents/skills',
+    settingsFile: '.codex/config.toml',
+    supportsMcp: true,
+    skillsCliAgent: null,
+    source: 'builtin',
+  },
   copilot: {
     id: 'copilot',
     displayName: 'GitHub Copilot',

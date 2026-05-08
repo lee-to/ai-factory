@@ -18,6 +18,7 @@ import {
   updateSubagents,
 } from '../../core/installer.js';
 import {applyExtensionInjections} from '../../core/injections.js';
+import {assertCompatibleSkillTargets} from '../../core/transformer.js';
 import {
   installExtensionSkillsForAllAgents,
   installExtensionAgentFilesForAllAgents,
@@ -169,6 +170,8 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
   await hydrateProjectAgentRegistry(projectDir, {
     extensionNames: config.extensions?.map(extension => extension.name) ?? [],
   });
+
+  assertCompatibleSkillTargets(config.agents);
 
   const currentVersion = getCurrentVersion();
 

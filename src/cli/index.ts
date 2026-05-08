@@ -16,7 +16,7 @@ program
 program
   .command('init')
   .description('Initialize ai-factory in current project')
-  .option('--agents <agents>', 'Comma-separated list of agents (e.g. claude,codex,cursor)')
+  .option('--agents <agents>', 'Comma-separated list of agents (e.g. claude,codex,codex-app,cursor)')
   .option('--mcp <servers>', 'Comma-separated list of MCP servers (e.g. github,playwright,postgres,filesystem,chrome-devtools)')
   .option('--skills <skills>', 'Comma-separated list of skills or "all" for all skills (default: all)')
   .option('--no-skills', 'Skip installing base skills')
