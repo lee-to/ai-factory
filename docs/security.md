@@ -82,7 +82,7 @@ python3 .claude/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/S
 
 # For other agents, adjust the path accordingly:
 # python3 .codex/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/
-# python3 .agents/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/
+# python3 .agents/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/  # Codex app or Universal
 ```
 
 ## Internal Self-Scan (AI Factory repo)

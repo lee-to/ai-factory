@@ -14,7 +14,7 @@ import {
 import { saveConfig, configExists, loadConfig, getCurrentVersion, type AgentInstallation } from '../../core/config.js';
 import { configureMcp, getMcpInstructions } from '../../core/mcp.js';
 import { getAgentConfig, getAvailableAgentIds, hydrateProjectAgentRegistry } from '../../core/agents.js';
-import { cleanupAgentSetup, getAgentOnboarding } from '../../core/transformer.js';
+import { assertCompatibleSkillTargets, cleanupAgentSetup, getAgentOnboarding } from '../../core/transformer.js';
 import { removeDirectory, removeFile, copyFile, fileExists, getSkillsDir } from '../../utils/fs.js';
 import { applyExtensionInjections } from '../../core/injections.js';
 import {
@@ -145,6 +145,13 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     } else {
       answers = await runWizard(existingAgentIds);
     }
+
+    assertCompatibleSkillTargets(
+      answers.agents.map(agent => ({
+        id: agent.id,
+        skillsDir: getAgentConfig(agent.id).skillsDir,
+      })),
+    );
 
     const selectedAgentIds = new Set(answers.agents.map(agent => agent.id));
     const removedAgents = (existingConfig?.agents ?? []).filter(agent => !selectedAgentIds.has(agent.id));
@@ -311,7 +318,10 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       .filter(Boolean)
       .join('; ');
 
-    console.log(chalk.dim(`  ${installedAgents.length + 1}. Use /aif-plan and /aif-commit for daily workflow${invocationHints ? ` (${invocationHints})` : ''}`));
+    const dailyWorkflowStep = invocationHints
+      ? `Use daily workflow skills (${invocationHints})`
+      : 'Use /aif-plan and /aif-commit for daily workflow';
+    console.log(chalk.dim(`  ${installedAgents.length + 1}. ${dailyWorkflowStep}`));
     console.log('');
 
   } catch (error) {
@@ -320,7 +330,14 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       console.log(chalk.yellow('\nSetup cancelled.'));
       return;
     }
-    if (nonInteractive && (message.startsWith('Unknown ') || message.startsWith('At least one '))) {
+    if (message.startsWith('Incompatible agent skill targets:')) {
+      console.error(chalk.red(`\nError: ${message}`));
+      process.exit(1);
+    }
+    if (nonInteractive && (
+      message.startsWith('Unknown ')
+      || message.startsWith('At least one ')
+    )) {
       console.error(chalk.red(`\nError: ${message}`));
       process.exit(1);
     }

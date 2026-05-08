@@ -6,6 +6,8 @@ function toCodexInvocation(content: string): string {
 }
 
 export class CodexTransformer implements AgentTransformer {
+  constructor(private readonly runtimeName: string = 'Codex CLI') {}
+
   transform(skillName: string, content: string): TransformResult {
     return {
       targetDir: skillName,
@@ -17,12 +19,12 @@ export class CodexTransformer implements AgentTransformer {
 
   getWelcomeMessage(): string[] {
     return [
-      '1. Open Codex CLI in this directory',
+      `1. Open ${this.runtimeName} in this directory`,
       '2. Run $aif to analyze project and generate project-relevant skills',
     ];
   }
 
   getInvocationHint(): string {
-    return 'Codex CLI: $aif-plan, $aif-commit';
+    return `${this.runtimeName}: $aif-plan, $aif-commit`;
   }
 }
