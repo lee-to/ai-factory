@@ -44,12 +44,6 @@ depends_on:
 affects:
   - plan-auth-login
   - docs-auth
-implements:
-  - spec-auth-login
-verifies:
-  - spec-auth-login
-documents:
-  - spec-auth-login
 supersedes:
   - adr-auth-jwt
 ---

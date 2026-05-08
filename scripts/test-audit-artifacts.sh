@@ -234,6 +234,41 @@ else
 fi
 assert_json "$EXPLICIT_SYMLINK_OUTPUT" 'result.status === "fail" && result.artifacts === 0 && result.findings.some(f => f.file === "docs" && f.level === "fail")' "explicit outside symlink reports fail finding"
 
+# Explicit directory targets whose basename is skipped by default are still scanned as requested.
+EXPLICIT_SKIP_PROJECT="$TMPDIR/explicit-skip-root"
+mkdir -p "$EXPLICIT_SKIP_PROJECT/.ai-factory/qa/branch" "$EXPLICIT_SKIP_PROJECT/qa/branch"
+write_artifact "$EXPLICIT_SKIP_PROJECT/.ai-factory/qa/branch/case.md" '---
+id: qa-auth-login
+type: qa
+status: active
+owners: [qa]
+depends_on: [spec-missing]
+---
+# QA'
+write_artifact "$EXPLICIT_SKIP_PROJECT/qa/branch/case.md" '---
+id: qa-root-auth-login
+type: qa
+status: active
+owners: [qa]
+depends_on: [spec-missing]
+---
+# QA'
+EXPLICIT_AIF_QA_OUTPUT="$TMPDIR/explicit-aif-qa.json"
+if run_audit "$EXPLICIT_SKIP_PROJECT" "$EXPLICIT_AIF_QA_OUTPUT" .ai-factory/qa; then
+    fail "explicit .ai-factory/qa target with bad artifact should exit non-zero"
+else
+    pass "explicit .ai-factory/qa target with bad artifact exits non-zero"
+fi
+assert_json "$EXPLICIT_AIF_QA_OUTPUT" 'result.status === "fail" && result.artifacts === 1 && result.findings.some(f => f.file === ".ai-factory/qa/branch/case.md" && f.message.includes("spec-missing"))' "explicit .ai-factory/qa target is scanned"
+
+EXPLICIT_ROOT_QA_OUTPUT="$TMPDIR/explicit-root-qa.json"
+if run_audit "$EXPLICIT_SKIP_PROJECT" "$EXPLICIT_ROOT_QA_OUTPUT" qa; then
+    fail "explicit qa target with bad artifact should exit non-zero"
+else
+    pass "explicit qa target with bad artifact exits non-zero"
+fi
+assert_json "$EXPLICIT_ROOT_QA_OUTPUT" 'result.status === "fail" && result.artifacts === 1 && result.findings.some(f => f.file === "qa/branch/case.md" && f.message.includes("spec-missing"))' "explicit qa target is scanned"
+
 echo -e "\n${BOLD}Total:${NC} $((PASSED + FAILED)), ${GREEN}Passed:${NC} $PASSED, ${RED}Failed:${NC} $FAILED"
 
 if [[ "$FAILED" -gt 0 ]]; then

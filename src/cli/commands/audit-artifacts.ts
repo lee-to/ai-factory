@@ -189,7 +189,7 @@ async function collectMarkdownFiles(projectDir: string, targets: string[], isExp
   const findings: Finding[] = [];
   const visitedDirectories = new Set<string>();
 
-  async function walk(currentPath: string, requestedPath: string): Promise<void> {
+  async function walk(currentPath: string, requestedPath: string, isRootTarget = false): Promise<void> {
     const canonicalPath = await realpathOrNull(currentPath);
     if (!canonicalPath) {
       findings.push({
@@ -230,7 +230,7 @@ async function collectMarkdownFiles(projectDir: string, targets: string[], isExp
     visitedDirectories.add(canonicalPath);
 
     const directoryName = path.basename(currentPath);
-    if (DEFAULT_SKIP_DIRS.has(directoryName)) {
+    if (!isRootTarget && DEFAULT_SKIP_DIRS.has(directoryName)) {
       return;
     }
 
@@ -266,7 +266,7 @@ async function collectMarkdownFiles(projectDir: string, targets: string[], isExp
       continue;
     }
 
-    await walk(absTarget, target);
+    await walk(absTarget, target, true);
   }
 
   return {
