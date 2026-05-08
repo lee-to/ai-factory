@@ -255,14 +255,18 @@ Typical sequence when both are useful:
 
 For the workflow view of where these fit, see [Development Workflow](workflow.md).
 
-### `/aif-architecture [structured|explicit|vertical|microservices|layers]`
+### `/aif-architecture [explicit|structured|microservices|layers]`
 Generates architecture guidelines tailored to your project:
 ```
 /aif-architecture           # Analyze project and recommend
-/aif-architecture explicit  # Use Explicit Architecture
-/aif-architecture vertical  # Use Vertical Slice + Explicit Architecture
-/aif-architecture structured # Use Structured Modules
+/aif-architecture explicit-layers # Use Explicit Architecture (By Technical Layer)
+/aif-architecture explicit-vertical # Use Explicit Architecture (Vertical Slices by Feature)
+/aif-architecture explicit  # Asks the user which folder structure variant to use
+/aif-architecture structured-layers # Use Structured Modules (By Technical Layer)
+/aif-architecture structured-vertical # Use Structured Modules (Vertical Slices by Entity)
+/aif-architecture structured # Asks the user which folder structure variant to use
 ```
+*Note: `clean`, `ddd`, `monolith` are supported as legacy aliases for backward compatibility.*
 - Reads the resolved description artifact for project context
 - Recommends architecture pattern based on team size, domain complexity, and tech stack
 - Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `language.ui`, and `language.artifacts`

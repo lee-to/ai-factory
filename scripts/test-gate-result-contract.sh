@@ -181,10 +181,10 @@ assert_contains "$CONTRACT_REF" '/aif-commit' "contract documents commit as clea
 echo -e "\n${BOLD}=== Gate skill output contracts ===${NC}\n"
 
 declare -A GATE_SKILLS=(
-  [verify]="$ROOT_DIR/skills/aif-verify/SKILL.md"
-  [review]="$ROOT_DIR/skills/aif-review/SKILL.md"
-  [security]="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
-  [rules]="$ROOT_DIR/skills/aif-rules-check/SKILL.md"
+  ["verify"]="$ROOT_DIR/skills/aif-verify/SKILL.md"
+  ["review"]="$ROOT_DIR/skills/aif-review/SKILL.md"
+  ["security"]="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
+  ["rules"]="$ROOT_DIR/skills/aif-rules-check/SKILL.md"
 )
 
 for gate in verify review security rules; do
