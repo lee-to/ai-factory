@@ -1,5 +1,20 @@
 # aif-plan Task and Plan Format
 
+## Plan File Naming
+
+`workflow.plan_id_format` (config) controls the full-mode plan filename shape:
+
+| Value        | Filename shape                                              | Notes                                                                 |
+|--------------|-------------------------------------------------------------|-----------------------------------------------------------------------|
+| `slug`       | `paths.plans/<branch-or-slug>.md`                           | Default. Derived from branch name (or description slug in no-git mode).|
+| `timestamp`  | `paths.plans/<YYYYMMDD-HHMMSS>_<branch-or-slug>.md`         | Format-specific timestamp prefix.                                     |
+| `uuid`       | `paths.plans/<uuid4>_<branch-or-slug>.md`                   | Useful when human collisions are likely.                              |
+| `sequential` | `paths.plans/<NNNN>_<branch-or-slug>.md` (4-digit, zero-padded) | `NNNN = max(existing 4-digit prefix) + 1`; empty dir starts at `0001`; numbers are monotonic and never reused. Force-disabled under `HANDOFF_BRANCH_PREPARED=1`. |
+
+Branch names always remain `<branch_prefix><slug>` regardless of the format —
+the prefix lives only on the plan file. Fast plans (`paths.plan`) and fix plans
+(`paths.fix_plan`) are single files and ignore `plan_id_format`.
+
 ## Plan File Template
 
 ```markdown

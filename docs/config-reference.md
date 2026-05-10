@@ -83,7 +83,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
 | `workflow.auto_create_dirs` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for directory-management behavior |
-| `workflow.plan_id_format` | `slug` | No dedicated built-in reader yet | Present in schema/template; reserved for plan naming strategy |
+| `workflow.plan_id_format` | `slug` | `/aif-plan`, `/aif-implement`, `/aif-improve`, `/aif-explore`, `/aif-verify`, `/aif-rules-check` | Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. `sequential` writes `paths.plans/<NNNN>_<branch-or-slug>.md` (4-digit, zero-padded; monotonic; never reused). Force-disabled when `HANDOFF_BRANCH_PREPARED=1`. |
 | `workflow.analyze_updates_architecture` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for setup/update workflow control |
 | `workflow.architecture_updates_roadmap` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for architecture-to-roadmap automation |
 | `workflow.verify_mode` | `normal` | `/aif-verify` | Default strictness for verification runs |

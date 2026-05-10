@@ -9,7 +9,8 @@ Paths below show the default `.ai-factory/` layout. `config.yaml` can relocate p
 | Source | Plan File | After Completion |
 |--------|-----------|------------------|
 | `/aif-plan fast` | `paths.plan` (default: `.ai-factory/PLAN.md`) | Offer to delete |
-| `/aif-plan full` | `paths.plans/<branch-or-slug>.md` | Keep (user decides) |
+| `/aif-plan full` | `paths.plans/<branch-or-slug>.md` (default) | Keep (user decides) |
+| `/aif-plan full` (`workflow.plan_id_format: sequential`) | `paths.plans/<NNNN>_<branch-or-slug>.md` (4-digit, monotonic) | Keep (user decides) |
 
 ## Artifact Ownership Quick Map
 
