@@ -89,12 +89,14 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 - **Paths:** `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.research`, `paths.rules_file`, `paths.plan`, `paths.plans`, `paths.patches`, `paths.evolutions`, `paths.specs`, and `paths.rules`
 - **Language:** `language.ui` for AskUserQuestion prompts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`, and `git.branch_prefix`
+- **Workflow:** `workflow.plan_id_format` — controls full-mode plan filename shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. The `sequential` value writes plan files as `<NNNN>_<slug>.md` (see Step 1.2). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
 
 If config.yaml doesn't exist, use defaults:
 
 - Paths: `.ai-factory/` for all artifacts
 - Language: `en` (English)
 - Git: `enabled: true`, `base_branch: main`, `create_branches: true`, `branch_prefix: feature/`
+- Workflow: `plan_id_format: slug`
 
 **THEN:** Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists to understand:
 
@@ -285,6 +287,51 @@ If `git.enabled = false` or `git.create_branches = false`:
 - Do **not** create a branch name
 - Use the slug to create `<configured plans dir>/<slug>.md`
 - Keep the user on the current branch or current non-git directory state
+
+#### Sequential numbering (`workflow.plan_id_format = sequential`)
+
+When the resolved `workflow.plan_id_format` is `sequential`, prepend a 4-digit
+monotonically increasing prefix to the plan filename (the slug and branch name
+remain unchanged). Use the slug derived above; do NOT rename the branch.
+
+Algorithm:
+
+```
+1. List entries in `<configured plans dir>/` matching the regex
+   ^([0-9]{4})_.*\.md$
+   (Use `Bash: ls <plans-dir> 2>/dev/null` then filter, or the equivalent
+   Glob `<plans-dir>/[0-9][0-9][0-9][0-9]_*.md`.)
+2. Parse the leading 4-digit prefix from each match into an integer.
+   Ignore files that don't match the pattern.
+3. next = (max(prefixes) + 1) if any matches exist, else 1
+4. prefix = printf "%04d" $next       # zero-pad to 4 digits
+5. Plan filename stem: "<prefix>_<slug>"
+6. Plan file path:    "<configured plans dir>/<prefix>_<slug>.md"
+```
+
+Rules:
+
+- Numbering is **monotonic** — never reuse a number, even if older plans
+  were deleted/archived
+- The prefix lives only on the plan file. Branch names stay
+  `<branch_prefix><slug>` (no number) so existing git tooling, CI, and PR
+  conventions are unaffected
+- Past `9999_*.md` the format keeps growing the integer (`10000_…`); the
+  4-digit zero-pad is a minimum width, not a cap
+- This setting is ignored for fast plans (`paths.plan` is a single file) and
+  fix plans (`paths.fix_plan` is a single file)
+
+**When sequential is disabled in this run:**
+
+- `HANDOFF_BRANCH_PREPARED = 1` — Handoff requires the plan filename to equal
+  the branch name (see the Handoff branch contract in Step 0). Skip the
+  numeric prefix entirely; the filename stem stays
+  `<HANDOFF_BRANCH_NAME-with-slashes-replaced>`. Emit
+  `INFO [aif-plan] sequential numbering disabled under HANDOFF_BRANCH_PREPARED=1`.
+- `workflow.plan_id_format` is `slug` / `timestamp` / `uuid` (or unknown,
+  falling back to slug) — keep the existing behavior described above.
+
+Logging: `INFO [aif-plan] resolved plan file: <path> (format=<value>)`.
 
 ### Step 1.3: Ask About Preferences
 
@@ -512,7 +559,9 @@ Use `TaskUpdate` to set `blockedBy` relationships:
 **Determine plan file path:**
 
 - **Fast mode** → the resolved `paths.plan`
-- **Full mode** → `<configured plans dir>/<branch-or-slug>.md`
+- **Full mode (default — `plan_id_format: slug`)** → `<configured plans dir>/<branch-or-slug>.md`
+- **Full mode (`plan_id_format: sequential`)** → `<configured plans dir>/<NNNN>_<branch-or-slug>.md` (NNNN derived in Step 1.2). Sequential is force-disabled when `HANDOFF_BRANCH_PREPARED = 1`; in that case fall back to the branch-name stem.
+- **Full mode (`plan_id_format: timestamp` / `uuid`)** → use the format-appropriate stem; sequential numbering does not apply.
 
 **Before saving, ensure directory exists:**
 
@@ -557,7 +606,7 @@ Use the canonical template in `references/TASK-FORMAT.md` (Plan File Template).
 /aif-implement
 
 CONTEXT FROM /aif-plan:
-- Plan file: <configured plans dir>/<branch-or-slug>.md
+- Plan file: <configured plans dir>/<resolved-plan-file>      # see Step 1.2 / Step 5 for the exact stem
 - Testing: yes/no
 - Logging: verbose/standard/minimal
 - Docs: yes/no  # yes => mandatory docs checkpoint, no => warn-only
@@ -567,7 +616,7 @@ CONTEXT FROM /aif-plan:
 
 ```
 Plan created with [N] tasks.
-Plan file: <configured plans dir>/<branch-or-slug>.md
+Plan file: <configured plans dir>/<resolved-plan-file>      # see Step 1.2 / Step 5 for the exact stem
 
 To start implementation, run:
 /aif-implement
@@ -617,6 +666,11 @@ Active worktrees:
   /path/to/my-project-feature-user-auth  (feature/user-auth)  -> Plan: feature-user-auth.md
   /path/to/my-project-fix-cart-bug       (fix/cart-bug)        -> No plan yet
 ```
+
+When `workflow.plan_id_format = sequential`, the displayed plan filename
+includes the numeric prefix, e.g. `Plan: 0042_feature-user-auth.md`.
+Pick the highest-numbered match for the worktree's branch slug when
+multiple `[0-9]{4}_<slug>.md` files are present.
 
 ## --cleanup Subcommand
 
@@ -668,7 +722,7 @@ Use canonical examples in `references/TASK-FORMAT.md`:
 5. **Dependencies matter** — Order tasks so they can be done sequentially
 6. **Include file paths** — Help implementer know where to work
 7. **Commit checkpoints for large plans** — 5+ tasks need commit plan with checkpoints every 3-5 tasks
-8. **Plan file location** – Fast mode: `paths.plan`. Full mode: `paths.plans/<branch-or-slug>.md`
+8. **Plan file location** – Fast mode: `paths.plan`. Full mode: `paths.plans/<branch-or-slug>.md` by default, or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format = sequential` (see Step 1.2 for the numbering rule and Handoff override).
 9. **Ownership boundary** – This command owns plan files only (the resolved fast plan path and files under `paths.plans`). Use owner commands (`/aif-roadmap`, `/aif-rules`, `/aif-explore`) for their artifacts.
 10. **Roadmap linkage (when available)** — If the resolved roadmap artifact exists, include a `## Roadmap Linkage` section in the plan (or explicitly state it was skipped).
 
@@ -679,9 +733,14 @@ Use canonical examples in `references/TASK-FORMAT.md`:
 - Temporary plan for quick work
 - `/aif-implement` may offer deletion after completion
 
-**Full mode (`paths.plans/<branch-or-slug>.md`)**
+**Full mode (`paths.plans/<branch-or-slug>.md` — default)**
 
 - Long-lived plan for feature delivery
 - Branch-scoped when a branch is created; slug-scoped when full mode runs without branch creation
+- When `workflow.plan_id_format = sequential`, the filename becomes
+  `paths.plans/<NNNN>_<branch-or-slug>.md` — the prefix is monotonically
+  increasing across the directory and survives plan deletion (numbers
+  are never reused). The Handoff branch contract overrides the prefix
+  (see Step 1.2).
 
 For concrete end-to-end flows (fast/full/full+parallel/interactive), read `references/EXAMPLES.md` (Flow Scenarios).
