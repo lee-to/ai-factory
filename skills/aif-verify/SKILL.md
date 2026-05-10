@@ -58,7 +58,10 @@ Same logic as `/aif-implement`:
 ```
 1. Check current git branch:
    git branch --show-current
-   → Look for <configured plans dir>/<branch-name>.md
+   → Look for <configured plans dir>/<branch-name>.md (default `plan_id_format`)
+   → When `workflow.plan_id_format = sequential`, also glob
+     <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-name>.md and prefer
+     the highest-numbered match before falling back to the un-prefixed name.
 2. If the branch-based plan is missing or git mode is off:
    → Check whether the configured plans dir contains exactly one `*.md` full-mode plan
    → If exactly one exists, use it

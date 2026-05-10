@@ -125,7 +125,7 @@ At the start, read these files if present:
 - the resolved RULES.md path – project conventions and rules
 - the resolved RESEARCH.md path – persisted exploration notes (so you can `/clear` and still keep context)
 - the resolved fast plan path – active fast plan (if any)
-- `<configured plans dir>/<branch>.md` – active full plans (if any)
+- `<configured plans dir>/<branch>.md` (or `<configured plans dir>/<NNNN>_<branch>.md` when `workflow.plan_id_format = sequential`) – active full plans (if any)
 - the resolved ROADMAP.md path – strategic milestones (if any)
 
 This tells you:
@@ -156,7 +156,10 @@ If the user mentions a plan or you detect one is relevant:
 
 1. **Read existing plan for context**
    - the resolved fast plan path (fast mode)
-   - `<configured plans dir>/<branch>.md` (full mode)
+   - `<configured plans dir>/<branch>.md` (full mode, default).
+     When `workflow.plan_id_format = sequential`, the filename is
+     `<configured plans dir>/<NNNN>_<branch>.md`; pick the highest-numbered
+     match if more than one exists.
 
 2. **Reference it naturally in conversation**
    - "Your plan mentions adding Redis, but we just realized SQLite fits better..."
@@ -175,7 +178,7 @@ If the user mentions a plan or you detect one is relevant:
    | Strategic direction | `paths.research` | `paths.roadmap` |
    | Assumption invalidated | `paths.research` | Relevant file |
    | Exploration context (persisted) | `paths.research` | (keep in research) |
-   | New task/feature | Run `/aif-plan` | `paths.plan` or `paths.plans/<branch-or-slug>.md` |
+   | New task/feature | Run `/aif-plan` | `paths.plan` or `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` under `plan_id_format: sequential`) |
 
    Example offers:
    - "Want me to save this to the resolved research path so you can `/clear` and come back later?"

@@ -82,11 +82,19 @@ If `$ARGUMENTS` contains `--list`, run read-only discovery and stop.
    - If missing → show "Plan file not found: <path>" and STOP
 2. No explicit `@<path>` override → Check current git branch:
    git branch --show-current
-   → Convert branch name to filename: replace "/" with "-", add ".md"
-   → Look for <configured plans dir>/<branch-name>.md (from /aif-plan full)
-   Example: feature/user-auth → .ai-factory/plans/feature-user-auth.md
+   → Convert branch name to filename: replace "/" with "-" (this is <branch-slug>)
+   → When `workflow.plan_id_format = sequential`, glob first
+     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md`:
+     - 0 matches → fall through to the un-prefixed lookup below
+     - 1 match → use it
+     - >1 matches → use the **highest-numbered** match and emit
+       `WARN [aif-improve] multiple sequential plans for <branch>: <list>; using <chosen>`
+   → Otherwise look for `<configured plans dir>/<branch-slug>.md` (from /aif-plan full)
+   Example (slug):       feature/user-auth → .ai-factory/plans/feature-user-auth.md
+   Example (sequential): feature/user-auth → .ai-factory/plans/0042_feature-user-auth.md
 3. If the branch-based plan is missing or git mode is off:
    → Check whether the configured plans dir contains exactly one `*.md` full-mode plan
+     (a leading 4-digit prefix counts as a match)
    → If exactly one exists, use it
    → If multiple exist, ask the user to choose or require `@<path>`
 4. No full-mode plan → Check the resolved fast plan path (from /aif-plan fast)
@@ -356,6 +364,12 @@ TaskUpdate(taskId, status: "deleted")
 - Preserve any `- [x]` checkboxes for already completed tasks
 
 Use `Edit` to make surgical changes to the plan file, or `Write` to regenerate it if changes are extensive.
+
+**Filename invariant:** when the existing plan filename matches the sequential
+pattern `^[0-9]{4}_.*\.md$` (e.g. `0042_feature-user-auth.md`), preserve the
+exact numeric prefix on rewrite. Never renumber a plan during an improve pass —
+the prefix is permanent and must survive any regeneration. Write back to the
+same absolute path you read from.
 
 **5.6: Confirm completion**
 

@@ -130,7 +130,10 @@ Optional plan context: use the active plan file only when it helps interpret sco
 
 Plan resolution order:
 1. Branch-based `paths.plans/<current-branch>.md`
-2. A single named full plan in `paths.plans`
+   (or `paths.plans/<NNNN>_<current-branch>.md`, highest-numbered match,
+   when `workflow.plan_id_format = sequential`)
+2. A single named full plan in `paths.plans` (the leading `NNNN_` prefix
+   counts as a match)
 3. The fast plan at `paths.plan`
 
 Do not fail the rules check because a plan file is missing or ambiguous.

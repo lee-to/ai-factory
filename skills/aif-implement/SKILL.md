@@ -51,6 +51,9 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
    - `paths.rules`
    - `language.ui`, `language.artifacts`
    - `git.enabled`, `git.base_branch`, `git.create_branches`
+   - `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
+     `sequential` makes the resolver glob `<paths.plans>/[0-9]{4}_<branch-slug>.md` first
+     and only fall back to `<paths.plans>/<branch-slug>.md` if no numbered match is found.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)
@@ -72,7 +75,10 @@ If `$ARGUMENTS` contains `--list`, run read-only plan discovery and stop.
    git branch --show-current (git mode only)
 2. Convert branch to filename: replace "/" with "-", add ".md" (git mode only)
 3. Check existence of:
-   - <configured plans dir>/<branch-name>.md (git mode only)
+   - <configured plans dir>/<branch-name>.md (git mode only, default `plan_id_format`)
+   - when `workflow.plan_id_format = sequential`: also glob
+     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-name-without-.md>.md`;
+     report all matches (highest-numbered first)
    - if git mode is off or branch creation is disabled: any `*.md` full-mode plan in `<configured plans dir>/`
    - <resolved fast plan path>
    - <resolved fix plan path>
@@ -128,7 +134,8 @@ Small, focused descriptions (e.g. "add GET /healthz returning 200 with {status:\
 
 Inline mode ignores plan files by design. If any of these exist on disk, emit a `WARN [inline]` line so the user notices the intentional skip (do NOT read them, do NOT redirect):
 
-- `<configured plans dir>/<branch>.md` (git mode only)
+- `<configured plans dir>/<branch>.md` (git mode only) — or
+  `<configured plans dir>/[0-9]{4}_<branch>.md` when `workflow.plan_id_format = sequential`
 - resolved fast plan path (`paths.plan`)
 - resolved fix plan path (`paths.fix_plan`)
 
@@ -424,9 +431,17 @@ Then continue with normal execution using the selected plan file.
 ```
 1. Check current git branch:
    git branch --show-current
-   → Convert branch name to filename: replace "/" with "-", add ".md"
-   → Look for <configured plans dir>/<branch-name>.md
-2. If git mode is off or branch-based plan is missing:
+   → Convert branch name to filename: replace "/" with "-" (this is <branch-slug>)
+   → Resolve full-mode plan filename in this order:
+     a. When `workflow.plan_id_format = sequential`, glob
+        `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md`.
+        - 0 matches → fall through to step (b).
+        - 1 match → use it.
+        - >1 matches → use the **highest-numbered** match and emit
+          `WARN [aif-implement] multiple sequential plans for <branch>: <list>; using <chosen>`.
+     b. `<configured plans dir>/<branch-slug>.md` (default behavior, also used as
+        the fallback when sequential glob returned 0 matches).
+2. If git mode is off or no branch-based plan is found above:
    - Check whether the configured plans dir contains exactly one `*.md` plan file created by `/aif-plan full` without a branch
    - If exactly one exists → use it
    - If multiple exist → ask the user to choose or use `@<path>`
@@ -877,7 +892,7 @@ Continues from next incomplete task.
 /aif-implement --list
 ```
 
-Lists the resolved fast plan path, resolved fix plan path, and current-branch `<configured plans dir>/<branch>.md` (if present), then exits without implementation.
+Lists the resolved fast plan path, resolved fix plan path, and current-branch `<configured plans dir>/<branch>.md` (or `<configured plans dir>/<NNNN>_<branch>.md` when `workflow.plan_id_format = sequential`), then exits without implementation.
 
 ### Use Explicit Plan File
 
