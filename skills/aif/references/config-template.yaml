@@ -126,8 +126,17 @@ workflow:
   auto_create_dirs: true
 
   # Plan ID format for new plans
-  # Options: slug, timestamp, uuid
+  # Options: slug, timestamp, uuid, sequential
   # Default: slug (derived from branch or task description)
+  #
+  # `sequential` writes full-mode plan files as `<NNNN>_<slug>.md` under
+  # `paths.plans/`, where NNNN = max(existing 4-digit prefix) + 1, zero-padded
+  # to 4 digits; an empty plans directory starts from `0001`. Numbering is
+  # monotonic — deleted plans do not free their numbers. Branch names stay
+  # un-numbered (the prefix lives only on the file). Disabled when Handoff
+  # owns the branch (HANDOFF_BRANCH_PREPARED=1) — Handoff requires the plan
+  # filename to equal the branch name. Fast plans (`paths.plan`) and fix
+  # plans (`paths.fix_plan`) are single files and ignore this setting.
   plan_id_format: slug
 
   # Whether the setup/analyze flow updates ARCHITECTURE.md
