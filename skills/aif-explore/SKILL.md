@@ -125,7 +125,13 @@ At the start, read these files if present:
 - the resolved RULES.md path – project conventions and rules
 - the resolved RESEARCH.md path – persisted exploration notes (so you can `/clear` and still keep context)
 - the resolved fast plan path – active fast plan (if any)
-- `<configured plans dir>/<branch>.md` (or `<configured plans dir>/<NNNN>_<branch>.md` when `workflow.plan_id_format = sequential`) – active full plans (if any)
+- `<configured plans dir>/<branch_stem>.md` – active full plans (if any).
+  Compute `branch_stem` as `git branch --show-current` with every `/` replaced by `-`
+  (for example `feature/user-auth` → `feature-user-auth`).
+  When `workflow.plan_id_format = sequential`, glob first
+  `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>.md` and pick the
+  highest-numbered match; fall back to `<configured plans dir>/<branch_stem>.md`
+  when no numbered match exists.
 - the resolved ROADMAP.md path – strategic milestones (if any)
 
 This tells you:
@@ -156,9 +162,11 @@ If the user mentions a plan or you detect one is relevant:
 
 1. **Read existing plan for context**
    - the resolved fast plan path (fast mode)
-   - `<configured plans dir>/<branch>.md` (full mode, default).
+   - `<configured plans dir>/<branch_stem>.md` (full mode, default).
+     `branch_stem` = `git branch --show-current` with every `/` replaced by `-`
+     (so `feature/user-auth` resolves to `feature-user-auth`).
      When `workflow.plan_id_format = sequential`, the filename is
-     `<configured plans dir>/<NNNN>_<branch>.md`; pick the highest-numbered
+     `<configured plans dir>/<NNNN>_<branch_stem>.md`; pick the highest-numbered
      match if more than one exists.
 
 2. **Reference it naturally in conversation**
@@ -178,7 +186,7 @@ If the user mentions a plan or you detect one is relevant:
    | Strategic direction | `paths.research` | `paths.roadmap` |
    | Assumption invalidated | `paths.research` | Relevant file |
    | Exploration context (persisted) | `paths.research` | (keep in research) |
-   | New task/feature | Run `/aif-plan` | `paths.plan` or `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` under `plan_id_format: sequential`) |
+   | New task/feature | Run `/aif-plan` | `paths.plan` or `paths.plans/<branch_stem-or-slug>.md` (or `paths.plans/<NNNN>_<branch_stem-or-slug>.md` under `plan_id_format: sequential`; `branch_stem` = current branch with `/` replaced by `-`) |
 
    Example offers:
    - "Want me to save this to the resolved research path so you can `/clear` and come back later?"

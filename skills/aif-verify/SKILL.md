@@ -53,21 +53,30 @@ If config.yaml doesn't exist, use defaults:
 
 ### 0.2 Find Plan File
 
-Same logic as `/aif-implement`:
+Same logic as `/aif-implement` — produce the **canonical branch stem** before any plans-dir glob so producer and consumers agree by construction.
 
 ```
 1. Check current git branch:
    git branch --show-current
-   → Look for <configured plans dir>/<branch-name>.md (default `plan_id_format`)
-   → When `workflow.plan_id_format = sequential`, also glob
-     <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-name>.md and prefer
-     the highest-numbered match before falling back to the un-prefixed name.
-2. If the branch-based plan is missing or git mode is off:
-   → Check whether the configured plans dir contains exactly one `*.md` full-mode plan
+2. Convert branch to filename stem (git mode only):
+   branch_stem = current branch with every "/" replaced by "-"
+   Example: feature/user-auth → feature-user-auth
+3. Resolve the plan file using <branch_stem>:
+   → When `workflow.plan_id_format = sequential`, glob first
+       <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>.md
+       - 0 matches → fall through to the un-prefixed lookup below
+       - 1 match  → use it
+       - >1 matches → use the **highest-numbered** match and emit
+           WARN [aif-verify] multiple sequential plans for <branch>: <list>; using <chosen>
+   → Otherwise (default `plan_id_format`, or sequential with no numbered match):
+       <configured plans dir>/<branch_stem>.md
+4. If the branch-based plan is missing or git mode is off:
+   → Check whether the configured plans dir contains exactly one `*.md` full-mode
+     plan (a leading 4-digit prefix counts as a match)
    → If exactly one exists, use it
    → If multiple exist, ask the user to choose or use `@<path>` via `/aif-implement`
-3. No full-mode plan → Check the resolved fast plan path
-4. No full-mode plan and no resolved fast plan → fall back to standalone verification choices
+5. No full-mode plan → Check the resolved fast plan path
+6. No full-mode plan and no resolved fast plan → fall back to standalone verification choices
 ```
 
 **If no plan file found:**

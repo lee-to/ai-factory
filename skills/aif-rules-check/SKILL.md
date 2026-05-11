@@ -129,12 +129,20 @@ If no rules sources resolve, return `WARN` rather than a hard failure.
 Optional plan context: use the active plan file only when it helps interpret scope or area relevance; absence of a plan is never a failure.
 
 Plan resolution order:
-1. Branch-based `paths.plans/<current-branch>.md`
-   (or `paths.plans/<NNNN>_<current-branch>.md`, highest-numbered match,
-   when `workflow.plan_id_format = sequential`)
-2. A single named full plan in `paths.plans` (the leading `NNNN_` prefix
-   counts as a match)
-3. The fast plan at `paths.plan`
+1. Compute the **canonical branch stem** the same way as `/aif-plan`,
+   `/aif-implement`, and `/aif-improve`:
+   - get current branch via `git branch --show-current` (git mode only);
+   - `branch_stem` = current branch with every `/` replaced by `-`
+     (for example `feature/user-auth` → `feature-user-auth`).
+2. Branch-based lookup using `<branch_stem>`:
+   - when `workflow.plan_id_format = sequential`, glob first
+     `paths.plans/[0-9][0-9][0-9][0-9]_<branch_stem>.md` and pick the
+     highest-numbered match; emit a `WARN [aif-rules-check] multiple sequential
+     plans for <branch>: <list>; using <chosen>` if more than one matches;
+   - otherwise (or no numbered match), fall back to `paths.plans/<branch_stem>.md`.
+3. A single named full plan in `paths.plans` (the leading `NNNN_` prefix
+   counts as a match) when no branch-based plan resolves.
+4. The fast plan at `paths.plan`.
 
 Do not fail the rules check because a plan file is missing or ambiguous.
 
