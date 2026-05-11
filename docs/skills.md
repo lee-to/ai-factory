@@ -37,7 +37,7 @@ Plans implementation for a feature or task:
 
 Two modes:
 - **Fast** — no git branch, saves plan to `paths.plan` (default: `.ai-factory/PLAN.md`), asks fewer questions
-- **Full** — asks about testing/logging/docs policy, saves plan to `paths.plans/<branch-or-slug>.md`, and creates a git branch only when `git.enabled=true` and `git.create_branches=true`
+- **Full** — asks about testing/logging/docs policy, saves plan to `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` is enabled — see [Plan Files](plan-files.md)), and creates a git branch only when `git.enabled=true` and `git.create_branches=true`
 
 Both modes explore your codebase for patterns, create tasks with dependencies, and include commit checkpoints for 5+ tasks.
 

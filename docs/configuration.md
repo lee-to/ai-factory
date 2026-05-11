@@ -165,7 +165,7 @@ paths:
 # Workflow Settings
 workflow:
   auto_create_dirs: true           # Create .ai-factory/ directories when missing
-  plan_id_format: slug             # slug | timestamp | uuid | sequential
+  plan_id_format: slug             # slug | sequential (timestamp, uuid — reserved, fall back to slug)
   analyze_updates_architecture: true
   architecture_updates_roadmap: true
   verify_mode: normal              # strict | normal | lenient

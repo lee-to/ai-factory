@@ -71,7 +71,7 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/DESCRIPTION.md` — project specification
 - `.ai-factory/ARCHITECTURE.md` — architecture decisions and guidelines
 - `.ai-factory/PLAN.md` — task plan (from /aif-plan fast)
-- `.ai-factory/plans/<branch-or-slug>.md` — plans (from /aif-plan full)
+- `.ai-factory/plans/<branch-or-slug>.md` — plans (from /aif-plan full; or `.ai-factory/plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see `docs/plan-files.md`)
 - `.ai-factory/skill-context/<skill>/SKILL.md` — project-specific overrides for skills (from /aif-evolve)
 - `.ai-factory/evolutions/*.md` — evolution logs (from /aif-evolve)
 - `.ai-factory/evolutions/patch-cursor.json` — incremental evolve cursor (latest processed patch)
@@ -233,7 +233,8 @@ fast → no branch, saves to configured `paths.plan`
 full → creates richer plan, asks: tests? logging? docs?
        optionally creates git branch/worktree when `git.enabled=true` and `git.create_branches=true`
        saves to configured `paths.plans/<branch-or-slug>.md`
-       (`<slug>.md` when git is disabled or branch creation is off)
+       (`<slug>.md` when git is disabled or branch creation is off;
+        `<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential`)
     ↓
 Explores codebase
     ↓
