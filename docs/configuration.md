@@ -46,7 +46,20 @@
       "id": "codex",
       "skillsDir": ".codex/skills",
       "agentsDir": ".codex/agents",
+      "configFiles": ["config.toml"],
       "installedSkills": ["aif", "aif-plan", "aif-implement"],
+      "installedAgentFiles": [
+        "best-practices-sidecar.toml",
+        "commit-preparer.toml",
+        "docs-auditor.toml",
+        "implement-coordinator.toml",
+        "implement-worker.toml",
+        "plan-coordinator.toml",
+        "plan-polisher.toml",
+        "review-sidecar.toml",
+        "security-sidecar.toml"
+      ],
+      "installedConfigFiles": ["config.toml"],
       "mcp": {
         "github": false,
         "postgres": false,
@@ -78,7 +91,7 @@
 }
 ```
 
-The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. Codex app is currently skills-first: it installs Codex-style skills into `.agents/skills` and can write MCP config to `.codex/config.toml`, but it does not define a runtime-global `agentsDir`. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
+The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. Codex additionally persists `configFiles` / `installedConfigFiles` for managed files such as `.codex/config.toml`; tracked managed config files may be repaired by `ai-factory update` when their managed hashes drift, while untracked pre-existing files are preserved during migration. Codex app is currently skills-first: it installs Codex-style skills into `.agents/skills` and can write MCP config to `.codex/config.toml`, but it does not define a runtime-global `agentsDir`. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, `managedConfigFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
 
 Extension-provided agent files can target non-Claude runtimes such as Codex. Those files are often bounded helper workers (for example, one-shot reviewers or plan polishers), not automatic equivalents of the bundled Claude coordinator agents. Documentation and prompts should describe those support boundaries explicitly instead of implying full parity across runtimes. AI Factory copies those runtime-specific agent files verbatim; runtime-local keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` belong in the agent file itself rather than in `.ai-factory.json` or workflow prompts. For bounded Codex helpers, prefer read-only advisory workers unless the runtime-native agent truly owns writes to a specific artifact.
 

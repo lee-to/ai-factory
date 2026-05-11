@@ -4,11 +4,14 @@ import { runWizard, type WizardAnswers } from '../wizard/prompts.js';
 import {
   buildBundledAgentFileSources,
   buildExtensionAgentFileSources,
+  buildManagedConfigFilesState,
   buildManagedSkillsState,
+  installConfigFiles,
   installSkills,
   installSubagents,
   getAvailableSkills,
   rebuildManagedAgentFilesForAgents,
+  resolveManagedConfigFilePaths,
   resolveInstalledAgentFileTargetPath,
 } from '../../core/installer.js';
 import { saveConfig, configExists, loadConfig, getCurrentVersion, type AgentInstallation } from '../../core/config.js';
@@ -24,7 +27,7 @@ import {
   mergeAgentFileSources,
   mergeInstalledAgentFiles,
 } from '../../core/extension-ops.js';
-import { loadAllExtensions } from '../../core/extensions.js';
+import { loadAllExtensions, type ExtensionManifest } from '../../core/extensions.js';
 
 export interface InitOptions {
   agents?: string;
@@ -93,7 +96,11 @@ function buildAnswersFromFlags(options: InitOptions, availableSkills: string[]):
   return { selectedSkills, agents };
 }
 
-async function removeAgentSetup(projectDir: string, agent: AgentInstallation): Promise<void> {
+async function removeAgentSetup(
+  projectDir: string,
+  agent: AgentInstallation,
+  installedExtensionManifests: ExtensionManifest[] = [],
+): Promise<void> {
   const agentConfig = getAgentConfig(agent.id);
   await removeDirectory(path.join(projectDir, agent.skillsDir));
 
@@ -101,7 +108,15 @@ async function removeAgentSetup(projectDir: string, agent: AgentInstallation): P
   // The directory may contain user-created custom agents unrelated to AI Factory.
   const agentsDir = agent.agentsDir ?? agentConfig.agentsDir;
   if (agentsDir) {
-    const managedFiles = agent.installedAgentFiles ?? [];
+    const managedFiles = new Set(agent.installedAgentFiles ?? []);
+    for (const manifest of installedExtensionManifests) {
+      for (const agentFile of manifest.agentFiles ?? []) {
+        if (agentFile.runtime === agent.id) {
+          managedFiles.add(agentFile.target);
+        }
+      }
+    }
+
     for (const relPath of managedFiles) {
       try {
         await removeFile(resolveInstalledAgentFileTargetPath(projectDir, agentsDir, relPath));
@@ -112,6 +127,20 @@ async function removeAgentSetup(projectDir: string, agent: AgentInstallation): P
           ),
         );
       }
+    }
+  }
+
+  const configFiles = agent.installedConfigFiles ?? [];
+  for (const relPath of configFiles) {
+    try {
+      const { targetFile } = resolveManagedConfigFilePaths(projectDir, agent.id, relPath);
+      await removeFile(targetFile);
+    } catch (error) {
+      console.log(
+        chalk.yellow(
+          `Warning: Skipping unsafe managed config file path "${relPath}" while removing ${agent.id}: ${(error as Error).message}`,
+        ),
+      );
     }
   }
 
@@ -155,11 +184,17 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
 
     const selectedAgentIds = new Set(answers.agents.map(agent => agent.id));
     const removedAgents = (existingConfig?.agents ?? []).filter(agent => !selectedAgentIds.has(agent.id));
+    const existingExtensions = existingConfig?.extensions ?? [];
 
     if (removedAgents.length > 0) {
       console.log(chalk.dim('\nRemoving deselected agent setups...\n'));
+      const installedExtensions = existingExtensions.length > 0
+        ? await loadAllExtensions(projectDir, existingExtensions.map(extension => extension.name))
+        : [];
+      const installedExtensionManifests = installedExtensions.map(({ manifest }) => manifest);
+
       for (const removedAgent of removedAgents) {
-        await removeAgentSetup(projectDir, removedAgent);
+        await removeAgentSetup(projectDir, removedAgent, installedExtensionManifests);
         console.log(chalk.yellow(`  Removed: ${removedAgent.id}`));
       }
     }
@@ -185,6 +220,15 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
           agentsDir: agentConfig.agentsDir,
         })
         : [];
+      const existingAgent = existingConfig?.agents.find(agent => agent.id === agentSelection.id);
+      const installedConfigFiles = agentConfig.configFiles?.length
+        ? await installConfigFiles({
+          projectDir,
+          agentId: agentSelection.id,
+          configFiles: agentConfig.configFiles,
+          installedConfigFiles: existingAgent?.installedConfigFiles,
+        })
+        : [];
 
       const configuredMcp = await configureMcp(projectDir, {
         github: agentSelection.mcpGithub,
@@ -207,6 +251,10 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
           installedAgentFiles,
           agentFileSources: buildBundledAgentFileSources(installedAgentFiles),
         } : {}),
+        ...(agentConfig.configFiles?.length ? {
+          configFiles: agentConfig.configFiles,
+          installedConfigFiles,
+        } : {}),
         mcp: {
           github: agentSelection.mcpGithub,
           filesystem: agentSelection.mcpFilesystem,
@@ -216,8 +264,6 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
         },
       });
     }
-
-    const existingExtensions = existingConfig?.extensions ?? [];
 
     // Re-apply extension injections after skill installation
     if (existingExtensions.length > 0) {
@@ -251,6 +297,9 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     for (const agent of installedAgents) {
       const managedBaseSkills = agent.installedSkills.filter(skill => !replacedSkills.has(skill));
       agent.managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills);
+      if ((agent.configFiles ?? []).length > 0) {
+        agent.managedConfigFiles = await buildManagedConfigFilesState(projectDir, agent, agent.installedConfigFiles ?? []);
+      }
     }
     await rebuildManagedAgentFilesForAgents(projectDir, installedAgents);
 
@@ -285,6 +334,9 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       if (agent.agentsDir) {
         console.log(chalk.dim(`  Agent files directory: ${path.join(projectDir, agent.agentsDir)}`));
         console.log(chalk.dim(`  Installed agent files: ${agent.installedAgentFiles?.length ?? 0}`));
+      }
+      if ((agent.configFiles ?? []).length > 0) {
+        console.log(chalk.dim(`  Managed config files: ${agent.installedConfigFiles?.length ?? 0}`));
       }
 
       const configuredMcp = mcpSummary[agent.id];

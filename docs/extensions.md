@@ -432,7 +432,7 @@ Rules:
 - `source` and `target` must be safe relative paths.
 - Source and target extensions must match the runtime's `agentFileExtension`.
 - Ownership is exclusive per `runtime + target`; conflicts with bundled Claude files or another extension are rejected before install.
-- Bundled Claude filenames are reserved by target path from the package `subagents/` inventory; an extension cannot claim the same `claude` target filename even if the local managed copy was later edited or removed.
+- Bundled Claude filenames are reserved by target path from the package `subagents/claude/agents/` inventory; an extension cannot claim the same `claude` target filename even if the local managed copy was later edited or removed.
 - AI Factory validates ownership, path safety, runtime existence, and file extension, then copies the asset verbatim. Runtime-specific internals of the file remain the runtime's responsibility.
 - After install, AI Factory tracks the target in `installedAgentFiles`, records its source in `agentFileSources`, and stores source/install hashes in `managedAgentFiles`.
 - For Codex `.toml` helpers, keep runtime-local settings such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` inside the agent file instead of assuming an extension injection or workflow skill can pass them dynamically.

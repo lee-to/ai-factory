@@ -1,6 +1,6 @@
 import path from 'path';
 import { createRequire } from 'module';
-import { readJsonFile, writeJsonFile, fileExists, getSubagentsDir, listFilesRecursive } from '../utils/fs.js';
+import { readJsonFile, writeJsonFile, fileExists, getPackagePath, listFilesRecursive } from '../utils/fs.js';
 import { findAgentConfig, getAgentConfig } from './agents.js';
 import { loadAllExtensions, type InstalledExtensionManifest } from './extensions.js';
 
@@ -35,6 +35,9 @@ export interface AgentInstallation {
   installedAgentFiles?: string[];
   agentFileSources?: Record<string, AgentFileSource>;
   managedAgentFiles?: Record<string, ManagedArtifactState>;
+  configFiles?: string[];
+  installedConfigFiles?: string[];
+  managedConfigFiles?: Record<string, ManagedArtifactState>;
   mcp: McpConfig;
 }
 
@@ -76,6 +79,9 @@ interface LegacyAgentInstallationShape {
   subagentsDir?: string;
   installedSubagents?: string[];
   managedSubagents?: unknown;
+  configFiles?: string[];
+  installedConfigFiles?: string[];
+  managedConfigFiles?: unknown;
   mcp?: Partial<McpConfig>;
 }
 
@@ -107,6 +113,9 @@ function createAgentInstallation(agentId: string, legacy?: LegacyAiFactoryConfig
     installedAgentFiles: [],
     agentFileSources: {},
     managedAgentFiles: {},
+    configFiles: agent.configFiles,
+    installedConfigFiles: [],
+    managedConfigFiles: {},
     mcp: normalizeMcp(legacy?.mcp),
   };
 }
@@ -118,16 +127,21 @@ function normalizeManagedArtifacts(raw: unknown): Record<string, ManagedArtifact
 
   const result: Record<string, ManagedArtifactState> = {};
 
-  for (const [skillName, state] of Object.entries(raw as Record<string, unknown>)) {
-    if (!skillName || typeof state !== 'object' || !state) {
+  for (const [artifactName, state] of Object.entries(raw as Record<string, unknown>)) {
+    if (!artifactName || typeof state !== 'object' || !state) {
       continue;
     }
 
     const sourceHash = (state as { sourceHash?: unknown }).sourceHash;
     const installedHash = (state as { installedHash?: unknown }).installedHash;
 
-    if (typeof sourceHash === 'string' && sourceHash.length > 0 && typeof installedHash === 'string' && installedHash.length > 0) {
-      result[skillName] = { sourceHash, installedHash };
+    if (
+      typeof sourceHash === 'string'
+      && sourceHash.length > 0
+      && typeof installedHash === 'string'
+      && installedHash.length > 0
+    ) {
+      result[artifactName] = { sourceHash, installedHash };
     }
   }
 
@@ -196,9 +210,17 @@ async function getBundledAgentFileTargets(agentId: string): Promise<Set<string>>
   // Package-bundled Claude agent files are static for the lifetime of a single
   // CLI process, so a module-level cache avoids repeated directory walks.
   if (!bundledClaudeAgentFilesCache) {
-    const files = await listFilesRecursive(getSubagentsDir());
+    const claudeConfig = getAgentConfig('claude');
+    const sourceDir = claudeConfig.agentsSourceDir
+      ? getPackagePath(claudeConfig.agentsSourceDir)
+      : null;
+    if (!sourceDir) {
+      bundledClaudeAgentFilesCache = new Set();
+      return bundledClaudeAgentFilesCache;
+    }
+    const files = await listFilesRecursive(sourceDir);
     bundledClaudeAgentFilesCache = new Set(
-      files.map(filePath => path.relative(getSubagentsDir(), filePath).replaceAll('\\', '/')),
+      files.map(filePath => path.relative(sourceDir, filePath).replaceAll('\\', '/')),
     );
   }
 
@@ -256,6 +278,9 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
         installedAgentFiles,
         agentFileSources: filteredAgentFileSources,
         managedAgentFiles,
+        configFiles: Array.isArray(legacyAgent.configFiles) ? legacyAgent.configFiles : agentConfig?.configFiles,
+        installedConfigFiles: Array.isArray(legacyAgent.installedConfigFiles) ? legacyAgent.installedConfigFiles : [],
+        managedConfigFiles: normalizeManagedArtifacts(legacyAgent.managedConfigFiles),
         mcp: normalizeMcp(legacyAgent.mcp),
       };
     });

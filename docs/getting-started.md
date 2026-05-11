@@ -34,7 +34,7 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Qwen Code | `.qwen/` | `.qwen/skills/` |
 | Universal / Other | `.agents/` | `.agents/skills/` |
 
-When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. Extensions can also provide agent files for Codex or extension-defined runtimes. Claude-specific bundled roles are documented in [Subagents](subagents.md).
+When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. When Codex CLI is selected, AI Factory also installs bundled Codex native agent TOML files into `.codex/agents/` plus a managed `.codex/config.toml`. That Codex bundle is currently the baseline planning / implementation / review layer, not full parity with the broader Claude bundle, and `.codex/config.toml` is intentionally AI-Factory-managed. Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex package inventory is documented separately in [Subagents](subagents.md).
 
 Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. Slash-command runtimes keep `/aif-*` examples. Because Codex app and Universal both write to `.agents/skills/` with different invocation styles, select one of those runtimes per project.
 
@@ -116,7 +116,8 @@ Run `ai-factory upgrade` to migrate old bare-named skills (`commit`, `feature`, 
 `ai-factory update` now:
 - Checks for extension updates from their sources (npm, GitHub, etc.) before updating base skills
 - Prints per-agent status buckets for base skills (`changed`, `unchanged`, `skipped`, `removed`)
-- For runtimes with managed agent files, also refreshes bundled package-managed agent files (Claude today) and prints a separate `Agent files` status block
+- For runtimes with managed agent files, refreshes bundled package-managed agent files and prints a separate `Agent files` status block
+- For Codex CLI, also refreshes managed `.codex/config.toml` and prints a separate `Config files` status block; drift in that file may be overwritten to restore AI-Factory-managed defaults
 - Skills newly available in the package but not previously installed are shown as `skipped` (not auto-installed)
 
 ### Documentation Commands

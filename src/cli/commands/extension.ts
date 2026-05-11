@@ -6,7 +6,7 @@ import {
   resolveExtension,
   removeExtensionFiles,
   getExtensionsDir,
-  loadExtensionManifest,
+  loadInstalledExtensionManifest,
 } from '../../core/extensions.js';
 import { removeExtensionMcpServers } from '../../core/mcp.js';
 import {
@@ -113,7 +113,7 @@ export async function extensionRemoveCommand(name: string): Promise<void> {
 
   try {
     const extensionDir = path.join(getExtensionsDir(projectDir), name);
-    const manifest = await loadExtensionManifest(extensionDir);
+    const manifest = await loadInstalledExtensionManifest(extensionDir);
     assertNoConfiguredRuntimeOrphans(config, getManifestRuntimeIds(manifest), name, 'remove');
 
     const trackedAgentFileTargets = manifest?.agentFiles?.length
@@ -208,7 +208,7 @@ export async function extensionListCommand(): Promise<void> {
     console.log(chalk.dim(`    Source: ${ext.source}`));
 
     const extensionDir = path.join(getExtensionsDir(projectDir), ext.name);
-    const manifest = await loadExtensionManifest(extensionDir);
+    const manifest = await loadInstalledExtensionManifest(extensionDir);
     if (manifest) {
       if (manifest.description) {
         console.log(chalk.dim(`    ${manifest.description}`));

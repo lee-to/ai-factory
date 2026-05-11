@@ -118,7 +118,7 @@ See the full [Development Workflow](docs/workflow.md) with diagram and decision 
 | [Getting Started](docs/getting-started.md) | What is AI Factory, supported agents, CLI commands |
 | [Development Workflow](docs/workflow.md) | Workflow diagram, when to use `explore` vs `grounded`, spec-driven approach |
 | [Reflex Loop](docs/loop.md) | Iterative generate → evaluate → critique → refine workflow |
-| [Subagents](docs/subagents.md) | Claude Code only: repo-local planning, implementation, and loop subagents with narrow role contracts |
+| [Subagents](docs/subagents.md) | Bundled Claude subagents and the baseline Codex native agent-file bundle, including managed Codex config |
 | [Core Skills](docs/skills.md) | All slash commands — explore, grounded, plan, fix, implement, evolve, docs, and more |
 | [Quality Gates](docs/quality-gates.md) | Machine-readable `aif-gate-result` summaries for verify, review, security, and rules gates |
 | [Skill Evolution](docs/evolve.md) | How /aif-fix patches feed into /aif-evolve to generate smarter skill rules |
