@@ -1,18 +1,24 @@
 scenario: full-sequential-uses-next-number
 description: |
-  Full-mode planning with `workflow.plan_id_format: sequential` must derive the
-  next 4-digit prefix from the existing plan files in `paths.plans/` and write
-  the new plan as `<NNNN>_<branch-or-slug>.md`.
+  Full-mode planning with `workflow.plan_id_format: sequential` must:
+    1. Derive the canonical `plan_file_stem` from the git branch that the run
+       creates (Step 1.2.a, case 2): branch `feature/add-product-search-api`
+       → stem `feature-add-product-search-api`.
+    2. Derive the next 4-digit prefix from the existing plan files in
+       `paths.plans/`.
+    3. Write the new plan as `<NNNN>_<plan_file_stem>.md` — both halves of the
+       filename must agree with the branch-based discovery used by
+       `/aif-implement` and `/aif-improve`.
 
   Fixture state:
     .ai-factory/plans/0001_alpha.md
     .ai-factory/plans/0002_beta.md
 
-  Expected: the new plan is written under
-    .ai-factory/plans/0003_<slug>.md
+  Expected: the new plan is written exactly under
+    .ai-factory/plans/0003_feature-add-product-search-api.md
 
-  Verifies Step 1.2 (sequential numbering algorithm) and Step 5 (Save Plan to
-  File) of skills/aif-plan/SKILL.md.
+  Verifies Step 1.2.a (canonical stem), Step 1.2.c (numbering algorithm) and
+  Step 5 (Save Plan to File) of skills/aif-plan/SKILL.md.
 skill: aif-plan
 argument: "full add product search API"
 
@@ -25,10 +31,10 @@ runner:
     - Glob
     - Grep
     - Bash(git *)
-    - Bash(ls *)
     - Bash(mkdir *)
     - Bash(basename *)
     - Bash(cd *)
+    - Bash(cp *)
     - AskUserQuestion
     - Questions
     - TaskCreate
@@ -90,12 +96,18 @@ user_responses:
     choose: "Yes"
 
 assertions:
-  - id: writes-sequential-prefix-0003
+  - id: writes-canonical-branch-stem-0003
     type: tool_called
     tool: Write
     args_match:
-      file_path: "\\.ai-factory/plans/0003_[a-z0-9-]+\\.md$"
-    weight: 3
+      file_path: "\\.ai-factory/plans/0003_feature-add-product-search-api\\.md$"
+    weight: 4
+
+  - id: not-writing-bare-description-slug
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0003_add-product-search-api\\.md$"
 
   - id: not-writing-without-prefix
     type: no_tool_called

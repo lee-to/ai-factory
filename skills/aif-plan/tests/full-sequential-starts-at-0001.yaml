@@ -1,17 +1,21 @@
 scenario: full-sequential-starts-at-0001
 description: |
   Full-mode planning with `workflow.plan_id_format: sequential` and an empty
-  `paths.plans/` directory must start the numbering from `0001`.
+  `paths.plans/` directory must:
+    1. Derive the canonical `plan_file_stem` from the git branch that the run
+       creates (Step 1.2.a, case 2): branch `feature/add-product-search-api`
+       → stem `feature-add-product-search-api`.
+    2. Start the numbering from `0001` (no existing matches).
+    3. Write the new plan exactly as `0001_<plan_file_stem>.md`.
 
   Fixture state:
     .ai-factory/plans/.gitkeep   (empty directory marker)
 
-  Expected: the new plan is written under
-    .ai-factory/plans/0001_<slug>.md
+  Expected: the new plan is written exactly under
+    .ai-factory/plans/0001_feature-add-product-search-api.md
 
-  Verifies the empty-directory branch of Step 1.2's algorithm in
-  skills/aif-plan/SKILL.md (`next = (max(prefixes) + 1) if any matches exist,
-  else 1`).
+  Verifies Step 1.2.a (canonical stem) and the empty-directory branch of
+  Step 1.2.c (`next = 1`) in skills/aif-plan/SKILL.md.
 skill: aif-plan
 argument: "full add product search API"
 
@@ -24,10 +28,10 @@ runner:
     - Glob
     - Grep
     - Bash(git *)
-    - Bash(ls *)
     - Bash(mkdir *)
     - Bash(basename *)
     - Bash(cd *)
+    - Bash(cp *)
     - AskUserQuestion
     - Questions
     - TaskCreate
@@ -81,12 +85,18 @@ user_responses:
     choose: "Yes"
 
 assertions:
-  - id: writes-sequential-prefix-0001
+  - id: writes-canonical-branch-stem-0001
     type: tool_called
     tool: Write
     args_match:
-      file_path: "\\.ai-factory/plans/0001_[a-z0-9-]+\\.md$"
-    weight: 3
+      file_path: "\\.ai-factory/plans/0001_feature-add-product-search-api\\.md$"
+    weight: 4
+
+  - id: not-writing-bare-description-slug
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0001_add-product-search-api\\.md$"
 
   - id: not-writing-without-prefix
     type: no_tool_called
