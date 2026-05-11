@@ -89,7 +89,7 @@ ai-factory audit-artifacts --strict
 ai-factory audit-artifacts --json
 ```
 
-Default discovery scans `.ai-factory`, `docs`, `README.md`, and `AGENTS.md` when those paths exist. This default is intentionally default-layout first; projects that relocate artifact directories through `config.yaml` should pass those paths explicitly until the command becomes config-aware.
+Default discovery scans `.ai-factory`, `docs`, `README.md`, and `AGENTS.md` when those paths exist. Recursive default discovery skips noisy or generated subdirectories such as `qa`, `evolution`, and `evolutions`; pass those paths explicitly when you want to audit them. This default is intentionally default-layout first; projects that relocate artifact directories through `config.yaml` should pass those paths explicitly until the command becomes config-aware.
 
 Positional paths are explicit audit targets. Missing or outside-project explicit targets are failures so CI cannot pass after a typo or file rename. Missing default targets are skipped because many projects do not have every default file. Symlinked targets are canonicalized with `realpath`; a symlink that resolves outside the project is not scanned. For default targets this is a warning, and for explicit targets it is a failure.
 
