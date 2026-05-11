@@ -879,6 +879,20 @@ else
     echo "$GATE_RESULT_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
+echo -e "\n${BOLD}=== audit-artifacts command smoke tests ===${NC}\n"
+
+set +e
+AUDIT_ARTIFACTS_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-audit-artifacts.sh" 2>&1)
+AUDIT_ARTIFACTS_SMOKE_EXIT=$?
+set -e
+
+if [[ $AUDIT_ARTIFACTS_SMOKE_EXIT -eq 0 ]]; then
+    pass "audit-artifacts smoke tests"
+else
+    fail "audit-artifacts smoke tests"
+    echo "$AUDIT_ARTIFACTS_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
 echo -e "\n${BOLD}=== Results ===${NC}"
 echo -e "  Total:    $TOTAL"
 echo -e "  Passed:   ${GREEN}$PASSED${NC}"

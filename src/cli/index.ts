@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { updateCommand } from './commands/update.js';
 import { upgradeCommand } from './commands/upgrade.js';
+import { auditArtifactsCommand } from './commands/audit-artifacts.js';
 import { extensionAddCommand, extensionRemoveCommand, extensionListCommand, extensionUpdateCommand } from './commands/extension.js';
 import { getCurrentVersion, loadConfig } from '../core/config.js';
 import { loadAllExtensions } from '../core/extensions.js';
@@ -33,6 +34,13 @@ program
   .command('upgrade')
   .description('Upgrade from v1 to v2 (removes old-format skills, installs new)')
   .action(upgradeCommand);
+
+program
+  .command('audit-artifacts [paths...]')
+  .description('Audit artifact frontmatter links and traceability metadata')
+  .option('--json', 'Print machine-readable JSON')
+  .option('--strict', 'Treat warnings as failures')
+  .action(auditArtifactsCommand);
 
 const ext = program
   .command('extension')
