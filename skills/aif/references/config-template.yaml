@@ -144,12 +144,15 @@ workflow:
   #     Branch-based consumers reproduce the same stem at lookup time.
   #   - NNNN = max(existing 4-digit prefix) + 1, zero-padded to 4 digits;
   #     an empty plans directory starts from `0001`.
-  # Numbering is monotonic — deleted plans do not free their numbers. The
-  # format is bounded: 0001..9999. `/aif-plan` errors out instead of writing
-  # `10000_…` so consumer globs stay aligned. Branch names stay un-numbered
-  # (the prefix lives only on the file). Force-disabled when Handoff owns the
-  # branch (HANDOFF_BRANCH_PREPARED=1) — Handoff requires the plan filename to
-  # equal the branch name. Fast plans (`paths.plan`) and fix plans
+  # Numbering is derived from currently existing numbered plans in the
+  # directory — if the highest-numbered file is deleted or moved elsewhere,
+  # that number can be reused on the next run; keep plans in place if you
+  # rely on stable cross-references. The format is bounded: 0001..9999.
+  # `/aif-plan` errors out instead of writing `10000_…` so consumer globs
+  # stay aligned. Branch names stay un-numbered (the prefix lives only on the
+  # file). Force-disabled when Handoff owns the branch
+  # (HANDOFF_BRANCH_PREPARED=1) — Handoff requires the plan filename to equal
+  # the branch name. Fast plans (`paths.plan`) and fix plans
   # (`paths.fix_plan`) are single files and ignore this setting.
   plan_id_format: slug
 

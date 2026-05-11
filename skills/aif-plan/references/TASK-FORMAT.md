@@ -7,9 +7,9 @@
 | Value        | Filename shape                                              | Notes                                                                 |
 |--------------|-------------------------------------------------------------|-----------------------------------------------------------------------|
 | `slug`       | `paths.plans/<branch-or-slug>.md`                           | Default. Derived from branch name (or description slug in no-git mode).|
-| `timestamp`  | `paths.plans/<YYYYMMDD-HHMMSS>_<branch-or-slug>.md`         | Format-specific timestamp prefix.                                     |
-| `uuid`       | `paths.plans/<uuid4>_<branch-or-slug>.md`                   | Useful when human collisions are likely.                              |
-| `sequential` | `paths.plans/<NNNN>_<branch-or-slug>.md` (4-digit, zero-padded) | `NNNN = max(existing 4-digit prefix) + 1`; empty dir starts at `0001`; numbers are monotonic and never reused. Force-disabled under `HANDOFF_BRANCH_PREPARED=1`. |
+| `timestamp`  | (reserved; behaves like `slug`)                             | Reserved value. Currently falls back to `slug` with an `INFO` log.    |
+| `uuid`       | (reserved; behaves like `slug`)                             | Reserved value. Currently falls back to `slug` with an `INFO` log.    |
+| `sequential` | `paths.plans/<NNNN>_<branch-or-slug>.md` (4-digit, zero-padded) | `NNNN = max(existing 4-digit prefix) + 1`; empty dir starts at `0001`; capped at `9999`. Numbers are derived from existing files — deleting the highest-numbered plan can free that number for reuse on the next run. Force-disabled under `HANDOFF_BRANCH_PREPARED=1`. |
 
 Branch names always remain `<branch_prefix><slug>` regardless of the format —
 the prefix lives only on the plan file. Fast plans (`paths.plan`) and fix plans

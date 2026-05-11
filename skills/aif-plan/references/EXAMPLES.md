@@ -143,7 +143,9 @@
 -> STOP - user runs /aif-implement when ready
 
 # If the directory is empty, the same flow starts from 0001.
-# Numbers are monotonic — deleting 0004_*.md later does not free the number.
+# Numbers are derived from existing files: deleting 0004_*.md frees the 0004
+# slot, and the next /aif-plan run will reuse it. Keep prior plans in place
+# if you rely on stable cross-references.
 # When HANDOFF_BRANCH_PREPARED=1, sequential numbering is force-disabled and
 # the filename equals the branch name (Handoff contract).
 ```

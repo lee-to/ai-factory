@@ -300,7 +300,7 @@ Sequential is **force-disabled** when `HANDOFF_BRANCH_PREPARED = 1`. In that cas
 
 #### 1.2.c — Sequential numbering algorithm
 
-Prepend a 4-digit monotonically increasing prefix to `plan_file_stem`. The branch name (when one exists) stays unchanged so existing git tooling, CI, and PR conventions are unaffected.
+Prepend a 4-digit numeric prefix to `plan_file_stem`. The prefix is computed from existing numbered plans in `<configured plans dir>`. The branch name (when one exists) stays unchanged so existing git tooling, CI, and PR conventions are unaffected.
 
 ```
 1. Find existing numbered plans in <configured plans dir>:
@@ -311,8 +311,8 @@ Prepend a 4-digit monotonically increasing prefix to `plan_file_stem`. The branc
      max_existing = max(prefixes)
      If max_existing >= 9999:
        ABORT with error:
-         "sequential cap reached: 9999 plans already exist in <configured plans dir>."
-         "Either archive old plans or switch workflow.plan_id_format back to slug."
+         "sequential cap reached: a plan numbered 9999 already exists in <configured plans dir>."
+         "Switch workflow.plan_id_format back to slug, or move the 9999-numbered file out of the directory (note: doing so will free 9999 for the next plan to reuse)."
      next = max_existing + 1
    Else:
      next = 1
@@ -328,7 +328,7 @@ Implementation notes:
 
 Rules:
 
-- Numbering is **monotonic** — never reuse a number, even if older plans were deleted/archived.
+- Numbering is **derived from existing files** in `<configured plans dir>`. Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run — keep plans in place if you rely on stable cross-references.
 - Numbering is **bounded** — 9999 is a hard cap; the algorithm errors instead of writing `10000_…` so consumer globs (also 4-digit) cannot drift out of contract.
 - The prefix lives only on the plan file. The git branch (when present) stays `<branch_prefix><slug>` without a number.
 - This setting is ignored for fast plans (`paths.plan` is a single file) and fix plans (`paths.fix_plan` is a single file).
@@ -742,10 +742,12 @@ Use canonical examples in `references/TASK-FORMAT.md`:
 - Long-lived plan for feature delivery
 - The canonical `plan_file_stem` comes from Step 1.2.a: Handoff branch name (slashes replaced) → git branch name (slashes replaced) → description slug, in that order
 - When `workflow.plan_id_format = sequential`, the filename becomes
-  `paths.plans/<NNNN>_<plan_file_stem>.md` — the prefix is monotonically
-  increasing across the directory, capped at `9999`, and survives plan deletion
-  (numbers are never reused). The Handoff branch contract force-disables the
-  prefix (see Step 1.2.b–c).
+  `paths.plans/<NNNN>_<plan_file_stem>.md` — the prefix is the next 4-digit
+  number after the highest existing numbered plan in the directory, capped at
+  `9999`. Numbers are derived from currently existing files: deleting or moving
+  a numbered plan out of the directory can free that number for reuse on the
+  next run. The Handoff branch contract force-disables the prefix (see Step
+  1.2.b–c).
 - `timestamp` and `uuid` are reserved values; both currently behave like
   `slug` (no prefix is applied)
 
