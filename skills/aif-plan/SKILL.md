@@ -325,15 +325,16 @@ Implementation notes:
 
 - **Use `Glob` only** to enumerate existing numbered plans. Do NOT shell out to `ls` — `aif-plan`'s frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
 - The 4-digit `[0-9][0-9][0-9][0-9]` glob is **strict by contract**: the format supports `0001`..`9999` only. The error in step 3 enforces this.
-- **`--parallel` scope:** the sequential prefix is **source-worktree scoped** —
-  it is computed here, in Step 1.2.c, from `<configured plans dir>` in the
-  source worktree (the repo where `/aif-plan` was invoked), **before** the
-  optional `cd <WORKTREE>` in Step 1.4. The plan file is then written to the
-  same relative `<configured plans dir>/<NNNN>_<plan_file_stem>.md` path
-  inside the target worktree. Do NOT recompute the prefix from the target
-  worktree's plans dir (it is typically empty, which would re-allocate `0001`
-  on every parallel run and break the cross-worktree numbering contract on
-  merge).
+- **`--parallel` scope (TL;DR — source-worktree scoped):**
+  - **Where the prefix is computed:** the source worktree's `<configured plans dir>`
+    (the repo where `/aif-plan` was invoked) — i.e. exactly here, in Step 1.2.c.
+  - **When it is computed:** **before** the optional `cd <WORKTREE>` in Step 1.4.
+  - **Where the plan file is written:** the same relative `<configured plans dir>/<NNNN>_<plan_file_stem>.md`
+    path inside the target worktree, so the prefix and destination directory stay consistent.
+  - **What you must NOT do:** never recompute the prefix from the target worktree's
+    plans dir after `cd <WORKTREE>`. The target dir is typically empty and would
+    re-allocate `0001` on every parallel run, breaking the cross-worktree numbering
+    contract on merge.
 
 Rules:
 

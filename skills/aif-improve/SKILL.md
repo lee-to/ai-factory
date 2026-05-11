@@ -28,6 +28,12 @@ enhanced plan with better tasks, correct dependencies, more detail
 - **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, and `paths.patches`
 - **Language:** `language.ui` for prompts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
+- **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
+  Active values: `slug` and `sequential`. When `sequential`, the resolver globs
+  `<paths.plans>/[0-9]{4}_<branch-slug>.md` first and falls back to
+  `<paths.plans>/<branch-slug>.md` only if no numbered match is found.
+  `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
+  Treat any unknown value as `slug`.
 
 If config.yaml doesn't exist, use defaults:
 - plan: `paths.plan` (default: `.ai-factory/PLAN.md`)
@@ -37,6 +43,7 @@ If config.yaml doesn't exist, use defaults:
 - patches/: `.ai-factory/patches/`
 - DESCRIPTION.md: `.ai-factory/DESCRIPTION.md`
 - Language: `en` (English)
+- `workflow.plan_id_format`: `slug`
 
 **First parse arguments:**
 
@@ -55,10 +62,15 @@ If `$ARGUMENTS` contains `--list`, run read-only discovery and stop.
 ```
 1. Get current branch:
    git branch --show-current (git mode only)
-2. Convert branch to filename: replace "/" with "-", add ".md" (git mode only)
+2. Convert branch to filename stem: replace "/" with "-" (git mode only)
+   → this is <branch-slug>
 3. Check existence of:
-   - <configured plans dir>/<branch-name>.md
+   - <configured plans dir>/<branch-slug>.md (default `plan_id_format`)
+   - when `workflow.plan_id_format = sequential`: also glob
+     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md`;
+     report all matches (highest-numbered first)
    - if git mode is off or branch creation is disabled: any `*.md` full-mode plan in `<configured plans dir>/`
+     (a leading 4-digit prefix counts as a match)
    - <resolved fast plan path>
    - <resolved fix plan path>
 4. Print availability summary and usage hints:

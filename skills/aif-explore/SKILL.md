@@ -17,10 +17,17 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, and `paths.rules`
 - **Language:** `language.ui` for communication
+- **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by the optional active-plan-context lookup when explore mode references an existing plan for the current branch.
+  Active values: `slug` and `sequential`. When `sequential`, glob
+  `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and fall back to
+  `<paths.plans>/<branch_stem>.md` only if no numbered match is found.
+  `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
+  Treat any unknown value as `slug`.
 
 If config.yaml doesn't exist, use defaults:
 - Paths: `.ai-factory/` for all artifacts
 - Language: `en` (English)
+- `workflow.plan_id_format`: `slug`
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
 

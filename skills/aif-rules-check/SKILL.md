@@ -32,6 +32,12 @@ Run a standalone read-only rules gate for project rules. This command checks rul
 - `git.base_branch`
 - `rules.base`
 - named `rules.<area>` entries
+- `workflow.plan_id_format` (default: `slug`) — used by the optional branch-based plan-context lookup in Step 2.3.
+  Active values: `slug` and `sequential`. When `sequential`, the resolver globs
+  `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and falls back to
+  `<paths.plans>/<branch_stem>.md` only if no numbered match is found.
+  `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
+  Treat any unknown value as `slug`.
 
 If config is missing or partial, use defaults:
 - `paths.rules_file`: `.ai-factory/RULES.md`
@@ -41,6 +47,7 @@ If config is missing or partial, use defaults:
 - `git.enabled`: `true`
 - `git.base_branch`: detect the repo default branch from git metadata; fall back to `main` only when detection is unavailable
 - `rules.base`: `.ai-factory/rules/base.md`
+- `workflow.plan_id_format`: `slug`
 
 If `paths.rules_file` is missing from config, default to `.ai-factory/RULES.md` instead of treating config as incomplete.
 If `git.base_branch` is missing from config, resolve the repository default branch from git metadata when possible; use `main` only as the final fallback.

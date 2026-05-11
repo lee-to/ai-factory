@@ -52,8 +52,11 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
    - `language.ui`, `language.artifacts`
    - `git.enabled`, `git.base_branch`, `git.create_branches`
    - `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
-     `sequential` makes the resolver glob `<paths.plans>/[0-9]{4}_<branch-slug>.md` first
-     and only fall back to `<paths.plans>/<branch-slug>.md` if no numbered match is found.
+     Active values: `slug` and `sequential`. When `sequential`, the resolver
+     globs `<paths.plans>/[0-9]{4}_<branch-slug>.md` first and falls back to
+     `<paths.plans>/<branch-slug>.md` only if no numbered match is found.
+     `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
+     Treat any unknown value as `slug`.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)

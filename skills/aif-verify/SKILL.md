@@ -30,6 +30,12 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 - **verify_mode:** default verification strictness (`strict` | `normal` | `lenient`)
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Rules hierarchy:** the resolved RULES.md path + `rules.base` + named `rules.<area>` entries
+- **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery in Step 0.2.
+  Active values: `slug` and `sequential`. When `sequential`, the resolver globs
+  `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and falls back to
+  `<paths.plans>/<branch_stem>.md` only if no numbered match is found.
+  `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
+  Treat any unknown value as `slug`.
 
 **verify_mode priority:**
 1. `--strict` CLI flag → always use `strict`
@@ -40,6 +46,7 @@ If config.yaml doesn't exist, use defaults:
 - Paths: `.ai-factory/` for all artifacts
 - verify_mode: `normal`
 - Rules: RULES.md only
+- `workflow.plan_id_format`: `slug`
 
 ### 0.1 Load Ownership and Gate Contract
 
