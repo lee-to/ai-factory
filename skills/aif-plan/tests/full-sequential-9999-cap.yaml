@@ -1,0 +1,118 @@
+scenario: full-sequential-9999-cap
+description: |
+  Full-mode planning with `workflow.plan_id_format: sequential` must hard-stop
+  when a plan numbered `9999` already exists in `paths.plans/`. Step 1.2.c of
+  `/aif-plan` defines `9999` as a strict cap so that consumer globs (also
+  4-digit) cannot drift out of contract.
+
+  Fixture state:
+    .ai-factory/plans/9999_alpha.md
+
+  Expected behavior:
+    - `/aif-plan` aborts before writing any new plan file.
+    - No `Write` call to `.ai-factory/plans/10000_*.md` (would break the
+      4-digit consumer glob contract).
+    - No `Write` call to `.ai-factory/plans/9999_*.md` (must not overwrite
+      the existing plan or claim 9999 again).
+    - No `Write` call to any other 4-digit-prefixed plan file (no silent
+      fallback to a different number).
+    - The user sees a message that mentions the `9999` cap.
+
+  Verifies the 9999-cap branch of Step 1.2.c in skills/aif-plan/SKILL.md.
+skill: aif-plan
+argument: "full add product search API"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(cp *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for the aif-plan sequential 9999-cap scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: sequential
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: .ai-factory/plans/9999_alpha.md
+      content: |
+        # Plan: alpha
+
+        - [x] Task 1
+
+user_responses:
+  - match_question: "(?i)\\b(fast|full)\\b"
+    choose: "Full"
+  - match_question: "(?i)test"
+    choose: "Yes, write tests"
+  - match_question: "(?i)log"
+    choose: "Verbose"
+  - match_question: "(?i)doc"
+    choose: "Yes"
+  - match_question: "(?i)(requirement|constraint|clarif)"
+    choose: "None"
+  - match_question: "(?i)(roadmap|milestone|linkage)"
+    choose: "Skip — no linkage"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: reports-9999-cap
+    type: output_contains
+    pattern: "9999"
+    weight: 3
+
+  - id: no-write-10000-prefix
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/10000_"
+
+  - id: no-write-or-overwrite-9999
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/9999_"
+
+  - id: no-write-other-numbered-plan
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/[0-9]{4}_(?!alpha\\b).+\\.md$"
+
+  - id: stay-in-sandbox
+    type: no_path_escape
