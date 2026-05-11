@@ -1,7 +1,7 @@
 ---
 name: aif-architecture
 description: Generate architecture guidelines for the project. Analyzes tech stack from DESCRIPTION.md, recommends an architecture pattern, and creates .ai-factory/ARCHITECTURE.md. Use when setting up project architecture, asking "which architecture", or after /aif setup.
-argument-hint: "[clean|ddd|microservices|monolith|layers]"
+argument-hint: "[clean|ddd|microservices|monolith|layers|structured|structured-layers|structured-vertical|explicit|explicit-layers|explicit-vertical|vertical]"
 allowed-tools: Read Write Glob Grep Bash(mkdir *) AskUserQuestion Questions
 disable-model-invocation: false
 ---
@@ -68,11 +68,18 @@ If any rule is violated — fix the output before presenting it to the user.
 
 Based on project context, evaluate against the decision matrix and recommend an architecture:
 
-**If `$ARGUMENTS` specifies an architecture** (e.g., `/aif-architecture clean`):
-- Use that architecture directly, skip to Step 2
+**If `$ARGUMENTS` specifies an architecture** (e.g., `/aif-architecture explicit`):
+- Map legacy aliases to current patterns:
+  - `clean` -> Explicit Architecture
+  - `ddd` -> Explicit Architecture
+  - `monolith` -> Structured Modules
+  - `vertical` -> Explicit Architecture (Vertical Slices)
+- If `structured` is specified without a suffix (`-layers` or `-vertical`), ASK the user: "Which folder structure variant do you prefer for Structured Modules? 1. By Technical Layer (simpler) or 2. Vertical Slices by Model/Entity (better for large modules)". Wait for their answer before generating the artifact.
+- If `explicit` is specified without a suffix (`-layers` or `-vertical`), ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. By Technical Layer or 2. Vertical Slices by Feature". Wait for their answer before generating the artifact.
+- Use the resolved architecture directly, skip to Step 2
 
 **If no specific architecture requested:**
-- Evaluate the project against the decision matrix (see Knowledge Base below)
+- Evaluate the project against the decision matrix (see `references/architecture.md`)
 - Consider: team size, domain complexity, scale requirements, tech stack
 - Present recommendation via `AskUserQuestion`:
 
@@ -90,11 +97,14 @@ Which architecture pattern should we use?
 ```
 
 Architecture options:
-- **Clean Architecture** — strict dependency inversion, good for complex business logic
-- **Domain-Driven Design (DDD)** — bounded contexts, good for complex domains with multiple subdomains
+- **Structured Modules (Technical Layers)** — domain-aware modular architecture organized by technical layers (controllers, services, repositories). Simpler, best for small-to-medium modules.
+- **Structured Modules (Vertical Slices)** — domain-aware modular architecture organized by Vertical Slices (grouped by Model/Entity) where each entity has its own slice containing its controller, service, and repository. Best for growing projects that need structure now but may evolve into Explicit Architecture later.
+- **Explicit Architecture (Technical Layers)** — pragmatic fusion of Clean, Hexagonal, Onion architectures. Code within bounded contexts is organized by technical layer (Domain, Application, Infrastructure, Presentation). Best for complex domains where layered boundaries must be strict.
+- **Explicit Architecture (Vertical Slices)** — same Explicit Architecture principles, but code within each bounded context is organized by feature (vertical slices) containing their own Application, Infrastructure, and Presentation logic, while Domain stays shared. Best when features are independent and long-lived.
 - **Microservices** — independent deployment, good for large teams with clear domain boundaries
-- **Modular Monolith** — single deployment with strong module boundaries, good default for most projects
 - **Layered Architecture** — simple layers (presentation → business → data), good for smaller projects
+
+**CRITICAL INSTRUCTION:** You MUST read `references/architecture.md` before generating the `ARCHITECTURE.md` artifact to ensure correct terminology, dependency directions.
 
 ### Step 2: Generate the Architecture Artifact
 
@@ -206,172 +216,4 @@ Present the confirmation in resolved `language.ui` and report the resolved archi
 
 ---
 
-## Knowledge Base
-
-Reference material for architecture evaluation and generation. This content informs the generation — it is NOT output directly.
-
-### Decision Matrix
-
-| Factor | Layered | Clean Architecture | Modular Monolith | DDD | Microservices |
-|--------|---------|-------------------|-------------------|-----|---------------|
-| Team size | 1-5 | 1-15 | 5-30 | 5-30 | 20+ |
-| Domain complexity | Low | Medium-High | Medium-High | High | High |
-| Scale requirements | Low | Moderate | Moderate-High | Moderate-High | Very High |
-| Deploy independence | ❌ | ❌ | Partial | Partial | ✅ |
-| Initial velocity | ✅ Fast | Medium | ✅ Fast | Medium | ❌ Slow |
-| Operational complexity | ✅ Low | ✅ Low | ✅ Low | Medium | ❌ High |
-
-### Quick Decision Guide
-
-```
-New project, small team? → Modular Monolith or Layered
-Complex business logic, many rules? → Clean Architecture
-Multiple subdomains, large team? → DDD
-Independent scaling + large org? → Microservices
-Simple CRUD app? → Layered Architecture
-Unclear requirements? → Start simple, refactor when patterns emerge
-```
-
-### Clean Architecture
-
-**Core Principle:** Dependencies point inward. Inner layers know nothing about outer layers.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Frameworks & Drivers                  │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │              Interface Adapters                  │    │
-│  │  ┌─────────────────────────────────────────┐    │    │
-│  │  │           Application Layer              │    │    │
-│  │  │  ┌─────────────────────────────────┐    │    │    │
-│  │  │  │         Domain Layer            │    │    │    │
-│  │  │  │    (Entities & Business Rules)  │    │    │    │
-│  │  │  └─────────────────────────────────┘    │    │    │
-│  │  └─────────────────────────────────────────┘    │    │
-│  └─────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Folder Structure (TypeScript example):**
-```
-src/
-├── domain/                 # Core business logic (no dependencies)
-│   ├── entities/
-│   ├── value-objects/
-│   └── repositories/       # Interfaces only
-├── application/            # Use cases (depends on domain)
-│   ├── use-cases/
-│   └── services/
-├── infrastructure/         # External concerns (implements interfaces)
-│   ├── database/
-│   ├── external/
-│   └── config/
-└── presentation/           # UI/API layer
-    ├── api/
-    ├── controllers/
-    └── dto/
-```
-
-**Dependency Rules:**
-- Domain → nothing (pure business logic)
-- Application → Domain only
-- Infrastructure → Application + Domain (implements interfaces)
-- Presentation → Application (calls use cases)
-
-### Domain-Driven Design (DDD)
-
-**Core Principle:** Software structure mirrors the business domain. Bounded contexts define clear boundaries.
-
-**Strategic Patterns:**
-- Bounded Contexts: explicit boundaries around domain models
-- Context Mapping: how contexts communicate (Shared Kernel, Customer/Supplier, Anti-Corruption Layer)
-
-**Tactical Patterns:**
-- Entities: identity-based objects
-- Value Objects: immutable, equality by value
-- Aggregates: consistency boundaries (all invariants enforced through aggregate root)
-- Domain Events: communicate state changes between contexts
-
-**Folder Structure (TypeScript example):**
-```
-src/
-├── contexts/
-│   ├── ordering/
-│   │   ├── domain/         # Entities, VOs, events, repository interfaces
-│   │   ├── application/    # Use cases, command/query handlers
-│   │   ├── infrastructure/ # Repository implementations, external adapters
-│   │   └── api/            # HTTP handlers, DTOs
-│   ├── inventory/
-│   │   └── ...
-│   └── shipping/
-│       └── ...
-└── shared/
-    └── kernel/             # Shared base classes, interfaces
-```
-
-### Microservices
-
-**When to Use:**
-- Large teams needing independent deployment
-- Different scaling requirements per service
-- Polyglot persistence needs
-
-**When NOT to Use:**
-- Small team (< 10 people)
-- Unclear domain boundaries
-- Startups exploring product-market fit
-
-**Communication Patterns:**
-- Synchronous (HTTP/gRPC): queries, real-time validation
-- Asynchronous (Events/Messages): side effects, eventual consistency
-
-**Data Patterns:**
-- Database per Service
-- Saga Pattern for distributed transactions
-
-### Modular Monolith
-
-**Core Principle:** Single deployment unit with strong module boundaries. Best of both worlds — simple ops, future extraction ready.
-
-**Folder Structure (TypeScript example):**
-```
-src/
-├── modules/
-│   ├── users/
-│   │   ├── api/           # HTTP handlers
-│   │   ├── domain/        # Business logic
-│   │   ├── infra/         # Database, external
-│   │   └── index.ts       # Public API only
-│   ├── orders/
-│   │   └── ...
-│   └── payments/
-│       └── ...
-├── shared/                 # Truly shared code
-│   ├── kernel/
-│   └── utils/
-└── main.ts                # Composition root
-```
-
-**Module Communication Rules:**
-- Modules expose explicit public API via index file
-- Other modules use ONLY the public API
-- Never reach into module internals
-
-### Layered Architecture
-
-**Core Principle:** Separate concerns into horizontal layers. Each layer only depends on the layer directly below it.
-
-**Folder Structure (TypeScript example):**
-```
-src/
-├── routes/                # Presentation layer (HTTP handlers)
-├── controllers/           # Request/response handling
-├── services/              # Business logic layer
-├── models/                # Data models
-├── repositories/          # Data access layer
-└── utils/                 # Cross-cutting utilities
-```
-
-**Dependency Rules:**
-- Routes → Controllers → Services → Repositories → Database
-- No skipping layers (routes should not call repositories directly)
+---
