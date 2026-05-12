@@ -6,6 +6,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+node "$ROOT_DIR/scripts/test-extension-schema.mjs"
+
 ROOT_DIR="$ROOT_DIR" node --input-type=module <<'EOF'
 import assert from 'node:assert/strict';
 import path from 'node:path';

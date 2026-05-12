@@ -1,0 +1,96 @@
+scenario: without-plan-conflict-errors
+description: |
+  Inline mode is mutually exclusive with `@plan-file`, `status`, and numeric
+  task id per Step 0.inline. This scenario passes BOTH `--without-plan ...`
+  AND `@.ai-factory/PLAN.md` and asserts the skill refuses to run.
+
+  Verifies:
+  (1) the skill's output contains the "mutually exclusive" conflict error;
+  (2) the described `test.txt` file is NOT created;
+  (3) the seeded plan file is NOT Read (no plan discovery / loading), since
+      inline mode is supposed to ignore plan artifacts entirely — and the
+      conflict must be caught at argument-parse time, before plan loading;
+  (4) no checkbox flip / Edit on the plan file.
+skill: aif-implement
+argument: '--without-plan create a file named test.txt at the repo root containing exactly the text "Hello world" @.ai-factory/PLAN.md'
+max_turns: 20
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(ls *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Minimal fixture repo for the aif-implement inline-mode conflict scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/PLAN.md
+      content: |
+        # Feature: should-never-be-loaded
+
+        ## Context
+        - Mode: fast
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [ ] Task 1: this plan should be ignored because --without-plan + @plan-file is a hard conflict
+
+user_responses: []
+
+assertions:
+  # Documented error: "`--without-plan` is mutually exclusive with @plan-file, status, and task id."
+  - id: prints-mutually-exclusive-error
+    type: output_contains
+    pattern: "(?i)mutually\\s+exclusive"
+    weight: 3
+
+  # The described file must NOT be created.
+  - id: no-write-test-txt
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)test\\.txt$"
+
+  # The plan file must NOT be read (conflict is caught before plan loading).
+  - id: no-read-plan-md
+    type: no_tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/PLAN\\.md$"
+
+  # The plan file must NOT be edited (no checkbox flip, no rewrite).
+  - id: no-edit-plan-md
+    type: no_tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/PLAN\\.md$"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

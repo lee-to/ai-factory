@@ -166,6 +166,7 @@ my-extension/
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/lee-to/ai-factory/2.x/schemas/extension.schema.json",
   "name": "aif-ext-example",
   "version": "1.0.0",
   "description": "Example extension",
@@ -227,10 +228,31 @@ my-extension/
 
 Only `name` and `version` are required. All other fields are optional.
 
+AI Factory publishes the extension manifest schema at `schemas/extension.schema.json` in the npm package. Extension authors may add an optional `$schema` property for editor/tooling validation.
+
+Use the public schema URL when the extension should work regardless of whether the `ai-factory` CLI is installed locally or globally:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/lee-to/ai-factory/2.x/schemas/extension.schema.json"
+}
+```
+
+If your extension project installs `ai-factory` as a local dependency and you want offline or package-version-aligned validation, use the package-local schema path instead, adjusting the relative path from your `extension.json` location:
+
+```json
+{
+  "$schema": "./node_modules/ai-factory/schemas/extension.schema.json"
+}
+```
+
+The schema validates the public manifest shape: commands, runtime definitions, runtime-aware `agentFiles`, injections, skills, replacements, and MCP server templates. Install-time semantics still run in AI Factory itself, including runtime existence, safe relative paths, extension matching, duplicate ownership, and whether a runtime supports managed agent files.
+
 ### Manifest Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `$schema` | `string` | Optional schema reference for editor and tooling validation. |
 | `name` | `string` | **Required.** Unique extension name. Allowed characters: letters, digits, `_`, `-`, `.`, `@`, `/`. No `..` or absolute paths. |
 | `version` | `string` | **Required.** Version string (SemVer is recommended). |
 | `description` | `string` | Human-readable description. |
@@ -354,7 +376,7 @@ Same format as built-in MCP templates:
 }
 ```
 
-The template is merged into the agent's settings file under `mcpServers.<key>` (or `servers.<key>` for GitHub Copilot, `mcp.<key>` for OpenCode). Only agents with `supportsMcp: true` are configured. On `extension remove`, the key is deleted from the settings file.
+The template is merged into the agent's settings file under `mcpServers.<key>` (or `servers.<key>` for GitHub Copilot, `mcp.<key>` for OpenCode, `[mcp_servers.<key>]` in `.codex/config.toml` for Codex app). Only agents with `supportsMcp: true` are configured. On `extension remove`, the key is deleted from the settings file; for Codex app, the matching TOML server table and all nested subtables are removed.
 
 ---
 
@@ -406,10 +428,11 @@ Use `agentFiles` to provide runtime-specific custom agent assets without conflat
 
 Rules:
 - `runtime` must exist in the effective registry (built-in or provided by an installed extension, including the current manifest).
+- Codex app is skills-first and does not define a runtime-global `agentsDir`; extension `agentFiles` cannot target `codex-app` unless that runtime contract is added later.
 - `source` and `target` must be safe relative paths.
 - Source and target extensions must match the runtime's `agentFileExtension`.
 - Ownership is exclusive per `runtime + target`; conflicts with bundled Claude files or another extension are rejected before install.
-- Bundled Claude filenames are reserved by target path from the package `subagents/` inventory; an extension cannot claim the same `claude` target filename even if the local managed copy was later edited or removed.
+- Bundled Claude filenames are reserved by target path from the package `subagents/claude/agents/` inventory; an extension cannot claim the same `claude` target filename even if the local managed copy was later edited or removed.
 - AI Factory validates ownership, path safety, runtime existence, and file extension, then copies the asset verbatim. Runtime-specific internals of the file remain the runtime's responsibility.
 - After install, AI Factory tracks the target in `installedAgentFiles`, records its source in `agentFileSources`, and stores source/install hashes in `managedAgentFiles`.
 - For Codex `.toml` helpers, keep runtime-local settings such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` inside the agent file instead of assuming an extension injection or workflow skill can pass them dynamically.

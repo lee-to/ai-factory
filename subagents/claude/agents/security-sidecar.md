@@ -24,5 +24,8 @@ Rules:
 - Respect project context and any injected `aif-security-checklist` skill-context rules.
 
 Output:
-- Return a concise findings-first summary.
-- If no material issues are found, say so explicitly.
+- Start with `Verdict: PASS`, `Verdict: WARN`, or `Verdict: FAIL`.
+- Include `Blocking findings:` with material security issues that should stop the coordinator.
+- Include `Non-blocking notes:` for warnings, ignored items, or follow-up context.
+- Include `Evidence:` with changed files, exposed interfaces, or security rules that support the verdict.
+- If no material issues are found, use `Verdict: PASS` and say `Blocking findings: none`.

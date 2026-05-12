@@ -9,8 +9,8 @@
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
 2. **Built-in skills** (25 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
-4. **Multi-agent support** — 15 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
-   Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
+4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
+   Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
 
 ## Project Structure
 
@@ -118,8 +118,9 @@ Context gate policy for quality commands:
 - Roadmap mismatch is warning-first in normal mode, blocking in strict mode when mismatch is clear.
 - Missing roadmap milestone linkage for `feat`/`fix`/`perf` is warning-first by default, even in strict verify when a
   roadmap exists.
-- `/aif-rules-check` is the standalone rules-only companion and uses `PASS` / `WARN` / `FAIL`; `/aif-commit`,
-  `/aif-review`, and `/aif-verify` keep `WARN` / `ERROR`.
+- `/aif-rules-check` is the standalone rules-only companion and uses human `PASS` / `WARN` / `FAIL` labels.
+- `/aif-verify`, `/aif-review`, `/aif-security-checklist`, and `/aif-rules-check` append a final machine-readable
+  `aif-gate-result` JSON block with lowercase `pass` / `warn` / `fail` status values.
 
 ### Config-Aware Skills
 
@@ -215,6 +216,7 @@ Reports standalone verdict:
     - PASS → applicable rules checked and no clear violations found
     - WARN → missing/ambiguous rules or no changed files
     - FAIL → explicit hard-rule violation tied to diff evidence
+    - final `aif-gate-result` JSON block → parseable lowercase pass/warn/fail summary
     ↓
 Suggests `/aif-rules` when rules need to be added or clarified
 
@@ -288,6 +290,7 @@ Offers to delete PLAN.md when done (keeps feature-*.md)
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + config.yaml for context
     ↓
 change-summary → collects git diff, checks commit/diff size limits, explores key files in parallel
+               → if git is disabled or refs cannot be resolved, asks for manual change context instead of failing
                → saves .ai-factory/qa/<branch-slug>/change-summary.md
     ↓
 test-plan      → reads change-summary → determines scope and test types → saves test-plan.md
@@ -377,7 +380,7 @@ ai-factory upgrade
 | `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
 | `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
-| `src/core/agents.ts` | Agent registry (15 agents) |
+| `src/core/agents.ts` | Agent registry (16 agents) |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/mcp.ts` | MCP server configuration |
 | `src/core/template.ts` | `{{var}}` template substitution in SKILL.md |
@@ -402,14 +405,17 @@ ai-factory upgrade
 User-facing documentation is split between a lean README and detailed `docs/` pages:
 
 ```
-README.md                    # Landing page (~105 lines) — first impression, install, example workflow
+README.md                    # Landing page — first impression, install, example workflow
 docs/
 ├── getting-started.md       # What is AI Factory, supported agents table, first project walkthrough, CLI
 ├── workflow.md              # Workflow diagram, "When to Use What" table, workflow skills overview
 ├── loop.md                  # Reflex loop protocol: phases, rules, state, stop conditions
+├── subagents.md             # Claude-only bundled subagents and runtime-local agent-file boundaries
 ├── skills.md                # Full reference: Workflow Skills + Utility Skills
+├── evolve.md                # Patch-driven skill evolution and skill-context learning loop
 ├── plan-files.md            # Plan files, self-improvement patches, skill acquisition strategy
 ├── security.md              # Two-level security scanning system
+├── extensions.md            # Extension commands, injections, MCP, runtimes, and agent files
 ├── configuration.md         # .ai-factory.json, MCP config, project structure, best practices
 └── config-reference.md      # Full config.yaml schema, defaults, and skill read/write matrix
 ```
@@ -419,8 +425,8 @@ docs/
 1. **README is a landing page, not a manual.** It should contain: logo, tagline, "Why?", install, quick start, example workflow, documentation links table, external links, license. Nothing else.
 2. **Details go to `docs/`.** Each file is self-contained — one topic, one page. A user should be able to read a single doc file and get the full picture on that topic.
 3. **No duplication.** If information lives in `docs/`, README links to it — does not repeat it. The only exception: installation command appears in both README and `docs/getting-started.md` (users expect it in README).
-4. **Navigation.** Every docs/ file starts with `[← Back to README](../README.md)` and ends with a "See Also" section linking to 2-3 related pages. `getting-started.md` has "Next Steps" instead.
-5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/loop.md` is the source of truth for Reflex Loop contracts and state transitions. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
+4. **Navigation.** Every docs/ file starts with prev/back/next navigation that follows the README Documentation table order and ends with a "See Also" section linking to 2-3 related pages. `getting-started.md` may use a simpler first-page header and ends with "Next Steps" instead.
+5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/loop.md` is the source of truth for Reflex Loop contracts and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
 6. **Cross-links use relative paths.** From README: `docs/workflow.md`. Between docs: `workflow.md` (same directory).
 
 ### When to Update What
@@ -430,6 +436,9 @@ docs/
 | New skill added | `docs/skills.md` (add to appropriate section), `docs/workflow.md` (if it's a workflow skill), README Documentation table description (if skill count text changes) |
 | New agent added | `docs/getting-started.md` (agents table), README (agent name in "Multi-agent support" bullet) |
 | Workflow logic changed | `docs/workflow.md` (diagram + skill descriptions), `docs/skills.md` (detailed reference) |
+| Subagent or runtime-local agent-file behavior changed | `docs/subagents.md`, `docs/configuration.md`, README Documentation table description if navigation text changes |
+| Skill evolution / patch learning changed | `docs/evolve.md`, `docs/plan-files.md` when patch lifecycle or skill-context flow changes |
+| Extension lifecycle or runtime-extension behavior changed | `docs/extensions.md`, `docs/configuration.md` |
 | New config option | `docs/configuration.md`, `docs/config-reference.md` |
 | Security scanning changed | `docs/security.md` |
 | Plan file format changed | `docs/plan-files.md` |

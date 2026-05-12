@@ -44,6 +44,7 @@ If config.yaml doesn't exist, use defaults:
 ### 0.1 Load Ownership and Gate Contract
 
 - Read `references/CONTEXT-GATES-AND-OWNERSHIP.md` first.
+- Read `references/GATE-RESULT-CONTRACT.md` for the machine-readable quality gate summary.
 - Treat it as the canonical source for:
   - command-to-artifact ownership,
   - read-only behavior for `aif-commit`/`aif-review`/`aif-verify`,
@@ -298,11 +299,23 @@ Strict mode behavior:
 - Clear roadmap mismatch fails verification.
 - Missing milestone linkage for `feat`/`fix`/`perf` remains a warning (even when `.ai-factory/ROADMAP.md` exists).
 
-Logging/reporting format:
+Human logging/reporting format:
 - Non-blocking findings: `WARN [gate-name] ...`
 - Blocking findings: `ERROR [gate-name] ...`
 
-If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep `/aif-verify` gate labels at `WARN` / `ERROR`.
+If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep human context-gate labels at `WARN` / `ERROR`, then derive the final machine-readable gate result from the full verification report.
+
+Machine-readable gate result:
+- Append one final fenced `aif-gate-result` JSON block after the human-readable verification report.
+- Use `"gate": "verify"`.
+- Use `"status": "pass|warn|fail"` where:
+  - `fail` = incomplete required tasks, failed blocking quality checks, strict-mode context gate failures, or other blockers requiring remediation.
+  - `warn` = only non-blocking warnings remain, optional checks were skipped, docs/test gaps were accepted as warnings, or context drift is ambiguous.
+  - `pass` = no blocking or warning findings remain.
+- Use `"blocking": true|false`; set it to `true` only when the result should stop commit or merge flow.
+- Include only blocking findings in `"blockers": [`; keep non-blocking notes in the human summary.
+- Include changed or implicated paths in `"affected_files": [`.
+- Set `"suggested_next": {` to `/aif-fix`, `/aif-rules`, `/aif-architecture`, `/aif-roadmap`, `/aif-commit`, or `null` according to `references/GATE-RESULT-CONTRACT.md`.
 
 ### 3.6 Context Drift (Optional Remediation)
 
@@ -369,6 +382,27 @@ Options:
 - **All Green** — everything verified, no issues
 - **Minor Issues** — small gaps that can be fixed quickly
 - **Significant Gaps** — tasks missing or partially done, needs re-implementation
+
+### 4.2.1 Append Machine-Readable Gate Result
+
+After the human-readable report and overall status, append exactly one final `aif-gate-result` fenced JSON block.
+
+```aif-gate-result
+{
+  "schema_version": 1,
+  "gate": "verify",
+  "status": "pass",
+  "blocking": false,
+  "blockers": [],
+  "affected_files": [],
+  "suggested_next": {
+    "command": "/aif-commit",
+    "reason": "Verification passed without blockers."
+  }
+}
+```
+
+Schema reminder: `"status": "pass|warn|fail"`, `"blocking": true|false`, `"blockers": [`, `"affected_files": [`, `"suggested_next": {`.
 
 ### 4.3 Action on Issues
 

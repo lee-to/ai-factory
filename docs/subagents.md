@@ -2,17 +2,24 @@
 
 # Subagents
 
-> **Bundled package assets are Claude-only.** AI Factory ships bundled Claude subagents from the package `subagents/` directory and installs them into `.claude/agents/` during `ai-factory init` whenever Claude Code is selected. `ai-factory update` refreshes those managed files. Extensions may also provide agent files for Codex or extension-defined runtimes, but those are configured through the extension manifest rather than this bundled package inventory. Those extension helpers can be useful, but they are not automatic equivalents of the Claude-only top-level coordinator loop described on this page, and their runtime settings live in their own runtime-native agent files rather than being passed from Claude-style coordinator prompts. For bounded Codex helpers, prefer read-only advisory workers over writer roles.
+> AI Factory ships bundled runtime-native agent files for **Claude Code** and **Codex CLI**. `ai-factory init` installs Claude markdown agents into `.claude/agents/`, and installs Codex TOML agents into `.codex/agents/` plus a managed `.codex/config.toml`. `ai-factory update` refreshes those managed files without touching user-created custom agents. Extensions may additionally provide agent files for Codex or extension-defined runtimes through the extension manifest. This is baseline native-agent support for Codex, not full parity with the broader Claude bundle.
+
+This page focuses on the bundled Claude and Codex files shipped by the base AI Factory package. The generic agent-files infrastructure for extensions and dynamic runtimes is documented in [Extensions](extensions.md) and [Configuration](configuration.md). Extension-provided Codex helpers can be useful, but they are not automatic equivalents of the top-level Claude coordinator loop described on this page, and their runtime settings live in their own runtime-native agent files rather than being passed from Claude-style coordinator prompts. For bounded Codex helpers, prefer read-only advisory workers over writer roles.
 
 ## Migration Note
 
-If you have an existing AI Factory project that was initialized before subagent support was added, running `ai-factory update` will automatically install all bundled subagents into `.claude/agents/`. This is intentional migration behavior — `loadConfig()` reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents`, but persists the universal `agentsDir`, `installedAgentFiles`, `managedAgentFiles`, and `agentFileSources` fields on the next save. No opt-in is required; the bundled subagents remain part of the standard AI Factory package for Claude Code.
+If you have an existing AI Factory project that was initialized before bundled agent-file support was added, running `ai-factory update` will automatically install bundled package agent files into the runtime-specific target directory (`.claude/agents/` for Claude, `.codex/agents/` for Codex). `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents`, but persists the universal `agentsDir`, `installedAgentFiles`, `managedAgentFiles`, and `agentFileSources` fields on the next save.
 
-If you already have custom agents in `.claude/agents/`, they will not be touched — AI Factory only manages files listed in `installedAgentFiles` and tracked by `managedAgentFiles` / `agentFileSources` in `.ai-factory.json`.
+If you already have custom agents in `.claude/agents/` or `.codex/agents/`, they will not be touched — AI Factory only manages files listed in `installedAgentFiles`, `managedAgentFiles`, `installedConfigFiles`, and `managedConfigFiles` in `.ai-factory.json`. For Codex, that managed set includes `.codex/config.toml`; if drift is detected in that file, `ai-factory update` may overwrite it to restore the package-managed defaults.
+
+If a future AI Factory package version drops a previously bundled source file, `ai-factory update` reports that managed agent file as skipped and preserves the local tracked file instead of deleting it implicitly. Removal of managed agent files is only performed through explicit agent deselection or extension removal flows.
 
 ## Why This Exists
 
-AI Factory supports many coding agents, but Claude Code has a native subagent system with isolated context, per-agent tool restrictions, model selection, and project-local agent files.
+AI Factory supports many coding agents, but only a subset expose a native agent/subagent system with project-local agent files and predictable orchestration contracts. Today AI Factory ships two such bundles:
+
+- **Claude Code** — markdown subagents under `.claude/agents/`
+- **Codex CLI** — TOML agent definitions under `.codex/agents/` plus `.codex/config.toml`
 
 This repository uses that feature for six narrow purposes:
 - splitting `/aif-loop` into small, single-responsibility roles so the Reflex Loop stays predictable, cheaper to run, and easier to reason about
@@ -30,27 +37,52 @@ The intended benefit is:
 ## Scope
 
 Current scope is intentionally small:
-- one planning subagent, one planning coordinator, one implementation coordinator with its worker, five execution sidecars, and the loop-related subagents are defined
-- source files live in the package `subagents/` directory
-- managed copies are installed into `.claude/agents/`
+- Claude ships the broader bundle, including planning, implementation, review, six execution sidecars, and the `loop-*` family
+- Codex currently ships the planning / implementation / review baseline only: one planning subagent, one planning coordinator, one implementation coordinator with its worker, and five execution sidecars
+- source files live in runtime-specific package directories (`subagents/claude/agents/*.md` for Claude, `subagents/codex/agents/*.toml` for Codex, and `subagents/codex/config.toml` for the Codex project config)
+- managed copies are installed into the runtime-specific project directory (`.claude/agents/` or `.codex/agents/`)
 - all of them are project-local, not user-global
 - all of them stay specialized for AI Factory internal workflows
 
-If you edit these files manually, reload them in Claude Code with `/agents` or by restarting the session.
+If you edit these files manually, reload them in the target runtime (`/agents` in Claude Code, or restart/reload Codex CLI if it cached agent definitions).
+
+## Codex CLI Bundled Agents
+
+Codex receives the same narrow planning/implementation/review contract shape as Claude, translated into TOML agent files:
+
+| Agent | Purpose | Model |
+|---|---|---|
+| `plan-coordinator` | own parent planning session and delegate bounded plan polish passes | `gpt-5.4` |
+| `plan-polisher` | create or refine exactly one implementation plan and critique it | `gpt-5.4-mini` |
+| `implement-coordinator` | own parent implementation session and delegate bounded edits and read-only audits | `gpt-5.4` |
+| `implement-worker` | execute one bounded implementation task | `gpt-5.4-mini` |
+| `best-practices-sidecar` | read-only maintainability audit | `gpt-5.4-mini` |
+| `commit-preparer` | read-only commit-readiness audit | `gpt-5.4-mini` |
+| `docs-auditor` | read-only documentation drift audit | `gpt-5.4-mini` |
+| `review-sidecar` | read-only correctness review | `gpt-5.4-mini` |
+| `security-sidecar` | read-only security review | `gpt-5.4-mini` |
+
+Codex also receives a managed `.codex/config.toml` with conservative `[agents]` defaults so native agent orchestration works in freshly initialized projects. That file is intentionally package-managed by AI Factory and is tracked through `installedConfigFiles` / `managedConfigFiles` in `.ai-factory.json`; `ai-factory update` may overwrite local drift in `.codex/config.toml` to restore the managed defaults.
+
+When those agents are used from `aif-handoff`, the bundle is also **handoff-aware**:
+- top-level coordinators understand explicit `HANDOFF_MODE`, `HANDOFF_TASK_ID`, and `HANDOFF_SKIP_REVIEW` context passed by the parent runtime
+- autonomous Handoff runs stay non-interactive and do not perform Handoff MCP sync from inside the Codex agent itself
+- worker and sidecar agents explicitly keep Handoff sync coordinator-owned
 
 ## Current Bundled Agents
 
 | Agent | Purpose | Model | Tools |
 |---|---|---|---|
 | `plan-coordinator` | iteratively launch `plan-polisher` in a critique→improve loop until the plan passes or the iteration budget is exhausted. Defaults to `full` planning when the caller did not choose a mode. **Top-level agent only** | `inherit` | `Agent(plan-polisher), Read, Glob, Grep, Bash` |
-| `implement-coordinator` | parse plan dependency graph, implement single tasks directly with quality sidecars, dispatch `implement-worker` workers for parallel tasks, merge results. **Top-level agent only** | `inherit` | `Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar), Read, Write, Edit, Glob, Grep, Bash` |
+| `implement-coordinator` | parse plan dependency graph, implement single tasks directly with quality sidecars, dispatch `implement-worker` workers for parallel tasks, merge results. **Top-level agent only** | `inherit` | `Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar, rules-sidecar), Read, Write, Edit, Glob, Grep, Bash` |
 | `implement-worker` | isolated worktree worker for parallel task execution — implements one task, runs local quality checks, returns results to coordinator | `inherit` | `Read, Write, Edit, Glob, Grep, Bash` |
-| `best-practices-sidecar` | background read-only best-practices sidecar for current implementation scope | `inherit` | `Read, Glob, Grep, Bash` |
+| `best-practices-sidecar` | background read-only best-practices sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
 | `plan-polisher` | create or refresh an `/aif-plan` artifact, run one local critique+refine cycle, and return whether another iteration is needed | `inherit` | `Read, Write, Edit, Glob, Grep, Bash` |
-| `commit-preparer` | background read-only commit preparation sidecar for current implementation scope | `sonnet` | `Read, Glob, Grep, Bash` |
-| `docs-auditor` | background read-only documentation drift sidecar for current implementation scope | `sonnet` | `Read, Glob, Grep, Bash` |
-| `review-sidecar` | background read-only code review sidecar for current implementation scope | `inherit` | `Read, Glob, Grep, Bash` |
-| `security-sidecar` | background read-only security audit sidecar for current implementation scope | `inherit` | `Read, Glob, Grep, Bash` |
+| `commit-preparer` | background read-only commit preparation sidecar for current implementation scope | `sonnet` | `Read, Glob, Grep` |
+| `docs-auditor` | background read-only documentation drift sidecar for current implementation scope | `sonnet` | `Read, Glob, Grep` |
+| `review-sidecar` | background read-only code review sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
+| `security-sidecar` | background read-only security audit sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
+| `rules-sidecar` | background read-only project rules sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
 | `loop-orchestrator` | decide the next loop phase from `run.json` state | `sonnet` | `Read, Glob, Grep` |
 | `loop-planner` | build a short 3-5 step iteration plan | `haiku` | `Read, Glob, Grep` |
 | `loop-producer` | generate the current markdown artifact | `inherit` | `Read, Write, Edit` |
@@ -118,7 +150,7 @@ The fix is therefore judged on practical plan quality:
 
 It combines coordination and implementation in one agent:
 
-- **Single-task layers**: implements the task directly within the coordinator, using quality sidecars (`review-sidecar`, `security-sidecar`, `best-practices-sidecar`, `docs-auditor`, `commit-preparer`) as background workers. This avoids isolation overhead and gives full sidecar coverage.
+- **Single-task layers**: implements the task directly within the coordinator, using quality sidecars (`review-sidecar`, `security-sidecar`, `rules-sidecar`, `best-practices-sidecar`, `docs-auditor`, `commit-preparer`) as background workers. This avoids isolation overhead and gives full sidecar coverage.
 - **Parallel-task layers**: dispatches `implement-worker` workers concurrently, one per task. Each worker gets its own worktree so file edits cannot collide. Workers run local quality checks (no sidecars — subagents cannot spawn children).
 
 This design eliminates the previous `implementer` / `implementer-isolation` layer, which had a structural problem: when spawned as subagents of the coordinator, they could not spawn their own sidecar subagents. By merging implementation logic into the coordinator itself, single-task execution gets real sidecar support, and parallel execution stays cleanly isolated.
@@ -175,12 +207,18 @@ This gives crash recovery — if the session dies mid-run, the plan file shows e
 
 ## Quality Sidecars
 
-`best-practices-sidecar`, `commit-preparer`, `docs-auditor`, `review-sidecar`, and `security-sidecar` exist for the Claude-native case where a custom top-level orchestrator can legally delegate:
+`best-practices-sidecar`, `commit-preparer`, `docs-auditor`, `review-sidecar`, `security-sidecar`, and `rules-sidecar` exist for the Claude-native case where a custom top-level orchestrator can legally delegate:
 - all are `background: true`
 - all are read-only
 - all of them are intended to report concise blocker-focused findings back to `implement-coordinator`
 
 This lets the execution loop keep noisy review, security, docs-drift, commit-analysis, and maintainability analysis work out of the main coordinator context when Claude is running in full custom-agent mode.
+
+In Handoff automation, `HANDOFF_SKIP_REVIEW=1` is a broad review-family bypass: it intentionally skips `review-sidecar`, `security-sidecar`, and `rules-sidecar`. It does not skip `best-practices-sidecar`, `docs-auditor`, or `commit-preparer` when those are otherwise applicable.
+
+Compatibility note for the release that adds `rules-sidecar`: existing Handoff users who set `HANDOFF_SKIP_REVIEW=1` now bypass one additional review-family gate. Remove that flag when rules compliance should still run.
+
+`best-practices-sidecar`, `review-sidecar`, `security-sidecar`, and `rules-sidecar` use a structured verdict contract so the coordinator can consume their results predictably: `Verdict: PASS|WARN|FAIL`, `Blocking findings:`, `Non-blocking notes:`, and `Evidence:`. `docs-auditor` and `commit-preparer` keep their JSON contracts because they return routing data rather than gate findings.
 
 The loop prep workers are also good background candidates and are configured that way:
 - `loop-test-prep`
@@ -220,7 +258,7 @@ This keeps responsibilities narrow:
 - refiner changes only what is needed
 - `plan-polisher` stays outside the Reflex Loop and focuses only on plan quality
 - `implement-coordinator` stays outside the Reflex Loop and focuses on implementation quality closure
-- `best-practices-sidecar`, `commit-preparer`, `docs-auditor`, `review-sidecar`, and `security-sidecar` stay outside the Reflex Loop and support only the implementation coordinator
+- `best-practices-sidecar`, `commit-preparer`, `docs-auditor`, `review-sidecar`, `security-sidecar`, and `rules-sidecar` stay outside the Reflex Loop and support only the implementation coordinator
 
 ## Design Principles
 
@@ -230,7 +268,7 @@ The loop's planning, evaluation, critique, and prep roles do not need write acce
 
 ### Writer roles are limited
 
-Only `loop-producer`, `loop-refiner`, `plan-polisher`, `implement-coordinator`, and `implement-worker` can modify content. `best-practices-sidecar`, `commit-preparer`, `docs-auditor`, `review-sidecar`, and `security-sidecar` are intentionally read-only. This reduces the chance of accidental state drift across phases and keeps write access tied to explicit artifact ownership.
+Only `loop-producer`, `loop-refiner`, `plan-polisher`, `implement-coordinator`, and `implement-worker` can modify content. `best-practices-sidecar`, `commit-preparer`, `docs-auditor`, `review-sidecar`, `security-sidecar`, and `rules-sidecar` are intentionally read-only. This reduces the chance of accidental state drift across phases and keeps write access tied to explicit artifact ownership.
 
 ### Cheap where possible, stronger where necessary
 
@@ -269,7 +307,7 @@ The critical difference: **top-level agents can spawn subagents, ordinary subage
 Use `claude --agent <name>` when:
 
 - The agent needs to **coordinate other agents**. An orchestrator that dispatches work to multiple workers must be top-level because it needs `Agent(...)` tool access to spawn them. Example: `implement-coordinator` dispatches multiple `implement-worker` workers in parallel — this only works from the top level.
-- The agent needs to **run background sidecars**. Background subagents are pre-approved for permissions at launch. This works cleanly from a top-level session but not from inside another subagent. Example: `implement-coordinator` running as top-level can launch `review-sidecar` and `security-sidecar` in background during single-task execution.
+- The agent needs to **run background sidecars**. Background subagents are pre-approved for permissions at launch. This works cleanly from a top-level session but not from inside another subagent. Example: `implement-coordinator` running as top-level can launch `review-sidecar`, `security-sidecar`, and `rules-sidecar` in background during single-task execution.
 - The workflow is the **primary purpose of the session**. If you start Claude Code specifically to run an implementation plan from start to finish, launching the coordinator as top-level avoids an unnecessary wrapper layer.
 
 ### When NOT to use a top-level agent
@@ -328,6 +366,8 @@ claude --agent implement-coordinator
 # Implement a specific plan file
 claude --agent implement-coordinator "@.ai-factory/plans/feature-auth.md"
 ```
+
+Manual verification for coordinator changes should be done in an environment where the Claude CLI is installed: run `claude --agent implement-coordinator` on a small single-task plan and confirm the single-task quality-gate flow launches the expected sidecars, including `rules-sidecar` unless `HANDOFF_SKIP_REVIEW=1` is set.
 
 **Simple single-task implementation (no coordinator needed):**
 

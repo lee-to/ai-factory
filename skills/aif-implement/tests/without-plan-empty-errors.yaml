@@ -1,0 +1,76 @@
+scenario: without-plan-empty-errors
+description: |
+  Inline mode must reject an empty `--without-plan` argument with the exact
+  usage-error text defined in Step 0.inline, and must NOT proceed to execute
+  anything (no Write, no Edit, no Bash shell mutations, no plan artifacts).
+
+  Verifies:
+  (1) the skill's output contains the Usage: error phrasing;
+  (2) no file is created or modified;
+  (3) no plan/fix-plan artifact is created.
+skill: aif-implement
+argument: "--without-plan"
+max_turns: 20
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(ls *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Minimal fixture repo for the aif-implement inline-mode empty-arg scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+
+user_responses: []
+
+assertions:
+  # The skill must print the documented usage error.
+  - id: prints-usage-error
+    type: output_contains
+    pattern: "(?i)usage:\\s*/aif-implement\\s+--without-plan"
+    weight: 3
+
+  # No Write of any file should occur.
+  - id: no-write-any-file
+    type: no_tool_called
+    tool: Write
+
+  # No Edit of any file should occur.
+  - id: no-edit-any-file
+    type: no_tool_called
+    tool: Edit
+
+  # Explicitly: no plan/fix-plan/patches artifacts.
+  - id: no-plan-artifacts-written
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/(PLAN|FIX_PLAN)\\.md$|\\.ai-factory/plans/|\\.ai-factory/patches/"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

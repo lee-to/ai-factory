@@ -1,0 +1,119 @@
+scenario: without-plan-creates-file
+description: |
+  Inline mode (`/aif-implement --without-plan <description>`) must execute the
+  task described in the argument WITHOUT discovering or reading any plan file.
+
+  Verifies:
+  (1) the described file is actually written with the expected content;
+  (2) the skill does NOT Read `.ai-factory/PLAN.md`, `.ai-factory/FIX_PLAN.md`,
+      or anything under `.ai-factory/plans/` (the real "no load" guarantee);
+  (3) the skill does NOT Write or Edit any plan/fix-plan/patch artifacts.
+
+  NOTE on Glob: a minimal Glob/exists probe of plan paths IS allowed in inline
+  mode, solely so Step 0.inline can emit `WARN [inline]` when an existing plan
+  file is being intentionally ignored. The contract is "no Read/Write/Edit of
+  plan artifacts," not "no probe at all" — see Step 0.inline in SKILL.md.
+skill: aif-implement
+argument: '--without-plan create a file named test.txt at the repo root containing exactly the text "Hello world"'
+max_turns: 40
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  # Keep the test focused. No web, no handoff MCP, no subagent exploration.
+  # TaskList/TaskCreate/TaskUpdate are intentionally wired so the test can
+  # verify the skill *chose* not to call them in inline mode (per Step 0.inline).
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(ls *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+    - TaskList
+    - TaskCreate
+    - TaskUpdate
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Minimal fixture repo for the aif-implement inline-mode scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+
+user_responses:
+  # Inline mode ends with "Verify first / Skip to commit". Short-circuit by
+  # choosing "Skip to commit" so the run ends quickly; /aif-commit isn't
+  # installed in the sandbox, so the skill gracefully prints the command and
+  # stops.
+  - match_question: "(?i)(verify|commit|what'?s next|next\\??)"
+    choose: "Skip to commit"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  # Positive — the file actually got written with the requested content.
+  - id: writes-test-txt-with-hello-world
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)test\\.txt$"
+      content: "Hello world"
+    weight: 3
+
+  # Negative — inline mode must NOT read any plan file.
+  - id: no-read-fast-plan
+    type: no_tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/PLAN\\.md$"
+
+  - id: no-read-fix-plan
+    type: no_tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/FIX_PLAN\\.md$"
+
+  - id: no-read-branch-plan
+    type: no_tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/"
+
+  # Negative — inline mode must NOT create or update plan/fix-plan artifacts.
+  # (Note: Glob probes for `.ai-factory/PLAN.md` / `plans/*.md` ARE allowed —
+  # Step 0.inline uses them only to emit `WARN [inline]` when a plan exists,
+  # never to load the file. The real guarantee is "no Read / Write / Edit of
+  # plan artifacts," already asserted above and below.)
+  - id: no-write-plan-artifacts
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/(PLAN|FIX_PLAN)\\.md$|\\.ai-factory/plans/|\\.ai-factory/patches/"
+
+  - id: no-edit-plan-artifacts
+    type: no_tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/(PLAN|FIX_PLAN)\\.md$|\\.ai-factory/plans/"
+
+  # Sandbox hygiene — all file-path tool calls stay inside the worktree.
+  - id: stay-in-sandbox
+    type: no_path_escape

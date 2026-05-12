@@ -155,19 +155,79 @@ fi
 change_summary_ref="$SKILL_DIR/references/CHANGE-SUMMARY.md"
 test_plan_ref="$SKILL_DIR/references/TEST-PLAN.md"
 test_cases_ref="$SKILL_DIR/references/TEST-CASES.md"
+config_reference_doc="$ROOT_DIR/docs/config-reference.md"
+skills_doc="$ROOT_DIR/docs/skills.md"
 
-# Contract: follow-up handoff commands keep the exact prompt option lines intact
-assert_exact_line \
-    "$change_summary_ref" \
-    '1. Yes — run /aif-qa test-plan <resolved_branch>' \
-    "CHANGE-SUMMARY.md keeps exact test-plan handoff line" \
-    "CHANGE-SUMMARY.md must contain the exact handoff line '1. Yes — run /aif-qa test-plan <resolved_branch>'"
+# Contract: /aif-qa follows the same language.ui/language.artifacts split as other artifact writers.
+if grep -Fq 'ui_language' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'artifact_language' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'language.artifacts' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'language.technical_terms' "$SKILL_DIR/SKILL.md"; then
+    pass "SKILL.md defines resolved UI, artifact, and technical-terms language policy"
+else
+    fail "SKILL.md must define ui_language, artifact_language, language.artifacts, and language.technical_terms"
+fi
 
-assert_exact_line \
-    "$test_plan_ref" \
-    '1. Yes — run /aif-qa test-cases <resolved_branch>' \
-    "TEST-PLAN.md keeps exact test-cases handoff line" \
-    "TEST-PLAN.md must contain the exact handoff line '1. Yes — run /aif-qa test-cases <resolved_branch>'"
+if grep -Fq 'All AskUserQuestion prompts, user-visible explanations, stage completion messages, and next-step guidance MUST be written in `ui_language`.' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'All generated artifacts (`change-summary.md`, `test-plan.md`, `test-cases.md`) MUST be written in `artifact_language`.' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Templates define structure, not language.' "$SKILL_DIR/SKILL.md"; then
+    pass "SKILL.md enforces UI vs artifact language split"
+else
+    fail "SKILL.md must enforce UI prompts in ui_language and QA artifacts in artifact_language"
+fi
+
+# Contract: user prompts are semantic instructions, not hardcoded English output.
+if grep -R '^AskUserQuestion:' "$SKILL_DIR/SKILL.md" "$SKILL_DIR/references" >/dev/null; then
+    fail "aif-qa must not contain hardcoded 'AskUserQuestion:' output lines"
+else
+    pass "aif-qa prompt blocks are not hardcoded English AskUserQuestion output"
+fi
+
+if grep -Fq 'AskUserQuestion in `ui_language`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'AskUserQuestion in `ui_language`' "$change_summary_ref" \
+    && grep -Fq 'AskUserQuestion in `ui_language`' "$test_plan_ref" \
+    && grep -Fq 'AskUserQuestion in `ui_language`' "$test_cases_ref"; then
+    pass "SKILL and references require AskUserQuestion text in ui_language"
+else
+    fail "SKILL and all references must require AskUserQuestion text in ui_language"
+fi
+
+# Contract: handoff commands remain literal while the surrounding prose is localized.
+if grep -Fq '`/aif-qa test-plan <resolved_branch>`' "$change_summary_ref"; then
+    pass "CHANGE-SUMMARY.md preserves test-plan handoff command"
+else
+    fail "CHANGE-SUMMARY.md must preserve /aif-qa test-plan <resolved_branch> as a literal command"
+fi
+
+if grep -Fq '`/aif-qa test-cases <resolved_branch>`' "$test_plan_ref"; then
+    pass "TEST-PLAN.md preserves test-cases handoff command"
+else
+    fail "TEST-PLAN.md must preserve /aif-qa test-cases <resolved_branch> as a literal command"
+fi
+
+if grep -Fq 'Before saving' "$change_summary_ref" \
+    && grep -Fq 'Before saving' "$test_plan_ref" \
+    && grep -Fq 'Before saving' "$test_cases_ref" \
+    && grep -Fq 'artifact_language' "$change_summary_ref" \
+    && grep -Fq 'artifact_language' "$test_plan_ref" \
+    && grep -Fq 'artifact_language' "$test_cases_ref"; then
+    pass "all QA artifact stages self-check artifact_language before saving"
+else
+    fail "each QA reference must self-check artifact_language before saving"
+fi
+
+if grep -Fq 'canonical English templates' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'translate them to `artifact_language`' "$SKILL_DIR/SKILL.md" \
+    && [[ -f "$SKILL_DIR/templates/CHANGE-SUMMARY.md" ]] \
+    && [[ -f "$SKILL_DIR/templates/TEST-PLAN.md" ]] \
+    && [[ -f "$SKILL_DIR/templates/TEST-CASES.md" ]] \
+    && [[ ! -d "$SKILL_DIR/templates/en" ]] \
+    && [[ ! -d "$SKILL_DIR/templates/ru" ]] \
+    && ! grep -R 'templates/<artifact_language>/' "$SKILL_DIR/SKILL.md" "$SKILL_DIR/references" >/dev/null; then
+    pass "QA uses only canonical English templates with translate-to-artifact-language fallback"
+else
+    fail "aif-qa must use only canonical English templates and translate them to artifact_language when needed"
+fi
 
 # Contract: final-stage guidance still carries the resolved branch context
 if [[ -f "$test_cases_ref" ]] && grep -q 'resolved_branch' "$test_cases_ref"; then
@@ -185,20 +245,119 @@ fi
 
 assert_exact_line \
     "$change_summary_ref" \
-    'git diff <analysis_base>...<resolved_branch> --name-status' \
-    "CHANGE-SUMMARY.md keeps exact name-status diff line" \
-    "CHANGE-SUMMARY.md must contain the exact line 'git diff <analysis_base>...<resolved_branch> --name-status'"
+    'git log <effective_base>..<analysis_target> --oneline' \
+    "CHANGE-SUMMARY.md keeps exact full-range log line with analysis_target" \
+    "CHANGE-SUMMARY.md must contain the exact line 'git log <effective_base>..<analysis_target> --oneline'"
 
 assert_exact_line \
     "$change_summary_ref" \
-    'git diff <analysis_base>...<resolved_branch>' \
-    "CHANGE-SUMMARY.md keeps exact full diff line" \
-    "CHANGE-SUMMARY.md must contain the exact line 'git diff <analysis_base>...<resolved_branch>'"
+    'git log <analysis_base>..<analysis_target> --oneline' \
+    "CHANGE-SUMMARY.md keeps exact scoped log line with analysis_target" \
+    "CHANGE-SUMMARY.md must contain the exact line 'git log <analysis_base>..<analysis_target> --oneline'"
+
+assert_exact_line \
+    "$change_summary_ref" \
+    'git diff <analysis_base>...<analysis_target> --name-status' \
+    "CHANGE-SUMMARY.md keeps exact name-status diff line with analysis_target" \
+    "CHANGE-SUMMARY.md must contain the exact line 'git diff <analysis_base>...<analysis_target> --name-status'"
+
+assert_exact_line \
+    "$change_summary_ref" \
+    'git diff <analysis_base>...<analysis_target>' \
+    "CHANGE-SUMMARY.md keeps exact full diff line with analysis_target" \
+    "CHANGE-SUMMARY.md must contain the exact line 'git diff <analysis_base>...<analysis_target>'"
+
+if grep -Fq 'analysis_target = <resolved_branch>' "$change_summary_ref" \
+    && grep -Fq 'analysis_target = origin/<resolved_branch>' "$change_summary_ref"; then
+    pass "CHANGE-SUMMARY.md defines analysis_target for local and remote target refs"
+else
+    fail "CHANGE-SUMMARY.md must define analysis_target for local and remote target refs"
+fi
 
 if grep -q 'reduced commit scope and diff scope aligned' "$change_summary_ref"; then
     pass "CHANGE-SUMMARY.md explicitly links reduced commit scope to diff scope"
 else
     fail "CHANGE-SUMMARY.md must explicitly state that reduced commit scope and diff scope stay aligned"
+fi
+
+if grep -Fq 'git rev-parse --verify <resolved_branch>' "$change_summary_ref" \
+    && grep -Fq 'git rev-parse --verify <effective_base>' "$change_summary_ref" \
+    && grep -Fq 'git fetch --all --prune' "$change_summary_ref" \
+    && grep -Fq 'origin/<base_branch>' "$change_summary_ref" \
+    && grep -Fq 'origin/<resolved_branch>' "$change_summary_ref"; then
+    pass "CHANGE-SUMMARY.md validates branch/base refs and documents remote fallback for base and target branch"
+else
+    fail "CHANGE-SUMMARY.md must validate branch/base refs and try origin/<base_branch> plus origin/<resolved_branch> fallback"
+fi
+
+if grep -Fq 'git.enabled' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'manual change context' "$SKILL_DIR/SKILL.md"; then
+    pass "SKILL.md handles git.enabled=false/manual change context"
+else
+    fail "SKILL.md must read git.enabled and describe manual change context fallback"
+fi
+
+if grep -Fq 'If you only have a PR description or short implementation summary, derive a best-effort `changed_files` list' "$change_summary_ref" \
+    && grep -Fq 'If no reliable file list can be derived, skip file exploration' "$change_summary_ref"; then
+    pass "CHANGE-SUMMARY.md handles manual mode without requiring --name-status output"
+else
+    fail "CHANGE-SUMMARY.md must handle manual mode when no --name-status output exists"
+fi
+
+if grep -Fq 'git diff --stat' "$change_summary_ref" \
+    && grep -Fq 'generated files, lock files, dependency snapshots, build artifacts, minified assets, or vendored code' "$change_summary_ref"; then
+    pass "CHANGE-SUMMARY.md documents large-diff triage and skip rules"
+else
+    fail "CHANGE-SUMMARY.md must include diff stat triage and generated/vendor skip rules"
+fi
+
+if grep -Fq 'model: sonnet' "$change_summary_ref"; then
+    fail "CHANGE-SUMMARY.md must not hardcode model: sonnet for Explore agents"
+else
+    pass "CHANGE-SUMMARY.md does not hardcode model: sonnet"
+fi
+
+if grep -Fq 'Do not replace the manual QA plan with automated test implementation details.' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'You may mention existing automated checks only as supporting verification' "$SKILL_DIR/SKILL.md"; then
+    pass "SKILL.md keeps manual QA primary while allowing supporting automated checks"
+else
+    fail "SKILL.md must soften automated-test wording without replacing manual QA"
+fi
+
+if grep -Fq '### Evidence' "$SKILL_DIR/templates/CHANGE-SUMMARY.md" \
+    && grep -Fq 'Every high-risk item must be backed by observed code/diff evidence or explicitly marked as an assumption.' "$change_summary_ref"; then
+    pass "change-summary includes evidence section and high-risk evidence rule"
+else
+    fail "change-summary template/reference must include evidence section and high-risk evidence rule"
+fi
+
+if grep -Fq '| `language.artifacts` | `en` |' "$config_reference_doc" \
+    && grep -Fq '/aif-qa' "$config_reference_doc" \
+    && grep -Fq 'language.technical_terms' "$config_reference_doc" \
+    && grep -Fq 'git.enabled' "$config_reference_doc" \
+    && grep -Fq 'paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`, `git.base_branch' "$skills_doc"; then
+    pass "docs describe /aif-qa language and git config readers"
+else
+    fail "docs must list /aif-qa as reading language.artifacts, language.technical_terms, git.enabled, and git.base_branch"
+fi
+
+if grep -F '| `paths.description` |' "$config_reference_doc" | grep -Fq '/aif-qa' \
+    && grep -F '| `paths.architecture` |' "$config_reference_doc" | grep -Fq '/aif-qa' \
+    && grep -F '| `git.base_branch` |' "$config_reference_doc" | grep -Fq '/aif-qa'; then
+    pass "config-reference key rows list /aif-qa for description, architecture, and git.base_branch"
+else
+    fail "config-reference key rows must list /aif-qa for paths.description, paths.architecture, and git.base_branch"
+fi
+
+config_template="$ROOT_DIR/skills/aif/references/config-template.yaml"
+configuration_doc="$ROOT_DIR/docs/configuration.md"
+
+if grep -Fq 'mixed' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'mixed' "$config_template" \
+    && grep -Fq 'mixed' "$configuration_doc"; then
+    pass "technical_terms mixed policy is documented consistently in skill, config template, and configuration docs"
+else
+    fail "technical_terms mixed policy must be documented consistently everywhere it is supported"
 fi
 
 # Contract: allowed-tools covers both Bash(git *) and Bash(mkdir *)

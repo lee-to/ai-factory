@@ -1,6 +1,6 @@
 {
   "name": "ai-factory",
-  "version": "2.10.0",
+  "version": "2.11.0",
   "type": "module",
   "description": "CLI tool for automating AI agent context setup in projects",
   "main": "dist/cli/index.js",
@@ -11,13 +11,16 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "test": "bash scripts/test-skills.sh",
-    "test:init": "bash scripts/test-init.sh",
-    "test:update": "bash scripts/test-update.sh",
+    "test": "node scripts/run-bash-test.mjs scripts/test-skills.sh",
+    "test:init": "node scripts/run-bash-test.mjs scripts/test-init.sh",
+    "test:update": "node scripts/run-bash-test.mjs scripts/test-update.sh",
+    "test:extension-schema": "node scripts/test-extension-schema.mjs",
+    "test:extensions": "node scripts/run-bash-test.mjs scripts/test-extensions.sh",
     "lint:unused": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "lint:dead": "knip --reporter compact",
     "lint": "npm run lint:unused && npm run lint:dead",
     "clean": "rm -rf dist",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build",
     "link": "npm run build && npm link"
   },
@@ -25,6 +28,7 @@
     "claude",
     "cursor",
     "codex",
+    "codex-app",
     "opencode",
     "kilocode",
     "windsurf",
@@ -51,6 +55,7 @@
     "skills",
     "!skills/**/tests",
     "!skills/**/tests/**",
+    "schemas",
     "subagents",
     "mcp"
   ],
@@ -83,6 +88,7 @@
     "@types/inquirer": "^9.0.7",
     "@types/node": "^20.11.0",
     "@types/semver": "^7.7.1",
+    "ajv": "^8.20.0",
     "knip": "^5.85.0",
     "typescript": "^5.3.3"
   }

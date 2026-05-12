@@ -144,9 +144,9 @@ assert_exact_line \
 
 assert_exact_line \
     "$CONTRACT_REF" \
-    '`PASS` / `WARN` / `FAIL` belongs only to `/aif-rules-check`; `/aif-commit`, `/aif-review`, and `/aif-verify` keep `WARN` / `ERROR`.' \
-    "contract preserves standalone-vs-context-gate severity boundary" \
-    "contract must preserve standalone-vs-context-gate severity boundary"
+    'The human rules report keeps `PASS` / `WARN` / `FAIL`. The final machine-readable summary uses lowercase `pass` / `warn` / `fail` in the `aif-gate-result` JSON block, matching the shared quality gate result contract.' \
+    "contract documents rules-check machine-readable summary boundary" \
+    "contract must document the rules-check machine-readable summary boundary"
 
 TOTAL=$((PASSED + FAILED))
 echo ""

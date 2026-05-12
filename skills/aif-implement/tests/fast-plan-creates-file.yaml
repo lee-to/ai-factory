@@ -1,0 +1,116 @@
+scenario: fast-plan-creates-file
+description: |
+  Default mode (no args) must discover `.ai-factory/PLAN.md` written by
+  `/aif-plan fast`, read it, execute the single task it contains, and flip
+  the checkbox `- [ ]` → `- [x]` per Step 3.6.
+
+  Verifies:
+  (1) the skill Reads the fast plan at `.ai-factory/PLAN.md`;
+  (2) the described file is actually written with the expected content;
+  (3) the skill Edits the plan to mark the task complete.
+skill: aif-implement
+argument: ""
+max_turns: 50
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(ls *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+    - TaskList
+    - TaskCreate
+    - TaskUpdate
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Minimal fixture repo for the aif-implement plan-discovery scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/PLAN.md
+      content: |
+        # Feature: hello-world-file
+
+        ## Context
+        - Mode: fast
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [ ] Task 1: Use the `Write` tool to create `test.txt` at the repo root containing exactly the text `Hello world` (no trailing newline). Do not use Bash to echo/printf the file — the test asserts the Write tool call.
+
+user_responses:
+  # Completion — docs checkpoint is warn-only because Docs: no, but the skill
+  # still asks whether to delete the fast plan file, then verify/commit.
+  - match_question: "(?i)(delete|remove).*(plan|PLAN\\.md)"
+    choose: "No, keep it"
+  - match_question: "(?i)(verify|commit|what'?s next|next\\??)"
+    choose: "Skip to commit"
+  - match_question: "(?i)(uncommitted|stash|commit.*first)"
+    choose: "No, stash and continue"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  # Positive — plan file was discovered and read.
+  - id: reads-plan-md
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/PLAN\\.md$"
+    weight: 2
+
+  # Positive — the task's output file was produced with the EXACT requested
+  # content. The plan task explicitly mandates the Write tool (not Bash) so
+  # the assertion can pin both file path and content bytes.
+  - id: writes-test-txt-with-hello-world
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)test\\.txt$"
+      content: "Hello world"
+    weight: 3
+
+  # Defense in depth — the completion report mentions the produced file by
+  # name (Step 5 of aif-implement lists modified files in its final message).
+  - id: reports-test-txt-created
+    type: output_contains
+    pattern: "(?i)test\\.txt"
+    weight: 1
+
+  # Positive — the plan's checkbox was flipped to `- [x]` per Step 3.6.
+  - id: updates-plan-checkbox
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/PLAN\\.md$"
+      new_string: "- \\[x\\]"
+    weight: 2
+
+  # Sandbox hygiene — all file-path tool calls stay inside the worktree.
+  - id: stay-in-sandbox
+    type: no_path_escape

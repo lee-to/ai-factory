@@ -31,6 +31,7 @@
         "plan-coordinator.md",
         "plan-polisher.md",
         "review-sidecar.md",
+        "rules-sidecar.md",
         "security-sidecar.md"
       ],
       "mcp": {
@@ -45,13 +46,38 @@
       "id": "codex",
       "skillsDir": ".codex/skills",
       "agentsDir": ".codex/agents",
+      "configFiles": ["config.toml"],
       "installedSkills": ["aif", "aif-plan", "aif-implement"],
+      "installedAgentFiles": [
+        "best-practices-sidecar.toml",
+        "commit-preparer.toml",
+        "docs-auditor.toml",
+        "implement-coordinator.toml",
+        "implement-worker.toml",
+        "plan-coordinator.toml",
+        "plan-polisher.toml",
+        "review-sidecar.toml",
+        "security-sidecar.toml"
+      ],
+      "installedConfigFiles": ["config.toml"],
       "mcp": {
         "github": false,
         "postgres": false,
         "filesystem": false,
         "chromeDevtools": false,
         "playwright": false
+      }
+    },
+    {
+      "id": "codex-app",
+      "skillsDir": ".agents/skills",
+      "installedSkills": ["aif", "aif-plan"],
+      "mcp": {
+        "github": true,
+        "postgres": false,
+        "filesystem": true,
+        "chromeDevtools": false,
+        "playwright": true
       }
     }
   ],
@@ -65,7 +91,7 @@
 }
 ```
 
-The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
+The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. Codex additionally persists `configFiles` / `installedConfigFiles` for managed files such as `.codex/config.toml`; tracked managed config files may be repaired by `ai-factory update` when their managed hashes drift, while untracked pre-existing files are preserved during migration. Codex app is currently skills-first: it installs Codex-style skills into `.agents/skills` and can write MCP config to `.codex/config.toml`, but it does not define a runtime-global `agentsDir`. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, `managedConfigFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
 
 Extension-provided agent files can target non-Claude runtimes such as Codex. Those files are often bounded helper workers (for example, one-shot reviewers or plan polishers), not automatic equivalents of the bundled Claude coordinator agents. Documentation and prompts should describe those support boundaries explicitly instead of implying full parity across runtimes. AI Factory copies those runtime-specific agent files verbatim; runtime-local keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` belong in the agent file itself rather than in `.ai-factory.json` or workflow prompts. For bounded Codex helpers, prefer read-only advisory workers unless the runtime-native agent truly owns writes to a specific artifact.
 
@@ -113,7 +139,7 @@ language:
   # Language for generated artifacts (plans, specs, documentation)
   artifacts: en
 
-  # How to handle technical terms: keep | translate
+  # How to handle technical terms: keep | translate | mixed
   technical_terms: keep
 
 # Path Configuration (all relative to project root)
@@ -212,28 +238,29 @@ AI Factory can configure these MCP servers:
 | Chrome Devtools | Browser inspection, debugging, performance | - |
 | Playwright | Browser automation, web testing | - |
 
-Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode). GitHub Copilot uses `servers` as the root object in `mcp.json`; other standard agents use `mcpServers` (OpenCode uses `mcp`).
+Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.codex/config.toml` for Codex app).
+
+### Runtime Format Contract
+
+Source of truth for runtime MCP shapes and wrapper examples:
+[`skills/aif/SKILL.md#MCP Configuration`](../skills/aif/SKILL.md#mcp-configuration)
+
+Quick key mapping:
+- Standard MCP runtimes use `mcpServers.<server>`
+- OpenCode uses `mcp.<server>`
+- GitHub Copilot uses `servers.<server>`
+- Codex app uses TOML tables under `mcp_servers.<server>`
 
 ### Environment Variables
 
-MCP configs use `${VAR}` placeholders for credentials (GitHub Copilot receives `${env:VAR}` in `.vscode/mcp.json`). Set them before launching the agent:
+MCP configs use `${VAR}` placeholders for credentials. OpenCode stores credentials under `environment`, GitHub Copilot receives `${env:VAR}` in `.vscode/mcp.json`, and Codex app receives credential names in `env_vars` inside `.codex/config.toml`. Set them before launching the agent:
 
 ```bash
 export GITHUB_TOKEN="ghp_your_token"
 export DATABASE_URL="postgresql://user:pass@localhost:5432/db"
 ```
 
-Or replace the placeholders with actual values directly in the config file:
-
-```json
-{
-  "mcpServers": {
-    "github": {
-      "env": { "GITHUB_TOKEN": "ghp_your_token" }
-    }
-  }
-}
-```
+Runtime-specific wrapper examples are intentionally centralized in the `/aif` skill section above to avoid docs drift.
 
 ## Project Structure
 
@@ -260,6 +287,7 @@ your-project/
 │   │   ├── plan-coordinator.md
 │   │   ├── plan-polisher.md
 │   │   ├── review-sidecar.md
+│   │   ├── rules-sidecar.md
 │   │   └── security-sidecar.md
 │   ├── skills/
 │   │   ├── aif/
@@ -309,6 +337,7 @@ your-project/
 │           ├── test-plan.md
 │           └── test-cases.md
 ├── .mcp.json                  # MCP servers config (Claude Code project scope)
+├── .codex/config.toml         # Codex app MCP config when Codex app is selected
 └── .ai-factory.json           # AI Factory config
 ```
 
@@ -338,6 +367,7 @@ For full phase contracts and stop conditions, see [Reflex Loop](loop.md).
 - Keep context artifact ownership command-scoped (roadmap by `/aif-roadmap`, rules by `/aif-rules`, architecture by `/aif-architecture`, research by `/aif-explore`).
 - Treat `/aif-rules-check`, `/aif-commit`, `/aif-review`, and `/aif-verify` as read-only consumers of context artifacts by default.
 - Use `WARN` for non-blocking gate findings (missing optional files, ambiguous mapping) and `ERROR` for blocking violations.
+- Parseable quality gates append a final `aif-gate-result` JSON block with lowercase `pass` / `warn` / `fail` status values; see [Quality Gates](quality-gates.md).
 
 ### Logging
 All implementations include verbose, configurable logging:

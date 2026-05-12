@@ -372,7 +372,7 @@ Existing project agents in `.claude/agents/`:
 | Agent | Role | Model | Tools |
 |---|---|---|---|
 | `plan-coordinator` | iterative plan refinement coordinator — launches `plan-polisher` in a critique→improve loop until plan passes or iteration budget exhausted. Accepts `tests`/`docs` params (`yes`/`no`/`infer`; default `infer`) and passes them to each `plan-polisher` invocation. Run as `claude --agent plan-coordinator` | `inherit` | `Agent(plan-polisher), Read, Glob, Grep, Bash` |
-| `implement-coordinator` | parallel execution coordinator — parses plan dependency graph, implements single tasks directly with sidecars, dispatches `implement-worker` workers for parallel tasks, merges results. Run as `claude --agent implement-coordinator` | `inherit` | `Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar), Read, Write, Edit, Glob, Grep, Bash` |
+| `implement-coordinator` | parallel execution coordinator — parses plan dependency graph, implements single tasks directly with sidecars, dispatches `implement-worker` workers for parallel tasks, merges results. Run as `claude --agent implement-coordinator` | `inherit` | `Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar, rules-sidecar), Read, Write, Edit, Glob, Grep, Bash` |
 | `implement-worker` | isolated worktree worker for parallel task execution — implements one task, runs local quality checks, returns results to coordinator | `inherit` | `Read, Write, Edit, Glob, Grep, Bash` |
 | `best-practices-sidecar` | background read-only best-practices worker | `inherit` | `Read, Glob, Grep` |
 | `commit-preparer` | background read-only commit preparation worker | `sonnet` | `Read, Glob, Grep` |
@@ -389,6 +389,15 @@ Existing project agents in `.claude/agents/`:
 | `plan-polisher` | run `/aif-plan`, critique the result, and loop `/aif-improve` until stable. Accepts `tests`/`docs` params (`yes`/`no`/`infer`; default `infer` — auto-detects from project) | `inherit` | `Read, Write, Edit, Glob, Grep, Bash` |
 | `review-sidecar` | background read-only review worker | `inherit` | `Read, Glob, Grep` |
 | `security-sidecar` | background read-only security worker | `inherit` | `Read, Glob, Grep` |
+| `rules-sidecar` | background read-only project rules worker | `inherit` | `Read, Glob, Grep` |
+
+For `implement-coordinator`, `HANDOFF_SKIP_REVIEW=1` is intentionally a broad review-family bypass. It skips `review-sidecar`, `security-sidecar`, and `rules-sidecar`; it does not skip `best-practices-sidecar`, `docs-auditor`, or `commit-preparer` when those are otherwise applicable.
+
+Compatibility note for the release that adds `rules-sidecar`: existing Handoff users who set `HANDOFF_SKIP_REVIEW=1` now bypass one additional review-family gate. Remove that flag when rules compliance should still run.
+
+`best-practices-sidecar`, `review-sidecar`, `security-sidecar`, and `rules-sidecar` should return structured results with `Verdict: PASS|WARN|FAIL`, `Blocking findings:`, `Non-blocking notes:`, and `Evidence:`. `docs-auditor` and `commit-preparer` keep their JSON contracts because they return routing data rather than gate findings.
+
+Manual coordinator validation requires an environment with the Claude CLI installed. Run `claude --agent implement-coordinator` on a small single-task plan and confirm `rules-sidecar` participates in the single-task quality-gate flow unless `HANDOFF_SKIP_REVIEW=1` is set.
 
 Patterns already worth preserving here:
 - role-specific agents

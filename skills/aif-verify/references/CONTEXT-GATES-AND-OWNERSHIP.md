@@ -41,6 +41,8 @@ Gate outputs must use:
 - `WARN` for non-blocking mismatches or missing optional files
 - `ERROR` for blocking violations
 
+For machine-readable orchestration, supported quality gates append a final `aif-gate-result` JSON block using lowercase `pass` / `warn` / `fail` status values. The human `WARN` / `ERROR` labels above remain readable report labels, not the machine contract.
+
 ### Architecture Gate
 - **Pass:** Changes follow documented module/layer boundaries.
 - **Warn:** Architecture document appears stale or mapping is ambiguous.
@@ -63,7 +65,7 @@ Gate outputs must use:
 - It evaluates the resolved rules hierarchy plus changed files/diff and reports `PASS` / `WARN` / `FAIL`.
 - Missing or non-applicable rules remain `WARN`.
 - Explicit hard-rule violations may become `FAIL`.
-- This does not change the `WARN` / `ERROR` reporting contract used by `/aif-commit`, `/aif-review`, and `/aif-verify`.
+- This does not change the human `WARN` / `ERROR` reporting labels used by `/aif-commit`, `/aif-review`, and `/aif-verify`; `/aif-review` and `/aif-verify` still append the shared machine-readable gate result when they act as quality gates.
 
 ## Threshold Decisions (Resolved)
 

@@ -1,0 +1,96 @@
+scenario: without-plan-broad-scope-redirects
+description: |
+  Inline mode has a scope guard (Step 0.inline → "Scope guard") that redirects
+  broad / multi-subsystem / multi-imperative descriptions to `/aif-plan fast
+  <description>` instead of attempting a one-shot implementation.
+
+  The description here deliberately chains multiple unrelated imperatives
+  across subsystems (auth, billing, analytics dashboards, admin UI, seed data,
+  migrations) and is well above the ~300-char soft budget mentioned in the
+  skill, so the guard should fire.
+
+  Verifies:
+  (1) the skill's output mentions `/aif-plan fast` as the redirect target;
+  (2) no file is created / modified (no Write, no Edit) — the skill stops
+      before executing anything;
+  (3) no plan / fix-plan / patches artifacts are written;
+  (4) the skill does NOT silently fall into full execution.
+skill: aif-implement
+argument: >-
+  --without-plan add JWT-based authentication with refresh tokens and session
+  revocation across the api and web app, introduce a Stripe-backed billing
+  subsystem with subscription plans and usage metering, build a real-time
+  analytics dashboard with websocket streams and historical aggregation,
+  ship a new admin UI for user and feature-flag management, seed the database
+  with realistic demo data, and write the migrations for all the new tables
+  plus a rollout guide
+max_turns: 20
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(ls *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Minimal fixture repo for the aif-implement inline-mode scope-guard scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+
+user_responses: []
+
+assertions:
+  # Skill must surface the `/aif-plan fast` redirect (exact text from Step 0.inline).
+  - id: redirects-to-aif-plan-fast
+    type: output_contains
+    pattern: "/aif-plan\\s+fast"
+    weight: 3
+
+  # Skill must signal this is a scope problem (not a silent stop).
+  - id: explains-scope-redirect
+    type: output_contains
+    pattern: "(?i)broad|too\\s+large|scope"
+    weight: 1
+
+  # The skill must not start implementing anything — no Write.
+  - id: no-write-any-file
+    type: no_tool_called
+    tool: Write
+
+  # No Edit either.
+  - id: no-edit-any-file
+    type: no_tool_called
+    tool: Edit
+
+  # No plan / fix-plan / patches artifacts.
+  - id: no-plan-artifacts-written
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/(PLAN|FIX_PLAN)\\.md$|\\.ai-factory/plans/|\\.ai-factory/patches/"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

@@ -68,20 +68,35 @@ if [ -f package.json ]; then
   echo ""
 fi
 
-# 5. Check for console.log in production code
-echo "📝 Checking for console.log statements..."
-LOGS=$(grep -rn "console\.log" --include="*.ts" --include="*.js" src/ 2>/dev/null | \
+# 5. Check for verbose client logging in production code
+echo "📝 Checking for verbose console statements..."
+LOGS=$(grep -rn -E "console\.(log|debug|info|trace)" \
+  --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ 2>/dev/null | \
   grep -v "test" | grep -v "spec" | head -10 || true)
 
 if [ -n "$LOGS" ]; then
-  echo -e "${YELLOW}⚠️  console.log found (review for production):${NC}"
+  echo -e "${YELLOW}⚠️  Verbose console output found (must be removed or gated outside production):${NC}"
   echo "$LOGS"
 else
-  echo -e "${GREEN}✅ No console.log in src/${NC}"
+  echo -e "${GREEN}✅ No verbose console output in src/${NC}"
 fi
 echo ""
 
-# 6. Check for TODO security items
+# 6. Check for raw error rendering patterns
+echo "📝 Checking for raw client-facing error patterns..."
+RAW_ERRORS=$(grep -rn -E "(error|err)\.message|String\((error|err)\)|\.stack" \
+  --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/ 2>/dev/null | \
+  grep -v "test" | grep -v "spec" | head -10 || true)
+
+if [ -n "$RAW_ERRORS" ]; then
+  echo -e "${YELLOW}⚠️  Raw error usage found (verify production UI/API returns normalized client-safe errors):${NC}"
+  echo "$RAW_ERRORS"
+else
+  echo -e "${GREEN}✅ No obvious raw error rendering patterns in src/${NC}"
+fi
+echo ""
+
+# 7. Check for TODO security items
 echo "📝 Checking for security TODOs..."
 TODOS=$(grep -rn --include="*.ts" --include="*.js" --include="*.py" --include="*.php" \
   -i "todo.*security\|fixme.*security\|xxx.*security\|hack" . 2>/dev/null | \

@@ -1,7 +1,7 @@
 ---
 name: implement-coordinator
 description: Coordinate parallel execution of independent plan tasks. For single tasks — implements directly with quality sidecars. For parallel tasks — dispatches implement-worker workers. Use via `claude --agent implement-coordinator`.
-tools: Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar), Read, Write, Edit, Glob, Grep, Bash, mcp__handoff__handoff_sync_status, mcp__handoff__handoff_push_plan, mcp__handoff__handoff_get_task, mcp__handoff__handoff_list_tasks, mcp__handoff__handoff_update_task
+tools: Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar, rules-sidecar), Read, Write, Edit, Glob, Grep, Bash, mcp__handoff__handoff_sync_status, mcp__handoff__handoff_push_plan, mcp__handoff__handoff_get_task, mcp__handoff__handoff_list_tasks, mcp__handoff__handoff_update_task
 model: inherit
 maxTurns: 30
 permissionMode: acceptEdits
@@ -36,6 +36,8 @@ Bash: printenv HANDOFF_SKIP_REVIEW || true
 ```
 
 **If `HANDOFF_MODE` is `1`:** pass `HANDOFF_MODE` and `HANDOFF_SKIP_REVIEW` values as explicit text in every `implement-worker` prompt (workers never call MCP directly).
+
+`HANDOFF_SKIP_REVIEW=1` is intentionally treated as a broad review-family bypass for Handoff automation. It skips `review-sidecar`, `security-sidecar`, and `rules-sidecar`; `best-practices-sidecar`, `docs-auditor`, and `commit-preparer` still run when otherwise applicable.
 
 **When `HANDOFF_MODE` is `1`** (autonomous Handoff agent):
 
@@ -161,6 +163,7 @@ Workflow for single-task execution:
 4. Launch read-only quality sidecars in background on the changed scope:
     - `review-sidecar` — correctness, regression, performance risks — **skip if `HANDOFF_SKIP_REVIEW=1`**
     - `security-sidecar` — security audit — **skip if `HANDOFF_SKIP_REVIEW=1`**
+    - `rules-sidecar` — project rules compliance check — **skip if `HANDOFF_SKIP_REVIEW=1`; this is intentional because Handoff uses that flag as a broad review-family bypass**
     - `best-practices-sidecar` — maintainability problems
 5. Near completion, also launch `docs-auditor` and `commit-preparer` to assess follow-ups.
 6. Feed only material findings back into the next refinement round:
@@ -170,6 +173,7 @@ Workflow for single-task execution:
     - correctness bugs
     - clear architecture/rules violations
     - concrete best-practice problems in changed code
+    - any verdict-style sidecar result with `Verdict: FAIL`; treat `Verdict: WARN` as non-blocking unless it identifies an explicit hard blocker
 7. If a material blocker remains, fix and re-verify (max 2 refinement rounds).
 8. Do not loop forever on cosmetic advice alone.
 

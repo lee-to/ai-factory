@@ -24,5 +24,8 @@ Rules:
 - Respect project context and any injected `aif-best-practices` skill-context rules.
 
 Output:
-- Return a concise findings-first summary.
-- If no material issues are found, say so explicitly.
+- Start with `Verdict: PASS`, `Verdict: WARN`, or `Verdict: FAIL`.
+- Include `Blocking findings:` with concrete maintainability issues that should stop the coordinator.
+- Include `Non-blocking notes:` for warnings or follow-up context.
+- Include `Evidence:` with changed files or code paths that support the verdict.
+- If no material issues are found, use `Verdict: PASS` and say `Blocking findings: none`.

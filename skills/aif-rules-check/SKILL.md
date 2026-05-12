@@ -170,8 +170,36 @@ Required content:
 - blocking violations
 - suggested fixes
 - suggested rule updates
+- final machine-readable `aif-gate-result` fenced JSON block
 
 When useful, suggest the next best workflow:
 - `/aif-review` for broader code review
 - `/aif-verify` for full plan-completeness verification
 - `/aif-rules` when the underlying rules need to be captured or corrected
+
+Machine-readable gate result:
+- Append one final fenced `aif-gate-result` JSON block after the human-readable rules report.
+- Use `"gate": "rules"`.
+- Map the human rules verdict exactly: `PASS` -> `pass`, `WARN` -> `warn`, and `FAIL` -> `fail`.
+- Use `"blocking": true|false`; set it to `true` only for explicit hard-rule violations that produce a human `FAIL`.
+- Include only hard-rule violations in `"blockers": [`.
+- Include changed or inspected paths in `"affected_files": [`.
+- Set `"suggested_next": {` to `/aif-rules` when rules should be added or clarified, `/aif-fix` when code must change, or `null` when no allowed next command fits.
+- Do not use `/aif-review` in the JSON `suggested_next.command`; it may appear only in human-readable workflow suggestions.
+
+```aif-gate-result
+{
+  "schema_version": 1,
+  "gate": "rules",
+  "status": "warn",
+  "blocking": false,
+  "blockers": [],
+  "affected_files": [],
+  "suggested_next": {
+    "command": "/aif-rules",
+    "reason": "Rules are missing or ambiguous for the changed scope."
+  }
+}
+```
+
+Schema reminder: `"status": "pass|warn|fail"`, `"blocking": true|false`, `"blockers": [`, `"affected_files": [`, `"suggested_next": {`.

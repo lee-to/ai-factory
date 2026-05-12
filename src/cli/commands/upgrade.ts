@@ -2,7 +2,16 @@ import chalk from 'chalk';
 import fs from 'fs-extra';
 import path from 'path';
 import { loadConfig, saveConfig, getCurrentVersion } from '../../core/config.js';
-import { buildManagedSkillsState, buildManagedSubagentsState, installSkills, installSubagents, getAvailableSkills, partitionSkills } from '../../core/installer.js';
+import {
+  buildManagedConfigFilesState,
+  buildManagedSkillsState,
+  buildManagedSubagentsState,
+  installConfigFiles,
+  installSkills,
+  installSubagents,
+  getAvailableSkills,
+  partitionSkills,
+} from '../../core/installer.js';
 import { getAgentConfig, hydrateProjectAgentRegistry } from '../../core/agents.js';
 import { fileExists, removeDirectory, removeFile } from '../../utils/fs.js';
 
@@ -220,11 +229,25 @@ export async function upgradeCommand(): Promise<void> {
         agentsDir: agent.agentsDir,
       })
       : [];
+    const effectiveConfigFiles = agent.configFiles ?? agentConfig.configFiles ?? [];
+    const installedConfigFiles = effectiveConfigFiles.length > 0
+      ? await installConfigFiles({
+        projectDir,
+        agentId: agent.id,
+        configFiles: effectiveConfigFiles,
+        installedConfigFiles: agent.installedConfigFiles,
+      })
+      : [];
 
     agent.installedSkills = [...installedSkills, ...customSkills];
     if (agent.agentsDir) {
       agent.installedAgentFiles = installedAgentFiles;
       agent.managedAgentFiles = await buildManagedSubagentsState(projectDir, agent, installedAgentFiles);
+    }
+    if (effectiveConfigFiles.length > 0) {
+      agent.configFiles = effectiveConfigFiles;
+      agent.installedConfigFiles = installedConfigFiles;
+      agent.managedConfigFiles = await buildManagedConfigFilesState(projectDir, agent, installedConfigFiles);
     }
     agent.managedSkills = await buildManagedSkillsState(projectDir, agent, installedSkills);
   }

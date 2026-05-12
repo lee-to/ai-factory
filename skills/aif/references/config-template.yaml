@@ -22,6 +22,7 @@ language:
   # Options:
   #   - keep: preserve original English terms (API, database, etc.)
   #   - translate: translate where common translation exists
+  #   - mixed: translate prose terms but keep code/infrastructure ecosystem terms
   # Default: keep
   technical_terms: keep
 

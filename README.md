@@ -33,7 +33,7 @@ ai-factory init
 - **Spec-driven development** — AI follows plans, not random exploration. Predictable, resumable, reviewable
 - **Community skills** — leverage [skills.sh](https://skills.sh) ecosystem or generate custom skills
 - **Stack-agnostic** — works with any language, framework, or platform
-- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
+- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
 
 ---
 
@@ -72,46 +72,11 @@ Then open your AI agent and start working:
 /aif
 ```
 
-## Usage
+Codex CLI and Codex app use `$aif` style invocations after installation.
 
-If the package is installed:
-```bash
-ai-factory init
-```
+Need CLI flags, update/upgrade details, or extension commands? See [Getting Started](docs/getting-started.md). Need slash-command reference? See [Core Skills](docs/skills.md).
 
-Or running without installation via `npx`:
-```bash
-npx ai-factory init
-```
-
-### Non-interactive mode
-
-Pass `--agents` to skip the interactive wizard:
-
-```bash
-# Agents + MCP servers
-ai-factory init --agents claude,cursor --mcp github,playwright
-
-# With specific skills
-ai-factory init --agents claude --skills commit,plan
-
-# Without base skills
-ai-factory init --agents codex --no-skills --mcp github
-```
-
-Available MCP servers: `github`, `postgres`, `filesystem`, `chrome-devtools`, `playwright`
-
-### Upgrading from v1 to v2
-
-```bash
-ai-factory upgrade
-```
-
-`ai-factory upgrade` removes old bare-named skills (`commit`, `feature`, etc.) and installs new `aif-*` prefixed versions. Custom skills are preserved.
-
-> **Note:** `ai-factory update` automatically checks npm for a newer CLI version and offers to install it before updating skills, then reports `changed/unchanged/skipped/removed` for installed base skills. Use `ai-factory update --force` for a clean reinstall of currently installed base skills.
-
-### Example Workflow
+## Example Workflow
 
 ```bash
 # Explore options and requirements before planning (optional)
@@ -144,20 +109,6 @@ ai-factory upgrade
 
 See the full [Development Workflow](docs/workflow.md) with diagram and decision table.
 
-### Auto-Generated Documentation
-
-AI Factory can generate and maintain your project docs with a single command:
-
-```bash
-/aif-docs          # Creates README + docs/ structure from your codebase
-/aif-docs --web    # Also generates a static HTML documentation site
-```
-
-- **Generates docs from scratch** — analyzes your codebase and creates a lean README + detailed `docs/` pages by topic
-- **Cleans up scattered files** — finds loose CONTRIBUTING.md, ARCHITECTURE.md, SETUP.md in your root and consolidates them into a structured `docs/` directory
-- **Keeps docs in sync** — integrates with `/aif-implement` docs policy (`Docs: yes` = mandatory docs checkpoint routed to `/aif-docs`, `Docs: no` = visible `WARN [docs]`)
-- **Builds a docs website** — `--web` generates a static HTML site with navigation and dark mode, ready to host
-
 ---
 
 ## Documentation
@@ -167,8 +118,9 @@ AI Factory can generate and maintain your project docs with a single command:
 | [Getting Started](docs/getting-started.md) | What is AI Factory, supported agents, CLI commands |
 | [Development Workflow](docs/workflow.md) | Workflow diagram, when to use `explore` vs `grounded`, spec-driven approach |
 | [Reflex Loop](docs/loop.md) | Iterative generate → evaluate → critique → refine workflow |
-| [Subagents](docs/subagents.md) | Claude Code only: repo-local planning, implementation, and loop subagents with narrow role contracts |
+| [Subagents](docs/subagents.md) | Bundled Claude subagents and the baseline Codex native agent-file bundle, including managed Codex config |
 | [Core Skills](docs/skills.md) | All slash commands — explore, grounded, plan, fix, implement, evolve, docs, and more |
+| [Quality Gates](docs/quality-gates.md) | Machine-readable `aif-gate-result` summaries for verify, review, security, and rules gates |
 | [Skill Evolution](docs/evolve.md) | How /aif-fix patches feed into /aif-evolve to generate smarter skill rules |
 | [Plan Files](docs/plan-files.md) | Plan files, self-improvement patches, skill acquisition |
 | [Security](docs/security.md) | Two-level security scanning for external skills |
@@ -176,22 +128,9 @@ AI Factory can generate and maintain your project docs with a single command:
 | [Configuration](docs/configuration.md) | `.ai-factory.json`, MCP servers, project structure, best practices |
 | [Config Reference](docs/config-reference.md) | Full `config.yaml` key reference and skill read/write matrix |
 
----
-
-![happy](https://github.com/ilhm344/ai-factory/blob/2.x/art/aif2.jpg)
-
-## AIF Handoff
-
-Looking for an **Autonomous Kanban board where AI agents plan, implement, and review your tasks**? Check out [aif-handoff](https://github.com/lee-to/aif-handoff) — a visual task management system built on top of AI Factory.
-
-![ui-light](https://github.com/lee-to/aif-handoff/blob/main/art/ui-light.png)
-![ui-dark](https://github.com/lee-to/aif-handoff/blob/main/art/ui-dark.png)
-![ui-light-list](https://github.com/lee-to/aif-handoff/blob/main/art/ui-light-list.png)
-![ui-dark-list](https://github.com/lee-to/aif-handoff/blob/main/art/ui-dark-list.png)
-
 ## Links
-
 - [Official Website](https://aif.cutcode.dev) - AI Factory website
+- [aif-handoff](https://github.com/lee-to/aif-handoff) - Autonomous Kanban board built on AI Factory
 - If AI Factory feels too simple for your goals, try [HLV](https://github.com/lee-to/hlv)
 - [skills.sh](https://skills.sh) - Skill marketplace
 - [Agent Skills Spec](https://agentskills.io) - Skill specification
@@ -204,6 +143,7 @@ Looking for an **Autonomous Kanban board where AI agents plan, implement, and re
 - [Warp](https://www.warp.dev) - Intelligent terminal with AI agent
 - [Zencoder](https://zencoder.ai) - AI coding agent for VS Code and JetBrains
 - [Codex CLI](https://github.com/openai/codex) - OpenAI's coding agent
+- [Codex app](https://openai.com/codex/) - OpenAI's coding agent app
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's coding agent
 - [Antigravity](https://antigravity.dev) - AI coding agent
 - [Junie](https://www.jetbrains.com/junie/) - JetBrains' AI coding agent

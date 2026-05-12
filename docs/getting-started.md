@@ -27,15 +27,18 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Warp | `.warp/` | `.warp/skills/` |
 | Zencoder | `.zencoder/` | `.zencoder/skills/` |
 | Codex CLI | `.codex/` | `.codex/skills/` |
+| Codex app | `.agents/` | `.agents/skills/` |
 | GitHub Copilot | `.github/` | `.github/skills/` |
 | Gemini CLI | `.gemini/` | `.gemini/skills/` |
 | Junie | `.junie/` | `.junie/skills/` |
 | Qwen Code | `.qwen/` | `.qwen/skills/` |
 | Universal / Other | `.agents/` | `.agents/skills/` |
 
-When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. Extensions can also provide agent files for Codex or extension-defined runtimes. Claude-specific bundled roles are documented in [Subagents](subagents.md).
+When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. When Codex CLI is selected, AI Factory also installs bundled Codex native agent TOML files into `.codex/agents/` plus a managed `.codex/config.toml`. That Codex bundle is currently the baseline planning / implementation / review layer, not full parity with the broader Claude bundle, and `.codex/config.toml` is intentionally AI-Factory-managed. Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex package inventory is documented separately in [Subagents](subagents.md).
 
-MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, and Qwen Code. Other agents get skills installed with correct paths but without MCP auto-configuration.
+Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. Slash-command runtimes keep `/aif-*` examples. Because Codex app and Universal both write to `.agents/skills/` with different invocation styles, select one of those runtimes per project.
+
+MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, and Codex app. Other agents get skills installed with correct paths but without MCP auto-configuration.
 
 ## Your First Project
 
@@ -52,6 +55,7 @@ ai-factory init
 
 # 4. Open your AI agent (Claude Code, Cursor, etc.) and run:
 /aif
+# Codex CLI and Codex app use: $aif
 
 # 5. Optional discovery before planning
 /aif-explore Add user authentication with OAuth
@@ -82,6 +86,9 @@ ai-factory update --force
 # Migrate existing skills from v1 naming to v2 naming
 ai-factory upgrade
 
+# Audit artifact metadata links (frontmatter id/depends_on/affects/etc.)
+ai-factory audit-artifacts
+
 # Install an extension (local path, git URL, or npm package)
 ai-factory extension add ./my-extension
 
@@ -98,13 +105,35 @@ ai-factory extension update my-extension --force
 ai-factory extension remove my-extension
 ```
 
-For v1 -> v2 migration, run `ai-factory upgrade` to rename old skills to the new `aif-*` prefix.
+See [Plan Files](plan-files.md) for the artifact frontmatter schema, default scan paths, `--json` output, `--strict` exit behavior, and path boundary rules.
+
+### `ai-factory init` Flags
+
+- `--agents` - Comma-separated target agents (for example `claude,codex`)
+- `--skills` - Comma-separated skill set to install instead of full defaults
+- `--no-skills` - Skip base skill installation (useful when only MCP setup is needed)
+- `--mcp` - Comma-separated MCP servers to configure (`github`, `postgres`, `filesystem`, `chrome-devtools`, `playwright`)
+
+### Upgrade from v1 to v2
+
+Run `ai-factory upgrade` to migrate old bare-named skills (`commit`, `feature`, etc.) to `aif-*` names. Custom skills are preserved.
 
 `ai-factory update` now:
+- Checks whether a newer `ai-factory` package is available and prints the exact global install command when package-level CLI features require an npm package update
 - Checks for extension updates from their sources (npm, GitHub, etc.) before updating base skills
 - Prints per-agent status buckets for base skills (`changed`, `unchanged`, `skipped`, `removed`)
-- For runtimes with managed agent files, also refreshes bundled package-managed agent files (Claude today) and prints a separate `Agent files` status block
+- For runtimes with managed agent files, refreshes bundled package-managed agent files and prints a separate `Agent files` status block
+- For Codex CLI, also refreshes managed `.codex/config.toml` and prints a separate `Config files` status block; drift in that file may be overwritten to restore AI-Factory-managed defaults
 - Skills newly available in the package but not previously installed are shown as `skipped` (not auto-installed)
+
+### Documentation Commands
+
+```bash
+/aif-docs
+/aif-docs --web
+```
+
+`/aif-docs` refreshes README + `docs/` from the current project context. `--web` additionally emits a static documentation site (`docs-html/`).
 
 ## Next Steps
 

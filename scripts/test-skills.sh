@@ -488,12 +488,78 @@ else
 fi
 
 # settings_file patterns
-HARDCODED_SETTINGS=$(grep -rE '(\.mcp\.json|settings\.local\.json|\.cursor/mcp\.json|\.vscode/mcp\.json|\.qwen/settings\.json)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+HARDCODED_SETTINGS=$(grep -rE '(opencode\.json|\.mcp\.json|settings\.local\.json|\.cursor/mcp\.json|\.vscode/mcp\.json|\.roo/mcp\.json|\.kilocode/mcp\.json|\.qwen/settings\.json)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
 if [[ "$HARDCODED_SETTINGS" -eq 0 ]]; then
     pass "no hardcoded settings_file in skills/ and subagents/"
 else
     fail "found $HARDCODED_SETTINGS hardcoded settings_file values (use {{settings_file}})"
-    grep -rEn '(\.mcp\.json|settings\.local\.json|\.cursor/mcp\.json|\.vscode/mcp\.json|\.qwen/settings\.json)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+    grep -rEn '(opencode\.json|\.mcp\.json|settings\.local\.json|\.cursor/mcp\.json|\.vscode/mcp\.json|\.roo/mcp\.json|\.kilocode/mcp\.json|\.qwen/settings\.json)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+fi
+
+# /aif MCP runtime-contract wording
+AIF_MCP_SECTION=$(awk '
+  /^## MCP Configuration$/ { capture=1; next }
+  capture && /^---$/ { exit }
+  capture { print }
+' "$ROOT_DIR/skills/aif/SKILL.md")
+DOCS_MCP_SECTION=$(awk '
+  /^## MCP Configuration$/ { capture=1; next }
+  capture && /^## / { exit }
+  capture { print }
+' "$ROOT_DIR/docs/configuration.md")
+
+if [[ -z "$AIF_MCP_SECTION" ]]; then
+    fail "/aif MCP Configuration section missing"
+else
+    pass "/aif MCP Configuration section present"
+fi
+
+if grep -Fq "depends on the runtime" <<< "$AIF_MCP_SECTION"; then
+    pass "/aif MCP section states that MCP shape depends on runtime"
+else
+    fail "/aif MCP section does not state runtime-dependent MCP shape"
+fi
+
+if grep -Fq "OpenCode" <<< "$AIF_MCP_SECTION" && grep -Fq 'mcp.<server>' <<< "$AIF_MCP_SECTION" && grep -Fq '"type": "local"' <<< "$AIF_MCP_SECTION"; then
+    pass "/aif MCP section includes OpenCode runtime contract"
+else
+    fail "/aif MCP section missing OpenCode runtime contract"
+fi
+
+if grep -Fq "GitHub Copilot" <<< "$AIF_MCP_SECTION" && grep -Fq 'servers.<server>' <<< "$AIF_MCP_SECTION" && grep -Fq '"type": "stdio"' <<< "$AIF_MCP_SECTION"; then
+    pass "/aif MCP section includes GitHub Copilot runtime contract"
+else
+    fail "/aif MCP section missing GitHub Copilot runtime contract"
+fi
+
+if grep -Eiq '(all|every|any).*(supported )?(agents|runtimes).*(mcpServers)|mcpServers.*(all|every|any).*(supported )?(agents|runtimes)|(works|work).*(across|for).*(agents|runtimes).*(mcpServers)' <<< "$AIF_MCP_SECTION"; then
+    fail "/aif MCP section still implies universal mcpServers usage"
+else
+    pass "/aif MCP section does not imply universal mcpServers usage"
+fi
+
+if [[ -z "$DOCS_MCP_SECTION" ]]; then
+    fail "docs MCP Configuration section missing"
+else
+    pass "docs MCP Configuration section present"
+fi
+
+if grep -Fq '../skills/aif/SKILL.md#mcp-configuration' <<< "$DOCS_MCP_SECTION" && grep -Fq 'Source of truth' <<< "$DOCS_MCP_SECTION"; then
+    pass "docs MCP section links to canonical /aif MCP source-of-truth"
+else
+    fail "docs MCP section must link to canonical /aif MCP source-of-truth"
+fi
+
+if grep -Fq 'mcpServers.<server>' <<< "$DOCS_MCP_SECTION" && grep -Fq 'mcp.<server>' <<< "$DOCS_MCP_SECTION" && grep -Fq 'servers.<server>' <<< "$DOCS_MCP_SECTION"; then
+    pass "docs MCP section includes runtime key mapping reminders"
+else
+    fail "docs MCP section missing runtime key mapping reminders"
+fi
+
+if grep -Fq '| Runtime | Root key | Entry shape |' <<< "$DOCS_MCP_SECTION"; then
+    fail "docs MCP section reintroduced duplicated runtime matrix table"
+else
+    pass "docs MCP section avoids duplicated runtime matrix table"
 fi
 
 # skills_cli_agent_flag patterns
@@ -517,7 +583,7 @@ import fs from 'fs';
 import path from 'path';
 
 const root = process.env.ROOT_DIR;
-const subagentsDir = path.join(root, 'subagents');
+const subagentsDir = path.join(root, 'subagents', 'claude', 'agents');
 const docsPath = path.join(root, 'docs', 'subagents.md');
 const refsPath = path.join(root, '.references', 'CLAUDE-SUBAGENTS.md');
 
@@ -589,66 +655,68 @@ fi
 # ─────────────────────────────────────────────
 echo -e "\n${BOLD}=== Planner parity contract checks ===${NC}\n"
 
-if grep -qE 'git checkout main|git pull origin main' "$ROOT_DIR/subagents/plan-polisher.md"; then
+CLAUDE_SUBAGENTS_DIR="$ROOT_DIR/subagents/claude/agents"
+
+if grep -qE 'git checkout main|git pull origin main' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     fail "plan-polisher must not hardcode main as the base branch"
 else
     pass "plan-polisher base-branch contract"
 fi
 
-if grep -qF '| mode           | full' "$ROOT_DIR/subagents/plan-coordinator.md" \
-    && grep -qF -- '- mode: `full`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+if grep -qF '| mode           | full' "$CLAUDE_SUBAGENTS_DIR/plan-coordinator.md" \
+    && grep -qF -- '- mode: `full`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     pass "planner defaults stay on the richer full contract"
 else
     fail "planner defaults stay on the richer full contract"
 fi
 
-if grep -qF '`paths.plan`' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF '`paths.plans`' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF '`git.base_branch`' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF '`git.create_branches`' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF '`git.branch_prefix`' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF 'Treat the current branch as an AI Factory feature branch only if it starts with the configured `git.branch_prefix`.' "$ROOT_DIR/subagents/plan-polisher.md"; then
+if grep -qF '`paths.plan`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF '`paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF '`git.base_branch`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF '`git.create_branches`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF '`git.branch_prefix`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF 'Treat the current branch as an AI Factory feature branch only if it starts with the configured `git.branch_prefix`.' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     pass "plan-polisher stays config-aware for plan paths and branch prefix"
 else
     fail "plan-polisher config-aware path/branch-prefix contract missing"
 fi
 
-if grep -qF 'Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`:' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF 'the configured `paths.plan`' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF 'files under the configured `paths.plans`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+if grep -qF 'Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`:' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF 'the configured `paths.plan`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF 'files under the configured `paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     pass "plan-polisher write scope follows resolved config paths"
 else
     fail "plan-polisher write scope must follow resolved config paths"
 fi
 
-if grep -qF 'Your write scope is limited to `.ai-factory/PLAN.md`, `.ai-factory/plans/*.md`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+if grep -qF 'Your write scope is limited to `.ai-factory/PLAN.md`, `.ai-factory/plans/*.md`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     fail "plan-polisher must not hardcode write scope to default .ai-factory paths"
 else
     pass "plan-polisher avoids hardcoded default write scope"
 fi
 
-if grep -qF 'contains `/` in the name' "$ROOT_DIR/subagents/plan-polisher.md"; then
+if grep -qF 'contains `/` in the name' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     fail "plan-polisher must not use slash-presence branch heuristic"
 else
     pass "plan-polisher avoids slash-presence branch heuristic"
 fi
 
-if grep -qF 'Do not discard, stash, or overwrite them.' "$ROOT_DIR/subagents/plan-polisher.md" \
-    && grep -qF 'If `origin` is unavailable or the remote base branch cannot be reached, skip `git pull`' "$ROOT_DIR/subagents/plan-polisher.md"; then
+if grep -qF 'Do not discard, stash, or overwrite them.' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF 'If `origin` is unavailable or the remote base branch cannot be reached, skip `git pull`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     pass "plan-polisher branch safety fallback contract"
 else
     fail "plan-polisher branch safety fallback contract missing"
 fi
 
-if grep -qF 'If `git.enabled = false` or `git.create_branches = false` → do NOT create or switch branches.' "$ROOT_DIR/subagents/plan-polisher.md"; then
+if grep -qF 'If `git.enabled = false` or `git.create_branches = false` → do NOT create or switch branches.' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     pass "plan-polisher disables branch creation when config says so"
 else
     fail "plan-polisher must disable branch creation when config says so"
 fi
 
-if grep -qF 'HANDOFF_TASK_ID: <value from plan annotation>' "$ROOT_DIR/subagents/plan-coordinator.md" \
-    && grep -qF 'Do this even though `HANDOFF_MODE` stays unset or non-`1` in manual sessions.' "$ROOT_DIR/subagents/plan-coordinator.md" \
-    && grep -qF '`HANDOFF_TASK_ID` by itself when manual mode is refining a plan that already has a Handoff annotation' "$ROOT_DIR/subagents/plan-coordinator.md"; then
+if grep -qF 'HANDOFF_TASK_ID: <value from plan annotation>' "$CLAUDE_SUBAGENTS_DIR/plan-coordinator.md" \
+    && grep -qF 'Do this even though `HANDOFF_MODE` stays unset or non-`1` in manual sessions.' "$CLAUDE_SUBAGENTS_DIR/plan-coordinator.md" \
+    && grep -qF '`HANDOFF_TASK_ID` by itself when manual mode is refining a plan that already has a Handoff annotation' "$CLAUDE_SUBAGENTS_DIR/plan-coordinator.md"; then
     pass "plan-coordinator preserves manual handoff task ids"
 else
     fail "plan-coordinator manual handoff dispatch contract missing"
@@ -795,6 +863,34 @@ if [[ $RULES_CHECK_SMOKE_EXIT -eq 0 ]]; then
 else
     fail "aif-rules-check smoke tests"
     echo "$RULES_CHECK_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
+echo -e "\n${BOLD}=== Gate result contract smoke tests ===${NC}\n"
+
+set +e
+GATE_RESULT_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-gate-result-contract.sh" 2>&1)
+GATE_RESULT_SMOKE_EXIT=$?
+set -e
+
+if [[ $GATE_RESULT_SMOKE_EXIT -eq 0 ]]; then
+    pass "gate result contract smoke tests"
+else
+    fail "gate result contract smoke tests"
+    echo "$GATE_RESULT_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
+echo -e "\n${BOLD}=== audit-artifacts command smoke tests ===${NC}\n"
+
+set +e
+AUDIT_ARTIFACTS_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-audit-artifacts.sh" 2>&1)
+AUDIT_ARTIFACTS_SMOKE_EXIT=$?
+set -e
+
+if [[ $AUDIT_ARTIFACTS_SMOKE_EXIT -eq 0 ]]; then
+    pass "audit-artifacts smoke tests"
+else
+    fail "audit-artifacts smoke tests"
+    echo "$AUDIT_ARTIFACTS_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
 echo -e "\n${BOLD}=== Results ===${NC}"

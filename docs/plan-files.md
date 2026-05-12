@@ -29,6 +29,127 @@ To avoid ownership conflicts, artifact writers are command-scoped:
 
 Quality commands (`/aif-commit`, `/aif-review`, `/aif-verify`) treat these files as read-only context by default.
 
+## Artifact Metadata
+
+`ai-factory audit-artifacts` reads lightweight YAML frontmatter from markdown artifacts. The schema is intentionally small: it gives teams enough traceability to catch broken links and stale downstream artifacts without requiring a full artifact-management system.
+
+```markdown
+---
+id: spec-auth-login
+type: spec
+status: accepted
+owners: [platform]
+depends_on:
+  - adr-auth-session
+affects:
+  - plan-auth-login
+  - docs-auth
+supersedes:
+  - adr-auth-jwt
+---
+```
+
+Supported fields:
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `id` | Yes | Stable unique identifier. Prefer lowercase kebab-case with a type prefix, for example `spec-auth-login`, `adr-auth-session`, `plan-password-reset`, `docs-api-auth`, or `tests-checkout-flow`. Keep it stable when files move. |
+| `type` | Recommended | Artifact kind. Recommended values: `spec`, `requirement`, `plan`, `adr`, `architecture`, `roadmap`, `docs`, `tests`, `qa`, `code`, `rules`, `research`, `patch`. |
+| `status` | Recommended | Lifecycle state. Recommended values: `draft`, `proposed`, `accepted`, `active`, `in_progress`, `done`, `deprecated`, `obsolete`, `superseded`. |
+| `owners` / `owner` | Recommended | Team, role, or person responsible for review when the artifact is affected. Prefer team owners such as `platform`, `frontend`, `backend`, `security`, `infra`, `qa`, `docs`, or `product`. |
+| `depends_on` | Optional | Upstream artifacts this artifact relies on. Use it when the current artifact cannot be safely changed without checking another artifact. `audit-artifacts` checks for unknown references and dependency cycles. |
+| `affects` | Optional | Downstream artifacts that should be reviewed when this artifact changes. Use it to make PR impact review explicit. |
+| `implements` | Optional | Requirements, specs, or decisions implemented by this artifact. Common for `code` and `plan` artifacts. |
+| `verifies` | Optional | Requirements, specs, or decisions verified by this artifact. Common for `tests` and `qa` artifacts. |
+| `documents` | Optional | Requirements, specs, or decisions described by this artifact. Common for `docs` artifacts. |
+| `supersedes` | Optional | Older artifacts replaced by this artifact. Common for ADRs and specs. Mark the older artifact `status: superseded` when possible. |
+
+Relationship guidance:
+
+- `depends_on` points upstream: a plan may depend on a spec, an ADR, and architecture guidance.
+- `affects` points downstream: a changed ADR may affect architecture, plans, tests, and docs that need review.
+- `implements`, `verifies`, and `documents` provide reverse traceability for implementation, test, and documentation coverage.
+- `supersedes` keeps history while making the newer source of truth explicit.
+
+The command accepts scalar values, inline arrays, or YAML-style lists:
+
+```markdown
+depends_on: adr-auth-session
+affects: [plan-auth-login, docs-auth]
+verifies:
+  - spec-auth-login
+```
+
+Run the audit locally before opening a PR:
+
+```bash
+ai-factory audit-artifacts
+ai-factory audit-artifacts .ai-factory docs/requirements.md
+ai-factory audit-artifacts --strict
+ai-factory audit-artifacts --json
+```
+
+Default discovery scans `.ai-factory`, `docs`, `README.md`, and `AGENTS.md` when those paths exist. Recursive default discovery skips noisy or generated subdirectories such as `qa`, `evolution`, and `evolutions`; pass those paths explicitly when you want to audit them. This default is intentionally default-layout first; projects that relocate artifact directories through `config.yaml` should pass those paths explicitly until the command becomes config-aware.
+
+Positional paths are explicit audit targets. Missing or outside-project explicit targets are failures so CI cannot pass after a typo or file rename. Missing default targets are skipped because many projects do not have every default file. Symlinked targets are canonicalized with `realpath`; a symlink that resolves outside the project is not scanned. For default targets this is a warning, and for explicit targets it is a failure.
+
+Finding severity and exit behavior:
+
+| Finding | Severity |
+|---------|----------|
+| Explicit missing or outside-project target | Fail |
+| Duplicate `id` | Fail |
+| Unknown relation target | Fail |
+| Self-reference | Fail |
+| `depends_on` cycle | Fail |
+| Missing `type`, `status`, or `owner` / `owners` | Warn |
+| Spec with no dependency/impact links | Warn |
+| Spec without incoming `implements`, `verifies`, or `documents` coverage | Warn |
+| Accepted ADR without `affects` links | Warn |
+| Default symlink target resolving outside the project | Warn |
+
+Exit codes:
+
+- `pass` exits `0`.
+- `warn` exits `0` by default.
+- `fail` exits non-zero.
+- `--strict` treats warnings as failures and exits non-zero.
+
+`--json` is intended for CI or future PR automation. Its output shape is:
+
+```json
+{
+  "status": "pass|warn|fail",
+  "artifacts": 2,
+  "markdown_without_metadata": 0,
+  "findings": [
+    {
+      "level": "fail|warn",
+      "file": ".ai-factory/spec.md",
+      "id": "spec-auth-login",
+      "message": "depends_on references unknown artifact \"adr-missing\"."
+    }
+  ]
+}
+```
+
+When a PR changes an artifact with downstream links, include an impact note that records the decision for each affected artifact:
+
+```markdown
+## Artifact Impact
+
+Changed:
+- adr-auth-session
+
+Reviewed:
+- architecture-auth: updated
+- spec-auth-login: reviewed-ok
+- tests-auth-session: deferred, follow-up #123
+
+Audit:
+- ai-factory audit-artifacts: pass
+```
+
 ## Research File (Optional)
 
 `.ai-factory/RESEARCH.md` is a persisted exploration artifact. Use it to capture constraints, decisions, and open questions during `/aif-explore` so you can `/clear` and still feed the same context into `/aif-plan`.

@@ -2,6 +2,11 @@ import { loadAllExtensions } from './extensions.js';
 
 export type AgentFileExtension = '.md' | '.toml';
 
+export const AGENT_IDS = {
+  claude: 'claude',
+  codex: 'codex',
+} as const;
+
 export interface AgentConfig {
   id: string;
   displayName: string;
@@ -14,6 +19,9 @@ export interface AgentConfig {
   skillsCliAgent: string | null;
   source: 'builtin' | 'extension';
   extensionName?: string;
+  configFiles?: string[];
+  configFilesSourceDir?: string;
+  agentsSourceDir?: string;
 }
 
 export interface RuntimeDefinitionInput {
@@ -34,13 +42,14 @@ export interface RuntimeManifestInput {
 }
 
 const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
-  claude: {
-    id: 'claude',
+  [AGENT_IDS.claude]: {
+    id: AGENT_IDS.claude,
     displayName: 'Claude Code',
     configDir: '.claude',
     skillsDir: '.claude/skills',
     agentsDir: '.claude/agents',
     agentFileExtension: '.md',
+    agentsSourceDir: 'subagents/claude/agents',
     settingsFile: '.mcp.json',
     supportsMcp: true,
     skillsCliAgent: 'claude-code',
@@ -56,16 +65,29 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsCliAgent: 'cursor',
     source: 'builtin',
   },
-  codex: {
-    id: 'codex',
+  [AGENT_IDS.codex]: {
+    id: AGENT_IDS.codex,
     displayName: 'Codex CLI',
     configDir: '.codex',
     skillsDir: '.codex/skills',
     agentsDir: '.codex/agents',
     agentFileExtension: '.toml',
+    agentsSourceDir: 'subagents/codex/agents',
+    configFiles: ['config.toml'],
+    configFilesSourceDir: 'subagents/codex',
     settingsFile: null,
     supportsMcp: false,
     skillsCliAgent: 'codex',
+    source: 'builtin',
+  },
+  'codex-app': {
+    id: 'codex-app',
+    displayName: 'Codex app',
+    configDir: '.agents',
+    skillsDir: '.agents/skills',
+    settingsFile: '.codex/config.toml',
+    supportsMcp: true,
+    skillsCliAgent: null,
     source: 'builtin',
   },
   copilot: {
@@ -197,6 +219,10 @@ function getRegistryEntries(): AgentConfig[] {
     ...Object.values(BUILTIN_AGENT_REGISTRY),
     ...extensionAgentRegistry.values(),
   ];
+}
+
+export function getBuiltinAgentConfigs(): AgentConfig[] {
+  return Object.values(BUILTIN_AGENT_REGISTRY);
 }
 
 function isValidRuntimeDefinition(definition: RuntimeDefinitionInput): boolean {

@@ -1,0 +1,73 @@
+scenario: without-plan-invalid-docs-errors
+description: |
+  Inline mode must reject an invalid `--docs=<value>` argument with the exact
+  error text defined in Step 0.inline, and must NOT proceed to execute the
+  task described after it.
+
+  Verifies:
+  (1) the skill's output contains the "Invalid --docs value" error;
+  (2) the described `test.txt` file is NOT created;
+  (3) no plan/fix-plan artifact is created.
+skill: aif-implement
+argument: '--without-plan --docs=maybe create a file named test.txt at the repo root containing exactly the text "Hello world"'
+max_turns: 20
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(ls *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Minimal fixture repo for the aif-implement inline-mode invalid-docs scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+
+user_responses: []
+
+assertions:
+  # Documented error text: "Invalid --docs value. Expected yes|no|warn."
+  - id: prints-invalid-docs-error
+    type: output_contains
+    pattern: "(?i)invalid\\s+--docs\\s+value"
+    weight: 3
+
+  # The described file must NOT be created (early stop before execution).
+  - id: no-write-test-txt
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)test\\.txt$"
+
+  # No plan/fix-plan artifacts.
+  - id: no-plan-artifacts-written
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/(PLAN|FIX_PLAN)\\.md$|\\.ai-factory/plans/|\\.ai-factory/patches/"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

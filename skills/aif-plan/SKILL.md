@@ -18,11 +18,20 @@ Create an implementation plan for a feature or task. Two modes:
 
 ### Step 0 (pre): Detect Handoff Mode
 
-Determine Handoff mode and task ID. If the caller passed `HANDOFF_MODE` and `HANDOFF_TASK_ID` as explicit text in the prompt, use those values. Otherwise, use the Bash tool to read the environment variables:
+Determine Handoff mode, task ID, and branch contract. Resolve each value independently so legacy callers that pass only `HANDOFF_MODE` and `HANDOFF_TASK_ID` still enter Handoff mode correctly:
+
+- `HANDOFF_MODE`: explicit prompt value if present; otherwise environment value; otherwise empty string.
+- `HANDOFF_TASK_ID`: explicit prompt value if present; otherwise environment value; otherwise empty string.
+- `HANDOFF_BRANCH_PREPARED`: explicit prompt value if present; otherwise environment value; otherwise `0`.
+- `HANDOFF_BRANCH_NAME`: explicit prompt value if present; otherwise environment value; otherwise empty string.
+
+Use the Bash tool only for values that were not passed explicitly in the prompt:
 
 ```
 Bash: printenv HANDOFF_MODE || true
 Bash: printenv HANDOFF_TASK_ID || true
+Bash: printenv HANDOFF_BRANCH_PREPARED || true
+Bash: printenv HANDOFF_BRANCH_NAME || true
 ```
 
 **Then check `HANDOFF_MODE`:**
@@ -34,6 +43,31 @@ The Handoff coordinator already manages status transitions and DB writes directl
 - **No interactive questions:** Do not use `AskUserQuestion` — use sensible defaults (verbose logging, yes to tests, yes to docs, skip roadmap linkage).
 - **Mode default:** If mode is not specified, default to `fast`.
 - **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan file, before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.**
+
+##### Branch ownership under Handoff (CRITICAL)
+
+Handoff owns branch creation at the agent-code level. The skill must NOT create or switch branches when Handoff has prepared one. Apply these rules:
+
+**If `HANDOFF_BRANCH_PREPARED` is `1`:**
+
+- Do **NOT** execute `git checkout`, `git pull`, or `git checkout -b`.
+- Treat `--parallel` as disabled for all downstream behavior.
+- Do **NOT** create a worktree.
+- Read `HANDOFF_BRANCH_NAME` from the prompt / env.
+- Validate strict equality:
+  ```
+  Bash: git rev-parse --abbrev-ref HEAD
+  ```
+  The output must equal `HANDOFF_BRANCH_NAME` exactly. Do **not** accept partial matches, prefix matches, or "branch contains `/`" heuristics.
+- If the current branch does **not** match `HANDOFF_BRANCH_NAME`, STOP. Report a blocker in the plan summary:
+  > `Branch drift: expected <HANDOFF_BRANCH_NAME>, actual <current>.`
+  Do **NOT** "fix" drift by switching or creating a branch — Handoff classifies that as `BranchIsolationError` / `blocked_external`.
+- Use `HANDOFF_BRANCH_NAME` (with `/` replaced by `-`) as the full-mode plan filename stem: `<configured plans dir>/<HANDOFF_BRANCH_NAME-with-slashes-replaced>.md`. Skip the slug derivation in Step 1.2.
+
+**If `HANDOFF_MODE` is `1` but `HANDOFF_BRANCH_PREPARED` is unset or `0`:**
+
+- Fallback path for older Handoff clients that have not adopted the prepared-branch contract.
+- Execute Step 1.4 branch creation normally per `git.create_branches` config.
 
 #### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session)
 
@@ -219,6 +253,8 @@ Task(subagent_type: Explore, model: sonnet, prompt:
 
 ### Step 1.2: Generate Full-Mode Plan Identifier
 
+**If `HANDOFF_BRANCH_PREPARED = 1`:** skip slug generation entirely. Use `HANDOFF_BRANCH_NAME` as the branch identifier and `<HANDOFF_BRANCH_NAME-with-slashes-replaced>.md` as the plan filename stem. Continue to Step 1.3.
+
 Generate a reusable slug from the description first. This slug is used for:
 
 - the git branch name when branch creation is enabled
@@ -297,6 +333,13 @@ Docs policy semantics:
 - Store the selected milestone name and a 1-sentence rationale for inclusion in the plan file
 
 ### Step 1.4: Optional Branch / Worktree Setup
+
+**If `HANDOFF_BRANCH_PREPARED = 1` (Handoff owns the branch):**
+
+- Skip this entire step. Branch validation already happened in Step 0.
+- The plan file path uses `HANDOFF_BRANCH_NAME` (slashes replaced by `-`) as the stem.
+- Do **NOT** run `git checkout`, `git pull`, `git checkout -b`, or `git worktree add`.
+- Treat `--parallel` as disabled: do not create a worktree and do not auto-invoke `/aif-implement`.
 
 **If `git.enabled = false` or `git.create_branches = false`:**
 
@@ -508,7 +551,7 @@ Use the canonical template in `references/TASK-FORMAT.md` (Plan File Template).
 
 ### Step 6: Next Steps
 
-**Full mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` — the whole point of parallel is autonomous end-to-end execution in an isolated worktree.
+**Full mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` — the whole point of parallel is autonomous end-to-end execution in an isolated worktree. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
 
 ```
 /aif-implement

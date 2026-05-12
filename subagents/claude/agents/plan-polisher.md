@@ -27,23 +27,42 @@ Repo-specific rules:
 
 ## Handoff Integration
 
-Determine Handoff mode and task ID. The caller (plan-coordinator) passes these as explicit text in the prompt:
+Determine Handoff mode, task ID, and branch contract. Resolve each value independently. The caller (plan-coordinator) may pass any of these as explicit text in the prompt:
 
 ```
 HANDOFF_MODE: <value>
 HANDOFF_TASK_ID: <value>
+HANDOFF_BRANCH_PREPARED: <value>
+HANDOFF_BRANCH_NAME: <value>
 ```
 
-If the caller did NOT pass them, fall back to reading environment using the Bash tool:
+For each value not passed explicitly, fall back to reading environment using the Bash tool. Defaults after explicit/env lookup:
+
+- `HANDOFF_MODE`: empty string.
+- `HANDOFF_TASK_ID`: empty string.
+- `HANDOFF_BRANCH_PREPARED`: `0`.
+- `HANDOFF_BRANCH_NAME`: empty string.
 
 ```
 Bash: printenv HANDOFF_MODE || true
 Bash: printenv HANDOFF_TASK_ID || true
+Bash: printenv HANDOFF_BRANCH_PREPARED || true
+Bash: printenv HANDOFF_BRANCH_NAME || true
 ```
 
 **When `HANDOFF_MODE` is `1`** (autonomous Handoff agent):
 - **No interactive prompts:** Use defaults — do not attempt to ask the user questions.
 - **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan file, before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug.**
+
+**Branch ownership under Handoff (CRITICAL):**
+
+- If `HANDOFF_BRANCH_PREPARED = 1`:
+  - Treat `--parallel` as disabled for all downstream behavior.
+  - Do **NOT** execute `git checkout`, `git pull`, `git checkout -b`, or create worktrees. Handoff already prepared the branch.
+  - Run `Bash: git rev-parse --abbrev-ref HEAD` and verify strict equality with `HANDOFF_BRANCH_NAME`. Do **not** accept partial matches or "branch contains `/`" heuristics — false positives on unrelated branches like `release/v1` would silently corrupt state.
+  - On mismatch, STOP. Record a blocker in the plan summary: `Branch drift: expected <HANDOFF_BRANCH_NAME>, actual <current>.` Do not switch or create a branch — Handoff classifies that as `BranchIsolationError` / `blocked_external`.
+  - Plan filename stem is `HANDOFF_BRANCH_NAME` with `/` replaced by `-`. Skip the slug-derivation logic below.
+- If `HANDOFF_MODE = 1` but `HANDOFF_BRANCH_PREPARED` is unset or `0`: fallback path for older Handoff clients — apply the standalone "Branch creation (full mode only)" rules below.
 
 **When `HANDOFF_MODE` is NOT `1`** (manual session):
 - If polishing an existing plan that already has a `<!-- handoff:task:<id> -->` annotation, preserve it on the first line when rewriting the file.
@@ -86,6 +105,7 @@ If the config file is missing, use the same defaults as `/aif-plan`:
 - git.branch_prefix: `feature/`
 
 Branch creation (full mode only):
+- **If `HANDOFF_BRANCH_PREPARED = 1` → skip this entire block.** Handoff owns the branch; validation already happened in the Handoff Integration section above. Do NOT create, switch, pull, or worktree. Use `HANDOFF_BRANCH_NAME` (slashes replaced by `-`) as the plan filename stem.
 - In full mode, before determining the plan file path, you MUST ensure a feature branch exists.
 - If `git.enabled = false` or `git.create_branches = false` → do NOT create or switch branches. Derive a slug from the request and use that slug for the full-mode plan filename under the resolved plans directory.
 - Treat the current branch as an AI Factory feature branch only if it starts with the configured `git.branch_prefix`. If `git.branch_prefix` is missing, use the default `feature/` prefix. Do not infer feature-branch status merely from the presence of `/` in the branch name.
@@ -104,6 +124,7 @@ Branch creation (full mode only):
 
 Plan file location (CRITICAL — do not deviate):
 - If the caller provided an explicit `@<path>` → use that exact path. This overrides mode-based rules.
+- **Handoff-prepared branch** (`HANDOFF_BRANCH_PREPARED = 1`) → `<resolved plans dir>/<HANDOFF_BRANCH_NAME-with-slashes-replaced>.md`. Take the branch name from `HANDOFF_BRANCH_NAME`, not from `git rev-parse` (the strict-equality check above already proved they match).
 - **Fast mode** → always the resolved `paths.plan` (default: `.ai-factory/PLAN.md`). No other filename.
 - **Full mode with branch creation** → `<resolved plans dir>/<branch-name>.md` where `<branch-name>` is the current git branch name (with `/` replaced by `-`). The branch must exist at this point (created above or already checked out).
 - **Full mode without branch creation** (`git.enabled = false` or `git.create_branches = false`) → `<resolved plans dir>/<slug>.md`.
@@ -132,7 +153,7 @@ Scope rule:
 
 Workflow:
 1. Parse the user request like `/aif-plan`.
-2. If full mode → ensure feature branch exists using the "Branch creation" rules above.
+2. If `HANDOFF_BRANCH_PREPARED = 1` → validate strict equality of current branch vs `HANDOFF_BRANCH_NAME`; on mismatch STOP and report blocker. Skip step 3-branch-side actions. If full mode without Handoff prep → ensure feature branch exists using the "Branch creation" rules above.
 3. Determine the target file path using the "Plan file location" rules above.
 4. Explore the codebase using the "Local exploration protocol" (Read, Glob, Grep, Bash) to gather context for the plan.
 5. Generate the plan content following the `/aif-plan` skill template and rules.

@@ -1,6 +1,6 @@
 import path from 'path';
 import type { AgentFileSource, AgentInstallation, AiFactoryConfig, ExtensionRecord } from './config.js';
-import { findAgentConfig, hydrateProjectAgentRegistry } from './agents.js';
+import { findAgentConfig, getBuiltinAgentConfigs, hydrateProjectAgentRegistry } from './agents.js';
 import {
   type ExtensionManifest,
   classifyExtensionSource,
@@ -9,7 +9,7 @@ import {
   resolveExtensionVersion,
   resolveExtension,
   getExtensionsDir,
-  loadExtensionManifest,
+  loadInstalledExtensionManifest,
   loadAllExtensions,
   type ResolvedExtension,
 } from './extensions.js';
@@ -358,9 +358,18 @@ export async function assertNoAgentFileConflicts(
     }
   }
 
-  const bundledClaudeFiles = await getAvailableSubagents();
-  for (const relPath of bundledClaudeFiles) {
-    ownership.set(`claude::${relPath}`, 'AI Factory bundled Claude agent files');
+  const bundledRuntimes = getBuiltinAgentConfigs().filter(runtime => runtime.agentsSourceDir);
+  for (const runtime of bundledRuntimes) {
+    const bundledFiles = await getAvailableSubagents(runtime.id);
+    if (bundledFiles.length === 0) {
+      continue;
+    }
+
+    const ownerLabel = `AI Factory bundled ${runtime.displayName} agent files`;
+
+    for (const relPath of bundledFiles) {
+      ownership.set(`${runtime.id}::${relPath}`, ownerLabel);
+    }
   }
 
   for (const agentFile of manifest.agentFiles ?? []) {
@@ -520,7 +529,7 @@ async function rollbackFailedExtensionInstall(
     await ensureDir(path.dirname(context.extensionDir));
     await copyDirectory(context.backupDir, context.extensionDir);
 
-    const restoredManifest = context.oldManifest ?? await loadExtensionManifest(context.extensionDir);
+    const restoredManifest = context.oldManifest ?? await loadInstalledExtensionManifest(context.extensionDir);
     if (restoredManifest) {
       await installExtensionAssetsForAllAgents(projectDir, agents, context.extensionDir, restoredManifest);
     }
@@ -706,7 +715,7 @@ export async function commitResolvedExtension(
     : null;
   const oldRecord = existIdx >= 0 ? { ...extensions[existIdx] } : null;
   const oldManifest = existIdx >= 0
-    ? await loadExtensionManifest(extensionDir)
+    ? await loadInstalledExtensionManifest(extensionDir)
     : null;
 
   const removedRuntimeIds = oldManifest

@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/lee-to/ai-factory/2.x/schemas/extension.schema.json",
+  "title": "AI Factory Extension Manifest",
+  "description": "Manifest file for an AI Factory extension.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "version"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional JSON Schema reference for editor and tooling support."
+    },
+    "name": {
+      "type": "string",
+      "description": "Unique extension name."
+    },
+    "version": {
+      "type": "string",
+      "description": "Extension version."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable extension description."
+    },
+    "commands": {
+      "type": "array",
+      "description": "Custom CLI commands provided by this extension.",
+      "items": {
+        "$ref": "#/$defs/ExtensionCommand"
+      }
+    },
+    "agents": {
+      "type": "array",
+      "description": "Runtime definitions provided by this extension.",
+      "items": {
+        "$ref": "#/$defs/ExtensionAgentDef"
+      }
+    },
+    "agentFiles": {
+      "type": "array",
+      "description": "Runtime-aware agent files copied into matching runtime agent directories.",
+      "items": {
+        "$ref": "#/$defs/ExtensionAgentFile"
+      }
+    },
+    "injections": {
+      "type": "array",
+      "description": "Content injections applied to installed skills.",
+      "items": {
+        "$ref": "#/$defs/ExtensionInjection"
+      }
+    },
+    "skills": {
+      "type": "array",
+      "description": "Paths to skill directories within the extension.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "replaces": {
+      "type": "object",
+      "description": "Map of extension skill paths to built-in skill names they replace.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "mcpServers": {
+      "type": "array",
+      "description": "MCP servers provided by this extension.",
+      "items": {
+        "$ref": "#/$defs/ExtensionMcpServer"
+      }
+    }
+  },
+  "$defs": {
+    "ExtensionCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "module"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Command name used as the CLI subcommand."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable command description."
+        },
+        "module": {
+          "type": "string",
+          "description": "Relative path to the JavaScript module implementing this command."
+        }
+      }
+    },
+    "ExtensionAgentDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "displayName",
+        "configDir",
+        "skillsDir",
+        "settingsFile",
+        "supportsMcp",
+        "skillsCliAgent"
+      ],
+      "dependentRequired": {
+        "agentsDir": ["agentFileExtension"],
+        "agentFileExtension": ["agentsDir"]
+      },
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique runtime identifier."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable runtime name."
+        },
+        "configDir": {
+          "type": "string",
+          "description": "Runtime configuration directory."
+        },
+        "skillsDir": {
+          "type": "string",
+          "description": "Directory where skills are installed for this runtime."
+        },
+        "agentsDir": {
+          "type": "string",
+          "description": "Runtime-local directory for custom agent files."
+        },
+        "agentFileExtension": {
+          "type": "string",
+          "description": "Required file extension for runtime agent files.",
+          "enum": [".md", ".toml"]
+        },
+        "settingsFile": {
+          "type": ["string", "null"],
+          "description": "Runtime settings file path, or null when not applicable."
+        },
+        "supportsMcp": {
+          "type": "boolean",
+          "description": "Whether this runtime supports MCP server configuration."
+        },
+        "skillsCliAgent": {
+          "type": ["string", "null"],
+          "description": "Agent id for skills CLI integration, or null when not applicable."
+        }
+      }
+    },
+    "ExtensionAgentFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime", "source", "target"],
+      "properties": {
+        "runtime": {
+          "type": "string",
+          "description": "Runtime id that should receive this agent file."
+        },
+        "source": {
+          "type": "string",
+          "description": "Relative path to the agent file inside the extension."
+        },
+        "target": {
+          "type": "string",
+          "description": "Runtime-local target path under the runtime agents directory."
+        }
+      }
+    },
+    "ExtensionInjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "position", "file"],
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Target skill name for the injection."
+        },
+        "position": {
+          "type": "string",
+          "description": "Where to place injected content.",
+          "enum": ["append", "prepend"]
+        },
+        "file": {
+          "type": "string",
+          "description": "Relative path to the injection content file."
+        }
+      }
+    },
+    "ExtensionMcpServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "template"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "MCP server key used in agent settings."
+        },
+        "template": {
+          "description": "MCP server config as a relative JSON template path or inline config.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/McpServerConfig"
+            }
+          ]
+        },
+        "instruction": {
+          "type": "string",
+          "description": "Optional setup instruction shown after MCP configuration."
+        }
+      }
+    },
+    "McpServerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Executable command for the MCP server."
+        },
+        "args": {
+          "type": "array",
+          "description": "Command-line arguments for the MCP server.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for the MCP server process.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

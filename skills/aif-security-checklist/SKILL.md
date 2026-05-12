@@ -142,6 +142,43 @@ This checks:
 
 ---
 
+## Machine-Readable Gate Result
+
+For `/aif-security-checklist` audits (full audit or category audit), keep the human-readable security report first and append one final fenced `aif-gate-result` JSON block.
+
+Do not append this gate block for the `ignore <item>` writer flow unless that invocation also performs and reports an audit result.
+
+Status mapping:
+- `fail`: an unignored critical/high security issue or other explicitly production-blocking finding remains.
+- `warn`: only medium/low findings, ignored items needing review, incomplete audit evidence, or audit command limitations remain.
+- `pass`: the audit completed and no unignored findings remain.
+
+Machine-readable fields:
+- Use `"gate": "security"`.
+- Use `"status": "pass|warn|fail"`.
+- Use `"blocking": true|false`.
+- Include only production-blocking findings in `"blockers": [`.
+- Include implicated paths in `"affected_files": [`.
+- Set `"suggested_next": {` to `/aif-fix` for code/config security fixes or `null` when no workflow command fits.
+- Never include secrets, tokens, raw passwords, or private credentials in the JSON block.
+
+```aif-gate-result
+{
+  "schema_version": 1,
+  "gate": "security",
+  "status": "warn",
+  "blocking": false,
+  "blockers": [],
+  "affected_files": ["src/api/session.ts"],
+  "suggested_next": {
+    "command": "/aif-fix",
+    "reason": "Address non-blocking security hardening findings."
+  }
+}
+```
+
+---
+
 ## 🔴 Critical: Pre-Deployment Checklist
 
 ### Must Fix Before Production
@@ -154,6 +191,8 @@ This checks:
 - [ ] CSRF tokens on state-changing requests
 - [ ] Rate limiting enabled
 - [ ] Error messages don't leak sensitive info
+- [ ] Client-side debug logging is disabled in production or guarded by an explicit non-production environment check
+- [ ] Production UI never displays raw errors, stack traces, exception messages, SQL errors, request internals, or upstream service details
 - [ ] Dependencies scanned for vulnerabilities
 - [ ] LLM prompt injection mitigated (if using AI)
 - [ ] Race conditions prevented on critical operations (payments, inventory)
@@ -331,6 +370,37 @@ git push origin --force --all
 - [ ] OAuth 2.0 for third-party access
 ```
 
+### Client-Facing Logging & Errors
+```
+- [ ] Browser/client logs are disabled in production or routed through a logger that no-ops debug output in production
+- [ ] `console.log`, `console.debug`, `console.info`, and verbose client telemetry are gated by explicit non-production checks
+- [ ] Production UI shows only client-safe error messages with minimal operational detail
+- [ ] Raw exceptions, stack traces, SQL/ORM errors, validation library internals, upstream responses, file paths, env names, and secrets never reach UI text
+- [ ] Full error details are logged server-side only, correlated with a request/error ID returned to the client
+- [ ] Client-safe error payloads use stable codes/messages such as `VALIDATION_FAILED`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, or `INTERNAL_ERROR`
+```
+
+```typescript
+const isProduction = process.env.NODE_ENV === 'production';
+
+// ✅ Client debug output is explicit and removed/no-op in production paths
+if (!isProduction) {
+  console.debug('Form validation state', formState);
+}
+
+// ✅ Normalize unknown errors before rendering them in UI
+function toClientError(error: unknown) {
+  if (isKnownClientError(error)) {
+    return { code: error.code, message: error.publicMessage };
+  }
+
+  return {
+    code: 'INTERNAL_ERROR',
+    message: 'Something went wrong. Try again later.',
+  };
+}
+```
+
 ### Input Validation
 ```typescript
 // ✅ Validate all input with schema
@@ -345,7 +415,16 @@ const CreateUserSchema = z.object({
 app.post('/users', (req, res) => {
   const result = CreateUserSchema.safeParse(req.body);
   if (!result.success) {
-    return res.status(400).json({ error: result.error });
+    return res.status(400).json({
+      error: {
+        code: 'VALIDATION_FAILED',
+        message: 'Some fields are invalid.',
+        fields: result.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          code: issue.code,
+        })),
+      },
+    });
   }
   // result.data is typed and validated
 });
@@ -359,7 +438,10 @@ app.use((err, req, res, next) => {
 
   // Return generic message to client
   res.status(500).json({
-    error: 'Internal server error',
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'Something went wrong. Try again later.',
+    },
     requestId: req.id, // For support reference
   });
 });
@@ -469,6 +551,12 @@ grep -rn "[T][O][D][O].*security\|[F][I][X][M][E].*security\|[X][X][X].*security
 
 # Check for console.log in production code
 grep -rn "console\.log" src/
+
+# Check for verbose browser logs that need a non-production guard
+grep -rn "console\.\(log\|debug\|info\|trace\)" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" src/
+
+# Check for raw error rendering patterns in UI/client code
+grep -rn "\(error\.message\|err\.message\|String(error)\|String(err)\|stack\)" --include="*.tsx" --include="*.jsx" --include="*.ts" --include="*.js" src/
 
 # Find prompt injection risks (unsanitized input in LLM calls)
 grep -rn "system.*\${.*}" --include="*.ts" --include="*.js" .

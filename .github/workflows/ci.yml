@@ -32,3 +32,9 @@ jobs:
 
       - name: Validate skills
         run: npm test
+
+      - name: Init smoke tests
+        run: npm run test:init
+
+      - name: Update smoke tests
+        run: npm run test:update

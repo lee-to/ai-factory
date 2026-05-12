@@ -21,6 +21,14 @@
 
 ---
 
+### Evidence
+
+| Finding        | Evidence                          |
+|----------------|-----------------------------------|
+| [What changed] | [file/function/commit/diff proof] |
+
+---
+
 ### Risks
 
 🔴 **Critical** (must verify):

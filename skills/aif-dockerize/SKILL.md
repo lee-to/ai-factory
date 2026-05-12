@@ -311,6 +311,11 @@ Read skills/dockerize/references/BEST-PRACTICES.md
 Read skills/dockerize/references/SECURITY-CHECKLIST.md
 ```
 
+Additional focused references are available for production reverse-proxy and Compose permission edge cases:
+
+- `references/ANGIE-ACME.md` — read when generating or auditing Angie HTTPS/ACME configuration. Use it for built-in ACME setup, persistent certificate volumes, `acme_client_path`, resolver requirements, and avoiding unnecessary Certbot containers.
+- `references/COMPOSE-LIFECYCLE-HOOKS.md` — read when a production Compose service runs non-root but needs named-volume ownership fixes or best-effort stop hooks. Use it for `post_start`/`pre_stop` syntax, Docker Compose 2.30.0+ requirements, and hook timing caveats.
+
 Select the Dockerfile template matching the language:
 
 | Language | Template |

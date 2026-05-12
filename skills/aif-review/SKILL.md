@@ -111,11 +111,23 @@ Before finalizing review findings, run read-only context gates:
 - Check the resolved RULES.md artifact (if present) for explicit convention violations.
 - Check the resolved roadmap artifact (if present) for milestone alignment and mention missing linkage for likely `feat`/`fix`/`perf` work.
 
-Gate result severity:
+Human gate result severity:
 - `WARN` for non-blocking inconsistencies or missing optional files.
 - `ERROR` only for explicit blocking criteria requested by the user/review policy.
 
-If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep `/aif-review` gate labels at `WARN` / `ERROR`.
+If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep human `/aif-review` gate labels at `WARN` / `ERROR`, then append the standard machine-readable gate result with `pass|warn|fail` status.
+
+Machine-readable gate result:
+- Append one final fenced `aif-gate-result` JSON block after the human-readable review.
+- Use `"gate": "review"`.
+- Use `"status": "pass|warn|fail"` where:
+  - `fail` = review findings should block merge, including critical correctness, security, data-loss, performance, or explicit blocking context-gate issues.
+  - `warn` = only non-blocking findings, suggestions, missing optional context, or review uncertainty remain.
+  - `pass` = no material review findings remain.
+- Use `"blocking": true|false`.
+- Include merge-blocking review findings only in `"blockers": [`.
+- Include reviewed or implicated paths in `"affected_files": [`.
+- Set `"suggested_next": {` to `/aif-fix`, `/aif-rules`, `/aif-architecture`, `/aif-roadmap`, `/aif-commit`, or `null`.
 
 `/aif-review` is read-only for context artifacts by default. Do not modify context files unless user explicitly asks.
 
@@ -203,6 +215,25 @@ If any rule is violated — fix the output before presenting it to the user.
 ### Positive Notes
 [Good patterns observed]
 ```
+
+Append the final machine-readable result after the markdown summary:
+
+```aif-gate-result
+{
+  "schema_version": 1,
+  "gate": "review",
+  "status": "pass",
+  "blocking": false,
+  "blockers": [],
+  "affected_files": [],
+  "suggested_next": {
+    "command": "/aif-commit",
+    "reason": "Review found no blocking issues."
+  }
+}
+```
+
+Schema reminder: `"status": "pass|warn|fail"`, `"blocking": true|false`, `"blockers": [`, `"affected_files": [`, `"suggested_next": {`.
 
 ## Review Style
 
