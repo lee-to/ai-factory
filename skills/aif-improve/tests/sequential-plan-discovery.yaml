@@ -1,0 +1,145 @@
+scenario: sequential-plan-discovery
+description: |
+  With `workflow.plan_id_format: sequential` and multiple numbered plan files
+  matching the current branch stem, `/aif-improve --list` must:
+
+    1. Resolve `workflow.plan_id_format` from `.ai-factory/config.yaml`
+       (Step 0 of skills/aif-improve/SKILL.md — Load Config).
+    2. Compute `<branch-slug>` = `git branch --show-current` with every `/`
+       replaced by `-` (Step 0.list of skills/aif-improve/SKILL.md).
+    3. Glob `<paths.plans>/[0-9][0-9][0-9][0-9]_<branch-slug>.md` and
+       surface the matches in the availability summary (highest-numbered
+       first) — the listing must include `0005_feature-user-auth.md`.
+    4. NOT execute refinement, NOT modify any plan file (read-only `--list`
+       contract).
+    5. NOT list `0003_other-feature.md` as a current-branch sequential
+       match (different stem).
+
+  Fixture state:
+    Current branch:                       feature/user-auth
+    Branch-derived slug:                  feature-user-auth
+    .ai-factory/plans/0001_feature-user-auth.md   (this branch, OLDER)
+    .ai-factory/plans/0005_feature-user-auth.md   (this branch, HIGHEST)
+    .ai-factory/plans/0003_other-feature.md       (different stem — ignored)
+
+  This is the cross-skill regression for ichinya's fourth-pass P1: every
+  consumer that branches on `workflow.plan_id_format` (here `/aif-improve`)
+  must explicitly resolve the flag in its Load Config step before doing any
+  sequential globbing. Production-equivalent `allowed_tools_override` is
+  read-only — `Write`/`Edit` are intentionally omitted because `--list` is
+  a read-only contract; any Write call would already be a contract bug.
+skill: aif-improve
+argument: "--list"
+max_turns: 50
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/user-auth
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for sequential plan discovery in /aif-improve --list.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: sequential
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: .ai-factory/plans/0001_feature-user-auth.md
+      content: |
+        # Feature: user-auth (older plan)
+
+        ## Context
+        - Mode: full
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [x] Task 1: Older numbered plan for the same branch stem. The
+              `--list` summary may mention it as a lower-numbered match,
+              but the highest-numbered sibling for the same branch is
+              0005.
+    - path: .ai-factory/plans/0005_feature-user-auth.md
+      content: |
+        # Feature: user-auth (latest plan)
+
+        ## Context
+        - Mode: full
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [x] Task 1: Highest-numbered sequential plan for the current
+              branch (feature/user-auth → stem feature-user-auth). The
+              `--list` summary MUST surface this filename.
+    - path: .ai-factory/plans/0003_other-feature.md
+      content: |
+        # Feature: other-feature (different branch stem — must be ignored)
+
+        ## Tasks
+
+        - [x] Task 1: This plan belongs to a different branch stem and
+              must NOT be listed as a current-branch sequential match by
+              /aif-improve --list on branch feature/user-auth.
+
+assertions:
+  - id: reads-config-yaml
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/config\\.yaml$"
+    weight: 3
+
+  - id: lists-highest-numbered-plan
+    type: output_contains
+    pattern: "0005_feature-user-auth\\.md"
+    weight: 4
+
+  - id: does-not-list-other-stem-plan-as-current
+    type: no_output_contains
+    pattern: "(?i)current branch.*0003_other-feature"
+
+  - id: list-mode-does-not-write
+    type: no_tool_called
+    tool: Write
+
+  - id: list-mode-does-not-edit
+    type: no_tool_called
+    tool: Edit
+
+  - id: stay-in-sandbox
+    type: no_path_escape

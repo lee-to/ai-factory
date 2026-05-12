@@ -1,0 +1,140 @@
+scenario: sequential-plan-discovery
+description: |
+  With `workflow.plan_id_format: sequential` and multiple numbered plan files
+  matching the current branch stem, `/aif-verify` must:
+
+    1. Compute `branch_stem` = `git branch --show-current` with every `/`
+       replaced by `-` (Step 0.2 of skills/aif-verify/SKILL.md).
+    2. Glob `<paths.plans>/[0-9][0-9][0-9][0-9]_<branch_stem>.md` first.
+    3. Read the **highest-numbered** match for the current branch's stem.
+    4. Emit `WARN [aif-verify] multiple sequential plans for <branch>: ...`
+       when more than one match exists.
+    5. Not read or verify against plans whose stem belongs to a different
+       branch.
+
+  Fixture state:
+    Current branch:                       feature/user-auth
+    Branch-derived stem:                  feature-user-auth
+    .ai-factory/plans/0001_feature-user-auth.md   (this branch, OLDER)
+    .ai-factory/plans/0005_feature-user-auth.md   (this branch, HIGHEST → chosen)
+    .ai-factory/plans/0003_other-feature.md       (different stem — ignored)
+
+  This is the cross-skill regression for ichinya's third-pass P1: producer
+  (`/aif-plan`) writes a sequential branch-mode plan as
+  `<NNNN>_<branch_stem>.md`, and `/aif-verify` must resolve the same
+  canonical branch-stem path — not `<NNNN>_<raw-branch>.md` (which would
+  contain a literal `/` for branches like `feature/user-auth`).
+skill: aif-verify
+argument: ""
+max_turns: 50
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/user-auth
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for sequential plan discovery in /aif-verify.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: sequential
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: .ai-factory/plans/0001_feature-user-auth.md
+      content: |
+        # Feature: user-auth (older plan)
+
+        ## Context
+        - Mode: full
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [x] Task 1: Older plan, completed earlier. Must NOT be the plan
+              that /aif-verify verifies against — the higher-numbered
+              sibling for the same branch wins.
+    - path: .ai-factory/plans/0005_feature-user-auth.md
+      content: |
+        # Feature: user-auth (latest plan)
+
+        ## Context
+        - Mode: full
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [x] Task 1: This is the plan that /aif-verify must read for the
+              current branch (feature/user-auth → stem feature-user-auth).
+              Highest-numbered sequential match wins.
+    - path: .ai-factory/plans/0003_other-feature.md
+      content: |
+        # Feature: other-feature (different branch stem — must be ignored)
+
+        ## Tasks
+
+        - [x] Task 1: This plan belongs to a different branch stem and
+              must NOT be selected by /aif-verify on branch
+              feature/user-auth.
+
+user_responses:
+  - match_question: "(?i)(verify last commit|verify branch diff|cancel)"
+    choose: "Verify last commit"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: reads-highest-numbered-plan
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/0005_feature-user-auth\\.md$"
+    weight: 4
+
+  - id: does-not-read-other-stem-plan
+    type: no_tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/0003_other-feature\\.md$"
+
+  - id: warns-about-multiple-sequential-plans
+    type: output_contains
+    pattern: "(?i)WARN \\[aif-verify\\] multiple sequential plans"
+    weight: 2
+
+  - id: stay-in-sandbox
+    type: no_path_escape

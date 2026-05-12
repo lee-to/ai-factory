@@ -170,7 +170,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-roadmap` | Strategic planning, milestones, long-term vision | No | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`) |
 | `/aif-rules` | Capture project conventions or add area-specific rules before planning and implementation | No | No (`paths.rules_file` or `paths.rules/<area>.md`) |
 | `/aif-plan fast` | Small tasks, quick fixes, experiments | No | `paths.plan` (default: `.ai-factory/PLAN.md`) |
-| `/aif-plan full` | Full features, stories, epics | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<branch-or-slug>.md` |
+| `/aif-plan full` | Full features, stories, epics | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see [Plan Files](plan-files.md)) |
 | `/aif-plan full --parallel` | Concurrent features via worktrees | Yes + worktree (`git.enabled` + `git.create_branches`) | Autonomous end-to-end |
 | `/aif-improve` | Refine plan before implementation | No | No (improves existing) |
 | `/aif-loop` | Iterative generation with quality gates and phase-based cycles | No | No (uses `paths.evolution`, default `.ai-factory/evolution/`) |
@@ -250,7 +250,7 @@ High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROAD
 /aif-plan full --parallel Add Stripe checkout      # Parallel worktree
 ```
 
-Two modes — **fast** (no branch, saves to `paths.plan`) and **full** (asks about testing/logging/docs policy and optional roadmap milestone linkage when the roadmap artifact exists, saves to `paths.plans/<branch-or-slug>.md`, and optionally creates a git branch/worktree when `git.enabled=true` and `git.create_branches=true`). Analyzes requirements, explores codebase for patterns, creates tasks with dependencies. For 5+ tasks, includes commit checkpoints. For parallel work on multiple features, use `full --parallel` to create isolated worktrees.
+Two modes — **fast** (no branch, saves to `paths.plan`) and **full** (asks about testing/logging/docs policy and optional roadmap milestone linkage when the roadmap artifact exists, saves to `paths.plans/<branch-or-slug>.md`, and optionally creates a git branch/worktree when `git.enabled=true` and `git.create_branches=true`). When `workflow.plan_id_format: sequential` is enabled, the full-mode filename gains a 4-digit `NNNN_` prefix (`paths.plans/<NNNN>_<branch-or-slug>.md`) — see [Plan Files](plan-files.md) for the numbering contract. Analyzes requirements, explores codebase for patterns, creates tasks with dependencies. For 5+ tasks, includes commit checkpoints. For parallel work on multiple features, use `full --parallel` to create isolated worktrees.
 
 ### `/aif-improve [--list] [@plan-file] [prompt]` — refine the plan
 

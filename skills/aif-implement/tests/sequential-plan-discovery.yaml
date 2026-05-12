@@ -1,0 +1,161 @@
+scenario: sequential-plan-discovery
+description: |
+  With `workflow.plan_id_format: sequential` and multiple numbered plan files
+  matching the current branch stem, `/aif-implement` must:
+
+    1. Glob `<paths.plans>/[0-9][0-9][0-9][0-9]_<branch-slug>.md` first.
+    2. Pick the **highest-numbered** match for the current branch's stem
+       (Step 0.2.a of skills/aif-implement/SKILL.md).
+    3. Emit `WARN [aif-implement] multiple sequential plans for <branch>: ...`
+       when more than one match exists.
+    4. Not touch numbered plans whose stem belongs to a different branch.
+
+  Fixture state:
+    Current branch:                       feature/user-auth
+    Branch-derived stem:                  feature-user-auth
+    .ai-factory/plans/0001_feature-user-auth.md   (this branch, OLDER)
+    .ai-factory/plans/0005_feature-user-auth.md   (this branch, HIGHEST → chosen)
+    .ai-factory/plans/0003_other-feature.md       (different stem — ignored)
+
+  The chosen plan (`0005_*`) contains one Write-tool task with a distinct
+  output filename so the assertion can verify which plan was executed.
+skill: aif-implement
+argument: ""
+max_turns: 50
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(ls *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - AskUserQuestion
+    - Questions
+    - TaskList
+    - TaskCreate
+    - TaskUpdate
+
+fixtures:
+  git_init: true
+  git_branch: feature/user-auth
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for sequential plan discovery in /aif-implement.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: sequential
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: .ai-factory/plans/0001_feature-user-auth.md
+      content: |
+        # Feature: user-auth (older plan)
+
+        ## Context
+        - Mode: full
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [ ] Task 1: Use the `Write` tool to create `OLDER_PLAN_RAN.txt` at the repo root with the text `older`. (This task must NOT execute — the higher-numbered plan should win.)
+    - path: .ai-factory/plans/0005_feature-user-auth.md
+      content: |
+        # Feature: user-auth (latest plan)
+
+        ## Context
+        - Mode: full
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [ ] Task 1: Use the `Write` tool to create `LATEST_PLAN_RAN.txt` at the repo root containing exactly the text `latest` (no trailing newline). Do not use Bash to echo/printf the file — the test asserts the Write tool call.
+    - path: .ai-factory/plans/0003_other-feature.md
+      content: |
+        # Feature: other-feature (different branch stem — must be ignored)
+
+        ## Tasks
+
+        - [ ] Task 1: Use the `Write` tool to create `OTHER_PLAN_RAN.txt` at the repo root with the text `other`. (This file's stem does not match the current branch and must NOT execute.)
+
+user_responses:
+  - match_question: "(?i)(delete|remove).*(plan|PLAN\\.md)"
+    choose: "No, keep it"
+  - match_question: "(?i)(verify|commit|what'?s next|next\\??)"
+    choose: "Skip to commit"
+  - match_question: "(?i)(uncommitted|stash|commit.*first)"
+    choose: "No, stash and continue"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: reads-highest-numbered-plan
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/0005_feature-user-auth\\.md$"
+    weight: 4
+
+  - id: does-not-execute-older-plan
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)OLDER_PLAN_RAN\\.txt$"
+
+  - id: does-not-execute-other-stem-plan
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)OTHER_PLAN_RAN\\.txt$"
+
+  - id: writes-latest-output
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)LATEST_PLAN_RAN\\.txt$"
+      content: "latest"
+    weight: 3
+
+  - id: warns-about-multiple-sequential-plans
+    type: output_contains
+    pattern: "(?i)WARN \\[aif-implement\\] multiple sequential plans"
+    weight: 2
+
+  - id: updates-chosen-plan-checkbox
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/plans/0005_feature-user-auth\\.md$"
+      new_string: "- \\[x\\]"
+    weight: 2
+
+  - id: stay-in-sandbox
+    type: no_path_escape

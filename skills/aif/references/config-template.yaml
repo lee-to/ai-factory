@@ -126,8 +126,34 @@ workflow:
   auto_create_dirs: true
 
   # Plan ID format for new plans
-  # Options: slug, timestamp, uuid
+  # Options: slug, sequential   (timestamp and uuid are reserved — see below)
   # Default: slug (derived from branch or task description)
+  #
+  # Only `slug` and `sequential` are active right now. `timestamp` and `uuid`
+  # are accepted by `/aif-plan` but currently behave like `slug` (an INFO log
+  # is emitted). They are reserved for a future filename format that the
+  # branch-based consumers (`/aif-implement`, `/aif-improve`, `/aif-verify`,
+  # `/aif-rules-check`) will know how to discover.
+  #
+  # `sequential` writes full-mode plan files as `<NNNN>_<stem>.md` under
+  # `paths.plans/`, where:
+  #   - `stem` is the canonical filename stem chosen by `/aif-plan`:
+  #       1. `HANDOFF_BRANCH_NAME` with `/` replaced by `-`  (Handoff mode)
+  #       2. the generated git branch name with `/` replaced by `-`
+  #       3. the description slug (when no branch is created)
+  #     Branch-based consumers reproduce the same stem at lookup time.
+  #   - NNNN = max(existing 4-digit prefix) + 1, zero-padded to 4 digits;
+  #     an empty plans directory starts from `0001`.
+  # Numbering is derived from currently existing numbered plans in the
+  # directory — if the highest-numbered file is deleted or moved elsewhere,
+  # that number can be reused on the next run; keep plans in place if you
+  # rely on stable cross-references. The format is bounded: 0001..9999.
+  # `/aif-plan` errors out instead of writing `10000_…` so consumer globs
+  # stay aligned. Branch names stay un-numbered (the prefix lives only on the
+  # file). Force-disabled when Handoff owns the branch
+  # (HANDOFF_BRANCH_PREPARED=1) — Handoff requires the plan filename to equal
+  # the branch name. Fast plans (`paths.plan`) and fix plans
+  # (`paths.fix_plan`) are single files and ignore this setting.
   plan_id_format: slug
 
   # Whether the setup/analyze flow updates ARCHITECTURE.md

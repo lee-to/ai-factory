@@ -90,6 +90,8 @@
 -> Explores codebase deeply
 -> Creates 8 tasks with commit checkpoints
 -> Saves plan to `paths.plans/feature-user-authentication.md` (or `paths.plans/user-authentication.md` when no branch is created)
+-> When `workflow.plan_id_format = sequential`, the filename gains a 4-digit prefix:
+   `paths.plans/0007_feature-user-authentication.md`
 -> STOP - user runs /aif-implement when ready
 ```
 
@@ -120,4 +122,30 @@
 -> Asks: Full (Recommended) or Fast?
 -> User picks Full
 -> Continues as full mode flow
+```
+
+### Scenario 5: Full mode with sequential numbering (`plan_id_format: sequential`)
+
+```text
+.ai-factory/plans/ already contains:
+  0001_admin-auth.md
+  0002_admin-design.md
+  0003_admin-bootstrap.md
+
+/aif-plan full Add user authentication with OAuth
+
+-> mode=full
+-> workflow.plan_id_format = sequential (resolved from .ai-factory/config.yaml)
+-> Plan slug: user-authentication
+-> Branch:    feature/user-authentication        # branch stays un-numbered
+-> Next number: max(0001, 0002, 0003) + 1 = 0004 → "0004"
+-> Saves plan to paths.plans/0004_feature-user-authentication.md
+-> STOP - user runs /aif-implement when ready
+
+# If the directory is empty, the same flow starts from 0001.
+# Numbers are derived from existing files: deleting 0004_*.md frees the 0004
+# slot, and the next /aif-plan run will reuse it. Keep prior plans in place
+# if you rely on stable cross-references.
+# When HANDOFF_BRANCH_PREPARED=1, sequential numbering is force-disabled and
+# the filename equals the branch name (Handoff contract).
 ```

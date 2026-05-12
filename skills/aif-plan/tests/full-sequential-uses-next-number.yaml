@@ -1,0 +1,125 @@
+scenario: full-sequential-uses-next-number
+description: |
+  Full-mode planning with `workflow.plan_id_format: sequential` must:
+    1. Derive the canonical `plan_file_stem` from the git branch that the run
+       creates (Step 1.2.a, case 2): branch `feature/add-product-search-api`
+       → stem `feature-add-product-search-api`.
+    2. Derive the next 4-digit prefix from the existing plan files in
+       `paths.plans/`.
+    3. Write the new plan as `<NNNN>_<plan_file_stem>.md` — both halves of the
+       filename must agree with the branch-based discovery used by
+       `/aif-implement` and `/aif-improve`.
+
+  Fixture state:
+    .ai-factory/plans/0001_alpha.md
+    .ai-factory/plans/0002_beta.md
+
+  Expected: the new plan is written exactly under
+    .ai-factory/plans/0003_feature-add-product-search-api.md
+
+  Verifies Step 1.2.a (canonical stem), Step 1.2.c (numbering algorithm) and
+  Step 5 (Save Plan to File) of skills/aif-plan/SKILL.md.
+skill: aif-plan
+argument: "full add product search API"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(cp *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for the aif-plan sequential numbering scenario.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: sequential
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: .ai-factory/plans/0001_alpha.md
+      content: |
+        # Plan: alpha
+
+        - [x] Task 1
+    - path: .ai-factory/plans/0002_beta.md
+      content: |
+        # Plan: beta
+
+        - [x] Task 1
+
+user_responses:
+  - match_question: "(?i)\\b(fast|full)\\b"
+    choose: "Full"
+  - match_question: "(?i)test"
+    choose: "Yes, write tests"
+  - match_question: "(?i)log"
+    choose: "Verbose"
+  - match_question: "(?i)doc"
+    choose: "Yes"
+  - match_question: "(?i)(requirement|constraint|clarif)"
+    choose: "None"
+  - match_question: "(?i)(roadmap|milestone|linkage)"
+    choose: "Skip — no linkage"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: writes-canonical-branch-stem-0003
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0003_feature-add-product-search-api\\.md$"
+    weight: 4
+
+  - id: not-writing-bare-description-slug
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0003_add-product-search-api\\.md$"
+
+  - id: not-writing-without-prefix
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/(?!0003_)[a-z0-9-]+\\.md$"
+
+  - id: not-overwriting-0001-or-0002
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/000[12]_"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

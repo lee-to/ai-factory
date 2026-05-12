@@ -32,6 +32,12 @@ Run a standalone read-only rules gate for project rules. This command checks rul
 - `git.base_branch`
 - `rules.base`
 - named `rules.<area>` entries
+- `workflow.plan_id_format` (default: `slug`) — used by the optional branch-based plan-context lookup in Step 2.3.
+  Active values: `slug` and `sequential`. When `sequential`, the resolver globs
+  `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and falls back to
+  `<paths.plans>/<branch_stem>.md` only if no numbered match is found.
+  `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
+  Treat any unknown value as `slug`.
 
 If config is missing or partial, use defaults:
 - `paths.rules_file`: `.ai-factory/RULES.md`
@@ -41,6 +47,7 @@ If config is missing or partial, use defaults:
 - `git.enabled`: `true`
 - `git.base_branch`: detect the repo default branch from git metadata; fall back to `main` only when detection is unavailable
 - `rules.base`: `.ai-factory/rules/base.md`
+- `workflow.plan_id_format`: `slug`
 
 If `paths.rules_file` is missing from config, default to `.ai-factory/RULES.md` instead of treating config as incomplete.
 If `git.base_branch` is missing from config, resolve the repository default branch from git metadata when possible; use `main` only as the final fallback.
@@ -129,9 +136,20 @@ If no rules sources resolve, return `WARN` rather than a hard failure.
 Optional plan context: use the active plan file only when it helps interpret scope or area relevance; absence of a plan is never a failure.
 
 Plan resolution order:
-1. Branch-based `paths.plans/<current-branch>.md`
-2. A single named full plan in `paths.plans`
-3. The fast plan at `paths.plan`
+1. Compute the **canonical branch stem** the same way as `/aif-plan`,
+   `/aif-implement`, and `/aif-improve`:
+   - get current branch via `git branch --show-current` (git mode only);
+   - `branch_stem` = current branch with every `/` replaced by `-`
+     (for example `feature/user-auth` → `feature-user-auth`).
+2. Branch-based lookup using `<branch_stem>`:
+   - when `workflow.plan_id_format = sequential`, glob first
+     `paths.plans/[0-9][0-9][0-9][0-9]_<branch_stem>.md` and pick the
+     highest-numbered match; emit a `WARN [aif-rules-check] multiple sequential
+     plans for <branch>: <list>; using <chosen>` if more than one matches;
+   - otherwise (or no numbered match), fall back to `paths.plans/<branch_stem>.md`.
+3. A single named full plan in `paths.plans` (the leading `NNNN_` prefix
+   counts as a match) when no branch-based plan resolves.
+4. The fast plan at `paths.plan`.
 
 Do not fail the rules check because a plan file is missing or ambiguous.
 
