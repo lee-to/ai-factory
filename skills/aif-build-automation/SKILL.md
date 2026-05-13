@@ -211,6 +211,18 @@ For Go projects, check `go.mod` for:
 - `gofiber/fiber` → Fiber
 - `go-chi/chi` → Chi
 
+For Rust projects, read `Cargo.toml` (workspace members and `[dependencies]` / `[workspace.dependencies]`) for:
+- `axum` → Axum
+- `actix-web` → Actix Web
+- `rocket` → Rocket
+- `warp` → Warp
+
+For Ruby projects, read `Gemfile` for:
+- `rails` → Ruby on Rails
+- `sinatra` → Sinatra
+- `hanami` → Hanami
+- `roda` → Roda
+
 For Java / JVM projects, read `pom.xml`, `build.gradle*`, and `gradle/libs.versions.toml` (when present) for dependencies and plugins — same discovery depth as `package.json` for Node:
 
 - `spring-boot`, `spring-boot-starter`, `spring-boot-parent` → Spring Boot
@@ -284,16 +296,18 @@ Check for:
 | Python | `pytest` in pyproject.toml/requirements, `unittest` imports |
 | Go | Go has built-in testing; check for `testify` in go.mod |
 | Rust | Built-in; check for integration test directory `tests/` |
+| Ruby | `rspec` in Gemfile → RSpec; `minitest` / `minitest-` gems → Minitest; else default `rake test` when `Rakefile` exists |
 | Java / Kotlin (JVM) | `junit-jupiter`, `junit-jupiter-api`, `JUnitPlatform`, `JUnit5`, `testcontainers`, `mockito`, `rest-assured`, `cucumber` in Gradle/Maven / `libs.versions.toml` |
 
 ### 2.8 Linters & Formatters
 
-Scan for formatter/linter configs (EditorConfig, Checkstyle on JVM, ESLint/Prettier/Biome, Python tools, PHP, Go, Rust):
+Scan for formatter/linter configs (EditorConfig, Checkstyle on JVM, ESLint/Prettier/Biome, Python tools, PHP, Go, Rust, Ruby):
 
 ```
 Glob: .eslintrc*, eslint.config.*, .prettierrc*, biome.json, biome.jsonc, .golangci.yml, .golangci.yaml
 Glob: checkstyle.xml, .checkstyle.xml, config/checkstyle/checkstyle.xml, .editorconfig
 Glob: ruff.toml, .ruff.toml, .flake8, phpcs.xml, phpcs.xml.dist
+Glob: rustfmt.toml, .rustfmt.toml, clippy.toml, .rubocop.yml, .rubocop_todo.yml, .standard.yml
 Grep in pyproject.toml: ruff|black|flake8|pylint|isort
 Grep in build.gradle*, pom.xml: spotless|spotbugs|pmd|errorprone|checkstyle (when not covered by config files alone)
 ```
@@ -346,20 +360,20 @@ Also read the "Cross-Cutting Concerns" section for standard targets.
 
 Pick the closest matching template based on `language` + `TARGET_TOOL`:
 
-| Tool | Go | Node.js | Python | PHP | Java / JVM | Other |
-|------|----|---------|--------|-----|------------|------------------------|
-| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | `makefile-gradle.mk` or `makefile-maven.mk` | Use closest match |
-| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | `taskfile-gradle.yml` or `taskfile-maven.yml` | Use closest match |
-| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | `justfile-gradle` or `justfile-maven` | Use closest match |
-| Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | N/A (use Makefile) | N/A (use Makefile) |
+| Tool | Go | Node.js | Python | PHP | Rust | Ruby | Java / JVM | Other |
+|------|----|---------|--------|-----|------|------|------------|------------------------|
+| Makefile | `makefile-go.mk` | `makefile-node.mk` | `makefile-python.mk` | `makefile-php.mk` | `makefile-rust.mk` | `makefile-ruby.mk` | `makefile-gradle.mk` or `makefile-maven.mk` | Use closest match |
+| Taskfile | `taskfile-go.yml` | `taskfile-node.yml` | `taskfile-python.yml` | `taskfile-php.yml` | `taskfile-rust.yml` | `taskfile-ruby.yml` | `taskfile-gradle.yml` or `taskfile-maven.yml` | Use closest match |
+| Justfile | `justfile-go` | `justfile-node` | `justfile-python` | `justfile-php` | `justfile-rust` | `justfile-ruby` | `justfile-gradle` or `justfile-maven` | Use closest match |
+| Magefile | `magefile-basic.go` | `magefile-full.go` | `magefile-full.go` | N/A (use Makefile) | N/A (use Makefile) | N/A (use Makefile) | N/A (use Makefile) | N/A (use Makefile) |
 
 For Java / JVM, select the Gradle or Maven template based on `PROJECT_PROFILE.java_build.build_tool`.
 
-If `language` is not in the core columns, use the **Node.js** template as the structural fallback and adapt it to the detected `build_entrypoint` and language conventions (e.g., `cargo build`, `bundle exec rake`, `dotnet build`).
+If `language` is **not** among Go, Node.js, Python, PHP, Rust, Ruby, or Java / JVM in the table above, use the **Node.js** template as the structural fallback and adapt it to the detected `build_entrypoint` and language conventions (e.g., `dotnet build`).
 
 For Magefile: use `magefile-full.go` if `HAS_DOCKER` or `has_migrations` is true, otherwise `magefile-basic.go`.
 
-For PHP or Java/JVM + Magefile: Mage is Go-specific and not generally applicable to PHP or JVM projects. If the user explicitly requested `mage` for a PHP or JVM project, explain this and suggest Makefile as the closest alternative (universal, no install needed). Ask via `AskUserQuestion` whether to proceed with Makefile instead.
+For PHP, Rust, Ruby, or Java/JVM + Magefile: Mage is Go-specific and not generally applicable to these stacks. If the user explicitly requested `mage` for such a project, explain this and suggest Makefile as the closest alternative (universal, no install needed). Ask via `AskUserQuestion` whether to proceed with Makefile instead.
 
 Read the selected template:
 
@@ -385,7 +399,7 @@ Using the `PROJECT_PROFILE`, best practices, and template as reference, generate
    - Deploy targets → only if CI/CD detected
    - Generate target → only if code generation detected
    - Typecheck target → only if TypeScript or mypy detected
-4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `<build_entrypoint>` (from §2.2); Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
+4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `<build_entrypoint>` (from §2.2); Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; Rust → `cargo`; Ruby → Bundler bundle/`bundle exec`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
 5. **Include CI aggregate target** that runs lint + test + build
 6. **Follow the template's structure** for organization and grouping
 7. **Adapt variable names** to match the actual project (module name, binary name, source dirs)

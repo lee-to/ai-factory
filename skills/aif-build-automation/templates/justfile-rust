@@ -1,0 +1,114 @@
+# --- Justfile for Rust Projects ---
+# Usage: just [recipe]
+# Install: https://just.systems/man/en/
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load
+set export
+set positional-arguments
+
+project := `basename $(pwd)`
+version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+
+docker_registry := env("DOCKER_REGISTRY", "ghcr.io")
+docker_image := docker_registry + "/" + project
+docker_tag := version
+
+clippyflags := "-D warnings"
+
+[doc("Show available recipes")]
+default:
+    @just --list --unsorted
+
+# --- Development ---
+
+[group("development")]
+[doc("Build the workspace (debug)")]
+build:
+    cargo build
+
+[group("development")]
+[doc("Build release binaries")]
+build-release:
+    cargo build --release
+
+[group("development")]
+[doc("Run the default binary")]
+run *args:
+    cargo run {{ args }}
+
+[group("development")]
+[doc("Watch and rebuild (requires cargo-watch)")]
+dev:
+    cargo watch -x check -x test
+
+[group("development")]
+[doc("Fast compile check")]
+check:
+    cargo check
+
+# --- Testing ---
+
+[group("testing")]
+[doc("Run tests")]
+test *args:
+    cargo test {{ args }}
+
+[group("testing")]
+[doc("Run documentation tests")]
+test-doc:
+    cargo test --doc
+
+# --- Code Quality ---
+
+[group("quality")]
+[doc("Run clippy")]
+lint:
+    cargo clippy --all-targets --all-features -- {{ clippyflags }}
+
+[group("quality")]
+[doc("Format with rustfmt")]
+fmt:
+    cargo fmt
+
+[group("quality")]
+[doc("Verify formatting (CI)")]
+fmt-check:
+    cargo fmt -- --check
+
+[group("quality")]
+[doc("Build rustdoc locally")]
+doc:
+    cargo doc --no-deps
+
+# --- Docker ---
+
+[group("docker")]
+[doc("Build Docker image")]
+docker-build:
+    docker build \
+        --build-arg VERSION={{ version }} \
+        --build-arg COMMIT={{ commit }} \
+        -t {{ docker_image }}:{{ docker_tag }} \
+        -t {{ docker_image }}:latest \
+        .
+
+[group("docker")]
+[doc("Push Docker image")]
+docker-push:
+    docker push {{ docker_image }}:{{ docker_tag }}
+    docker push {{ docker_image }}:latest
+
+# --- CI ---
+
+[group("ci")]
+[doc("Run full CI pipeline")]
+ci: fmt-check lint test build
+
+# --- Cleanup ---
+
+[group("maintenance")]
+[doc("Remove build artifacts")]
+clean:
+    cargo clean

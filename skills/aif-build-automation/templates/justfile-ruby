@@ -1,0 +1,105 @@
+# --- Justfile for Ruby (Bundler) Projects ---
+# Usage: just [recipe]
+# Install: https://just.systems/man/en/
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load
+set export
+set positional-arguments
+
+project := `basename $(pwd)`
+version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+
+docker_registry := env("DOCKER_REGISTRY", "ghcr.io")
+docker_image := docker_registry + "/" + project
+docker_tag := version
+
+[doc("Show available recipes")]
+default:
+    @just --list --unsorted
+
+# --- Development ---
+
+[group("development")]
+[doc("Install gems")]
+install:
+    bundle install
+
+[group("development")]
+[doc("Update gems")]
+update:
+    bundle update
+
+[group("development")]
+[doc("Start app — override per project (rails server, etc.)")]
+dev: install
+    bundle exec ruby -S rackup -o 0.0.0.0 -p 9292
+
+[group("development")]
+[doc("Rails console")]
+console:
+    bundle exec rails console
+
+# --- Testing ---
+
+[group("testing")]
+[doc("Run RSpec")]
+test *args:
+    bundle exec rspec {{ args }}
+
+[group("testing")]
+[doc("Run tests via Rake")]
+test-rake:
+    bundle exec rake test
+
+# --- Code Quality ---
+
+[group("quality")]
+[doc("Rubocop (no auto-correct)")]
+lint:
+    bundle exec rubocop
+
+[group("quality")]
+[doc("Rubocop auto-correct")]
+lint-fix:
+    bundle exec rubocop -A
+
+[group("quality")]
+[doc("Alias for RuboCop auto-correct")]
+fmt: lint-fix
+
+[group("quality")]
+[doc("Static checks + tests")]
+check: lint test
+
+# --- Docker ---
+
+[group("docker")]
+[doc("Build Docker image")]
+docker-build:
+    docker build \
+        --build-arg VERSION={{ version }} \
+        --build-arg COMMIT={{ commit }} \
+        -t {{ docker_image }}:{{ docker_tag }} \
+        -t {{ docker_image }}:latest \
+        .
+
+[group("docker")]
+[doc("Push Docker image")]
+docker-push:
+    docker push {{ docker_image }}:{{ docker_tag }}
+    docker push {{ docker_image }}:latest
+
+# --- CI ---
+
+[group("ci")]
+[doc("Run full CI pipeline")]
+ci: install lint test
+
+# --- Cleanup ---
+
+[group("maintenance")]
+[doc("Remove tmp logs (adjust per app)")]
+clean:
+    rm -rf tmp/ log/*.log
