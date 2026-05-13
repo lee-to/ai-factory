@@ -231,7 +231,7 @@ For Java / JVM projects, read `pom.xml`, `build.gradle*`, and `gradle/libs.versi
 - `micronaut` → Micronaut
 - `vertx` / Vert.x stack → Vert.x
 - `liquibase` in deps or `db.changelog*` → Liquibase (see §2.6)
-- Flyway plugin or `V*__*.sql` → Flyway (see §2.6)
+- Flyway `org.flywaydb` / `flyway-core` / `flyway-maven-plugin` / Flyway Gradle plugin in `pom.xml`, `build.gradle*`, or `gradle/libs.versions.toml` → Flyway (see §2.6)
 - Prefer **Jakarta** (`jakarta.*`) for Java 9+ / Spring Boot 3+; flag legacy `javax.*` migration if both appear
 
 Map findings into `framework` / `java_build` flags (`spring_boot`, `grpc`, `liquibase`, `flyway`) like other ecosystems map Express vs NestJS.
@@ -286,7 +286,7 @@ Check for:
 - `alembic/` directory → Alembic
 - `migrations/` directory → Generic migrations
 - Liquibase — `db.changelog*`, `liquibase` in Gradle/Maven or resources → Liquibase (JVM and others)
-- Flyway — `V*__*.sql` naming, Flyway plugin in Gradle/Maven → Flyway (JVM and others)
+- Flyway — dependency or plugin (`org.flywaydb`, `flyway-core`, `flyway-maven-plugin`, Flyway Gradle plugin) in `pom.xml`, `build.gradle*`, or `gradle/libs.versions.toml`.
 
 ### 2.7 Test Framework
 
