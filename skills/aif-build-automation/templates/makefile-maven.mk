@@ -1,5 +1,6 @@
 # --- Makefile for JVM Projects (Maven) ---
 # Usage: make [target]
+# Canonical quality/migration targets; remove recipes your pom/plugins do not define (see SKILL Step 5).
 
 SHELL := bash
 .ONESHELL:
@@ -44,7 +45,7 @@ assemble: ## Build project and package artifacts (JAR/WAR)
 	$(ENTRYPOINT) package
 
 .PHONY: build
-build: ## Full build including tests and checks
+build: ## Full build including tests and checks (`verify`)
 	$(ENTRYPOINT) verify
 
 .PHONY: dev
@@ -58,7 +59,7 @@ test: ## Run unit tests
 	$(ENTRYPOINT) test
 
 .PHONY: check
-check: ## Run tests and static analysis
+check: ## Run tests and static analysis (`verify`)
 	$(ENTRYPOINT) verify
 
 ##@ Multi-module
@@ -72,18 +73,33 @@ module-test: ## Tests for one reactor subtree
 	$(ENTRYPOINT) -pl $(JVM_MODULE) -am test
 
 .PHONY: module-check
-module-check: ## Verify one reactor subtree (tests + checks)
+module-check: ## Verify one reactor subtree
 	$(ENTRYPOINT) -pl $(JVM_MODULE) -am verify
 
 ##@ Code Quality
 
 .PHONY: lint
-lint: ## Run linter/static analysis
-	$(ENTRYPOINT) checkstyle:check
+lint: check ## Full verification (delegates to Maven `verify`)
 
 .PHONY: fmt
-fmt: ## Format source code
+fmt: ## Apply Spotless (`spotless:apply`)
 	$(ENTRYPOINT) spotless:apply
+
+.PHONY: lint-checkstyle
+lint-checkstyle: ## Checkstyle (`checkstyle:check`)
+	$(ENTRYPOINT) checkstyle:check
+
+.PHONY: lint-spotbugs
+lint-spotbugs: ## SpotBugs (`spotbugs:check`)
+	$(ENTRYPOINT) spotbugs:check
+
+.PHONY: lint-pmd
+lint-pmd: ## PMD (`pmd:check`)
+	$(ENTRYPOINT) pmd:check
+
+.PHONY: lint-spotless
+lint-spotless: ## Spotless check only, no write (`spotless:check`)
+	$(ENTRYPOINT) spotless:check
 
 ##@ Docker
 
@@ -103,14 +119,18 @@ docker-push: ## Push Docker image
 
 ##@ Database
 
-.PHONY: db-migrate
-db-migrate: ## Run database migrations (Liquibase/Flyway)
+.PHONY: db-migrate-liquibase
+db-migrate-liquibase: ## Liquibase (`liquibase:update`)
 	$(ENTRYPOINT) liquibase:update
+
+.PHONY: db-migrate-flyway
+db-migrate-flyway: ## Flyway (`flyway:migrate`)
+	$(ENTRYPOINT) flyway:migrate
 
 ##@ CI
 
 .PHONY: ci
-ci: clean build ## Clean then verify
+ci: clean build ## Clean then full Maven verify
 
 ##@ Help
 

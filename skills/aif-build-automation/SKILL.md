@@ -183,7 +183,7 @@ If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Mave
 | Clean | `<build_entrypoint> clean` | `<build_entrypoint> clean` |
 | Multi-module | `<build_entrypoint> :subproject:build` | `<build_entrypoint> -pl module -am package` |
 
-**Templates:** Bundled JVM Makefile / Taskfile / Just templates add **`module-build`**, **`module-test`**, **`module-check`**. **Gradle:** tasks on `:${JVM_MODULE}:build` (and `test` / `check`). **Maven:** `-pl ${JVM_MODULE} -am package` (and `test` / `verify`). Always set **`JVM_MODULE`** (environment; Make/Taskfile use the same name).
+**Templates:** JVM Makefile/Taskfile/Just ship a **fixed catalog**: **`lint`** → Gradle `check` / Maven `verify`; **`fmt`** → `spotlessApply` / `spotless:apply`; **`lint-checkstyle`**, **`lint-spotbugs`**, **`lint-pmd`**, **`lint-spotless`** (Taskfile `lint:*`); **`db-migrate-liquibase`**, **`db-migrate-flyway`** (Taskfile `db:migrate:*`). Multi-module: **`module-*`** with **`JVM_MODULE`**. Step 5 **removes** catalog entries the repo does not wire (see JVM template rules).
 
 ### 2.3 Framework Detection
 
@@ -287,8 +287,8 @@ Check for:
 - `drizzle.config.ts` → Drizzle
 - `alembic/` directory → Alembic
 - `migrations/` directory → Generic migrations
-- Liquibase — `db.changelog*`, `liquibase` in Gradle/Maven or resources → Liquibase (JVM and others)
-- Flyway — dependency or plugin (`org.flywaydb`, `flyway-core`, `flyway-maven-plugin`, Flyway Gradle plugin) in `pom.xml`, `build.gradle*`, or `gradle/libs.versions.toml`.
+- Liquibase — `db.changelog*`, `liquibase` in Gradle/Maven or resources → Liquibase (JVM and others); set **`java_build.liquibase: true`**
+- Flyway — dependency or plugin (`org.flywaydb`, `flyway-core`, `flyway-maven-plugin`, Flyway Gradle plugin) in `pom.xml`, `build.gradle*`, or `gradle/libs.versions.toml`; set **`java_build.flyway: true`**
 
 ### 2.7 Test Framework
 
@@ -313,6 +313,8 @@ Glob: rustfmt.toml, .rustfmt.toml, clippy.toml, .rubocop.yml, .rubocop_todo.yml,
 Grep in pyproject.toml: ruff|black|flake8|pylint|isort
 Grep in build.gradle*, pom.xml: spotless|spotbugs|pmd|errorprone|checkstyle (when not covered by config files alone)
 ```
+
+Merge JVM matches into **`PROJECT_PROFILE.linters`** as normalized ids (e.g. `checkstyle`, `spotless`, `spotbugs`, `pmd`, `errorprone`) for use when wiring **`lint`** / **`fmt`** targets (Step 5).
 
 ### 2.9 Monorepo Detection
 
@@ -394,19 +396,35 @@ Using the `PROJECT_PROFILE`, best practices, and template as reference, generate
 #### Generation Rules
 
 1. **Start with the tool's required preamble** (from best practices)
-2. **Include all standard targets**: help/default, build, test, lint, clean, dev, fmt
+2. **Include all standard targets** from the selected template (help/default, build, test, lint, clean, dev, fmt, `ci`). **JVM:** the template is a **complete catalog**; prune targets in Mode B per Step 5 JVM rules (do not invent one-off `lint` recipes).
 3. **Add conditional targets** based on project profile:
    - Docker targets → only if `has_docker`
-   - Database targets → only if `has_migrations` (use correct migration tool)
+   - Database targets → only if `has_migrations` (non-JVM); **JVM:** use the canonical **`db-migrate-liquibase`** / **`db-migrate-flyway`** (or Taskfile `db:migrate:*`) **only when** the matching **`java_build`** flag is true — omit the other
    - Deploy targets → only if CI/CD detected
    - Generate target → only if code generation detected
    - Typecheck target → only if TypeScript or mypy detected
-4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `<build_entrypoint>` (from §2.2); Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; Rust → `cargo`; Ruby → Bundler bundle/`bundle exec`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
-5. **Include CI aggregate target** that runs lint + test + build
+4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `<build_entrypoint>` (from §2.2); Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; Rust → `cargo`; Ruby → Bundler (`bundle`, `bundle exec`); do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
+5. **Include CI aggregate target** — default **`ci`** = **clean** + **build** on JVM (already runs `check`/`verify`); add **`lint`** / **`fmt`** to **`ci`** only if those targets remain after pruning
 6. **Follow the template's structure** for organization and grouping
 7. **Adapt variable names** to match the actual project (module name, binary name, source dirs); **JVM multi-module** repos → set **`JVM_MODULE`** for `module-*` targets (§2.2)
 8. **Include version/commit/build-time** detection via git
 9. **Docker-aware targets** — if `has_docker`, generate a dedicated Docker section (see below)
+
+**JVM template catalog (fixed names; prune unused tools in Mode B)** — Source of truth is **`skills/aif-build-automation/templates/*gradle*`** and **`*maven*`**. Always use these **exact** Gradle/Maven task names in generated files unless the build files use a different official task name for the same plugin (document in a comment next to the recipe).
+
+| Target (Make/Just) | Taskfile task | Gradle command | Maven command |
+|--------------------|---------------|----------------|---------------|
+| `lint` | `lint` | `check` | `verify` |
+| `fmt` | `fmt` | `spotlessApply` | `spotless:apply` |
+| `lint-checkstyle` | `lint:checkstyle` | `checkstyleMain` | `checkstyle:check` |
+| `lint-spotbugs` | `lint:spotbugs` | `spotbugsMain` | `spotbugs:check` |
+| `lint-pmd` | `lint:pmd` | `pmdMain` | `pmd:check` |
+| `lint-spotless` | `lint:spotless` | `spotlessCheck` | `spotless:check` |
+| `db-migrate-liquibase` | `db:migrate:liquibase` | `liquibaseUpdate` | `liquibase:update` |
+| `db-migrate-flyway` | `db:migrate:flyway` | `flywayMigrate` | `flyway:migrate` |
+
+- **Mode B (generate):** Copy the catalog from the template, then **delete** targets whose tools are **absent**: e.g. remove **`lint-checkstyle`** if `checkstyle` ∉ **`linters`**; remove **`lint-spotbugs`** / **`lint-pmd`** if those ids are missing; remove **`fmt`** and **`lint-spotless`** if **`spotless`** ∉ **`linters`**; remove **`db-migrate-liquibase`** if not **`java_build.liquibase`**; remove **`db-migrate-flyway`** if not **`java_build.flyway`**. **Always keep** **`lint`** (= `check` / `verify`) unless the project truly has no Java plugin lifecycle (rare). Never substitute **`verify -DskipTests`** or **`check -x test`** as `lint`.
+- **Mode A (enhance):** Prefer missing catalog targets over ad-hoc names; remove recipes that contradict **`java_build`** / **`linters`**.
 
 #### Docker-Aware Target Generation
 
@@ -468,13 +486,13 @@ Only generate `docker-*` exec variants if the project appears to be Docker-first
 
 #### Customization from Project Profile
 
-- **JVM (`java_build` / Gradle or Maven)**: Use **`PROJECT_PROFILE.build_entrypoint`** from §2.2 Summary
+- **JVM (`java_build` / Gradle or Maven)**: Use **`PROJECT_PROFILE.build_entrypoint`** from §2.2 Summary for every tool invocation. **Quality and DB:** use only the **canonical target names and task names** from the JVM template catalog (Step 5 table); when enhancing, add/remove recipes to match **`java_build`** and **`linters`**, not one-off guesses.
 - **Binary name**: Use the actual project name from `go.mod`, `package.json`, or directory name
 - **Source directory**: Use actual src dir (e.g., `src/`, `app/`, `cmd/`)
 - **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM → run via **`PROJECT_PROFILE.build_entrypoint`** (§2.2, Summary) plus the framework task, e.g. Spring Boot `bootRun` / `spring-boot:run`, Quarkus `quarkus:dev` when detected)
 - **Test command**: Match the detected test runner (§2.7)
-- **Lint command**: Match the detected linters (§2.8)
-- **Migration commands**: Match the detected migration tool exactly
+- **Lint command (JVM)**: After pruning, **`lint`** must remain **`check`** / **`verify`**; per-tool rows use the Step 5 catalog table
+- **Migration commands (JVM)**: Use **`db-migrate-liquibase`** vs **`db-migrate-flyway`** (or Taskfile **`db:migrate:*`**) per **`java_build`**
 - **Port numbers**: Use framework defaults (3000 for Node, 8000 for Python, 8080 for Go)
 
 ### Mode A — Enhance Existing File
@@ -493,12 +511,12 @@ Compare `EXISTING_CONTENT` against the `PROJECT_PROFILE` and best practices. Bui
 
 **Missing standard targets** — Check which of these are absent:
 - `help` / `default` (self-documenting)
-- `build`, `test`, `lint`, `clean`, `dev`, `fmt`
+- `build`, `test`, `lint`, `clean`, `dev`, `fmt`, and JVM catalog targets (`lint-checkstyle`, `db-migrate-flyway`, …) **after** template pruning
 - `ci` (aggregate target)
 
 **Missing project-specific targets** — Based on `PROJECT_PROFILE`, check for:
 - Docker targets (if `has_docker` but no docker targets in file)
-- Database/migration targets (if `has_migrations` but no db targets)
+- Database: canonical **`db-migrate-*`** / **`db:migrate:*`** matching **`java_build`**
 - Typecheck target (if TypeScript/mypy detected but no typecheck target)
 - Generate target (if code generation tools detected)
 - Coverage target (if test target exists but no coverage variant)
@@ -506,6 +524,7 @@ Compare `EXISTING_CONTENT` against the `PROJECT_PROFILE` and best practices. Bui
 - JVM multi-module: `module-build` / `module-test` / `module-check` (or Taskfile `module:*`) when the repo is a Gradle multi-project or Maven reactor and per-module commands are useful
 
 **Quality issues** — Check for anti-patterns from best practices:
+- **JVM:** recipes that are **not** in the Step 5 catalog table (or wrong tool on a recipe, e.g. Liquibase task on a Flyway-only repo) — replace with catalog names or delete
 - Targets without descriptions/documentation
 - Missing `.PHONY` declarations (Makefile)
 - Hardcoded tool paths that should be variables

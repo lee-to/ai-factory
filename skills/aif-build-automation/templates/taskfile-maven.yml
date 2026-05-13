@@ -1,6 +1,6 @@
 version: '3'
 
-# --- Maven Taskfile ---
+# --- Maven Taskfile — canonical targets; remove tasks your pom/plugins do not define (SKILL Step 5). ---
 
 vars:
   PROJECT:
@@ -28,7 +28,7 @@ tasks:
       - "{{.ENTRYPOINT}} clean"
 
   build:
-    desc: Full build including tests and checks
+    desc: Full build including tests and checks (`verify`)
     cmds:
       - "{{.ENTRYPOINT}} verify"
 
@@ -43,7 +43,7 @@ tasks:
       - "{{.ENTRYPOINT}} test"
 
   check:
-    desc: Run tests and static analysis
+    desc: Run tests and static analysis (`verify`)
     cmds:
       - "{{.ENTRYPOINT}} verify"
 
@@ -68,14 +68,43 @@ tasks:
       - "{{.ENTRYPOINT}} spring-boot:run"
 
   lint:
-    desc: Run linter/static analysis
+    desc: Full verification (delegates to `verify`)
+    deps: [check]
+
+  fmt:
+    desc: Apply Spotless (`spotless:apply`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotless:apply"
+
+  lint:checkstyle:
+    desc: Checkstyle (`checkstyle:check`)
     cmds:
       - "{{.ENTRYPOINT}} checkstyle:check"
 
-  fmt:
-    desc: Format source code
+  lint:spotbugs:
+    desc: SpotBugs (`spotbugs:check`)
     cmds:
-      - "{{.ENTRYPOINT}} spotless:apply"
+      - "{{.ENTRYPOINT}} spotbugs:check"
+
+  lint:pmd:
+    desc: PMD (`pmd:check`)
+    cmds:
+      - "{{.ENTRYPOINT}} pmd:check"
+
+  lint:spotless:
+    desc: Spotless check only (`spotless:check`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotless:check"
+
+  db:migrate:liquibase:
+    desc: Liquibase (`liquibase:update`)
+    cmds:
+      - "{{.ENTRYPOINT}} liquibase:update"
+
+  db:migrate:flyway:
+    desc: Flyway (`flyway:migrate`)
+    cmds:
+      - "{{.ENTRYPOINT}} flyway:migrate"
 
   docker:build:
     desc: Build Docker image
@@ -88,13 +117,8 @@ tasks:
       - docker push {{.DOCKER_IMAGE}}:{{.VERSION}}
       - docker push {{.DOCKER_IMAGE}}:latest
 
-  db:migrate:
-    desc: Run database migrations
-    cmds:
-      - "{{.ENTRYPOINT}} liquibase:update"
-
   ci:
-    desc: Clean then verify
+    desc: Clean then full Maven verify
     cmds:
       - task: clean
       - task: build

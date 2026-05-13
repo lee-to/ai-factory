@@ -1,5 +1,6 @@
 # --- Makefile for JVM Projects (Gradle) ---
 # Usage: make [target]
+# Canonical quality/migration targets; remove recipes your build.gradle does not wire (see SKILL Step 5).
 
 SHELL := bash
 .ONESHELL:
@@ -58,7 +59,7 @@ test: ## Run unit tests
 	$(ENTRYPOINT) test
 
 .PHONY: check
-check: ## Run tests and static analysis
+check: ## Run tests and static analysis (Gradle lifecycle)
 	$(ENTRYPOINT) check
 
 ##@ Multi-module
@@ -78,12 +79,27 @@ module-check: ## Check one subproject (tests + static analysis)
 ##@ Code Quality
 
 .PHONY: lint
-lint: ## Run linter/static analysis
-	$(ENTRYPOINT) checkstyleMain
+lint: check ## Full verification (delegates to Gradle `check`)
 
 .PHONY: fmt
-fmt: ## Format source code
+fmt: ## Apply Spotless (`spotlessApply`)
 	$(ENTRYPOINT) spotlessApply
+
+.PHONY: lint-checkstyle
+lint-checkstyle: ## Checkstyle (`checkstyleMain`)
+	$(ENTRYPOINT) checkstyleMain
+
+.PHONY: lint-spotbugs
+lint-spotbugs: ## SpotBugs (`spotbugsMain`)
+	$(ENTRYPOINT) spotbugsMain
+
+.PHONY: lint-pmd
+lint-pmd: ## PMD (`pmdMain`)
+	$(ENTRYPOINT) pmdMain
+
+.PHONY: lint-spotless
+lint-spotless: ## Spotless check only, no write (`spotlessCheck`)
+	$(ENTRYPOINT) spotlessCheck
 
 ##@ Docker
 
@@ -103,14 +119,18 @@ docker-push: ## Push Docker image
 
 ##@ Database
 
-.PHONY: db-migrate
-db-migrate: ## Run database migrations (Liquibase/Flyway)
+.PHONY: db-migrate-liquibase
+db-migrate-liquibase: ## Liquibase update (`liquibaseUpdate`)
 	$(ENTRYPOINT) liquibaseUpdate
+
+.PHONY: db-migrate-flyway
+db-migrate-flyway: ## Flyway migrate (`flywayMigrate`; adjust if plugin uses another task name)
+	$(ENTRYPOINT) flywayMigrate
 
 ##@ CI
 
 .PHONY: ci
-ci: clean build ## Clean then build
+ci: clean build ## Clean then full Gradle build
 
 ##@ Help
 

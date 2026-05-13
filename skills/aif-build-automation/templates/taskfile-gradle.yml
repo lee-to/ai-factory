@@ -1,6 +1,6 @@
 version: '3'
 
-# --- Gradle Taskfile ---
+# --- Gradle Taskfile — canonical targets; remove tasks your build does not wire (SKILL Step 5). ---
 
 vars:
   PROJECT:
@@ -43,7 +43,7 @@ tasks:
       - "{{.ENTRYPOINT}} test"
 
   check:
-    desc: Run tests and static analysis
+    desc: Run tests and static analysis (Gradle `check`)
     cmds:
       - "{{.ENTRYPOINT}} check"
 
@@ -68,14 +68,43 @@ tasks:
       - "{{.ENTRYPOINT}} bootRun"
 
   lint:
-    desc: Run linter/static analysis
+    desc: Full verification (delegates to `check`)
+    deps: [check]
+
+  fmt:
+    desc: Apply Spotless (`spotlessApply`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotlessApply"
+
+  lint:checkstyle:
+    desc: Checkstyle (`checkstyleMain`)
     cmds:
       - "{{.ENTRYPOINT}} checkstyleMain"
 
-  fmt:
-    desc: Format source code
+  lint:spotbugs:
+    desc: SpotBugs (`spotbugsMain`)
     cmds:
-      - "{{.ENTRYPOINT}} spotlessApply"
+      - "{{.ENTRYPOINT}} spotbugsMain"
+
+  lint:pmd:
+    desc: PMD (`pmdMain`)
+    cmds:
+      - "{{.ENTRYPOINT}} pmdMain"
+
+  lint:spotless:
+    desc: Spotless check only (`spotlessCheck`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotlessCheck"
+
+  db:migrate:liquibase:
+    desc: Liquibase update (`liquibaseUpdate`)
+    cmds:
+      - "{{.ENTRYPOINT}} liquibaseUpdate"
+
+  db:migrate:flyway:
+    desc: Flyway migrate (`flywayMigrate`)
+    cmds:
+      - "{{.ENTRYPOINT}} flywayMigrate"
 
   docker:build:
     desc: Build Docker image
@@ -88,13 +117,8 @@ tasks:
       - docker push {{.DOCKER_IMAGE}}:{{.VERSION}}
       - docker push {{.DOCKER_IMAGE}}:latest
 
-  db:migrate:
-    desc: Run database migrations
-    cmds:
-      - "{{.ENTRYPOINT}} liquibaseUpdate"
-
   ci:
-    desc: Clean then Gradle build
+    desc: Clean then full Gradle build
     cmds:
       - task: clean
       - task: build

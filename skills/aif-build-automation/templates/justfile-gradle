@@ -1,4 +1,5 @@
 # --- Justfile for JVM Projects (Gradle) ---
+# Canonical targets; delete recipes your build.gradle does not wire (SKILL Step 5).
 
 set shell := ["bash", "-c"]
 
@@ -45,12 +46,24 @@ module-test:
 module-check:
     {{entrypoint}} :{{ env("JVM_MODULE", "change-me-subproject") }}:check
 
-# --- Quality ---
+# --- Code Quality ---
 lint:
-    {{entrypoint}} checkstyleMain
+    {{entrypoint}} check
 
 fmt:
     {{entrypoint}} spotlessApply
+
+lint-checkstyle:
+    {{entrypoint}} checkstyleMain
+
+lint-spotbugs:
+    {{entrypoint}} spotbugsMain
+
+lint-pmd:
+    {{entrypoint}} pmdMain
+
+lint-spotless:
+    {{entrypoint}} spotlessCheck
 
 # --- Docker ---
 docker-build:
@@ -66,8 +79,11 @@ docker-push:
     docker push {{docker-image}}:latest
 
 # --- Database ---
-db-migrate:
+db-migrate-liquibase:
     {{entrypoint}} liquibaseUpdate
+
+db-migrate-flyway:
+    {{entrypoint}} flywayMigrate
 
 # --- CI ---
 ci: clean build

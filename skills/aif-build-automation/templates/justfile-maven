@@ -1,4 +1,5 @@
 # --- Justfile for JVM Projects (Maven) ---
+# Canonical targets; delete recipes your pom/plugins do not define (SKILL Step 5).
 
 set shell := ["bash", "-c"]
 
@@ -45,12 +46,24 @@ module-test:
 module-check:
     {{entrypoint}} -pl {{ env("JVM_MODULE", "change-me-subproject") }} -am verify
 
-# --- Quality ---
+# --- Code Quality ---
 lint:
-    {{entrypoint}} checkstyle:check
+    {{entrypoint}} verify
 
 fmt:
     {{entrypoint}} spotless:apply
+
+lint-checkstyle:
+    {{entrypoint}} checkstyle:check
+
+lint-spotbugs:
+    {{entrypoint}} spotbugs:check
+
+lint-pmd:
+    {{entrypoint}} pmd:check
+
+lint-spotless:
+    {{entrypoint}} spotless:check
 
 # --- Docker ---
 docker-build:
@@ -66,8 +79,11 @@ docker-push:
     docker push {{docker-image}}:latest
 
 # --- Database ---
-db-migrate:
+db-migrate-liquibase:
     {{entrypoint}} liquibase:update
+
+db-migrate-flyway:
+    {{entrypoint}} flyway:migrate
 
 # --- CI ---
 ci: clean build
