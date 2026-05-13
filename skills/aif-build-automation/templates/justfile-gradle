@@ -35,6 +35,16 @@ test:
 check:
     {{entrypoint}} check
 
+# --- Multi-module: export JVM_MODULE=subproject-id ---
+module-build:
+    {{entrypoint}} :{{ env("JVM_MODULE", "change-me-subproject") }}:build
+
+module-test:
+    {{entrypoint}} :{{ env("JVM_MODULE", "change-me-subproject") }}:test
+
+module-check:
+    {{entrypoint}} :{{ env("JVM_MODULE", "change-me-subproject") }}:check
+
 # --- Quality ---
 lint:
     {{entrypoint}} checkstyleMain

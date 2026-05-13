@@ -23,6 +23,9 @@ DOCKER_REGISTRY ?= ghcr.io
 DOCKER_IMAGE    ?= $(DOCKER_REGISTRY)/$(PROJECT)
 DOCKER_TAG      ?= $(VERSION)
 
+# --- Multi-module (set JVM_MODULE to subproject id, e.g. export JVM_MODULE=api) ---
+JVM_MODULE ?= change-me-subproject
+
 # ============================================================================
 .DEFAULT_GOAL := help
 
@@ -57,6 +60,20 @@ test: ## Run unit tests
 .PHONY: check
 check: ## Run tests and static analysis
 	$(ENTRYPOINT) check
+
+##@ Multi-module
+
+.PHONY: module-build
+module-build: ## Build one subproject (Gradle :JVM_MODULE:build)
+	$(ENTRYPOINT) :$(JVM_MODULE):build
+
+.PHONY: module-test
+module-test: ## Tests for one subproject
+	$(ENTRYPOINT) :$(JVM_MODULE):test
+
+.PHONY: module-check
+module-check: ## Check one subproject (tests + static analysis)
+	$(ENTRYPOINT) :$(JVM_MODULE):check
 
 ##@ Code Quality
 

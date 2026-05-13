@@ -23,6 +23,9 @@ DOCKER_REGISTRY ?= ghcr.io
 DOCKER_IMAGE    ?= $(DOCKER_REGISTRY)/$(PROJECT)
 DOCKER_TAG      ?= $(VERSION)
 
+# --- Multi-module (set JVM_MODULE to Maven module id / artifact dir, e.g. export JVM_MODULE=api) ---
+JVM_MODULE ?= change-me-subproject
+
 # ============================================================================
 .DEFAULT_GOAL := help
 
@@ -57,6 +60,20 @@ test: ## Run unit tests
 .PHONY: check
 check: ## Run tests and static analysis
 	$(ENTRYPOINT) verify
+
+##@ Multi-module
+
+.PHONY: module-build
+module-build: ## Package one reactor subtree (-pl JVM_MODULE -am package)
+	$(ENTRYPOINT) -pl $(JVM_MODULE) -am package
+
+.PHONY: module-test
+module-test: ## Tests for one reactor subtree
+	$(ENTRYPOINT) -pl $(JVM_MODULE) -am test
+
+.PHONY: module-check
+module-check: ## Verify one reactor subtree (tests + checks)
+	$(ENTRYPOINT) -pl $(JVM_MODULE) -am verify
 
 ##@ Code Quality
 

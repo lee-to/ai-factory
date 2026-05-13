@@ -183,6 +183,8 @@ If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Mave
 | Clean | `<build_entrypoint> clean` | `<build_entrypoint> clean` |
 | Multi-module | `<build_entrypoint> :subproject:build` | `<build_entrypoint> -pl module -am package` |
 
+**Templates:** Bundled JVM Makefile / Taskfile / Just templates add **`module-build`**, **`module-test`**, **`module-check`**. **Gradle:** tasks on `:${JVM_MODULE}:build` (and `test` / `check`). **Maven:** `-pl ${JVM_MODULE} -am package` (and `test` / `verify`). Always set **`JVM_MODULE`** (environment; Make/Taskfile use the same name).
+
 ### 2.3 Framework Detection
 
 For Node.js projects, check `package.json` dependencies for:
@@ -402,7 +404,7 @@ Using the `PROJECT_PROFILE`, best practices, and template as reference, generate
 4. **Use correct package manager** — match `PROJECT_PROFILE` (§2.2): JVM → `<build_entrypoint>` (from §2.2); Node → npm/pnpm/yarn/bun; Python → uv/poetry/pip; Go → `go`; Rust → `cargo`; Ruby → Bundler bundle/`bundle exec`; do not substitute the wrong ecosystem (e.g. npm scripts for a Gradle-only repo)
 5. **Include CI aggregate target** that runs lint + test + build
 6. **Follow the template's structure** for organization and grouping
-7. **Adapt variable names** to match the actual project (module name, binary name, source dirs)
+7. **Adapt variable names** to match the actual project (module name, binary name, source dirs); **JVM multi-module** repos → set **`JVM_MODULE`** for `module-*` targets (§2.2)
 8. **Include version/commit/build-time** detection via git
 9. **Docker-aware targets** — if `has_docker`, generate a dedicated Docker section (see below)
 
@@ -500,6 +502,7 @@ Compare `EXISTING_CONTENT` against the `PROJECT_PROFILE` and best practices. Bui
 - Generate target (if code generation tools detected)
 - Coverage target (if test target exists but no coverage variant)
 - JVM: `build` / `test` / `check` delegating to `<build_entrypoint>` when `java_build` is set (not only generic shell or wrong ecosystem)
+- JVM multi-module: `module-build` / `module-test` / `module-check` (or Taskfile `module:*`) when the repo is a Gradle multi-project or Maven reactor and per-module commands are useful
 
 **Quality issues** — Check for anti-patterns from best practices:
 - Targets without descriptions/documentation

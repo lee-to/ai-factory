@@ -13,6 +13,8 @@ vars:
     sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
   DOCKER_REGISTRY: ghcr.io
   DOCKER_IMAGE: "{{.DOCKER_REGISTRY}}/{{.PROJECT}}"
+  JVM_MODULE:
+    sh: echo "${JVM_MODULE:-change-me-subproject}"
 
 tasks:
   default:
@@ -44,6 +46,21 @@ tasks:
     desc: Run tests and static analysis
     cmds:
       - "{{.ENTRYPOINT}} verify"
+
+  module:build:
+    desc: Package one reactor subtree (export JVM_MODULE; -pl … -am package)
+    cmds:
+      - "{{.ENTRYPOINT}} -pl {{.JVM_MODULE}} -am package"
+
+  module:test:
+    desc: Test one reactor subtree
+    cmds:
+      - "{{.ENTRYPOINT}} -pl {{.JVM_MODULE}} -am test"
+
+  module:check:
+    desc: Verify one reactor subtree
+    cmds:
+      - "{{.ENTRYPOINT}} -pl {{.JVM_MODULE}} -am verify"
 
   dev:
     desc: Run application locally

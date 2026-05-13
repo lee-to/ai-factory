@@ -13,6 +13,8 @@ vars:
     sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
   DOCKER_REGISTRY: ghcr.io
   DOCKER_IMAGE: "{{.DOCKER_REGISTRY}}/{{.PROJECT}}"
+  JVM_MODULE:
+    sh: echo "${JVM_MODULE:-change-me-subproject}"
 
 tasks:
   default:
@@ -44,6 +46,21 @@ tasks:
     desc: Run tests and static analysis
     cmds:
       - "{{.ENTRYPOINT}} check"
+
+  module:build:
+    desc: Build one Gradle subproject (export JVM_MODULE; uses env or default)
+    cmds:
+      - "{{.ENTRYPOINT}} :{{.JVM_MODULE}}:build"
+
+  module:test:
+    desc: Test one Gradle subproject
+    cmds:
+      - "{{.ENTRYPOINT}} :{{.JVM_MODULE}}:test"
+
+  module:check:
+    desc: Check one Gradle subproject
+    cmds:
+      - "{{.ENTRYPOINT}} :{{.JVM_MODULE}}:check"
 
   dev:
     desc: Run application locally
