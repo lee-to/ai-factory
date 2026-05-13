@@ -77,8 +77,7 @@ tasks:
       - "{{.ENTRYPOINT}} liquibaseUpdate"
 
   ci:
-    desc: Run full CI pipeline locally
+    desc: Clean then Gradle build
     cmds:
       - task: clean
-      - task: check
-      - task: assemble
+      - task: build

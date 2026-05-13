@@ -77,8 +77,7 @@ tasks:
       - "{{.ENTRYPOINT}} liquibase:update"
 
   ci:
-    desc: Run full CI pipeline locally
+    desc: Clean then verify
     cmds:
       - task: clean
-      - task: check
-      - task: assemble
+      - task: build

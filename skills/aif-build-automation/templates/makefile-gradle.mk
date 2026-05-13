@@ -17,7 +17,6 @@ ENTRYPOINT ?= $(shell if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gra
 # --- Git ---
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
 # --- Docker ---
 DOCKER_REGISTRY ?= ghcr.io
@@ -94,7 +93,7 @@ db-migrate: ## Run database migrations (Liquibase/Flyway)
 ##@ CI
 
 .PHONY: ci
-ci: clean check assemble ## Run full CI pipeline locally
+ci: clean build ## Clean then build
 
 ##@ Help
 

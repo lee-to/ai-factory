@@ -60,4 +60,4 @@ db-migrate:
     {{entrypoint}} liquibaseUpdate
 
 # --- CI ---
-ci: clean check assemble
+ci: clean build
