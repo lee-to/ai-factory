@@ -468,9 +468,10 @@ Only generate `docker-*` exec variants if the project appears to be Docker-first
 
 #### Customization from Project Profile
 
+- **JVM (`java_build` / Gradle or Maven)**: Use **`PROJECT_PROFILE.build_entrypoint`** from §2.2 Summary
 - **Binary name**: Use the actual project name from `go.mod`, `package.json`, or directory name
 - **Source directory**: Use actual src dir (e.g., `src/`, `app/`, `cmd/`)
-- **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM Spring Boot → `<build_entrypoint> bootRun` / `<build_entrypoint> spring-boot:run`, Quarkus → `quarkus:dev` when detected)
+- **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM → run via **`PROJECT_PROFILE.build_entrypoint`** (§2.2, Summary) plus the framework task, e.g. Spring Boot `bootRun` / `spring-boot:run`, Quarkus `quarkus:dev` when detected)
 - **Test command**: Match the detected test runner (§2.7)
 - **Lint command**: Match the detected linters (§2.8)
 - **Migration commands**: Match the detected migration tool exactly
