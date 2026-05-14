@@ -15,6 +15,10 @@ PROJECT ?= $(shell basename $(CURDIR))
 # --- Entrypoint ---
 ENTRYPOINT ?= $(shell if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gradle"; fi)
 
+# --- Dev task (§2.3): Quarkus > Micronaut > Vert.x > Spring Boot; override DEV_GRADLE_TASK=… if root files omit deps ---
+_JVM_GRADLE_DEV_FILES := build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml
+DEV_GRADLE_TASK ?= $(shell for f in $(_JVM_GRADLE_DEV_FILES); do test -f "$$f" || continue; if grep -qE 'quarkus|io\.quarkus' "$$f" 2>/dev/null; then printf %s quarkusDev; exit 0; fi; done; for f in $(_JVM_GRADLE_DEV_FILES); do test -f "$$f" || continue; if grep -qE 'micronaut|io\.micronaut' "$$f" 2>/dev/null; then printf %s run; exit 0; fi; done; for f in $(_JVM_GRADLE_DEV_FILES); do test -f "$$f" || continue; if grep -qE 'vertx-plugin|io\.vertx\.vertx' "$$f" 2>/dev/null; then printf %s vertxRun; exit 0; fi; done; printf %s bootRun)
+
 # --- Git ---
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -45,8 +49,8 @@ build: ## Full build including tests and checks
 	$(ENTRYPOINT) build
 
 .PHONY: dev
-dev: ## Run application locally (Spring Boot/Quarkus/etc)
-	$(ENTRYPOINT) bootRun
+dev: ## Run application locally (framework from §2.3 scan)
+	$(ENTRYPOINT) $(DEV_GRADLE_TASK)
 
 ##@ Testing
 

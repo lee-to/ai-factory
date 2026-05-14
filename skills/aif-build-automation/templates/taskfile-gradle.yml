@@ -7,6 +7,8 @@ vars:
     sh: basename $(pwd)
   ENTRYPOINT:
     sh: if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gradle"; fi
+  DEV_GRADLE_TASK:
+    sh: for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'quarkus|io\.quarkus' "$f" 2>/dev/null; then printf %s quarkusDev; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'micronaut|io\.micronaut' "$f" 2>/dev/null; then printf %s run; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'vertx-plugin|io\.vertx\.vertx' "$f" 2>/dev/null; then printf %s vertxRun; exit 0; fi; done; printf %s bootRun
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
   COMMIT:
@@ -63,9 +65,9 @@ tasks:
       - "{{.ENTRYPOINT}} :{{.JVM_MODULE}}:check"
 
   dev:
-    desc: Run application locally
+    desc: Run application locally (framework from SKILL §2.3 scan)
     cmds:
-      - "{{.ENTRYPOINT}} bootRun"
+      - "{{.ENTRYPOINT}} {{.DEV_GRADLE_TASK}}"
 
   lint:
     desc: Full verification (delegates to `check`)

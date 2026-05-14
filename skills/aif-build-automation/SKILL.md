@@ -178,10 +178,15 @@ If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Mave
 | Unit / integration tests | `<build_entrypoint> test` | `<build_entrypoint> test` |
 | Verification (tests + static analysis where configured) | `<build_entrypoint> check` | `<build_entrypoint> verify` |
 | Package only | `<build_entrypoint> assemble` (or `jar` / `bootJar`) | `<build_entrypoint> package` |
-| Spring Boot — run locally | `<build_entrypoint> bootRun` | `<build_entrypoint> spring-boot:run` |
+| Dev server — Spring Boot (see §2.3) | `<build_entrypoint> bootRun` | `<build_entrypoint> spring-boot:run` |
+| Dev server — Quarkus | `<build_entrypoint> quarkusDev` | `<build_entrypoint> quarkus:dev` |
+| Dev server — Micronaut | `<build_entrypoint> run` | `<build_entrypoint> mn:run` |
+| Dev server — Vert.x | `<build_entrypoint> vertxRun` | `<build_entrypoint> vertx:run` |
 | Spring Boot — runnable JAR | `<build_entrypoint> bootJar` | `<build_entrypoint> package` (spring-boot repackage) |
 | Clean | `<build_entrypoint> clean` | `<build_entrypoint> clean` |
 | Multi-module | `<build_entrypoint> :subproject:build` | `<build_entrypoint> -pl module -am package` |
+
+**`dev` target (templates + generated files):** Resolve the **framework dev task/goal** from the same signals as §2.3, **fixed priority** (first match wins): **Quarkus → Micronaut → Vert.x → Spring Boot**. Scan **Gradle:** `build.gradle`, `build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradle/libs.versions.toml` with the same `grep -E` patterns you use for §2.3 (`quarkus` / `io.quarkus`; `micronaut` / `io.micronaut`; Vert.x Gradle plugin — `vertx-plugin` or `io.vertx.vertx`; Spring Boot — fallback). Scan **Maven:** `pom.xml` only; Vert.x Maven — `vertx-maven-plugin` or `io.reactiverse`. If the repo root is an aggregator and detection misses, override the template’s dev task variable (same idea as **`JVM_MODULE`**).
 
 **Templates:** JVM Makefile/Taskfile/Just ship a **fixed catalog**: **`lint`** → Gradle `check` / Maven `verify`; **`fmt`** → `spotlessApply` / `spotless:apply`; **`lint-checkstyle`**, **`lint-spotbugs`**, **`lint-pmd`**, **`lint-spotless`** (Taskfile `lint:*`); **`db-migrate-liquibase`**, **`db-migrate-flyway`** (Taskfile `db:migrate:*`). Multi-module: **`module-*`** with **`JVM_MODULE`**. Step 5 **removes** catalog entries the repo does not wire (see JVM template rules).
 
@@ -229,7 +234,7 @@ For Java / JVM projects, read `pom.xml`, `build.gradle*`, and `gradle/libs.versi
 
 - `spring-boot`, `spring-boot-starter`, `spring-boot-parent` → Spring Boot
 - `grpc`, `protobuf`, `spring-grpc` or `*.proto` in repo → gRPC / protobuf
-- `quarkus`, `io.quarkus` → Quarkus (e.g. `quarkus:dev` for dev)
+- `quarkus`, `io.quarkus` → Quarkus
 - `micronaut` → Micronaut
 - `vertx` / Vert.x stack → Vert.x
 - `liquibase` in deps or `db.changelog*` → Liquibase (see §2.6)
@@ -422,8 +427,9 @@ Using the `PROJECT_PROFILE`, best practices, and template as reference, generate
 | `lint-spotless` | `lint:spotless` | `spotlessCheck` | `spotless:check` |
 | `db-migrate-liquibase` | `db:migrate:liquibase` | `liquibaseUpdate` | `liquibase:update` |
 | `db-migrate-flyway` | `db:migrate:flyway` | `flywayMigrate` | `flyway:migrate` |
+| `dev` | `dev` | see §2.2 dev tasks + template `DEV_GRADLE_TASK` resolver (§2.3 priority) | see §2.2 dev goals + template `DEV_MAVEN_GOAL` resolver (§2.3 priority) |
 
-- **Mode B (generate):** Copy the catalog from the template, then **delete** targets whose tools are **absent**: e.g. remove **`lint-checkstyle`** if `checkstyle` ∉ **`linters`**; remove **`lint-spotbugs`** / **`lint-pmd`** if those ids are missing; remove **`fmt`** and **`lint-spotless`** if **`spotless`** ∉ **`linters`**; remove **`db-migrate-liquibase`** if not **`java_build.liquibase`**; remove **`db-migrate-flyway`** if not **`java_build.flyway`**. **Always keep** **`lint`** (= `check` / `verify`) unless the project truly has no Java plugin lifecycle (rare). Never substitute **`verify -DskipTests`** or **`check -x test`** as `lint`.
+- **Mode B (generate):** Copy the catalog from the template, then **delete** targets whose tools are **absent**: e.g. remove **`lint-checkstyle`** if `checkstyle` ∉ **`linters`**; remove **`lint-spotbugs`** / **`lint-pmd`** if those ids are missing; remove **`fmt`** and **`lint-spotless`** if **`spotless`** ∉ **`linters`**; remove **`db-migrate-liquibase`** if not **`java_build.liquibase`**; remove **`db-migrate-flyway`** if not **`java_build.flyway`**. **Always keep** **`lint`** (= `check` / `verify`) unless the project truly has no Java plugin lifecycle (rare). Never substitute **`verify -DskipTests`** or **`check -x test`** as `lint`. For **`dev`**, templates already resolve the task/goal from build files; when enhancing, replace a wrong constant **`bootRun`** / **`spring-boot:run`** with the correct framework command from **`PROJECT_PROFILE`** (same strings as the template resolver).
 - **Mode A (enhance):** Prefer missing catalog targets over ad-hoc names; remove recipes that contradict **`java_build`** / **`linters`**.
 
 #### Docker-Aware Target Generation
@@ -489,7 +495,7 @@ Only generate `docker-*` exec variants if the project appears to be Docker-first
 - **JVM (`java_build` / Gradle or Maven)**: Use **`PROJECT_PROFILE.build_entrypoint`** from §2.2 Summary for every tool invocation. **Quality and DB:** use only the **canonical target names and task names** from the JVM template catalog (Step 5 table); when enhancing, add/remove recipes to match **`java_build`** and **`linters`**, not one-off guesses.
 - **Binary name**: Use the actual project name from `go.mod`, `package.json`, or directory name
 - **Source directory**: Use actual src dir (e.g., `src/`, `app/`, `cmd/`)
-- **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM → run via **`PROJECT_PROFILE.build_entrypoint`** (§2.2, Summary) plus the framework task, e.g. Spring Boot `bootRun` / `spring-boot:run`, Quarkus `quarkus:dev` when detected)
+- **Dev server command**: Match the framework (e.g., `next dev`, `uvicorn --reload`, `air`; JVM → **`build_entrypoint`** plus the §2.2 dev task for the detected stack — Quarkus `quarkusDev` / `quarkus:dev`, Micronaut `run` / `mn:run`, Vert.x `vertxRun` / `vertx:run`, Spring Boot `bootRun` / `spring-boot:run`)
 - **Test command**: Match the detected test runner (§2.7)
 - **Lint command (JVM)**: After pruning, **`lint`** must remain **`check`** / **`verify`**; per-tool rows use the Step 5 catalog table
 - **Migration commands (JVM)**: Use **`db-migrate-liquibase`** vs **`db-migrate-flyway`** (or Taskfile **`db:migrate:*`**) per **`java_build`**

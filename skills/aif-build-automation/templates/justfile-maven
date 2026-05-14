@@ -8,6 +8,7 @@ version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
 commit  := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 
 entrypoint := `if [ -f ./mvnw ]; then echo "./mvnw"; else echo "mvn"; fi`
+dev_maven_goal := `if ! test -f pom.xml; then printf %s spring-boot:run; exit 0; fi; if grep -qE "quarkus|io\\.quarkus" pom.xml 2>/dev/null; then printf %s quarkus:dev; exit 0; fi; if grep -qE "micronaut|io\\.micronaut" pom.xml 2>/dev/null; then printf %s mn:run; exit 0; fi; if grep -qE "vertx-maven-plugin|io\\.reactiverse" pom.xml 2>/dev/null; then printf %s vertx:run; exit 0; fi; printf %s spring-boot:run`
 
 docker-registry := "ghcr.io"
 docker-image    := docker-registry + "/" + project
@@ -27,7 +28,7 @@ assemble:
     {{entrypoint}} package
 
 dev:
-    {{entrypoint}} spring-boot:run
+    {{entrypoint}} {{dev_maven_goal}}
 
 # --- Testing ---
 test:

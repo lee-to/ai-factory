@@ -15,6 +15,9 @@ PROJECT ?= $(shell basename $(CURDIR))
 # --- Entrypoint ---
 ENTRYPOINT ?= $(shell if [ -f ./mvnw ]; then echo "./mvnw"; else echo "mvn"; fi)
 
+# --- Dev goal (§2.3): Quarkus > Micronaut > Vert.x > Spring Boot; override DEV_MAVEN_GOAL=… if parent POM omits deps ---
+DEV_MAVEN_GOAL ?= $(shell if ! test -f pom.xml; then printf %s spring-boot:run; exit 0; fi; if grep -qE 'quarkus|io\.quarkus' pom.xml 2>/dev/null; then printf %s quarkus:dev; exit 0; fi; if grep -qE 'micronaut|io\.micronaut' pom.xml 2>/dev/null; then printf %s mn:run; exit 0; fi; if grep -qE 'vertx-maven-plugin|io\.reactiverse' pom.xml 2>/dev/null; then printf %s vertx:run; exit 0; fi; printf %s spring-boot:run)
+
 # --- Git ---
 VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -45,8 +48,8 @@ build: ## Full build including tests and checks (`verify`)
 	$(ENTRYPOINT) verify
 
 .PHONY: dev
-dev: ## Run application locally (Spring Boot/Quarkus/etc)
-	$(ENTRYPOINT) spring-boot:run
+dev: ## Run application locally (framework from §2.3 scan)
+	$(ENTRYPOINT) $(DEV_MAVEN_GOAL)
 
 ##@ Testing
 

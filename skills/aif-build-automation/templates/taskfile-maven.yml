@@ -7,6 +7,8 @@ vars:
     sh: basename $(pwd)
   ENTRYPOINT:
     sh: if [ -f ./mvnw ]; then echo "./mvnw"; else echo "mvn"; fi
+  DEV_MAVEN_GOAL:
+    sh: if ! test -f pom.xml; then printf %s spring-boot:run; exit 0; fi; if grep -qE 'quarkus|io\.quarkus' pom.xml 2>/dev/null; then printf %s quarkus:dev; exit 0; fi; if grep -qE 'micronaut|io\.micronaut' pom.xml 2>/dev/null; then printf %s mn:run; exit 0; fi; if grep -qE 'vertx-maven-plugin|io\.reactiverse' pom.xml 2>/dev/null; then printf %s vertx:run; exit 0; fi; printf %s spring-boot:run
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
   COMMIT:
@@ -63,9 +65,9 @@ tasks:
       - "{{.ENTRYPOINT}} -pl {{.JVM_MODULE}} -am verify"
 
   dev:
-    desc: Run application locally
+    desc: Run application locally (framework from SKILL §2.3 scan)
     cmds:
-      - "{{.ENTRYPOINT}} spring-boot:run"
+      - "{{.ENTRYPOINT}} {{.DEV_MAVEN_GOAL}}"
 
   lint:
     desc: Full verification (delegates to `verify`)

@@ -8,6 +8,7 @@ version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
 commit  := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 
 entrypoint := `if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gradle"; fi`
+dev_gradle_task := `for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE "quarkus|io\\.quarkus" "$f" 2>/dev/null; then printf %s quarkusDev; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE "micronaut|io\\.micronaut" "$f" 2>/dev/null; then printf %s run; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE "vertx-plugin|io\\.vertx\\.vertx" "$f" 2>/dev/null; then printf %s vertxRun; exit 0; fi; done; printf %s bootRun`
 
 docker-registry := "ghcr.io"
 docker-image    := docker-registry + "/" + project
@@ -27,7 +28,7 @@ assemble:
     {{entrypoint}} assemble
 
 dev:
-    {{entrypoint}} bootRun
+    {{entrypoint}} {{dev_gradle_task}}
 
 # --- Testing ---
 test:
