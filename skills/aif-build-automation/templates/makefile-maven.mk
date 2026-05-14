@@ -13,7 +13,7 @@ MAKEFLAGS += --no-builtin-rules
 PROJECT ?= $(shell basename $(CURDIR))
 
 # --- Entrypoint ---
-ENTRYPOINT ?= $(shell if [ -f ./mvnw ]; then echo "./mvnw"; else echo "mvn"; fi)
+ENTRYPOINT ?= $(shell if [ -f ./mvnw ] || [ -f .mvn/wrapper/maven-wrapper.properties ]; then echo "./mvnw"; else echo "mvn"; fi)
 
 # --- Dev goal (§2.3): Quarkus > Micronaut > Vert.x > Spring Boot; override DEV_MAVEN_GOAL=… if parent POM omits deps ---
 DEV_MAVEN_GOAL ?= $(shell if ! test -f pom.xml; then printf %s spring-boot:run; exit 0; fi; if grep -qE 'quarkus|io\.quarkus' pom.xml 2>/dev/null; then printf %s quarkus:dev; exit 0; fi; if grep -qE 'micronaut|io\.micronaut' pom.xml 2>/dev/null; then printf %s mn:run; exit 0; fi; if grep -qE 'vertx-maven-plugin|io\.reactiverse' pom.xml 2>/dev/null; then printf %s vertx:run; exit 0; fi; printf %s spring-boot:run)

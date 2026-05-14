@@ -13,7 +13,7 @@ MAKEFLAGS += --no-builtin-rules
 PROJECT ?= $(shell basename $(CURDIR))
 
 # --- Entrypoint ---
-ENTRYPOINT ?= $(shell if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gradle"; fi)
+ENTRYPOINT ?= $(shell if [ -f ./gradlew ] || [ -f gradle/wrapper/gradle-wrapper.properties ]; then echo "./gradlew"; else echo "gradle"; fi)
 
 # --- Dev task (§2.3): Quarkus > Micronaut > Vert.x > Spring Boot; override DEV_GRADLE_TASK=… if root files omit deps ---
 _JVM_GRADLE_DEV_FILES := build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml

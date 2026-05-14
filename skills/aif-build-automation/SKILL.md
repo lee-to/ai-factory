@@ -168,6 +168,8 @@ If any Gradle signal matches → Gradle is in play. **`pom.xml`** indicates Mave
 - If `build_tool` is `gradle`: use `./gradlew` if `gradlew` or `gradle/wrapper/gradle-wrapper.properties` exists, else fallback to `gradle`.
 - If `build_tool` is `maven`: use `./mvnw` if `mvnw` or `.mvn/wrapper/maven-wrapper.properties` exists, else fallback to `mvn`.
 
+**Single source of truth:** The predicate above is **the same rule** the JVM templates implement in shell (`ENTRYPOINT` / `entrypoint` — test `./gradlew` **or** `gradle/wrapper/gradle-wrapper.properties`; test `./mvnw` **or** `.mvn/wrapper/maven-wrapper.properties`). When generating or enhancing build files, set `PROJECT_PROFILE.build_entrypoint` to the **result** those tests imply (`./gradlew` vs `gradle`, `./mvnw` vs `mvn`). Do not emit a different entrypoint string than that predicate unless the user overrides (e.g. Makefile `ENTRYPOINT=…`). Templates re-resolve at recipe runtime so clones stay correct without editing.
+
 **Version catalog:** If `gradle/libs.versions.toml` exists, set `java_build.has_version_catalog` and document `PROJECT_PROFILE.build_entrypoint` / catalog usage in comments where helpful.
 
 **Commands to wire** into Makefile / Taskfile / Just for JVM (same role as `npm run build` / `pytest` for other stacks; use `gradlew.bat` on Windows):

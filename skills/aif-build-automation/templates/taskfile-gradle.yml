@@ -6,7 +6,7 @@ vars:
   PROJECT:
     sh: basename $(pwd)
   ENTRYPOINT:
-    sh: if [ -f ./gradlew ]; then echo "./gradlew"; else echo "gradle"; fi
+    sh: if [ -f ./gradlew ] || [ -f gradle/wrapper/gradle-wrapper.properties ]; then echo "./gradlew"; else echo "gradle"; fi
   DEV_GRADLE_TASK:
     sh: for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'quarkus|io\.quarkus' "$f" 2>/dev/null; then printf %s quarkusDev; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'micronaut|io\.micronaut' "$f" 2>/dev/null; then printf %s run; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'vertx-plugin|io\.vertx\.vertx' "$f" 2>/dev/null; then printf %s vertxRun; exit 0; fi; done; printf %s bootRun
   VERSION:
