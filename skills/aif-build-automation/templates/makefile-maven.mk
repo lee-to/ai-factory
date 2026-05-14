@@ -36,10 +36,6 @@ JVM_MODULE ?= change-me-subproject
 clean: ## Remove build artifacts
 	$(ENTRYPOINT) clean
 
-.PHONY: compile
-compile: ## Compile source code
-	$(ENTRYPOINT) compile
-
 .PHONY: assemble
 assemble: ## Build project and package artifacts (JAR/WAR)
 	$(ENTRYPOINT) package
