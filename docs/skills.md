@@ -342,8 +342,10 @@ Generates or enhances build automation files:
 ```
 
 **Two modes — generate or enhance:**
-- **No build file exists?** — analyzes your project (language, framework, package manager, Docker, DB, linters) and generates a complete, best-practice build file from scratch
+- **No build file exists?** — analyzes your project and generates a complete, best-practice build file from scratch
 - **Build file already exists?** — scans for gaps (missing targets, no help command, no Docker targets despite Dockerfile, missing preamble) and enhances it surgically, preserving your existing structure
+
+**Project detection (all stacks):** The skill walks the repository in one **ordered pipeline** for every ecosystem: primary language → package manager / build entrypoints → frameworks → Docker → CI → migrations → tests → linters & formatters → monorepo signals, then builds a `PROJECT_PROFILE`. 
 
 **Docker-aware** — when Dockerfile or docker-compose is detected:
 - Generates container lifecycle targets (`docker-build`, `docker-push`, `docker-logs`)
@@ -356,7 +358,10 @@ Generates or enhances build automation files:
 - Suggests creating `AGENTS.md` with build commands for AI agents
 - Finds and updates any markdown files that already list project commands
 
-Supports Go, Node.js, Python, and PHP with framework-specific targets (Laravel artisan, Next.js, FastAPI, etc.).
+**Stack support:** Go, Node.js, Python, PHP, `Cargo.toml` → Rust, `Gemfile` → Ruby, plus **Java/Kotlin (Gradle/Maven)** with `./gradlew` / `gradle` / `./mvnw` / `mvn` as detected.
+- **PHP:** Laravel (`artisan`), Symfony (`bin/console`), Slim, CakePHP, and Composer-driven workflows when detected.
+- **Node.js, Python, Go, Rust, Ruby:** framework-specific targets (e.g. Next.js, FastAPI, Gin, Axum/Actix/Rocket/Warp, `cargo`/`clippy`/`fmt`, Rails/Sinatra/Hanami, RuboCop/RSpec) per `PROJECT_PROFILE`.
+- **Java/Kotlin:** Spring Boot (`bootRun`, `bootJar` / `spring-boot:run`, packaged JAR), gRPC/protobuf, Quarkus (`quarkus:dev`), Micronaut, Vert.x — from Gradle/Maven and repo layout; Liquibase/Flyway, JUnit-style tests, and JVM static analysis tie into the same pipeline as in **Project detection** above.
 
 - Config policy: config-agnostic; build automation targets are derived from repo and tool detection, not `config.yaml`
 

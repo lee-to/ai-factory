@@ -1,0 +1,104 @@
+# --- Taskfile for Ruby (Bundler) Projects ---
+# Usage: task [target]
+# Install: https://taskfile.dev/installation/
+
+version: '3'
+
+output: prefixed
+
+dotenv: ['.env', '.env.local']
+
+vars:
+  PROJECT: '{{.ROOT_DIR | base}}'
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: '{{.DOCKER_REGISTRY}}/{{.PROJECT}}'
+  DOCKER_TAG: '{{.VERSION}}'
+
+tasks:
+  # --- Development ---
+
+  install:
+    desc: Install gems (bundle install)
+    cmds:
+      - bundle install
+
+  update:
+    desc: Update gems
+    cmds:
+      - bundle update
+
+  dev:
+    desc: Start app (override per project — rails server, rackup, etc.)
+    deps: [install]
+    cmds:
+      - bundle exec ruby -S rackup -o 0.0.0.0 -p 9292
+
+  console:
+    desc: Rails console (requires rails)
+    cmds:
+      - bundle exec rails console
+
+  # --- Testing ---
+
+  test:
+    desc: Run tests (RSpec — use test:rake for Minitest)
+    cmds:
+      - bundle exec rspec
+
+  test:rake:
+    desc: Run via Rake (e.g. minitest)
+    cmds:
+      - bundle exec rake test
+
+  # --- Code Quality ---
+
+  lint:
+    desc: Rubocop (no auto-correct)
+    cmds:
+      - bundle exec rubocop
+
+  lint:fix:
+    desc: Rubocop auto-correct
+    cmds:
+      - bundle exec rubocop -A
+
+  check:
+    desc: Static checks + tests
+    deps: [lint, test]
+
+  # --- Docker ---
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - >-
+        docker build
+        --build-arg VERSION={{.VERSION}}
+        --build-arg COMMIT={{.COMMIT}}
+        -t {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+        -t {{.DOCKER_IMAGE}}:latest
+        .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.DOCKER_TAG}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  # --- CI ---
+
+  ci:
+    desc: Run full CI pipeline
+    deps: [install, lint, test]
+
+  # --- Cleanup ---
+
+  clean:
+    desc: Remove tmp logs (adjust per app)
+    cmds:
+      - rm -rf tmp/ log/*.log

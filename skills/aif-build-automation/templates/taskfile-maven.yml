@@ -1,0 +1,126 @@
+version: '3'
+
+# --- Maven Taskfile — canonical targets; remove tasks your pom/plugins do not define (SKILL Step 5). ---
+
+vars:
+  PROJECT:
+    sh: basename $(pwd)
+  ENTRYPOINT:
+    sh: if [ -f ./mvnw ] || [ -f .mvn/wrapper/maven-wrapper.properties ]; then echo "./mvnw"; else echo "mvn"; fi
+  DEV_MAVEN_GOAL:
+    sh: if ! test -f pom.xml; then printf %s spring-boot:run; exit 0; fi; if grep -qE 'quarkus|io\.quarkus' pom.xml 2>/dev/null; then printf %s quarkus:dev; exit 0; fi; if grep -qE 'micronaut|io\.micronaut' pom.xml 2>/dev/null; then printf %s mn:run; exit 0; fi; if grep -qE 'vertx-maven-plugin|io\.reactiverse' pom.xml 2>/dev/null; then printf %s vertx:run; exit 0; fi; printf %s spring-boot:run
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: "{{.DOCKER_REGISTRY}}/{{.PROJECT}}"
+  JVM_MODULE:
+    sh: echo "${JVM_MODULE:-change-me-subproject}"
+
+tasks:
+  default:
+    desc: List all tasks
+    cmds:
+      - task --list
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - "{{.ENTRYPOINT}} clean"
+
+  build:
+    desc: Full build including tests and checks (`verify`)
+    cmds:
+      - "{{.ENTRYPOINT}} verify"
+
+  assemble:
+    desc: Build project and package artifacts
+    cmds:
+      - "{{.ENTRYPOINT}} package"
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - "{{.ENTRYPOINT}} test"
+
+  check:
+    desc: Run tests and static analysis (`verify`)
+    cmds:
+      - "{{.ENTRYPOINT}} verify"
+
+  module:build:
+    desc: Package one reactor subtree (export JVM_MODULE; -pl … -am package)
+    cmds:
+      - "{{.ENTRYPOINT}} -pl {{.JVM_MODULE}} -am package"
+
+  module:test:
+    desc: Test one reactor subtree
+    cmds:
+      - "{{.ENTRYPOINT}} -pl {{.JVM_MODULE}} -am test"
+
+  module:check:
+    desc: Verify one reactor subtree
+    cmds:
+      - "{{.ENTRYPOINT}} -pl {{.JVM_MODULE}} -am verify"
+
+  dev:
+    desc: Run application locally (framework from SKILL §2.3 scan)
+    cmds:
+      - "{{.ENTRYPOINT}} {{.DEV_MAVEN_GOAL}}"
+
+  lint:
+    desc: Full verification (delegates to `verify`)
+    deps: [check]
+
+  fmt:
+    desc: Apply Spotless (`spotless:apply`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotless:apply"
+
+  lint:checkstyle:
+    desc: Checkstyle (`checkstyle:check`)
+    cmds:
+      - "{{.ENTRYPOINT}} checkstyle:check"
+
+  lint:spotbugs:
+    desc: SpotBugs (`spotbugs:check`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotbugs:check"
+
+  lint:pmd:
+    desc: PMD (`pmd:check`)
+    cmds:
+      - "{{.ENTRYPOINT}} pmd:check"
+
+  lint:spotless:
+    desc: Spotless check only (`spotless:check`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotless:check"
+
+  db:migrate:liquibase:
+    desc: Liquibase (`liquibase:update`)
+    cmds:
+      - "{{.ENTRYPOINT}} liquibase:update"
+
+  db:migrate:flyway:
+    desc: Flyway (`flyway:migrate`)
+    cmds:
+      - "{{.ENTRYPOINT}} flyway:migrate"
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t {{.DOCKER_IMAGE}}:{{.VERSION}} -t {{.DOCKER_IMAGE}}:latest .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.VERSION}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  ci:
+    desc: Clean then full Maven verify
+    cmds:
+      - task: clean
+      - task: build

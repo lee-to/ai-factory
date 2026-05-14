@@ -1,0 +1,126 @@
+version: '3'
+
+# --- Gradle Taskfile — canonical targets; remove tasks your build does not wire (SKILL Step 5). ---
+
+vars:
+  PROJECT:
+    sh: basename $(pwd)
+  ENTRYPOINT:
+    sh: if [ -f ./gradlew ] || [ -f gradle/wrapper/gradle-wrapper.properties ]; then echo "./gradlew"; else echo "gradle"; fi
+  DEV_GRADLE_TASK:
+    sh: for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'quarkus|io\.quarkus' "$f" 2>/dev/null; then printf %s quarkusDev; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'micronaut|io\.micronaut' "$f" 2>/dev/null; then printf %s run; exit 0; fi; done; for f in build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle/libs.versions.toml; do test -f "$f" || continue; if grep -qE 'vertx-plugin|io\.vertx\.vertx' "$f" 2>/dev/null; then printf %s vertxRun; exit 0; fi; done; printf %s bootRun
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_IMAGE: "{{.DOCKER_REGISTRY}}/{{.PROJECT}}"
+  JVM_MODULE:
+    sh: echo "${JVM_MODULE:-change-me-subproject}"
+
+tasks:
+  default:
+    desc: List all tasks
+    cmds:
+      - task --list
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - "{{.ENTRYPOINT}} clean"
+
+  build:
+    desc: Full build including tests and checks
+    cmds:
+      - "{{.ENTRYPOINT}} build"
+
+  assemble:
+    desc: Build project and package artifacts
+    cmds:
+      - "{{.ENTRYPOINT}} assemble"
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - "{{.ENTRYPOINT}} test"
+
+  check:
+    desc: Run tests and static analysis (Gradle `check`)
+    cmds:
+      - "{{.ENTRYPOINT}} check"
+
+  module:build:
+    desc: Build one Gradle subproject (export JVM_MODULE; uses env or default)
+    cmds:
+      - "{{.ENTRYPOINT}} :{{.JVM_MODULE}}:build"
+
+  module:test:
+    desc: Test one Gradle subproject
+    cmds:
+      - "{{.ENTRYPOINT}} :{{.JVM_MODULE}}:test"
+
+  module:check:
+    desc: Check one Gradle subproject
+    cmds:
+      - "{{.ENTRYPOINT}} :{{.JVM_MODULE}}:check"
+
+  dev:
+    desc: Run application locally (framework from SKILL §2.3 scan)
+    cmds:
+      - "{{.ENTRYPOINT}} {{.DEV_GRADLE_TASK}}"
+
+  lint:
+    desc: Full verification (delegates to `check`)
+    deps: [check]
+
+  fmt:
+    desc: Apply Spotless (`spotlessApply`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotlessApply"
+
+  lint:checkstyle:
+    desc: Checkstyle (`checkstyleMain`)
+    cmds:
+      - "{{.ENTRYPOINT}} checkstyleMain"
+
+  lint:spotbugs:
+    desc: SpotBugs (`spotbugsMain`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotbugsMain"
+
+  lint:pmd:
+    desc: PMD (`pmdMain`)
+    cmds:
+      - "{{.ENTRYPOINT}} pmdMain"
+
+  lint:spotless:
+    desc: Spotless check only (`spotlessCheck`)
+    cmds:
+      - "{{.ENTRYPOINT}} spotlessCheck"
+
+  db:migrate:liquibase:
+    desc: Liquibase update (`liquibaseUpdate`)
+    cmds:
+      - "{{.ENTRYPOINT}} liquibaseUpdate"
+
+  db:migrate:flyway:
+    desc: Flyway migrate (`flywayMigrate`)
+    cmds:
+      - "{{.ENTRYPOINT}} flywayMigrate"
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t {{.DOCKER_IMAGE}}:{{.VERSION}} -t {{.DOCKER_IMAGE}}:latest .
+
+  docker:push:
+    desc: Push Docker image
+    cmds:
+      - docker push {{.DOCKER_IMAGE}}:{{.VERSION}}
+      - docker push {{.DOCKER_IMAGE}}:latest
+
+  ci:
+    desc: Clean then full Gradle build
+    cmds:
+      - task: clean
+      - task: build

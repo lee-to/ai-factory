@@ -1,0 +1,90 @@
+# --- Justfile for JVM Projects (Maven) ---
+# Canonical targets; delete recipes your pom/plugins do not define (SKILL Step 5).
+
+set shell := ["bash", "-c"]
+
+project := `basename $(pwd)`
+version := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+commit  := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+
+entrypoint := `if [ -f ./mvnw ] || [ -f .mvn/wrapper/maven-wrapper.properties ]; then echo "./mvnw"; else echo "mvn"; fi`
+dev_maven_goal := `if ! test -f pom.xml; then printf %s spring-boot:run; exit 0; fi; if grep -qE "quarkus|io\\.quarkus" pom.xml 2>/dev/null; then printf %s quarkus:dev; exit 0; fi; if grep -qE "micronaut|io\\.micronaut" pom.xml 2>/dev/null; then printf %s mn:run; exit 0; fi; if grep -qE "vertx-maven-plugin|io\\.reactiverse" pom.xml 2>/dev/null; then printf %s vertx:run; exit 0; fi; printf %s spring-boot:run`
+
+docker-registry := "ghcr.io"
+docker-image    := docker-registry + "/" + project
+
+# --- Default ---
+default:
+    @just --list
+
+# --- Development ---
+clean:
+    {{entrypoint}} clean
+
+build:
+    {{entrypoint}} verify
+
+assemble:
+    {{entrypoint}} package
+
+dev:
+    {{entrypoint}} {{dev_maven_goal}}
+
+# --- Testing ---
+test:
+    {{entrypoint}} test
+
+check:
+    {{entrypoint}} verify
+
+# --- Multi-module: export JVM_MODULE=module-id ---
+module-build:
+    {{entrypoint}} -pl {{ env("JVM_MODULE", "change-me-subproject") }} -am package
+
+module-test:
+    {{entrypoint}} -pl {{ env("JVM_MODULE", "change-me-subproject") }} -am test
+
+module-check:
+    {{entrypoint}} -pl {{ env("JVM_MODULE", "change-me-subproject") }} -am verify
+
+# --- Code Quality ---
+lint:
+    {{entrypoint}} verify
+
+fmt:
+    {{entrypoint}} spotless:apply
+
+lint-checkstyle:
+    {{entrypoint}} checkstyle:check
+
+lint-spotbugs:
+    {{entrypoint}} spotbugs:check
+
+lint-pmd:
+    {{entrypoint}} pmd:check
+
+lint-spotless:
+    {{entrypoint}} spotless:check
+
+# --- Docker ---
+docker-build:
+    docker build \
+        --build-arg VERSION={{version}} \
+        --build-arg COMMIT={{commit}} \
+        -t {{docker-image}}:{{version}} \
+        -t {{docker-image}}:latest \
+        .
+
+docker-push:
+    docker push {{docker-image}}:{{version}}
+    docker push {{docker-image}}:latest
+
+# --- Database ---
+db-migrate-liquibase:
+    {{entrypoint}} liquibase:update
+
+db-migrate-flyway:
+    {{entrypoint}} flyway:migrate
+
+# --- CI ---
+ci: clean build

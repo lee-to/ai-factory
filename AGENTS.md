@@ -27,7 +27,7 @@ ai-factory/
 │   ├── aif/                           # Main setup skill
 │   ├── aif-architecture/       # Architecture patterns
 │   ├── aif-best-practices/     # Code quality guidelines
-│   ├── aif-build-automation/   # Makefile/Taskfile/Justfile generator
+│   ├── aif-build-automation/   # Makefile/Taskfile/Justfile/Mage; unified stack detection (incl. JVM)
 │   ├── aif-ci/                 # GitHub Actions / GitLab CI generator
 │   ├── aif-commit/             # Conventional commits
 │   ├── aif-dockerize/          # Docker/compose generator
@@ -62,6 +62,10 @@ ai-factory/
 - **User skills**: `<agent-config-dir>/skills/` (e.g. `.claude/skills/`, `.opencode/skills/`, `.agents/skills/`)
 - **Agent transformer system**: `src/core/transformers/` adapts skill format per agent (e.g. Antigravity uses flat `.md`
   for workflow skills, KiloCode sanitizes dotted names)
+
+### aif-build-automation (unified stack detection)
+
+`skills/aif-build-automation/SKILL.md` defines how to generate or enhance Makefile, Taskfile, Justfile, or Mage. **Repository analysis uses one ordered pipeline for every stack:** primary language → package manager / build entrypoints → frameworks → Docker → CI → migrations → tests → linters → monorepo, then `PROJECT_PROFILE`. **Java/Kotlin (JVM) is not a separate side path:** Gradle/Maven, wrappers (`gradlew`, `mvnw`), `java_build`, frameworks from build files, and JVM linters follow the same section structure as Node (`package.json`), Python (`pyproject.toml`), etc. (skill §2.1–§2.8). If both Gradle signals and `pom.xml` are present, set `java_build.mixed_maven_gradle`, append to `PROJECT_PROFILE.warnings`, and wire generated targets to Gradle (skill §2.2).
 
 ### Working Directory
 
