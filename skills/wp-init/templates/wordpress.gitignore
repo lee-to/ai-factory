@@ -1,0 +1,30 @@
+# === WordPress ===
+
+# Core files — managed by WP-CLI, not committed
+/wp-admin/
+/wp-includes/
+/wp-*.php
+/xmlrpc.php
+/index.php
+/license.txt
+/readme.html
+
+# Config contains database credentials
+/wp-config.php
+/wp-config-sample.php
+
+# Uploads — large binary files
+/wp-content/uploads/
+
+# Track only custom themes and plugins (your code)
+!/wp-content/
+!/wp-content/themes/
+!/wp-content/plugins/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

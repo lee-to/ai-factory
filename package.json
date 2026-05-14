@@ -1,6 +1,6 @@
 {
-  "name": "ai-factory",
-  "version": "2.12.0",
+  "name": "vyatka-it-ai-factory",
+  "version": "1.0.0",
   "type": "module",
   "description": "CLI tool for automating AI agent context setup in projects",
   "main": "dist/cli/index.js",
@@ -47,7 +47,7 @@
     "automation",
     "cli"
   ],
-  "author": "",
+  "author": "VyatkaIT",
   "license": "MIT",
   "files": [
     "bin",
