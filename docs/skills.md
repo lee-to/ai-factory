@@ -419,6 +419,9 @@ Adds project-specific rules and conventions:
 ### `/aif-commit`
 Creates conventional commits:
 - Analyzes staged changes
+- Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping
+- Stops for user input when staged files or hunks cannot be mapped to planned commit groups
+- Keeps current staged-diff behavior unchanged when no active plan or no `## Commit Plan` exists
 - Generates meaningful commit message
 - Follows conventional commits format
 - Runs read-only architecture/roadmap/rules gate checks before commit proposal

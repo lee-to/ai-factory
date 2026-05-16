@@ -213,7 +213,11 @@ fi
 
 # /aif localization contract regression checks
 AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
+AIF_COMMIT_SKILL="$ROOT_DIR/skills/aif-commit/SKILL.md"
 AIF_ARCH_SKILL="$ROOT_DIR/skills/aif-architecture/SKILL.md"
+CONFIG_REFERENCE_DOC="$ROOT_DIR/docs/config-reference.md"
+WORKFLOW_DOC="$ROOT_DIR/docs/workflow.md"
+SKILLS_DOC="$ROOT_DIR/docs/skills.md"
 MODE1_SECTION="$(awk '
     /^### Mode 1: Analyze Existing Project$/ { capture=1 }
     capture { print }
@@ -475,6 +479,76 @@ if printf '%s\n' "$AIF_ARCH_OWNERSHIP_SECTION" | grep -Fq '.ai-factory/DESCRIPTI
     fail "default DESCRIPTION path leaked into /aif-architecture Artifact Ownership"
 else
     pass "no default DESCRIPTION path leak in /aif-architecture Artifact Ownership"
+fi
+
+# /aif-commit active Commit Plan grouping contract
+if grep -Fq '`paths.plan`' "$AIF_COMMIT_SKILL" \
+   && grep -Fq '`paths.plans`' "$AIF_COMMIT_SKILL" \
+   && grep -Fq '`workflow.plan_id_format`' "$AIF_COMMIT_SKILL" \
+   && grep -Fq '`git.enabled`' "$AIF_COMMIT_SKILL" \
+   && grep -Fq '`git.create_branches`' "$AIF_COMMIT_SKILL"; then
+    pass "/aif-commit reads config keys for active plan discovery"
+else
+    fail "/aif-commit active-plan config keys missing"
+fi
+
+if grep -Fq 'Resolve active plan using this read-only priority' "$AIF_COMMIT_SKILL" \
+   && grep -Fq '`@<plan-file>`' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'branch-based full plan' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'single full plan in `paths.plans`' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'fast plan at `paths.plan`' "$AIF_COMMIT_SKILL"; then
+    pass "/aif-commit documents active plan discovery priority"
+else
+    fail "/aif-commit active plan discovery priority missing"
+fi
+
+if grep -Fq 'If active plan contains `## Commit Plan`' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Compare staged files/hunks with planned groups' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Follow Commit Plan' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Commit everything together' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Adjust grouping' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'If files cannot be mapped to groups, stop and ask the user to adjust grouping.' "$AIF_COMMIT_SKILL"; then
+    pass "/aif-commit documents Commit Plan grouping prompt and unmapped-file behavior"
+else
+    fail "/aif-commit Commit Plan grouping contract missing"
+fi
+
+if grep -Fq 'If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.' "$AIF_COMMIT_SKILL"; then
+    pass "/aif-commit preserves fallback without Commit Plan"
+else
+    fail "/aif-commit fallback without Commit Plan missing"
+fi
+
+CONFIG_COMMIT_ROW="$(grep -F '| `/aif-commit` |' "$CONFIG_REFERENCE_DOC" || true)"
+if printf '%s\n' "$CONFIG_COMMIT_ROW" | grep -Fq '`paths.plan`' \
+   && printf '%s\n' "$CONFIG_COMMIT_ROW" | grep -Fq '`paths.plans`' \
+   && printf '%s\n' "$CONFIG_COMMIT_ROW" | grep -Fq '`workflow.plan_id_format`' \
+   && printf '%s\n' "$CONFIG_COMMIT_ROW" | grep -Fq '`git.enabled`' \
+   && printf '%s\n' "$CONFIG_COMMIT_ROW" | grep -Fq '`git.create_branches`' \
+   && printf '%s\n' "$CONFIG_COMMIT_ROW" | grep -Fq '`git.skip_push_after_commit`'; then
+    pass "config reference lists /aif-commit active-plan config usage"
+else
+    fail "config reference missing /aif-commit active-plan config usage"
+fi
+
+if grep -F '| `paths.plan` |' "$CONFIG_REFERENCE_DOC" | grep -Fq '/aif-commit' \
+   && grep -F '| `paths.plans` |' "$CONFIG_REFERENCE_DOC" | grep -Fq '/aif-commit' \
+   && grep -F '| `workflow.plan_id_format` |' "$CONFIG_REFERENCE_DOC" | grep -Fq '/aif-commit' \
+   && grep -F '| `git.enabled` |' "$CONFIG_REFERENCE_DOC" | grep -Fq '/aif-commit' \
+   && grep -F '| `git.create_branches` |' "$CONFIG_REFERENCE_DOC" | grep -Fq '/aif-commit'; then
+    pass "config reference key rows include /aif-commit where applicable"
+else
+    fail "config reference key rows missing /aif-commit"
+fi
+
+if grep -Fq 'active plan contains `## Commit Plan`' "$WORKFLOW_DOC" \
+   && grep -Fq 'unmapped staged files' "$WORKFLOW_DOC" \
+   && grep -Fq 'staged-diff behavior unchanged' "$WORKFLOW_DOC" \
+   && grep -Fq 'active plan `## Commit Plan`' "$SKILLS_DOC" \
+   && grep -Fq 'Follow Commit Plan' "$SKILLS_DOC"; then
+    pass "/aif-commit docs describe plan-aware grouping and fallback"
+else
+    fail "/aif-commit docs missing plan-aware grouping and fallback"
 fi
 
 # No hardcoded agent-specific values (must use {{template_vars}})
