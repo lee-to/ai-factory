@@ -884,10 +884,12 @@ for (const relPath of ['../config.toml', 'nested/../../config.toml', 'C:/config.
 }
 
 const resolved = resolveManagedConfigFilePaths(projectDir, 'codex', 'config.toml');
-if (!resolved.targetFile.endsWith('/.codex/config.toml')) {
+const normalizedTarget = resolved.targetFile.replaceAll('\\', '/');
+const normalizedSource = resolved.sourceFile.replaceAll('\\', '/');
+if (!normalizedTarget.endsWith('/.codex/config.toml')) {
   throw new Error(`Unexpected target path: ${resolved.targetFile}`);
 }
-if (!resolved.sourceFile.endsWith('/subagents/codex/config.toml')) {
+if (!normalizedSource.endsWith('/subagents/codex/config.toml')) {
   throw new Error(`Unexpected source path: ${resolved.sourceFile}`);
 }
 EOF
