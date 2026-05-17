@@ -513,6 +513,16 @@ else
     fail "/aif-commit Commit Plan grouping contract missing"
 fi
 
+if grep -Fq 'Only use `git add <files>` when each planned group has a disjoint file set.' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'When one file spans multiple planned groups, use hunk-level staging (`git add -p` or `git apply --cached`) for each group.' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'same file spans multiple groups' "$WORKFLOW_DOC" \
+   && grep -Fq 'hunk-level staging' "$SKILLS_DOC"; then
+    pass "/aif-commit prevents whole-file staging leakage across planned groups"
+else
+    fail "/aif-commit missing hunk-level staging guard for same-file planned groups"
+fi
+
 if grep -Fq 'If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.' "$AIF_COMMIT_SKILL"; then
     pass "/aif-commit preserves fallback without Commit Plan"
 else

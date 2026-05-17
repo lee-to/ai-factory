@@ -79,6 +79,9 @@ If any rule is violated — fix the output before presenting it to the user.
      - use staged hunk evidence from `git diff --cached` when a file may span multiple groups
      - task ranges and `Files:` hints are guidance, not executable instructions
    - If files cannot be mapped to groups, stop and ask the user to adjust grouping.
+   - Only use `git add <files>` when each planned group has a disjoint file set.
+   - When one file spans multiple planned groups, use hunk-level staging (`git add -p` or `git apply --cached`) for each group.
+   - If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.
    - When a usable grouping exists, ask:
 
      ```
@@ -238,7 +241,9 @@ If argument provided (e.g., `/aif-commit auth`):
      - **Yes, split as suggested** → proceed to step 4
      - **No, commit everything together** → proceed to step 5 (propose single commit message)
      - **Let me adjust the grouping** → ask the user for the adjusted grouping via `AskUserQuestion`, then return to step 2 with the new plan
-  4. Unstage all: `git reset HEAD`
-  5. Stage and commit each group separately using `git add <files>` + `git commit`
-  6. Offer to push only after all commits are done
+  4. Before changing staging, confirm whether each planned group has a disjoint file set or whether any file spans multiple groups.
+  5. If every group has a disjoint file set, unstage all with `git reset HEAD`, then stage and commit each group separately using `git add <files>` + `git commit`.
+  6. If one file spans multiple groups, use hunk-level staging for each group: stage only that group's hunks with `git add -p` or `git apply --cached`, commit, then repeat for the next group.
+  7. If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.
+  8. Offer to push only after all commits are done
 - NEVER add `Co-Authored-By` or any other trailer attributing authorship to the AI. Commits must not contain AI co-author lines
