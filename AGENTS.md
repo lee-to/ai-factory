@@ -7,7 +7,7 @@
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (25 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
+2. **Built-in skills** (26 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
@@ -30,6 +30,7 @@ ai-factory/
 │   ├── aif-build-automation/   # Makefile/Taskfile/Justfile/Mage; unified stack detection (incl. JVM)
 │   ├── aif-ci/                 # GitHub Actions / GitLab CI generator
 │   ├── aif-commit/             # Conventional commits
+│   ├── aif-distillation/       # Distill books/docs/files into skills
 │   ├── aif-dockerize/          # Docker/compose generator
 │   ├── aif-docs/               # Documentation generation & maintenance
 │   ├── aif-evolve/             # Self-improve skills based on context
@@ -129,6 +130,7 @@ Context gate policy for quality commands:
 - Core workflow and quality: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`,
   `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
 - Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`,
+  `/aif-distillation`,
   `/aif-security-checklist`, `/aif-qa`
 
 Current config-agnostic built-ins:
@@ -450,10 +452,17 @@ docs/
 
 ### Adding a new skill
 
-1. Create `skills/aif-new-skill/SKILL.md` (must use `aif-` prefix)
-2. Add to `getAvailableSkills()` if needed
-3. Rebuild: `npm run build`
-4. Validate: `npm test`
+1. Create `skills/aif-new-skill/SKILL.md` (must use the `aif-` prefix). Built-in skills are discovered from `skills/`; no TypeScript registry change is needed unless adding UI hints or agent-specific behavior.
+2. Keep `SKILL.md` as the router: purpose, triggers, Step 0 context/config loading, workflow, and ownership. Put dense knowledge in `references/`; put reusable examples in `examples/`; add `scripts/` only for repeatable processing. If source material includes code examples, generated skills must include adapted code snippets in `examples/` and cover the major code-facing source areas, not only a few samples.
+3. Decide config policy explicitly:
+   - Config-aware skills must read `.ai-factory/config.yaml` first and document exact keys used.
+   - Config-agnostic skills must say why they do not read config.
+   - Use `language.ui` for prompts/summaries and `language.artifacts` for generated artifacts when applicable.
+4. Add an Artifact Ownership section. Owner commands write only their owned artifacts; non-owner context artifacts stay read-only. Quality gates must follow the shared `aif-gate-result` contract only when they are machine-readable gates.
+5. Never hardcode installed skill directories in built-in skills. Use template variables such as `{{skills_dir}}` or `{{home_skills_dir}}`; the installer resolves them per agent.
+6. If the skill creates user skills, save them in the current agent skills directory (`{{skills_dir}}/<skill-name>/`) with concise lowercase-hyphen names.
+7. Update docs when user-facing behavior changes: `docs/skills.md`, `docs/workflow.md` if workflow-relevant, `docs/configuration.md` / `docs/config-reference.md` if config-aware, and `AGENTS.md` if project rules change.
+8. Validate with `npm run build` and `npm test`.
 
 ### Modifying workflow
 
