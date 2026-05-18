@@ -217,7 +217,15 @@ status: active
 owners: [docs]
 ---
 # Outside'
-ln -s "$OUTSIDE_DIR" "$SYMLINK_PROJECT/docs"
+node - "$OUTSIDE_DIR" "$SYMLINK_PROJECT/docs" <<'EOF'
+const fs = require('fs');
+
+fs.symlinkSync(
+  process.argv[2],
+  process.argv[3],
+  process.platform === 'win32' ? 'junction' : 'dir',
+);
+EOF
 SYMLINK_OUTPUT="$TMPDIR/symlink.json"
 if run_audit "$SYMLINK_PROJECT" "$SYMLINK_OUTPUT"; then
     pass "default outside symlink warning exits 0"
