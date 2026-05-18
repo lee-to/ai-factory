@@ -211,6 +211,133 @@ else
     fail "found $DOTTED_REFS dotted invocations in docs"
 fi
 
+# aif-distillation helper safety regression checks
+DISTILL_HELPER="$ROOT_DIR/skills/aif-distillation/scripts/material-prep.py"
+DISTILL_SRC="$TMPDIR/distillation-source"
+mkdir -p "$DISTILL_SRC/docs/.hidden-dir" "$DISTILL_SRC/docs/secrets" "$DISTILL_SRC/docs/.ai-factory"
+cat > "$DISTILL_SRC/docs/guide.md" << 'EOF'
+# Guide
+
+This is normal distillation source material.
+EOF
+cat > "$DISTILL_SRC/docs/.hidden.md" << 'EOF'
+hidden markdown source
+EOF
+cat > "$DISTILL_SRC/docs/.hidden-dir/notes.md" << 'EOF'
+hidden directory source
+EOF
+cat > "$DISTILL_SRC/docs/private.key.md" << 'EOF'
+private key shaped source
+EOF
+cat > "$DISTILL_SRC/docs/secrets/plan.yaml" << 'EOF'
+token: should-not-be-read
+EOF
+cat > "$DISTILL_SRC/docs/.ai-factory/config.yaml" << 'EOF'
+language:
+  ui: en
+EOF
+
+DISTILL_OUT="$TMPDIR/distillation-out"
+if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_OUT" --chunk-chars 200 > "$TMPDIR/distillation-helper.log" 2>&1; then
+    if grep -q "guide.md" "$DISTILL_OUT/source-index.md" \
+        && ! grep -q ".hidden.md" "$DISTILL_OUT/source-index.md" \
+        && ! grep -q ".hidden-dir" "$DISTILL_OUT/source-index.md" \
+        && ! grep -q "private.key.md" "$DISTILL_OUT/source-index.md" \
+        && ! grep -q "secrets" "$DISTILL_OUT/source-index.md" \
+        && ! grep -q ".ai-factory" "$DISTILL_OUT/source-index.md"; then
+        pass "aif-distillation helper filters hidden and sensitive folder sources"
+    else
+        fail "aif-distillation helper should skip hidden and sensitive folder sources"
+        cat "$DISTILL_OUT/source-index.md"
+    fi
+else
+    fail "aif-distillation helper should process normal docs folder"
+    cat "$TMPDIR/distillation-helper.log"
+fi
+
+DISTILL_EXISTING_OUT="$TMPDIR/distillation-existing-out"
+mkdir -p "$DISTILL_EXISTING_OUT"
+cat > "$DISTILL_EXISTING_OUT/user-notes.md" << 'EOF'
+user-owned file
+EOF
+if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs/guide.md" --out "$DISTILL_EXISTING_OUT" > "$TMPDIR/distillation-existing-out.log" 2>&1; then
+    fail "aif-distillation helper should refuse non-empty user-owned --out"
+else
+    if [[ -f "$DISTILL_EXISTING_OUT/user-notes.md" ]]; then
+        pass "aif-distillation helper refuses non-empty user-owned --out"
+    else
+        fail "aif-distillation helper must not remove files from refused --out"
+    fi
+fi
+
+DISTILL_TEMP_LOG="$TMPDIR/distillation-temp.log"
+if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs/guide.md" --chunk-chars 200 > "$DISTILL_TEMP_LOG" 2>&1; then
+    DISTILL_TEMP_OUT=$(sed -n 's/^Output: //p' "$DISTILL_TEMP_LOG" | tail -n 1)
+    if [[ -n "$DISTILL_TEMP_OUT" && -d "$DISTILL_TEMP_OUT" ]]; then
+        if python3 "$DISTILL_HELPER" --cleanup "$DISTILL_TEMP_OUT" > "$TMPDIR/distillation-cleanup.log" 2>&1 && [[ ! -e "$DISTILL_TEMP_OUT" ]]; then
+            pass "aif-distillation helper cleans generated temp output"
+        else
+            fail "aif-distillation helper should clean generated temp output"
+            cat "$TMPDIR/distillation-cleanup.log"
+        fi
+    else
+        fail "aif-distillation helper should print generated temp output path"
+        cat "$DISTILL_TEMP_LOG"
+    fi
+else
+    fail "aif-distillation helper should create temp output"
+    cat "$DISTILL_TEMP_LOG"
+fi
+
+DISTILL_USER_DIR="$TMPDIR/user-aif-distillation"
+mkdir -p "$DISTILL_USER_DIR"
+cat > "$DISTILL_USER_DIR/manifest.json" << 'EOF'
+{}
+EOF
+cat > "$DISTILL_USER_DIR/source-index.md" << 'EOF'
+# Source Index
+EOF
+if python3 "$DISTILL_HELPER" --cleanup "$DISTILL_USER_DIR" > "$TMPDIR/distillation-user-cleanup.log" 2>&1; then
+    fail "aif-distillation helper cleanup should refuse user-owned directory with generic marker names"
+else
+    if [[ -f "$DISTILL_USER_DIR/manifest.json" && -f "$DISTILL_USER_DIR/source-index.md" ]]; then
+        pass "aif-distillation helper cleanup requires dedicated ownership marker"
+    else
+        fail "aif-distillation helper cleanup must not remove user-owned directory"
+    fi
+fi
+
+if [[ -f "$ROOT_DIR/dist/core/installer.js" ]]; then
+    DISTILL_INSTALL_PROJECT="$TMPDIR/distillation-install-smoke"
+    mkdir -p "$DISTILL_INSTALL_PROJECT"
+    AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$DISTILL_INSTALL_PROJECT" node --input-type=module > "$TMPDIR/distillation-install.log" 2>&1 <<'EOF'
+import path from 'path';
+import { pathToFileURL } from 'url';
+
+const rootDir = process.env.AIF_TEST_ROOT_DIR;
+const projectDir = process.env.AIF_TEST_PROJECT_DIR;
+const moduleUrl = pathToFileURL(path.join(rootDir, 'dist/core/installer.js')).href;
+const { installSkills } = await import(moduleUrl);
+
+await installSkills({ projectDir, skillsDir: '.codex/skills', skills: ['aif-distillation'], agentId: 'codex' });
+await installSkills({ projectDir, skillsDir: '.claude/skills', skills: ['aif-distillation'], agentId: 'claude' });
+EOF
+    if [[ -f "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/scripts/material-prep.py" ]] \
+        && [[ -f "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/scripts/material-prep.py" ]] \
+        && grep -q "python3 .codex/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/references/LARGE-MATERIALS.md" \
+        && grep -q "python3 .claude/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/references/LARGE-MATERIALS.md" \
+        && ! grep -q "~/.codex/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/references/LARGE-MATERIALS.md" \
+        && python3 "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/scripts/material-prep.py" --help > /dev/null \
+        && python3 "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/scripts/material-prep.py" --help > /dev/null; then
+        pass "aif-distillation installed helper path works for Codex and Claude"
+    else
+        fail "aif-distillation installed helper path should be project-local for Codex and Claude"
+        cat "$TMPDIR/distillation-install.log"
+    fi
+else
+    fail "dist/core/installer.js missing; run npm run build before skill tests"
+fi
+
 # /aif localization contract regression checks
 AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
 AIF_ARCH_SKILL="$ROOT_DIR/skills/aif-architecture/SKILL.md"

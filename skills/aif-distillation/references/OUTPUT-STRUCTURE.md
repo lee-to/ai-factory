@@ -39,9 +39,17 @@ Save the distilled skill in the configured skills directory of the currently act
 
 Do not write distilled output into AI Factory's package `skills/` directory unless the task is explicitly to add a built-in AI Factory skill.
 
+Before writing, resolve and canonicalize the final destination path. It must stay inside the resolved `{{skills_dir}}` directory.
+
 ## Naming
 
 Choose a concise, general name that matches the distilled practice, not just the exact source title.
+
+Required validation before any write:
+
+- Accept only names matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`.
+- Reject empty names, overlong names, `.`, `..`, dots, path separators (`/` or `\`), absolute paths, Windows drive paths, and hidden names.
+- Reject reserved `aif-*` names unless the user explicitly says they are developing AI Factory itself.
 
 Good:
 
@@ -56,6 +64,7 @@ Avoid:
 - full book titles
 - version/date suffixes unless required for compatibility
 - vague names like `notes`, `reference`, or `book-summary`
+- reserved or unsafe names like `aif-review`, `../foo`, `.hidden`, `C:\temp\skill`, or `clean/code`
 
 ## SKILL.md Rules
 

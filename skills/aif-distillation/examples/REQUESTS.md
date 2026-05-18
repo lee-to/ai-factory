@@ -41,6 +41,24 @@ Expected behavior:
 - save to `{{skills_dir}}/platform-operator/`
 - avoid duplicating existing examples
 - turn operational docs into agent instructions and checks
+- ignore hidden/config/sensitive files in the source folder unless the user explicitly opts in
+
+## Reject Unsafe Skill Names
+
+```text
+/aif-distillation ./docs --name ../foo
+/aif-distillation ./docs --name aif-review
+/aif-distillation ./docs --name .hidden
+/aif-distillation ./docs --name C:\temp\skill
+/aif-distillation ./docs --name clean/code
+```
+
+Expected behavior:
+
+- reject the request before writing files
+- explain that skill names must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`
+- reserve `aif-*` names unless the user explicitly says they are developing AI Factory itself
+- confirm the resolved target path would stay under `{{skills_dir}}`
 
 ## Update an Existing Skill
 

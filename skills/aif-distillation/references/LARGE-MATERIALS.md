@@ -7,7 +7,7 @@ Large books, PDFs, and source folders need staged processing. The goal is to fit
 Use:
 
 ```bash
-python3 ~/{{skills_dir}}/aif-distillation/scripts/material-prep.py <source...> --out <temp-dir>
+python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py <source...>
 ```
 
 The script:
@@ -15,8 +15,15 @@ The script:
 - accepts local files, local folders, and URLs
 - converts GitHub `blob` URLs to raw downloads when possible
 - extracts text from PDFs with Python libraries when present, then falls back to `pdftotext`
-- walks directories while skipping common generated/vendor folders
+- walks directories while skipping common generated/vendor folders, hidden paths, and credential-like paths by default
 - writes a `manifest.json`, `source-index.md`, and chunk files
+- writes output to a fresh temporary directory by default
+
+Optional flags:
+
+- `--out <dir>` writes to a specific output directory. Use only an empty directory or a directory previously created by this helper.
+- `--include-hidden` includes hidden files and folders during directory extraction.
+- `--include-sensitive` includes credential-like paths such as `.env*`, `*token*`, `*credential*`, `.ssh`, `.codex`, `.claude`, `secrets`, and `private`. Treat this as unsafe unless the user explicitly asks for those sources.
 
 Read `source-index.md` first. Then read only the chunks needed for each section of the target skill.
 
@@ -45,10 +52,10 @@ Required cleanup:
 Preferred cleanup command:
 
 ```bash
-python3 ~/{{skills_dir}}/aif-distillation/scripts/material-prep.py --cleanup <temp-dir>
+python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py --cleanup <temp-dir>
 ```
 
-The cleanup guard accepts only directories that look like `aif-distillation` extraction output.
+The cleanup guard removes only directories with this helper's dedicated marker file.
 
 If cleanup cannot be completed, report the exact temporary path to the user.
 

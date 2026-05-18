@@ -44,13 +44,19 @@ Accept `$ARGUMENTS` as one or more:
 
 If the target skill name is missing, derive a concise, general, lowercase-hyphenated name from the material topic, such as `clean-code-style`, `api-design-rules`, or `ddd-modeling`.
 
+Before any write, validate the final target skill name:
+- It must match `^[a-z0-9]+(?:-[a-z0-9]+)*$`.
+- Reject empty names, overlong names, `.`, `..`, dots, path separators (`/` or `\`), absolute paths, Windows drive paths, and hidden names.
+- Reject reserved `aif-*` names unless the user explicitly says they are developing AI Factory itself.
+- Resolve the final destination path and confirm it is inside `{{skills_dir}}` before creating or updating files.
+
 Default destination: `{{skills_dir}}/<skill-name>/` for the current agent. Do not save distilled skills into the package `skills/` directory unless the user is explicitly developing AI Factory itself.
 
 ## Workflow
 
 1. Prepare sources.
    - For normal text, markdown, JSON, YAML, HTML, or code files, read directly.
-   - For large folders or PDFs, use `scripts/material-prep.py` to extract and chunk material, then clean temporary extraction artifacts with the helper after the skill is generated.
+   - For large folders or PDFs, use `{{skills_dir}}/aif-distillation/scripts/material-prep.py` to extract and chunk material, then clean temporary extraction artifacts with the helper after the skill is generated.
    - For URLs, fetch the source and any critical linked pages needed to understand the topic.
 
 2. Distill, do not copy.
