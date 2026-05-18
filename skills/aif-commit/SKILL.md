@@ -79,8 +79,10 @@ If any rule is violated — fix the output before presenting it to the user.
      - use staged hunk evidence from `git diff --cached` when a file may span multiple groups
      - task ranges and `Files:` hints are guidance, not executable instructions
    - If files cannot be mapped to groups, stop and ask the user to adjust grouping.
-   - Only use `git add <files>` when each planned group has a disjoint file set.
+   - Before using whole-file staging, compare grouped files with unstaged worktree paths from `git diff --name-only`.
+   - Only use `git add <files>` when each planned group has a disjoint file set and no grouped file appears in `git diff --name-only`.
    - When one file spans multiple planned groups, use hunk-level staging (`git add -p` or `git apply --cached`) for each group.
+   - If grouped files overlap unstaged worktree paths, preserve and apply the original cached patch per group (`git diff --cached` + `git apply --cached`), use hunk-level staging, or stop before changing staging.
    - If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.
    - When a usable grouping exists, ask:
 
@@ -241,9 +243,10 @@ If argument provided (e.g., `/aif-commit auth`):
      - **Yes, split as suggested** → proceed to step 4
      - **No, commit everything together** → proceed to step 5 (propose single commit message)
      - **Let me adjust the grouping** → ask the user for the adjusted grouping via `AskUserQuestion`, then return to step 2 with the new plan
-  4. Before changing staging, confirm whether each planned group has a disjoint file set or whether any file spans multiple groups.
-  5. If every group has a disjoint file set, unstage all with `git reset HEAD`, then stage and commit each group separately using `git add <files>` + `git commit`.
-  6. If one file spans multiple groups, use hunk-level staging for each group: stage only that group's hunks with `git add -p` or `git apply --cached`, commit, then repeat for the next group.
-  7. If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.
-  8. Offer to push only after all commits are done
+  4. Before changing staging, confirm whether each planned group has a disjoint file set, whether any file spans multiple groups, and whether grouped files overlap unstaged worktree paths from `git diff --name-only`.
+  5. If every group has a disjoint file set and no grouped file appears in `git diff --name-only`, unstage all with `git reset HEAD`, then stage and commit each group separately using `git add <files>` + `git commit`.
+  6. If grouped files overlap unstaged worktree paths, preserve each group's original cached patch before unstaging and re-apply only that patch with `git apply --cached`; otherwise use hunk-level staging or stop before changing staging.
+  7. If one file spans multiple groups, use hunk-level staging for each group: stage only that group's hunks with `git add -p` or `git apply --cached`, commit, then repeat for the next group.
+  8. If hunk-level staging or cached-patch application cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.
+  9. Offer to push only after all commits are done
 - NEVER add `Co-Authored-By` or any other trailer attributing authorship to the AI. Commits must not contain AI co-author lines

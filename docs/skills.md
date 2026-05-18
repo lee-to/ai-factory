@@ -422,6 +422,7 @@ Creates conventional commits:
 - Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping
 - Stops for user input when staged files or hunks cannot be mapped to planned commit groups
 - Uses hunk-level staging for planned groups that share a file, or stops before changing staging when hunks cannot be applied confidently
+- Avoids whole-file staging when there is unstaged worktree overlap with grouped files
 - Keeps current staged-diff behavior unchanged when no active plan or no `## Commit Plan` exists
 - Generates meaningful commit message
 - Follows conventional commits format
