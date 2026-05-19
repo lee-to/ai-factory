@@ -66,8 +66,8 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `paths.roadmap` | `.ai-factory/ROADMAP.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-loop` | Strategic roadmap artifact |
 | `paths.research` | `.ai-factory/RESEARCH.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-improve`, `/aif-loop` | Persisted exploration context |
 | `paths.rules_file` | `.ai-factory/RULES.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-rules`, `/aif-reference`, `/aif-loop` | Top-level rules artifact |
-| `paths.plan` | `.ai-factory/PLAN.md` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-loop` | Fast-plan path |
-| `paths.plans` | `.ai-factory/plans/` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-loop` | Full-plan directory |
+| `paths.plan` | `.ai-factory/PLAN.md` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-loop` | Fast-plan path |
+| `paths.plans` | `.ai-factory/plans/` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-loop` | Full-plan directory |
 | `paths.fix_plan` | `.ai-factory/FIX_PLAN.md` | `/aif-fix`, `/aif-improve`, `/aif-implement`, `/aif-verify` | Fix-plan path |
 | `paths.security` | `.ai-factory/SECURITY.md` | `/aif-security-checklist` | Security ignore-state artifact |
 | `paths.references` | `.ai-factory/references/` | `/aif-reference` | Knowledge reference storage |
@@ -83,7 +83,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
 | `workflow.auto_create_dirs` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for directory-management behavior |
-| `workflow.plan_id_format` | `slug` | `/aif-plan`, `/aif-implement`, `/aif-improve`, `/aif-explore`, `/aif-verify`, `/aif-rules-check` | Active values: `slug` (default), `sequential`. Reserved values (currently fall back to `slug` with an `INFO` log): `timestamp`, `uuid`. `sequential` writes `paths.plans/<NNNN>_<stem>.md` where `stem` is the canonical Handoff/branch/slug stem from `/aif-plan` Step 1.2.a. `NNNN` is derived from existing numbered plans in the directory (next = max(existing) + 1; empty dir starts at `0001`), zero-padded to 4 digits, bounded at `9999` (the producer errors before writing `10000_…`). Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run. Force-disabled when `HANDOFF_BRANCH_PREPARED=1`. |
+| `workflow.plan_id_format` | `slug` | `/aif-plan`, `/aif-implement`, `/aif-improve`, `/aif-explore`, `/aif-verify`, `/aif-rules-check`, `/aif-commit` | Active values: `slug` (default), `sequential`. Reserved values (currently fall back to `slug` with an `INFO` log): `timestamp`, `uuid`. `sequential` writes `paths.plans/<NNNN>_<stem>.md` where `stem` is the canonical Handoff/branch/slug stem from `/aif-plan` Step 1.2.a. `NNNN` is derived from existing numbered plans in the directory (next = max(existing) + 1; empty dir starts at `0001`), zero-padded to 4 digits, bounded at `9999` (the producer errors before writing `10000_…`). Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run. Force-disabled when `HANDOFF_BRANCH_PREPARED=1`. |
 | `workflow.analyze_updates_architecture` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for setup/update workflow control |
 | `workflow.architecture_updates_roadmap` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for architecture-to-roadmap automation |
 | `workflow.verify_mode` | `normal` | `/aif-verify` | Default strictness for verification runs |
@@ -92,9 +92,9 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
-| `git.enabled` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-qa` | Disables branch/worktree assumptions when false; `/aif-qa` switches to manual change context instead of git diffing |
+| `git.enabled` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-qa` | Disables branch/worktree assumptions when false; `/aif-qa` switches to manual change context instead of git diffing |
 | `git.base_branch` | `main` with auto-detect fallback | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-qa` | Target branch for diff, merge, and verification guidance |
-| `git.create_branches` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify` | Full plans may still exist when false; they just skip auto branch creation |
+| `git.create_branches` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-commit` | Full plans may still exist when false; they just skip auto branch creation |
 | `git.branch_prefix` | `feature/` | `/aif`, `/aif-plan` | Prefix for auto-created full-plan branches |
 | `git.skip_push_after_commit` | `false` | `/aif-commit` | When true, `/aif-commit` skips push prompt and ends after local commit |
 
@@ -126,7 +126,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `/aif-implement` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.patches`, `paths.rules`, `language.ui`, `language.artifacts`, `git.enabled`, `git.base_branch`, `git.create_branches`, `rules.base`, `rules.<area>` |
 | `/aif-verify` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.specs`, `paths.rules`, `workflow.verify_mode`, `git.enabled`, `git.base_branch`, `git.create_branches`, `rules.base`, `rules.<area>` |
 | `/aif-rules-check` | Yes | No | `paths.rules_file`, `paths.rules`, `paths.plan`, `paths.plans`, `language.ui`, `git.enabled`, `git.base_branch`, `rules.base`, `rules.<area>` |
-| `/aif-commit` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.rules`, `language.ui`, `git.skip_push_after_commit`, `rules.base`, `rules.<area>` |
+| `/aif-commit` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.rules`, `paths.plan`, `paths.plans`, `workflow.plan_id_format`, `language.ui`, `git.enabled`, `git.create_branches`, `git.skip_push_after_commit`, `rules.base`, `rules.<area>` |
 | `/aif-review` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.rules`, `language.ui`, `git.base_branch` |
 | `/aif-loop` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.evolution`, `language.ui`, `language.artifacts` |
 | `/aif-docs` | Yes | No | `paths.description`, `paths.architecture`, `paths.docs`, `language.ui`, `language.artifacts` |
