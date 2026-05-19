@@ -2,7 +2,7 @@
 
 # Core Skills
 
-**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-security-checklist`, and `/aif-qa`.
+**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, and `/aif-qa`.
 
 `/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
@@ -479,6 +479,26 @@ Creates knowledge references from external sources for AI agents:
 - Best when AI needs knowledge it wasn't trained on: new libraries, internal APIs, project-specific specs, or rapidly changing documentation
 
 - Config policy: config-aware; reference storage uses `paths.references`
+
+### `/aif-distillation <path|url> [path|url...] [--name <skill-name>] [--update]`
+Distills books, documents, folders, or URLs into reusable Agent Skills:
+```
+/aif-distillation ./books/software-craft.pdf --name construction-practices
+/aif-distillation ./docs/internal-platform ./examples --name platform-operator
+/aif-distillation https://example.com/guide --name example-api
+/aif-distillation ./new-material --name platform-operator --update
+```
+- Accepts local files, directories, and URLs, including large PDFs through a chunking helper
+- Saves the distilled package in the current agent's skills directory, for example `.codex/skills/<skill-name>/` for Codex CLI
+- Produces a compact `SKILL.md` plus detailed `references/` and practical `examples/`
+- Converts source material into workflows, heuristics, checklists, pitfalls, and examples rather than a long summary
+- For programming material, creates adapted code examples such as before/after snippets or code patterns and maps major code-facing source areas to concrete examples
+- Checks existing references/examples before writing and updates matching files instead of creating duplicates
+- Uses temporary extraction artifacts for large material and removes them after generation
+- Reads `.ai-factory/config.yaml` for `language.ui`, `language.artifacts`, and `language.technical_terms`
+- Best when you want a durable skill from a book, internal documentation set, research notes, or external guide
+
+- Config policy: config-aware for language only; generated skill package content uses `language.artifacts`, while prompts and summaries use `language.ui`
 
 ### `/aif-skill-generator`
 Generates new skills:

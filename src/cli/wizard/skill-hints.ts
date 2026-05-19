@@ -5,6 +5,7 @@ const SKILL_HINTS: Record<string, string> = {
     'aif-build-automation': 'Build file automation',
     'aif-ci': 'CI/CD pipeline setup',
     'aif-commit': 'Conventional commit helper',
+    'aif-distillation': 'Distill sources into skills',
     'aif-dockerize': 'Docker and Compose setup',
     'aif-docs': 'Docs generation and maintenance',
     'aif-evolve': 'Evolve skills from patches',

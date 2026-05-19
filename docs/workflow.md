@@ -175,6 +175,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-improve` | Refine plan before implementation | No | No (improves existing) |
 | `/aif-loop` | Iterative generation with quality gates and phase-based cycles | No | No (uses `paths.evolution`, default `.ai-factory/evolution/`) |
 | `/aif-reference` | Create knowledge refs from URLs/docs for AI agents | No | No (`paths.references`, default `.ai-factory/references/`) |
+| `/aif-distillation` | Turn books, docs, folders, or URLs into reusable Agent Skills | No | No |
 | `/aif-fix` | Bug fixes, errors, hotfixes | No | Optional (`paths.fix_plan`, default `.ai-factory/FIX_PLAN.md`) |
 | `/aif-rules-check` | Standalone read-only rules compliance gate for staged work, working tree, or a git ref | No | No (reads existing rules and optional plan context) |
 | `/aif-verify` | Post-implementation quality check | No | No (reads existing) |
@@ -195,6 +196,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-plan`                               | `paths.plan`, `paths.plans/<branch-or-slug>.md`                                               | `/aif-improve` refines existing plans                     |
 | `/aif-explore`                            | `paths.research` (default: `.ai-factory/RESEARCH.md`)                                         | all other artifacts are read-only in explore mode         |
 | `/aif-reference`                          | `paths.references/*`, `paths.references/INDEX.md`                                             | knowledge references from external sources                |
+| `/aif-distillation`                       | current agent skills directory (`<skills-dir>/<skill-name>/`)                                 | distilled skills from explicit source material            |
 | `/aif-fix`                                | `paths.fix_plan`, `paths.patches/*.md`                                                        | bug-fix learning loop artifacts                           |
 | `/aif-evolve`                             | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`, `.ai-factory/skill-context/*`  | skill-context overrides + evolution logs + cursor state   |
 | `/aif-qa`                                 | `paths.qa/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`                   | derived branch slug as subdirectory (see aif-qa SKILL.md) |
@@ -342,7 +344,7 @@ Reads patches incrementally using an evolve cursor, analyzes project patterns, a
 
 ---
 
-For full details on all skills including utility commands (`/aif-docs`, `/aif-dockerize`, `/aif-build-automation`, `/aif-ci`, `/aif-commit`, `/aif-rules-check`, `/aif-skill-generator`, `/aif-reference`, `/aif-security-checklist`, `/aif-qa`), see [Core Skills](skills.md).
+For full details on all skills including utility commands (`/aif-docs`, `/aif-dockerize`, `/aif-build-automation`, `/aif-ci`, `/aif-commit`, `/aif-rules-check`, `/aif-skill-generator`, `/aif-distillation`, `/aif-reference`, `/aif-security-checklist`, `/aif-qa`), see [Core Skills](skills.md).
 
 ## Why Spec-Driven?
 
