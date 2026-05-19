@@ -214,14 +214,26 @@ fi
 # aif-distillation helper safety regression checks
 DISTILL_HELPER="$ROOT_DIR/skills/aif-distillation/scripts/material-prep.py"
 DISTILL_SRC="$TMPDIR/distillation-source"
-mkdir -p "$DISTILL_SRC/docs/.hidden-dir" "$DISTILL_SRC/docs/secrets" "$DISTILL_SRC/docs/.ai-factory"
+mkdir -p "$DISTILL_SRC/docs/.hidden-dir" "$DISTILL_SRC/docs/secrets" "$DISTILL_SRC/docs/.ai-factory" "$DISTILL_SRC/.ssh"
 cat > "$DISTILL_SRC/docs/guide.md" << 'EOF'
 # Guide
 
 This is normal distillation source material.
 EOF
+cat > "$DISTILL_SRC/.env" << 'EOF'
+SYMLINK_ENV_SECRET=should-not-be-read
+EOF
+cat > "$DISTILL_SRC/.ssh/id_rsa" << 'EOF'
+SYMLINK_SSH_SECRET=should-not-be-read
+EOF
+cat > "$DISTILL_SRC/outside.md" << 'EOF'
+SYMLINK_OUTSIDE_ROOT=should-not-be-read
+EOF
 cat > "$DISTILL_SRC/docs/.hidden.md" << 'EOF'
 hidden markdown source
+EOF
+cat > "$DISTILL_SRC/docs/.env.md" << 'EOF'
+IN_ROOT_HIDDEN_SENSITIVE_SYMLINK_TARGET=can-only-be-read-with-all-opt-ins
 EOF
 cat > "$DISTILL_SRC/docs/.hidden-dir/notes.md" << 'EOF'
 hidden directory source
@@ -236,15 +248,22 @@ cat > "$DISTILL_SRC/docs/.ai-factory/config.yaml" << 'EOF'
 language:
   ui: en
 EOF
+ln -s ../.env "$DISTILL_SRC/docs/symlink-env.md"
+ln -s ../.ssh/id_rsa "$DISTILL_SRC/docs/symlink-ssh.md"
+ln -s ../outside.md "$DISTILL_SRC/docs/symlink-outside.md"
+ln -s ../.ssh "$DISTILL_SRC/docs/symlink-ssh-dir"
+ln -s .env.md "$DISTILL_SRC/docs/symlink-hidden-sensitive.md"
 
 DISTILL_OUT="$TMPDIR/distillation-out"
 if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_OUT" --chunk-chars 200 > "$TMPDIR/distillation-helper.log" 2>&1; then
     if grep -q "guide.md" "$DISTILL_OUT/source-index.md" \
         && ! grep -q ".hidden.md" "$DISTILL_OUT/source-index.md" \
         && ! grep -q ".hidden-dir" "$DISTILL_OUT/source-index.md" \
+        && ! grep -q ".env.md" "$DISTILL_OUT/source-index.md" \
         && ! grep -q "private.key.md" "$DISTILL_OUT/source-index.md" \
         && ! grep -q "secrets" "$DISTILL_OUT/source-index.md" \
-        && ! grep -q ".ai-factory" "$DISTILL_OUT/source-index.md"; then
+        && ! grep -q ".ai-factory" "$DISTILL_OUT/source-index.md" \
+        && ! grep -q "symlink-" "$DISTILL_OUT/source-index.md"; then
         pass "aif-distillation helper filters hidden and sensitive folder sources"
     else
         fail "aif-distillation helper should skip hidden and sensitive folder sources"
@@ -253,6 +272,37 @@ if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_OUT" --chunk-ch
 else
     fail "aif-distillation helper should process normal docs folder"
     cat "$TMPDIR/distillation-helper.log"
+fi
+
+DISTILL_SENSITIVE_ONLY_OUT="$TMPDIR/distillation-sensitive-only-out"
+if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SENSITIVE_ONLY_OUT" --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-sensitive-only.log" 2>&1; then
+    if ! grep -q ".env.md" "$DISTILL_SENSITIVE_ONLY_OUT/source-index.md" \
+        && ! grep -q "symlink-hidden-sensitive.md" "$DISTILL_SENSITIVE_ONLY_OUT/source-index.md"; then
+        pass "aif-distillation helper requires --include-hidden for hidden sensitive paths"
+    else
+        fail "aif-distillation helper should require both hidden and sensitive opt-ins for hidden sensitive paths"
+        cat "$DISTILL_SENSITIVE_ONLY_OUT/source-index.md"
+    fi
+else
+    fail "aif-distillation helper should process folder with --include-sensitive"
+    cat "$TMPDIR/distillation-sensitive-only.log"
+fi
+
+DISTILL_SYMLINK_OUT="$TMPDIR/distillation-symlink-out"
+if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SYMLINK_OUT" --include-symlinks --include-hidden --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-symlink.log" 2>&1; then
+    if grep -q "symlink-hidden-sensitive.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+        && ! grep -q "symlink-env.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+        && ! grep -q "symlink-ssh.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+        && ! grep -q "symlink-outside.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+        && ! grep -q "symlink-ssh-dir" "$DISTILL_SYMLINK_OUT/source-index.md"; then
+        pass "aif-distillation helper allows only in-root symlink files with all required opt-ins"
+    else
+        fail "aif-distillation helper symlink opt-in should keep source-root and hidden/sensitive boundaries"
+        cat "$DISTILL_SYMLINK_OUT/source-index.md"
+    fi
+else
+    fail "aif-distillation helper should process folder with explicit symlink opt-ins"
+    cat "$TMPDIR/distillation-symlink.log"
 fi
 
 DISTILL_EXISTING_OUT="$TMPDIR/distillation-existing-out"

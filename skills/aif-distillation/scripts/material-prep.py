@@ -149,6 +149,14 @@ def is_sensitive_file_name(name: str) -> bool:
     return any(fnmatch.fnmatchcase(lowered, pattern) for pattern in SENSITIVE_FILE_PATTERNS)
 
 
+def has_hidden_part(path: Path) -> bool:
+    return any(is_hidden_name(part) for part in path.parts)
+
+
+def has_sensitive_part(path: Path) -> bool:
+    return any(is_sensitive_dir_name(part) for part in path.parts[:-1]) or is_sensitive_file_name(path.name)
+
+
 def slugify(value: str, fallback: str = "source") -> str:
     value = value.lower()
     value = re.sub(r"[^a-z0-9]+", "-", value)
@@ -274,10 +282,57 @@ def download_url(url: str, work_dir: Path) -> Path:
     return target
 
 
-def iter_folder_files(root: Path, include_hidden: bool = False, include_sensitive: bool = False) -> Iterable[Path]:
+def is_allowed_folder_file(
+    path: Path,
+    root: Path,
+    include_hidden: bool = False,
+    include_sensitive: bool = False,
+    include_symlinks: bool = False,
+) -> bool:
+    try:
+        visible_relative = path.relative_to(root)
+    except ValueError:
+        return False
+
+    if not include_hidden and has_hidden_part(visible_relative):
+        return False
+    if not include_sensitive and has_sensitive_part(visible_relative):
+        return False
+
+    if not path.is_symlink():
+        return True
+
+    if not include_symlinks:
+        return False
+
+    resolved = path.resolve()
+    try:
+        resolved_relative = resolved.relative_to(root)
+    except ValueError:
+        return False
+
+    if not resolved.is_file():
+        return False
+    if not include_hidden and has_hidden_part(resolved_relative):
+        return False
+    if not include_sensitive and has_sensitive_part(resolved_relative):
+        return False
+
+    return True
+
+
+def iter_folder_files(
+    root: Path,
+    include_hidden: bool = False,
+    include_sensitive: bool = False,
+    include_symlinks: bool = False,
+) -> Iterable[Path]:
     for current_root, dirs, files in os.walk(root):
         kept_dirs = []
         for dirname in sorted(dirs):
+            dir_path = Path(current_root) / dirname
+            if dir_path.is_symlink():
+                continue
             if dirname in SKIP_DIRS:
                 continue
             if not include_hidden and is_hidden_name(dirname):
@@ -293,7 +348,13 @@ def iter_folder_files(root: Path, include_hidden: bool = False, include_sensitiv
             if not include_sensitive and is_sensitive_file_name(filename):
                 continue
             path = Path(current_root) / filename
-            if path.suffix.lower() in TEXT_EXTENSIONS | PDF_EXTENSIONS:
+            if path.suffix.lower() in TEXT_EXTENSIONS | PDF_EXTENSIONS and is_allowed_folder_file(
+                path,
+                root,
+                include_hidden=include_hidden,
+                include_sensitive=include_sensitive,
+                include_symlinks=include_symlinks,
+            ):
                 yield path
 
 
@@ -325,6 +386,7 @@ def extract_source(
     work_dir: Path,
     include_hidden: bool = False,
     include_sensitive: bool = False,
+    include_symlinks: bool = False,
 ) -> list[ExtractedDocument]:
     if re.match(r"^https?://", source):
         downloaded = download_url(source, work_dir)
@@ -337,7 +399,12 @@ def extract_source(
 
     if path.is_dir():
         docs = []
-        for file_path in iter_folder_files(path, include_hidden=include_hidden, include_sensitive=include_sensitive):
+        for file_path in iter_folder_files(
+            path,
+            include_hidden=include_hidden,
+            include_sensitive=include_sensitive,
+            include_symlinks=include_symlinks,
+        ):
             try:
                 docs.append(extract_path(file_path))
             except RuntimeError as exc:
@@ -533,6 +600,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cleanup", help="Remove an extraction output directory created by this script.")
     parser.add_argument("--include-hidden", action="store_true", help="Include hidden files and directories during folder extraction.")
     parser.add_argument("--include-sensitive", action="store_true", help="Include credential-like paths. Unsafe; use only for intentional source material.")
+    parser.add_argument("--include-symlinks", action="store_true", help="Include symlinked files that resolve inside the selected folder and pass the same hidden/sensitive filters.")
     return parser.parse_args()
 
 
@@ -558,6 +626,7 @@ def main() -> int:
                     Path(download_dir),
                     include_hidden=args.include_hidden,
                     include_sensitive=args.include_sensitive,
+                    include_symlinks=args.include_symlinks,
                 )
             )
 

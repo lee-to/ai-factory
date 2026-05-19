@@ -23,7 +23,8 @@ Optional flags:
 
 - `--out <dir>` writes to a specific output directory. Use only an empty directory or a directory previously created by this helper.
 - `--include-hidden` includes hidden files and folders during directory extraction.
-- `--include-sensitive` includes credential-like paths such as `.env*`, `*token*`, `*credential*`, `.ssh`, `.codex`, `.claude`, `secrets`, and `private`. Treat this as unsafe unless the user explicitly asks for those sources.
+- `--include-sensitive` includes credential-like paths such as `.env*`, `*token*`, `*credential*`, `.ssh`, `.codex`, `.claude`, `secrets`, and `private`. Hidden sensitive paths still require both `--include-hidden` and `--include-sensitive`. Treat this as unsafe unless the user explicitly asks for those sources.
+- `--include-symlinks` includes symlinked files only when the resolved target stays inside the selected folder and passes the same hidden/sensitive checks. Symlinks to hidden sensitive targets require `--include-symlinks --include-hidden --include-sensitive`.
 
 Read `source-index.md` first. Then read only the chunks needed for each section of the target skill.
 
