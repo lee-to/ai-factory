@@ -1,7 +1,7 @@
 ---
 name: aif-plan
-description: Plan implementation for a feature or task. Two modes — fast (single quick plan) or full (richer plan with optional git branch/worktree flow). Use when user says "plan", "new feature", "start feature", "create tasks".
-argument-hint: "[fast | full] [--parallel | --list | --cleanup <branch>] <description>"
+description: Plan implementation for a feature or task. Three modes — fast (single quick plan), full (richer plan with optional git branch/worktree flow), or full-no-git-switching (full plan without git branch switching). Use when user says "plan", "new feature", "start feature", "create tasks".
+argument-hint: "[fast | full | full-no-git-switching] [--parallel | --list | --cleanup <branch>] <description>"
 allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 version: 1.0.0
@@ -9,10 +9,11 @@ version: 1.0.0
 
 # Plan - Implementation Planning
 
-Create an implementation plan for a feature or task. Two modes:
+Create an implementation plan for a feature or task. Three modes:
 
 - **Fast** – quick plan, no git branch, saves to the configured fast plan path (default: `.ai-factory/PLAN.md`)
 - **Full** — richer plan, asks preferences, saves to the configured full-plan directory, and optionally creates a git branch/worktree when git is enabled and branch creation is allowed
+- **Full-no-git-switching** — identical to Full except it never creates or switches git branches; the plan file is saved to the plans/ directory using the description slug
 
 ## Workflow
 
@@ -185,11 +186,12 @@ Extract flags and mode from `$ARGUMENTS`:
 --cleanup <branch> → Remove worktree and optionally delete branch, then STOP (git-only)
 fast        → Fast mode (first word)
 full        → Full mode (first word)
+full-no-git-switching → Full-mode plan but never creates/switches git branches (first word)
 ```
 
 **Parsing rules:**
 
-- Strip `--parallel`, `--list`, `--cleanup <branch>`, `fast`, `full` from `$ARGUMENTS`
+- Strip `--parallel`, `--list`, `--cleanup <branch>`, `fast`, `full`, `full-no-git-switching` from `$ARGUMENTS`
 - Remaining text becomes the description
 - `--list` and `--cleanup` execute immediately and **STOP** (do NOT continue to Step 1+)
 - If `git.enabled = false`, reject `--parallel`, `--list`, and `--cleanup` with a short explanation instead of trying git commands
@@ -214,7 +216,8 @@ AskUserQuestion: Which planning mode?
 
 Options:
 1. Full (Recommended) — richer plan, asks preferences, optional branch/worktree flow when git settings allow it
-2. Fast – quick plan, no branch, saves to the resolved fast plan path
+2. Full (no git switching) — same as Full but never creates or switches git branches
+3. Fast – quick plan, no branch, saves to the resolved fast plan path
 ```
 
 If the user did not provide a description and the resolved research path exists:
