@@ -16,6 +16,12 @@ Create a source inventory:
 
 For folders, group files by topic before reading deeply. For books, read the table of contents first, then sample each major part before deep extraction.
 
+When the user passes `--redact-source-map`, keep any exact URLs, local paths,
+repository paths, and source titles only in your private working inventory.
+Generated skill files must use neutral source labels such as `Source A`,
+`Book section 1`, or `Internal guide: authentication`, while preserving the
+type, scope, and usage of each source.
+
 ## 2. Extraction
 
 Extract only material that can drive agent behavior:
@@ -90,21 +96,33 @@ Use this section only when the user passes `--split` or `--split-by <strategy>`.
 Split source material into multiple skills when the material contains separate
 capabilities that should activate on different user requests. A split set should
 feel like a small toolkit of focused passes, not a chopped-up book summary.
+If `--path <directory>` is present, create the split set under that output root
+instead of the current agent `{{skills_dir}}`.
 
 Supported strategies:
 
 | Strategy | Use when | Boundary signal |
 |----------|----------|-----------------|
-| `auto` | the user wants several skills but did not prescribe boundaries | strongest distinct triggers from topics, workflows, examples, and target users |
+| `auto` | the user wants several skills but did not prescribe boundaries | strongest distinct goals, triggers, workflows, examples, and target users |
+| `goal` | the material supports several different jobs-to-be-done | each child helps the user accomplish a different outcome |
 | `topic` | the source has clean domain or chapter boundaries | each topic produces different decisions or checks |
 | `workflow` | the source teaches multiple actions | each action has a different input, output, or quality gate |
 | `audience` | the source serves different roles or project contexts | each role/context needs different operating instructions |
 
 Before writing split skills, create a boundary map:
 
-| Child skill | Trigger | Source topics | References/examples | Merge risk |
-|-------------|---------|---------------|---------------------|------------|
-| <name> | <when it should activate> | <topics> | <files> | low/medium/high |
+| Child skill | User goal | Trigger | Source topics | References/examples | Merge risk |
+|-------------|-----------|---------|---------------|---------------------|------------|
+| <name> | <outcome it helps achieve> | <when it should activate> | <topics> | <files> | low/medium/high |
+
+First resolve a shared split namespace prefix:
+
+- use `--name` when the user supplied it
+- otherwise derive the prefix from the book title or primary material title
+- if source-map redaction is requested and the real title should stay private,
+  use a neutral topic prefix instead of the exact title
+- validate the prefix with the same skill-name rules as ordinary skills
+- every generated child name must start with `<prefix>-`
 
 Merge or drop a child candidate when:
 
@@ -119,9 +137,24 @@ passes such as readability refactoring, naming cleanup, condition
 simplification, magic value extraction, exception-flow review, testability, and
 framework-specific review. These names are examples, not required output.
 
-Every child skill must include its own source attribution. For small children,
+For non-code material, use the same goal-first rule. Examples:
+
+- writing or communication: `argument-edit`, `style-review`, `message-critique`
+- strategy or management: `decision-brief`, `stakeholder-analysis`, `risk-review`
+- operations or support: `incident-triage`, `runbook-review`, `escalation-plan`
+- learning material: `concept-explainer`, `practice-drill`, `understanding-check`
+- research material: `evidence-synthesis`, `claim-audit`, `literature-map`
+
+Avoid source-theme children that do not tell the user what action to invoke.
+If a candidate name makes a user ask "what does this do?", rename it around the
+goal and expected output.
+
+Every child skill must include its own source attribution unless
+`--redact-source-map` is present. For small non-redacted children,
 `references/SOURCE-MAP.md` may be the only reference; for larger children, add
-focused references and examples.
+focused references and examples. In redaction mode, do not create
+`references/SOURCE-MAP.md`; keep source coverage in the private working
+inventory and ship only the distilled instructions, references, and examples.
 
 ## 6. Existing-File Merge
 
@@ -150,7 +183,8 @@ description and workflow already cover the same capability.
 
 ## 7. Traceability
 
-Every distilled skill should include a source map in a reference:
+Every distilled skill should include a source map in a reference unless
+`--redact-source-map` is present:
 
 ```markdown
 ## Source Map
@@ -160,7 +194,16 @@ Every distilled skill should include a source map in a reference:
 | <path-or-url> | <principles, workflow, examples, checks> |
 ```
 
-Do not imply that every rule is a direct quote. Distillation is synthesis; source maps explain provenance.
+When `--redact-source-map` is present, do not create `references/SOURCE-MAP.md`
+and do not add a "Source Map" section to any generated file. Do not write link
+reference definitions, raw path fragments, repository paths, filenames that
+reveal the source, exact URLs, or exact book/document titles anywhere as source
+attribution. If a draft creates an empty `SOURCE-MAP.md`, remove it before
+finishing. In `--update` mode, leave an existing non-empty `SOURCE-MAP.md`
+unchanged unless the user explicitly asks to remove or rewrite it.
+
+For non-redacted source maps, do not imply that every rule is a direct quote.
+Distillation is synthesis; source maps explain provenance.
 
 ## 8. Quality Gate
 
@@ -175,7 +218,8 @@ Before finishing, check:
 - Example coverage maps to the source areas. If references mention many
   code-facing topics but examples cover only a few, the skill is incomplete.
 - Existing references/examples were updated instead of duplicated.
-- Split mode only: each child skill has a distinct trigger, direct `{{skills_dir}}/<child>/` location, source attribution, and enough references/examples to operate independently.
+- Split mode only: each child skill has a distinct trigger, direct `<output-root>/<prefix>-<child>/` location, source attribution when not redacted, no `SOURCE-MAP.md` when redacted, and enough references/examples to operate independently.
+- Split mode only: all generated child names share the same prefix derived from `--name`, the book title, or a neutral material namespace.
 - Split mode only: no generated child is a near-duplicate of another generated or existing sibling skill.
 - Temporary extraction files were removed.
 - No long copyrighted passages were copied.

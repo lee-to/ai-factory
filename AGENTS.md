@@ -333,7 +333,9 @@ Saves evolution log to configured `paths.evolutions/`
 
 `/aif-distillation` can generate either one skill or, with `--split` / `--split-by <strategy>`, a set of focused child
 skills from the same material. Split children are written as direct skill directories under the current agent skills
-directory, not nested under a parent package.
+directory, not nested under a parent package, and every split child uses one shared namespace prefix derived from
+`--name` or the source material title to avoid collisions. `--path <directory>` overrides the output root when the
+generated skill packages should be saved outside the current agent skills directory.
 
 ## Skill Frontmatter Patterns
 
@@ -464,7 +466,7 @@ docs/
    - Use `language.ui` for prompts/summaries and `language.artifacts` for generated artifacts when applicable.
 4. Add an Artifact Ownership section. Owner commands write only their owned artifacts; non-owner context artifacts stay read-only. Quality gates must follow the shared `aif-gate-result` contract only when they are machine-readable gates.
 5. Never hardcode installed skill directories in built-in skills. Use template variables such as `{{skills_dir}}` or `{{home_skills_dir}}`; the installer resolves them per agent.
-6. If the skill creates user skills, save them in the current agent skills directory (`{{skills_dir}}/<skill-name>/`) with concise lowercase-hyphen names.
+6. If the skill creates user skills, save them in the current agent skills directory (`{{skills_dir}}/<skill-name>/`) with concise lowercase-hyphen names unless the command explicitly supports and receives a custom output path.
 7. Update docs when user-facing behavior changes: `docs/skills.md`, `docs/workflow.md` if workflow-relevant, `docs/configuration.md` / `docs/config-reference.md` if config-aware, and `AGENTS.md` if project rules change.
 8. Validate with `npm run build` and `npm test`.
 

@@ -480,7 +480,7 @@ Creates knowledge references from external sources for AI agents:
 
 - Config policy: config-aware; reference storage uses `paths.references`
 
-### `/aif-distillation <path|url> [path|url...] [--name <skill-name>] [--update] [--split|--split-by <strategy>]`
+### `/aif-distillation <path|url> [path|url...] [--name <skill-name>] [--path <directory>] [--update] [--redact-source-map] [--split|--split-by <strategy>]`
 Distills books, documents, folders, or URLs into one reusable Agent Skill or a split set of focused skills:
 ```
 /aif-distillation ./books/software-craft.pdf --name construction-practices
@@ -489,12 +489,19 @@ Distills books, documents, folders, or URLs into one reusable Agent Skill or a s
 /aif-distillation ./new-material --name platform-operator --update
 /aif-distillation ./books/code-quality.pdf --split --name code-quality
 /aif-distillation ./docs/review-playbook --split-by workflow --name review
+/aif-distillation ./books/decision-making.pdf --split-by goal --name decisions
+/aif-distillation ./books/internal-guide.pdf --name review-guide --redact-source-map
+/aif-distillation ./books/domain-driven-design.pdf --name ddd-practices --path ./distilled-skills
 ```
 - Accepts local files, directories, and URLs, including large PDFs through a chunking helper
 - Saves the distilled package in the current agent's skills directory, for example `.codex/skills/<skill-name>/` for Codex CLI
+- `--path <directory>` overrides the output root, so packages are saved under `<directory>/<skill-name>/` or `<directory>/<prefix>-<child-scope>/` in split mode
 - Produces a compact `SKILL.md` plus detailed `references/` and practical `examples/`
 - Converts source material into workflows, heuristics, checklists, pitfalls, and examples rather than a long summary
-- `--split` creates several focused child skills directly under the current agent skills directory; `--split-by auto|topic|workflow|audience` controls boundary selection
+- `--redact-source-map` skips `SOURCE-MAP.md` and source-map sections entirely, so exact source titles, URLs, local paths, repository paths, filenames, and link reference definitions are not written to generated files
+- `--split` creates several focused child skills directly under the resolved output root; `--split-by auto|goal|topic|workflow|audience` controls boundary selection
+- Split children always share one namespace prefix to avoid collisions: `--name` when supplied, otherwise a prefix derived from the book or primary material title
+- Split child suffixes should describe user goals and actions, not source themes; examples include `refactoring-review`, `test-design`, `argument-edit`, `decision-brief`, `incident-triage`, and `practice-drill`
 - For programming material, creates adapted code examples such as before/after snippets or code patterns and maps major code-facing source areas to concrete examples
 - Checks existing references/examples before writing and updates matching files instead of creating duplicates
 - In split update mode, matches proposed child skills against existing sibling skills and updates matching ones instead of creating near-duplicates
