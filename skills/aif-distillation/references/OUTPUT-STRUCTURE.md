@@ -27,6 +27,45 @@ For broad programming material, use enough example files to cover the major
 source topics. Do not create a single `code-patterns.md` that only samples a few
 topics while the references claim broad code coverage.
 
+## Split-Skill Target Packages
+
+When the user passes `--split` or `--split-by <strategy>`, create multiple
+focused skill packages instead of one broad package:
+
+```text
+{{skills_dir}}/
+├── <child-skill-a>/
+│   ├── SKILL.md
+│   ├── references/
+│   │   ├── SOURCE-MAP.md
+│   │   └── <focused-reference>.md
+│   └── examples/
+│       └── <focused-examples>.md
+├── <child-skill-b>/
+│   └── SKILL.md
+└── <optional-index-skill>/
+    └── SKILL.md
+```
+
+Do not create a parent directory that contains child skills. Agent runtimes
+discover skills as direct children of `{{skills_dir}}`.
+
+Create an optional index/router skill only when it is genuinely useful, for
+example when the split set is large or users need a single command-style entry
+point. The index skill should list the child skills and when to use each one; it
+must not duplicate their references.
+
+Each child skill should be narrow enough to trigger independently. Good split
+boundaries include:
+
+- a distinct code review pass, such as `naming-cleanup` or `testability-pass`
+- a distinct refactoring operation, such as `early-return-simplifier`
+- a distinct framework or runtime practice, such as `laravel-query-boundaries`
+- a distinct writing or analysis workflow, such as `comments-curator`
+
+Avoid split boundaries based only on source chapter titles when the resulting
+skills would have the same trigger and workflow.
+
 ## Destination
 
 Save the distilled skill in the configured skills directory of the currently active agent:
@@ -40,6 +79,11 @@ Save the distilled skill in the configured skills directory of the currently act
 Do not write distilled output into AI Factory's package `skills/` directory unless the task is explicitly to add a built-in AI Factory skill.
 
 Before writing, resolve and canonicalize the final destination path. It must stay inside the resolved `{{skills_dir}}` directory.
+
+For split mode, apply this same validation to every generated child skill path.
+If `--name <seed>` is supplied, use it as a naming seed or short prefix only
+when it improves discoverability. Prefer clear standalone names over repetitive
+prefixes.
 
 ## Naming
 
@@ -65,6 +109,14 @@ Avoid:
 - version/date suffixes unless required for compatibility
 - vague names like `notes`, `reference`, or `book-summary`
 - reserved or unsafe names like `aif-review`, `../foo`, `.hidden`, `C:\temp\skill`, or `clean/code`
+
+In split mode, generate a name list before writing and check it as a set:
+
+- every name must pass the same validation rules
+- no name may collide with another generated child
+- no generated child may shadow a built-in `aif-*` skill
+- names should describe activation scope, not provenance
+- when multiple child names share a long prefix, remove the prefix unless it is needed to prevent ambiguity
 
 ## SKILL.md Rules
 
@@ -138,6 +190,15 @@ When `--update` is present:
 4. Patch matching files.
 5. Add new files only for new topics.
 6. Report what changed and what was intentionally left untouched.
+
+In split mode with `--update`, treat every proposed child skill independently:
+
+1. Build the child skill boundary map.
+2. Match each proposed child to existing skills by name, frontmatter
+   description, and trigger/workflow overlap.
+3. Update matched skills in place.
+4. Create new child skills only for uncovered capabilities.
+5. Report merged, created, skipped, and renamed candidates.
 
 ## Ownership and Context-Gate Alignment
 

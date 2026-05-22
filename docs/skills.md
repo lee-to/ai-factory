@@ -480,23 +480,27 @@ Creates knowledge references from external sources for AI agents:
 
 - Config policy: config-aware; reference storage uses `paths.references`
 
-### `/aif-distillation <path|url> [path|url...] [--name <skill-name>] [--update]`
-Distills books, documents, folders, or URLs into reusable Agent Skills:
+### `/aif-distillation <path|url> [path|url...] [--name <skill-name>] [--update] [--split|--split-by <strategy>]`
+Distills books, documents, folders, or URLs into one reusable Agent Skill or a split set of focused skills:
 ```
 /aif-distillation ./books/software-craft.pdf --name construction-practices
 /aif-distillation ./docs/internal-platform ./examples --name platform-operator
 /aif-distillation https://example.com/guide --name example-api
 /aif-distillation ./new-material --name platform-operator --update
+/aif-distillation ./books/code-quality.pdf --split --name code-quality
+/aif-distillation ./docs/review-playbook --split-by workflow --name review
 ```
 - Accepts local files, directories, and URLs, including large PDFs through a chunking helper
 - Saves the distilled package in the current agent's skills directory, for example `.codex/skills/<skill-name>/` for Codex CLI
 - Produces a compact `SKILL.md` plus detailed `references/` and practical `examples/`
 - Converts source material into workflows, heuristics, checklists, pitfalls, and examples rather than a long summary
+- `--split` creates several focused child skills directly under the current agent skills directory; `--split-by auto|topic|workflow|audience` controls boundary selection
 - For programming material, creates adapted code examples such as before/after snippets or code patterns and maps major code-facing source areas to concrete examples
 - Checks existing references/examples before writing and updates matching files instead of creating duplicates
+- In split update mode, matches proposed child skills against existing sibling skills and updates matching ones instead of creating near-duplicates
 - Uses temporary extraction artifacts for large material and removes them after generation
 - Reads `.ai-factory/config.yaml` for `language.ui`, `language.artifacts`, and `language.technical_terms`
-- Best when you want a durable skill from a book, internal documentation set, research notes, or external guide
+- Best when you want a durable single skill from focused material or a toolkit of narrow skills from broad material
 
 - Config policy: config-aware for language only; generated skill package content uses `language.artifacts`, while prompts and summaries use `language.ui`
 

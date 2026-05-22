@@ -83,7 +83,47 @@ Before writing, answer:
 
 The target `SKILL.md` should fit in one screen when possible. It is the router and operating loop, not the knowledge base.
 
-## 5. Existing-File Merge
+## 5. Split-Skill Design
+
+Use this section only when the user passes `--split` or `--split-by <strategy>`.
+
+Split source material into multiple skills when the material contains separate
+capabilities that should activate on different user requests. A split set should
+feel like a small toolkit of focused passes, not a chopped-up book summary.
+
+Supported strategies:
+
+| Strategy | Use when | Boundary signal |
+|----------|----------|-----------------|
+| `auto` | the user wants several skills but did not prescribe boundaries | strongest distinct triggers from topics, workflows, examples, and target users |
+| `topic` | the source has clean domain or chapter boundaries | each topic produces different decisions or checks |
+| `workflow` | the source teaches multiple actions | each action has a different input, output, or quality gate |
+| `audience` | the source serves different roles or project contexts | each role/context needs different operating instructions |
+
+Before writing split skills, create a boundary map:
+
+| Child skill | Trigger | Source topics | References/examples | Merge risk |
+|-------------|---------|---------------|---------------------|------------|
+| <name> | <when it should activate> | <topics> | <files> | low/medium/high |
+
+Merge or drop a child candidate when:
+
+- its trigger overlaps another candidate without a meaningful workflow
+  difference
+- it would contain only generic advice
+- it depends on another child for basic operation
+- it has no source-derived checks or examples
+
+For broad code-quality material, good split candidates are often operation
+passes such as readability refactoring, naming cleanup, condition
+simplification, magic value extraction, exception-flow review, testability, and
+framework-specific review. These names are examples, not required output.
+
+Every child skill must include its own source attribution. For small children,
+`references/SOURCE-MAP.md` may be the only reference; for larger children, add
+focused references and examples.
+
+## 6. Existing-File Merge
 
 Before creating any new reference or example:
 
@@ -104,7 +144,11 @@ one shallow sampler, for example:
 - `refactoring-optimization.md` for safe change and measurement examples
 - `review-examples.md` for review findings and corrections
 
-## 6. Traceability
+In split mode, perform this merge check across sibling skills too. A proposed
+child should update an existing matching skill when the existing frontmatter
+description and workflow already cover the same capability.
+
+## 7. Traceability
 
 Every distilled skill should include a source map in a reference:
 
@@ -118,7 +162,7 @@ Every distilled skill should include a source map in a reference:
 
 Do not imply that every rule is a direct quote. Distillation is synthesis; source maps explain provenance.
 
-## 7. Quality Gate
+## 8. Quality Gate
 
 Before finishing, check:
 
@@ -131,5 +175,7 @@ Before finishing, check:
 - Example coverage maps to the source areas. If references mention many
   code-facing topics but examples cover only a few, the skill is incomplete.
 - Existing references/examples were updated instead of duplicated.
+- Split mode only: each child skill has a distinct trigger, direct `{{skills_dir}}/<child>/` location, source attribution, and enough references/examples to operate independently.
+- Split mode only: no generated child is a near-duplicate of another generated or existing sibling skill.
 - Temporary extraction files were removed.
 - No long copyrighted passages were copied.

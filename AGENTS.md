@@ -331,6 +331,10 @@ Applies improvements to skills
 Saves evolution log to configured `paths.evolutions/`
 ```
 
+`/aif-distillation` can generate either one skill or, with `--split` / `--split-by <strategy>`, a set of focused child
+skills from the same material. Split children are written as direct skill directories under the current agent skills
+directory, not nested under a parent package.
+
 ## Skill Frontmatter Patterns
 
 ### Action skills (user-only)

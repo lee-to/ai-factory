@@ -29,6 +29,34 @@ Expected behavior:
 - link the code examples from the target `SKILL.md`
 - avoid verbatim copying while preserving the programming lesson
 
+## Create Several Focused Skills from One Material Set
+
+```text
+/aif-distillation ./books/code-quality.pdf ./examples --split --name code-quality
+```
+
+Expected behavior:
+
+- infer focused child skills from distinct practices rather than creating one broad skill
+- use `code-quality` only as a naming seed when it helps; prefer clear child names such as `readability-refactor`, `naming-cleanup`, `condition-simplifier`, or `testability-pass`
+- write each child directly under `{{skills_dir}}/<child-skill-name>/`
+- give every child a distinct frontmatter description and activation trigger
+- include source attribution for every child
+- merge or skip candidates whose triggers overlap too much
+
+## Split by a Specific Strategy
+
+```text
+/aif-distillation ./docs/review-playbook --split-by workflow --name review
+```
+
+Expected behavior:
+
+- split by recurring actions an agent performs, not by arbitrary file count
+- create a boundary map before writing
+- update matching existing child skills when `--update` is also present
+- report created, updated, merged, and skipped candidates
+
 ## Create a Skill from a Docs Folder
 
 ```text
