@@ -145,7 +145,7 @@ For non-code material, use the same goal-first rule. Examples:
 - learning material: `concept-explainer`, `practice-drill`, `understanding-check`
 - research material: `evidence-synthesis`, `claim-audit`, `literature-map`
 
-Avoid source-theme children that do not tell the user what action to invoke.
+Avoid source-theme children with unclear invocation intent.
 If a candidate name makes a user ask "what does this do?", rename it around the
 goal and expected output.
 
