@@ -4,11 +4,26 @@ Large books, PDFs, and source folders need staged processing. The goal is to fit
 
 ## Helper Script
 
-Use:
+Use the helper only when a working Python 3 interpreter is available. Detect and verify it first:
 
 ```bash
-python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py <source...>
+PYTHON_CMD=()
+if python3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(python3)
+elif python -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(python)
+elif py -3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(py -3)
+elif py -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(py)
+fi
+
+if [ ${#PYTHON_CMD[@]} -gt 0 ]; then
+  "${PYTHON_CMD[@]}" {{skills_dir}}/aif-distillation/scripts/material-prep.py <source...>
+fi
 ```
+
+If `PYTHON_CMD` is empty, do not call the helper. Use direct reads/searches for text sources, ask the user for text/markdown exports for PDFs or very large sources, and state the coverage limitation in the final result.
 
 The script:
 
@@ -58,7 +73,11 @@ Required cleanup:
 Preferred cleanup command:
 
 ```bash
-python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py --cleanup <temp-dir>
+if [ ${#PYTHON_CMD[@]} -gt 0 ]; then
+  "${PYTHON_CMD[@]}" {{skills_dir}}/aif-distillation/scripts/material-prep.py --cleanup <temp-dir>
+else
+  echo "Python 3 not found; remove only known helper-generated temporary files manually."
+fi
 ```
 
 The cleanup guard removes only directories with this helper's dedicated marker file.

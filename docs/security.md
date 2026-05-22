@@ -71,19 +71,36 @@ A skill with **any CRITICAL threat is never installed**. No exceptions, no overr
 ## Running the Scanner Manually
 
 ```bash
+PYTHON_CMD=()
+if python3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(python3)
+elif python -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(python)
+elif py -3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(py -3)
+elif py -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+  PYTHON_CMD=(py)
+fi
+
 # Scan a skill directory (use your agent's skills path)
-python3 .claude/skills/aif-skill-generator/scripts/security-scan.py ./my-downloaded-skill/
+if [ ${#PYTHON_CMD[@]} -gt 0 ]; then
+  "${PYTHON_CMD[@]}" .claude/skills/aif-skill-generator/scripts/security-scan.py ./my-downloaded-skill/
 
-# Strict mode: code block examples are treated as real threats (no demotion)
-python3 .claude/skills/aif-skill-generator/scripts/security-scan.py --strict ./my-downloaded-skill/
+  # Strict mode: code block examples are treated as real threats (no demotion)
+  "${PYTHON_CMD[@]}" .claude/skills/aif-skill-generator/scripts/security-scan.py --strict ./my-downloaded-skill/
 
-# Scan a single SKILL.md file
-python3 .claude/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/SKILL.md
+  # Scan a single SKILL.md file
+  "${PYTHON_CMD[@]}" .claude/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/SKILL.md
 
-# For other agents, adjust the path accordingly:
-# python3 .codex/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/
-# python3 .agents/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/  # Codex app or Universal
+  # For other agents, adjust the path accordingly:
+  # "${PYTHON_CMD[@]}" .codex/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/
+  # "${PYTHON_CMD[@]}" .agents/skills/aif-skill-generator/scripts/security-scan.py ./my-skill/  # Codex app or Universal
+else
+  echo "Python 3 not found; skip automated Level 1 and perform Level 2 semantic review."
+fi
 ```
+
+If `PYTHON_CMD` is empty, the Python scanner cannot run. AI Factory then skips the automated Level 1 scan with an explicit warning and still requires manual Level 2 semantic review.
 
 ## Internal Self-Scan (AI Factory repo)
 
@@ -93,7 +110,7 @@ For repository self-audits, use the internal allowlist:
 ```bash
 ./scripts/security-self-scan.sh
 # or:
-# python3 skills/aif-skill-generator/scripts/security-scan.py \
+# <python3|python|py -3|py> skills/aif-skill-generator/scripts/security-scan.py \
 #   --md-only \
 #   --allowlist scripts/security-scan-allowlist-ai-factory.json \
 #   skills/

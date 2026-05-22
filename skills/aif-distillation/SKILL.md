@@ -6,7 +6,7 @@ description: >-
   split set of focused skills, each with a concise SKILL.md plus detailed
   references and examples.
 argument-hint: "<path|url> [path|url...] [--name <skill-name>] [--path <directory>] [--update] [--redact-source-map] [--split|--split-by <strategy>]"
-allowed-tools: Read Write Edit Glob Grep Bash(mkdir *) Bash(ls *) Bash(find *) Bash(wc *) Bash(python3 *) WebFetch WebSearch AskUserQuestion
+allowed-tools: Read Write Edit Glob Grep Bash(mkdir *) Bash(ls *) Bash(find *) Bash(wc *) Bash(command -v *) Bash(python3 *) Bash(python *) Bash(py *) WebFetch WebSearch AskUserQuestion
 disable-model-invocation: false
 metadata:
   author: ai-factory
@@ -72,7 +72,8 @@ Do not save distilled skills into the package `skills/` directory unless the use
 
 1. Prepare sources.
    - For normal text, markdown, JSON, YAML, HTML, or code files, read directly.
-   - For large folders or PDFs, use `{{skills_dir}}/aif-distillation/scripts/material-prep.py` to extract and chunk material, then clean temporary extraction artifacts with the helper after the skill is generated.
+   - For large folders or PDFs, use `{{skills_dir}}/aif-distillation/scripts/material-prep.py` only when a working Python 3 interpreter is available. Detect `python3`, `python`, `py -3`, then `py`; verify the command reports Python major version 3 before invoking the helper.
+   - If Python 3 is not available, do not invoke the helper. Continue with direct `Read`/`Glob`/`Grep`/`find`/`wc` sampling for accessible text files, ask the user for a text/markdown export for PDFs or very large sources, and clearly report any reduced coverage.
    - For URLs, fetch the source and any critical linked pages needed to understand the topic.
 
 2. Distill, do not copy.
