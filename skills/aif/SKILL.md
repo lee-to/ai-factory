@@ -2,7 +2,7 @@
 name: aif
 description: Set up agent context for a project. Analyzes tech stack, installs relevant skills from skills.sh, generates custom skills, and configures MCP servers. Use when starting new project, setting up AI context, or asking "set up project", "configure AI", "what skills do I need".
 argument-hint: "[project description]"
-allowed-tools: Read Glob Grep Write Bash(mkdir *) Bash(node *update-config.mjs*) Bash(npx skills *) Bash(python *security-scan*) Bash(rm -rf *) Skill WebFetch AskUserQuestion Questions
+allowed-tools: Read Glob Grep Write Bash(mkdir *) Bash(node *update-config.mjs*) Bash(npx skills *) Bash(python *security-scan*) Bash(python *cleanup-blocked-skill*) Skill WebFetch AskUserQuestion Questions
 ---
 
 # AI Factory - Project Setup
@@ -49,7 +49,7 @@ PYTHON=$(command -v python3 || command -v python || echo "")
 $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-skill-path>
 ```
 - **Exit 0** → proceed to Level 2
-- **Exit 1 (BLOCKED)** → Remove immediately (`rm -rf <skill-path>`), warn user. **NEVER use.**
+- **Exit 1 (BLOCKED)** → Remove via cleanup helper: `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <skill-name>`. The helper deletes the skill directory AND clears its entry from `skills-lock.json` so the blocked skill cannot be resurrected. Warn user with full threat details. **NEVER use.**
 - **Exit 2 (WARNINGS)** → proceed to Level 2, include warnings
 
 **Level 2 — Semantic review (you do this yourself):**
@@ -91,7 +91,7 @@ For each recommended skill:
   1. Search: npx skills search <name>
   2. If found → Install: npx skills install {{skills_cli_agent_flag}} <name>
   3. SECURITY: Scan installed EXTERNAL skill (never built-in aif*) → $PYTHON security-scan.py <path>
-     - BLOCKED? → rm -rf <path>, warn user, skip this skill
+     - BLOCKED? → $PYTHON cleanup-blocked-skill.py --skill <name>, warn user, skip this skill
      - WARNINGS? → show to user, ask confirmation
   4. If not found → Generate: /aif-skill-generator <name>
   5. Has reference URLs? → Learn: /aif-skill-generator <url1> [url2]...
@@ -371,7 +371,7 @@ Proceed? [Y/n]
    # AUTO-SCAN: immediately after install
    $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-path>
    ```
-   - Exit 1 (BLOCKED) → `rm -rf <path>`, warn user, skip this skill
+   - Exit 1 (BLOCKED) → `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name>`, warn user, skip this skill
    - Exit 2 (WARNINGS) → show to user, ask confirmation
    - Exit 0 (CLEAN) → read files yourself (Level 2), verify intent, proceed
 8. Generate custom skills via `/aif-skill-generator` (pass URLs for Learn Mode when docs are available)
