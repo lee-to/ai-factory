@@ -74,11 +74,12 @@ Creates or updates a strategic project roadmap:
 - Milestones are high-level goals (not granular tasks — that's `/aif-plan`)
 - `/aif-implement` automatically marks roadmap milestones done when work completes
 
-### `/aif-improve [--list] [@plan-file] [prompt]`
+### `/aif-improve [--list] [+check] [@plan-file] [prompt]`
 Refine an existing plan with a second iteration:
 ```
 /aif-improve                                    # Auto-review: find gaps, missing tasks, wrong deps
 /aif-improve --list                             # Show available plans only (no refinement)
+/aif-improve +check                             # Validate refinements via fresh-context subagent
 /aif-improve @my-custom-plan.md                 # Improve an explicit plan file
 /aif-improve добавь валидацию и обработку ошибок # Improve based on specific feedback
 ```
@@ -89,8 +90,15 @@ Refine an existing plan with a second iteration:
 - Finds missing tasks (migrations, configs, middleware)
 - Fixes task dependencies and descriptions
 - Removes redundant tasks
+- Surfaces useful-but-out-of-scope tasks in a separate "💡 Out of scope" report section (the skill does not save them anywhere — the user decides what to do with the idea)
 - Shows improvement report and asks for approval before applying
 - If no plan found — suggests running `/aif-plan` (feature/task) or `/aif-fix` (bugfix) first
+
+**Optional validation (`+check`)**
+- After Step 4 the skill dispatches a single fresh-context `general-purpose` subagent that re-reads cited files and judges each finding from the `missing`, `improvements`, `removals`, and `out_of_scope` groups
+- Invented findings disappear, partially-correct ones are rewritten in place, real findings stay untouched; the `🔗 Dependency Fixes` group is recomputed against the filtered task list afterwards and is not sent to the validator
+- The Step 5 Summary block gains two extra lines — `Hidden by +check: N` and `Adjusted by +check: M`; if the validator call fails entirely, no counters are printed and a single `WARN [+check]` line is appended instead
+- `+check` together with `--list` is silently ignored (no refinement to validate)
 
 ### `/aif-loop [new|resume|status|stop|list|history|clean] [task or alias]`
 Runs a strict iterative Reflex Loop with phase-based execution and quality gates:
@@ -430,18 +438,27 @@ Creates conventional commits:
 - Warning-first by default (no implicit strict mode)
 - For `feat`/`fix`/`perf`, warns when roadmap milestone linkage is missing
 
-### `/aif-review [PR number or URL]`
+### `/aif-review [PR number or URL] [+check]`
 Reviews staged changes or PR diffs:
 ```
 /aif-review
 /aif-review 123
 /aif-review https://github.com/org/repo/pull/123
+/aif-review +check                              # Validate findings via fresh-context subagent
+/aif-review 123 +check
 ```
 - Checks correctness, security, performance, and maintainability
 - Adds read-only context-gate findings (architecture/roadmap/rules) to review output
 - Uses `WARN` for non-blocking context drift and `ERROR` only for explicitly blocking review criteria
 - Appends a final `aif-gate-result` JSON block for Handoff/AIFHub and other orchestrators
 - If you only need the rules gate, use `/aif-rules-check`
+
+**Optional validation (`+check`)**
+- After the review is drafted the skill dispatches a single fresh-context `general-purpose` subagent that re-reads cited files and judges each item from "Critical Issues" and "Suggestions"
+- Invented findings are dropped, partially-correct ones are rewritten in place, real findings stay untouched; "Questions" and "Positive Notes" are not validated
+- The subagent can also reclassify items between the two severity levels — promote a suggestion to "Critical Issues" if the underlying behavior is actually merge-blocking, or demote a critical finding to "Suggestions" if the framing was too harsh. The two levels and the promotion/demotion rules live in `references/SEVERITY.md`
+- `aif-gate-result` is recomputed after filtering — `status` is the post-filter findings merged with the unchanged context-gate result, so a failing architecture/rules/roadmap gate still forces `fail` even when no Critical Issues remain; `suggested_next` is recomputed accordingly (`/aif-commit` when there are no blockers; otherwise `/aif-fix`, or the failing gate's own command — `/aif-rules`, `/aif-architecture`, `/aif-roadmap` — when a single context gate is the sole blocker)
+- The rendered review gains a final line `Filtered: N hidden, M adjusted, K reclassified by +check`; if the validator call fails entirely, the unfiltered review is kept and a single `WARN [+check]` line is appended instead (always above the `aif-gate-result` block — that block stays the last thing in the output)
 
 ### `/aif-rules-check [git ref]`
 Runs a standalone read-only rules compliance gate:
