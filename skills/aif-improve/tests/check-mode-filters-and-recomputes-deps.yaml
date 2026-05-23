@@ -1,0 +1,160 @@
+scenario: check-mode-filters-and-recomputes-deps
+description: |
+  With a plan that lets the auto-review produce at least one fabricated
+  finding (a "missing" task that duplicates an already-implemented helper
+  in the codebase), `/aif-improve +check` must:
+
+    1. Run the default refinement (Step 4 of skills/aif-improve/SKILL.md
+       — Identify Improvements) and build the four findings groups
+       (`missing`, `improvements`, `removals`, `out_of_scope`).
+    2. Dispatch exactly one `Task(subagent_type: general-purpose, ...)`
+       — the +check validator (phase (a) of
+       skills/aif-improve/references/CHECK-MODE.md).
+    3. Apply the validator verdicts: if Step 4 produced a fabricated
+       `missing` item, drop it; keep / modify the real findings. Step 4
+       is an LLM-driven step and is not guaranteed to fabricate — a run
+       where Step 4 stayed accurate and the validator had nothing to
+       drop is also a valid pass.
+    4. Append two extra rows to the Step 5 Summary block:
+       `Hidden by +check: N` and `Adjusted by +check: M`.
+    5. Recompute the `🔗 Dependency Fixes` group AFTER filtering
+       (phase (b) of CHECK-MODE.md). The dependency entries must
+       reference only tasks that survived phase (a) — confirmed new
+       tasks added, removed/out-of-scope tasks dropped, rescued ones
+       still valid dependency targets. The Dependency Fixes group is
+       NOT itself sent to the validator.
+
+  Documents the +check happy path for `/aif-improve` per ichinya's
+  PR #120 P2 ask. The Dependency Fixes recomputation is the part most
+  easily broken by an implementation that forgets to filter the task
+  list before computing dependencies on it.
+
+  Fixture state:
+    Current branch:         feature/user-auth
+    Existing helper:        src/auth.ts already exposes verifyToken —
+                            if the auto-review proposes a "create token
+                            verifier" finding it is fabricated and the
+                            validator must drop it. Step 4 is not
+                            guaranteed to fabricate this on every run.
+    Plan:                   .ai-factory/plans/feature-user-auth.md with
+                            three real tasks; their relative order is
+                            the dependency baseline that recomputation
+                            must respect.
+skill: aif-improve
+argument: "+check"
+max_turns: 60
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - Task
+    - Agent
+    - AskUserQuestion
+    - Questions
+    - TaskList
+    - TaskGet
+    - TaskCreate
+    - TaskUpdate
+
+fixtures:
+  git_init: true
+  git_branch: feature/user-auth
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for /aif-improve +check filter + dependency recomputation.
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: slug
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: src/auth.ts
+      content: |
+        // Existing helper. A "create token verifier" task suggested by
+        // the auto-review is fabricated — +check must drop it.
+        export function verifyToken(token: string): boolean {
+          return Boolean(token) && token.length > 8;
+        }
+    - path: src/handler.ts
+      content: |
+        // Existing handler scaffolding; the plan extends it with a
+        // /login route. Real "wire up login route" task is genuine.
+        export function handle(_req: unknown) {
+          return { status: 200 };
+        }
+    - path: .ai-factory/plans/feature-user-auth.md
+      content: |
+        # Feature: user-auth
+
+        ## Context
+        - Mode: full
+        - Tests: yes
+        - Logging: minimal
+        - Docs: no
+
+        ## Tasks
+
+        - [ ] Task 1: Add login route POST /login that calls verifyToken
+              from src/auth.ts and returns 200 on success.
+        - [ ] Task 2: Wire the login route into src/handler.ts using the
+              existing handler registration pattern.
+        - [ ] Task 3: Add integration test for the login route happy path.
+
+user_responses:
+  - "Don't apply — keep the plan as-is, just show the report"
+
+assertions:
+  - id: dispatches-check-validator
+    type: tool_called
+    tool: Task
+    args_match:
+      subagent_type: "^general-purpose$"
+    weight: 4
+
+  - id: summary-has-hidden-counter
+    type: output_contains
+    pattern: "Hidden by \\+check:\\s+\\d+"
+    weight: 4
+
+  - id: summary-has-adjusted-counter
+    type: output_contains
+    pattern: "Adjusted by \\+check:\\s+\\d+"
+    weight: 3
+
+  - id: dependency-fixes-section-present
+    type: output_contains
+    pattern: "Dependency Fixes"
+    weight: 2
+
+  - id: no-validator-failure-warning
+    type: no_output_contains
+    pattern: "WARN \\[\\+check\\]"
+
+  - id: stay-in-sandbox
+    type: no_path_escape
