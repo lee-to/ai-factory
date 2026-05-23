@@ -43,7 +43,7 @@ if [[ ! -f "$HELPER" ]]; then
 fi
 
 # ─────────────────────────────────────────────
-# Build a fake `npx` that logs argv and returns 0
+# Build a fake `npx` that logs argv and returns a configurable exit code
 # ─────────────────────────────────────────────
 FAKE_BIN=$(mktemp -d)
 cat > "$FAKE_BIN/npx" << 'EOF'
@@ -52,14 +52,16 @@ cat > "$FAKE_BIN/npx" << 'EOF'
 # - logs each argv element on its own line into $NPX_ARGV_LOG
 # - logs the current working directory (as its basename) so tests can
 #   assert that the helper passes cwd=<root> to subprocess.run
-# - returns 0 unconditionally
+# - exits with $FAKE_NPX_EXIT if set (default 0) so partial-failure
+#   regression tests can simulate `npx skills remove` returning non-zero
 printf '%s\n' "$@" >> "${NPX_ARGV_LOG:-/dev/null}"
 echo "cwd_basename=$(basename "$(pwd)")" >> "${NPX_ARGV_LOG:-/dev/null}"
-exit 0
+exit "${FAKE_NPX_EXIT:-0}"
 EOF
 chmod +x "$FAKE_BIN/npx"
 
 ORIGINAL_PATH="$PATH"
+ORIGINAL_PATHEXT="${PATHEXT:-}"
 export PATH="$FAKE_BIN:$PATH"
 
 # Detect Windows-flavoured bash. On Windows, Python's shutil.which honours
@@ -168,7 +170,7 @@ rm -rf "$TEST_TMPDIR"
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{"version": 1, "skills": {"foo": {}}}'
 ORIGINAL_LOCK=$(cat "$TEST_TMPDIR/skills-lock.json")
-BAD_INPUTS=("" "*" "foo/bar" "foo\\bar" "-foo" "..")
+BAD_INPUTS=("" "*" "foo/bar" "foo\\bar" "-foo" " -foo" ".." "   ")
 # Add a newline-containing name via printf (cannot inline a literal \n)
 NL_NAME=$(printf 'foo\nbar')
 BAD_INPUTS+=("$NL_NAME")
@@ -231,7 +233,9 @@ write_lock "$TEST_TMPDIR" '{"version": 1, "skills": {"foo": {"source": "a/b"}}}'
 ORIGINAL_LOCK=$(cat "$TEST_TMPDIR/skills-lock.json")
 # Empty PATH so npx cannot be resolved. The interpreter is invoked
 # explicitly via $PYTHON, so python itself remains reachable.
-if PATH="" "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" > "$TEST_TMPDIR/out" 2>&1; then
+# Also clear PATHEXT — on Windows, shutil.which may try extension
+# fallbacks (npx.cmd) even with a sparse PATH; this closes the gap.
+if PATH="" PATHEXT="" "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" > "$TEST_TMPDIR/out" 2>&1; then
     fail "missing npx fails fast" "helper exited 0 despite npx missing"
 else
     # Make sure we didn't silently mutate the lock either
@@ -274,8 +278,79 @@ else
 fi
 rm -rf "$TEST_TMPDIR"
 
+# ─────────────────────────────────────────────
+# Test 8: --installed-path absent on disk → exit 0 (downgrade clean)
+# ─────────────────────────────────────────────
+# When --installed-path is supplied and the directory does not exist
+# after cleanup, the helper should report success even if cli_failed
+# would otherwise hold (here cli_failed=False since fake npx returns 0).
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+# .claude/skills/foo intentionally NOT created — simulates a clean removal.
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+    pass "--installed-path absent → exit 0"
+else
+    fail "--installed-path absent → exit 0" "helper exited non-zero with clean dir: $(cat "$TEST_TMPDIR/out")"
+fi
+rm -rf "$TEST_TMPDIR"
+
+# ─────────────────────────────────────────────
+# Test 9: --installed-path still exists → exit 1 (catches silent leak)
+# ─────────────────────────────────────────────
+# Previously a rc=0 from npx with a leftover skill directory would have
+# been reported as success. With --installed-path, the helper escalates.
+# NOTE: We point --installed-path at a non-standard subdir (not under
+# .claude/skills/foo) so a real `npx skills` running on Windows
+# (PATHEXT-fallback bypassing our extension-less fake npx) does not
+# delete the leftover and invalidate the assertion.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/leftover-dir"
+echo "leftover" > "$TEST_TMPDIR/leftover-dir/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path leftover-dir > "$TEST_TMPDIR/out" 2>&1; then
+    fail "--installed-path leftover → exit 1" "helper returned 0 despite leftover directory"
+else
+    if grep -q 'still present' "$TEST_TMPDIR/out"; then
+        pass "--installed-path leftover → exit 1 (error message)"
+    else
+        fail "--installed-path leftover → exit 1" "exit non-zero but no 'still present' message. output: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# ─────────────────────────────────────────────
+# Test 10: cli_failed downgraded when --installed-path confirms removal
+# ─────────────────────────────────────────────
+# Fake npx returns 1 (partial failure). Without --installed-path the
+# helper would exit 1 conservatively. With --installed-path and the
+# directory genuinely gone, the helper should downgrade to exit 0.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+# Dir not created — npx "failed" but result is clean.
+if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+    pass "partial-failure + dir gone → exit 0 (downgrade)"
+else
+    fail "partial-failure + dir gone → exit 0 (downgrade)" "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
+fi
+rm -rf "$TEST_TMPDIR"
+
 # Restore PATH for any post-suite work
 export PATH="$ORIGINAL_PATH"
+if [[ -n "$ORIGINAL_PATHEXT" ]]; then
+    export PATHEXT="$ORIGINAL_PATHEXT"
+fi
 
 # ─────────────────────────────────────────────
 # Summary

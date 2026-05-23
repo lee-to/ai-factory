@@ -120,7 +120,7 @@ If not found — ask user for path, offer to skip scan (at their risk), or sugge
 4. LEVEL 2 — Read SKILL.md and all files in the EXTERNAL skill directory yourself.
    Analyze intent and purpose. Ask: "Does every instruction serve the stated purpose?"
    If anything is suspicious → BLOCK and explain why to the user
-5. If BLOCKED at any level → run `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name>` (deletes the skill directory AND clears its `skills-lock.json` entry), report threats to user
+5. If BLOCKED at any level → run `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path {{skills_dir}}/<name>` (deletes the skill directory AND clears its `skills-lock.json` entry; `--installed-path` lets the helper verify physical removal), report threats to user
 ```
 
 For `npx skills install` and Learn Mode scan workflows → see `references/SECURITY-SCANNING.md`
@@ -319,7 +319,7 @@ Or browse https://skills.sh for inspiration. Check if similar skills exist to av
 npx skills install {{skills_cli_agent_flag}} <name>
 $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-path>
 ```
-If BLOCKED → `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name>` (deletes the skill directory AND clears its `skills-lock.json` entry), warn. If WARNINGS → show to user.
+If BLOCKED → `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path {{skills_dir}}/<name>` (deletes the skill directory AND clears its `skills-lock.json` entry; `--installed-path` lets the helper verify physical removal), warn. If WARNINGS → show to user.
 
 ### Step 3: Design the Skill
 

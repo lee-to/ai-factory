@@ -49,7 +49,7 @@ PYTHON=$(command -v python3 || command -v python || echo "")
 $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-skill-path>
 ```
 - **Exit 0** → proceed to Level 2
-- **Exit 1 (BLOCKED)** → Remove via cleanup helper: `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <skill-name>`. The helper deletes the skill directory AND clears its entry from `skills-lock.json` so the blocked skill cannot be resurrected. Warn user with full threat details. **NEVER use.**
+- **Exit 1 (BLOCKED)** → Remove via cleanup helper: `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <skill-name> --installed-path {{skills_dir}}/<skill-name>`. The helper deletes the skill directory AND clears its entry from `skills-lock.json` so the blocked skill cannot be resurrected; `--installed-path` lets it verify physical removal and return an exact exit code. Warn user with full threat details. **NEVER use.**
 - **Exit 2 (WARNINGS)** → proceed to Level 2, include warnings
 
 **Level 2 — Semantic review (you do this yourself):**
@@ -91,7 +91,7 @@ For each recommended skill:
   1. Search: npx skills search <name>
   2. If found → Install: npx skills install {{skills_cli_agent_flag}} <name>
   3. SECURITY: Scan installed EXTERNAL skill (never built-in aif*) → $PYTHON security-scan.py <path>
-     - BLOCKED? → $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name>, warn user, skip this skill
+     - BLOCKED? → $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path {{skills_dir}}/<name>, warn user, skip this skill
      - WARNINGS? → show to user, ask confirmation
   4. If not found → Generate: /aif-skill-generator <name>
   5. Has reference URLs? → Learn: /aif-skill-generator <url1> [url2]...
@@ -371,7 +371,7 @@ Proceed? [Y/n]
    # AUTO-SCAN: immediately after install
    $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-path>
    ```
-   - Exit 1 (BLOCKED) → `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name>`, warn user, skip this skill
+   - Exit 1 (BLOCKED) → `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path {{skills_dir}}/<name>`, warn user, skip this skill
    - Exit 2 (WARNINGS) → show to user, ask confirmation
    - Exit 0 (CLEAN) → read files yourself (Level 2), verify intent, proceed
 8. Generate custom skills via `/aif-skill-generator` (pass URLs for Learn Mode when docs are available)

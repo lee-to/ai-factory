@@ -20,14 +20,26 @@ can be reduced to just calling `npx skills remove`; no consumer changes
 needed.
 
 Usage:
-  cleanup-blocked-skill.py --skill <name> [--root <dir>] [--dry-run]
+  cleanup-blocked-skill.py --skill <name> [--root <dir>]
+                           [--installed-path <path>] [--dry-run]
 
 Exit codes:
   0 - clean removal
-  1 - operational error (invalid JSON, write failed, verify failed,
-      npx missing in non-dry-run, or `npx skills remove` returned
-      non-zero — lock is still patched, but file deletion is uncertain)
+  1 - operational error (invalid JSON, write failed, lock-verify failed,
+      npx missing in non-dry-run, skill directory still present at
+      --installed-path, or `npx skills remove` returned non-zero when
+      --installed-path was not supplied to confirm file deletion)
   2 - usage error (missing/invalid arguments)
+
+Notes on --installed-path:
+  When provided, the helper verifies the physical skill directory is
+  gone after cleanup. This makes the exit code an exact signal:
+    - dir still exists  -> exit 1 (covers the silent rc=0+dir-leak case)
+    - dir is gone       -> exit 0 even if `npx skills remove` returned
+                           non-zero (downgrade partial-failure when the
+                           actual security goal is achieved)
+  When omitted, behavior is unchanged for backward compatibility:
+  any non-zero from `npx skills remove` is reported as exit 1.
 """
 
 import argparse
@@ -54,7 +66,7 @@ def validate_skill_name(name: str):
         return "path separators not allowed"
     if any(c in name for c in '*?'):
         return "wildcards not allowed; specify exact name"
-    if name.startswith('-'):
+    if name.lstrip().startswith('-'):
         return "leading hyphen not allowed (could be parsed as a flag)"
     if name.strip() in ('.', '..'):
         return "reserved name"
@@ -172,6 +184,12 @@ def main() -> int:
                              "leading hyphen, and reserved '.'/'..'.")
     parser.add_argument('--root', default='.',
                         help="Project root containing skills-lock.json (default: cwd)")
+    parser.add_argument('--installed-path', default=None,
+                        help="Optional: absolute path (or path relative to --root) "
+                             "to the installed skill directory. When provided, the "
+                             "helper verifies the directory is gone after cleanup "
+                             "and uses that signal to refine the exit code "
+                             "(see module docstring).")
     parser.add_argument('--dry-run', action='store_true',
                         help="Print actions without executing")
     args = parser.parse_args()
@@ -222,7 +240,24 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
-    # Partial-failure exit: lock cleared but `npx skills remove` failed.
+    # Step 4: optional physical-directory verification.
+    # When --installed-path is supplied, the helper can give an exact
+    # signal: a missing directory downgrades partial CLI failure to
+    # success, and a present directory escalates even an "all green"
+    # run to exit 1 (catches the rc=0 + dir-still-there silent leak).
+    if args.installed_path and not args.dry_run:
+        installed = Path(args.installed_path)
+        if not installed.is_absolute():
+            installed = root / installed
+        if installed.exists():
+            print(f"error: skill directory still present at {installed}; "
+                  "manual cleanup required (`rm -rf` the path)",
+                  file=sys.stderr)
+            return 1
+        cli_failed = False
+
+    # Partial-failure exit: lock cleared but `npx skills remove` failed
+    # and we cannot independently confirm the files are gone.
     if cli_failed:
         return 1
 
