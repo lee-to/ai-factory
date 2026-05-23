@@ -196,7 +196,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-plan`                               | `paths.plan`, `paths.plans/<branch-or-slug>.md`                                               | `/aif-improve` refines existing plans                     |
 | `/aif-explore`                            | `paths.research` (default: `.ai-factory/RESEARCH.md`)                                         | all other artifacts are read-only in explore mode         |
 | `/aif-reference`                          | `paths.references/*`, `paths.references/INDEX.md`                                             | knowledge references from external sources                |
-| `/aif-distillation`                       | current agent skills directory (`<skills-dir>/<skill-name>/`, or multiple direct child skill dirs in `--split` mode) | distilled skills from explicit source material            |
+| `/aif-distillation`                       | current agent skills directory by default, or `--path <directory>` as an output root (`<root>/<skill-name>/`, or prefixed child dirs in `--split` mode) | distilled skills from explicit source material            |
 | `/aif-fix`                                | `paths.fix_plan`, `paths.patches/*.md`                                                        | bug-fix learning loop artifacts                           |
 | `/aif-evolve`                             | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`, `.ai-factory/skill-context/*`  | skill-context overrides + evolution logs + cursor state   |
 | `/aif-qa`                                 | `paths.qa/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`                   | derived branch slug as subdirectory (see aif-qa SKILL.md) |

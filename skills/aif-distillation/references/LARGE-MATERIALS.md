@@ -28,6 +28,11 @@ Optional flags:
 
 Read `source-index.md` first. Then read only the chunks needed for each section of the target skill.
 
+When `--redact-source-map` is present, treat `source-index.md` as a private
+working index only. Do not copy its raw URLs, local paths, filenames, or exact
+source titles into generated files. Do not create `references/SOURCE-MAP.md`
+for redacted output.
+
 ## Chunking Strategy
 
 Use this order:
