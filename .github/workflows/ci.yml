@@ -38,3 +38,6 @@ jobs:
 
       - name: Update smoke tests
         run: npm run test:update
+
+      - name: Cleanup helper tests
+        run: npm run test:cleanup-helper

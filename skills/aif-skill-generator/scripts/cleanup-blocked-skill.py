@@ -13,7 +13,7 @@ This script:
      may leave the lock entry behind on project scope).
   2. Patches <root>/skills-lock.json to drop the "skills.<skill>" key
      atomically (tmp + os.replace). No-op if the entry is absent.
-  3. Verifies via `npx skills list` that the skill no longer appears.
+  3. Verifies the patched lock file no longer contains the skill entry.
 
 When upstream skills#977 is fixed, step 2 becomes a no-op and the script
 can be reduced to just calling `npx skills remove`; no consumer changes
@@ -24,21 +24,41 @@ Usage:
 
 Exit codes:
   0 - clean removal
-  1 - operational error (invalid JSON, write failed, verify failed)
+  1 - operational error (invalid JSON, write failed, verify failed,
+      npx missing in non-dry-run, or `npx skills remove` returned
+      non-zero — lock is still patched, but file deletion is uncertain)
   2 - usage error (missing/invalid arguments)
 """
 
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-SKILL_NAME_RE = re.compile(r'^[A-Za-z0-9._-]+$')
-HAS_ALNUM_RE = re.compile(r'[A-Za-z0-9]')
+
+def validate_skill_name(name: str):
+    """Return error message if name is unsafe, None if OK.
+
+    Deny-list approach: aligns with the upstream skills CLI surface
+    (which accepts plain spaces and broader punctuation) while
+    rejecting genuinely unsafe values.
+    """
+    if not name or not name.strip():
+        return "empty or whitespace-only"
+    if any(ord(c) < 0x20 or ord(c) == 0x7f for c in name):
+        return "control characters not allowed"
+    if '/' in name or '\\' in name:
+        return "path separators not allowed"
+    if any(c in name for c in '*?'):
+        return "wildcards not allowed; specify exact name"
+    if name.startswith('-'):
+        return "leading hyphen not allowed (could be parsed as a flag)"
+    if name.strip() in ('.', '..'):
+        return "reserved name"
+    return None
 
 
 def patch_lock(lock_path: Path, skill: str, dry_run: bool = False):
@@ -47,6 +67,10 @@ def patch_lock(lock_path: Path, skill: str, dry_run: bool = False):
     Returns (changed: bool, message: str). Raises RuntimeError on invalid JSON.
     Atomic write: writes to <lock>.tmp then os.replace. Preserves 2-space
     indent and trailing newline if the original had one.
+
+    When the key is absent, returns a non-modifying (False) result and
+    includes the sorted list of available keys in the message so the
+    caller can spot typos or display-name vs canonical-key mismatches.
     """
     if not lock_path.exists():
         return (False, f"lock file not found: {lock_path} (nothing to clean)")
@@ -62,7 +86,10 @@ def patch_lock(lock_path: Path, skill: str, dry_run: bool = False):
         return (False, "no 'skills' object in lock file (nothing to clean)")
 
     if skill not in skills_section:
-        return (False, f"skill '{skill}' not present in lock file (nothing to clean)")
+        available = sorted(skills_section.keys())
+        if not available:
+            return (False, f"skill '{skill}' not present; lock file has no skill entries")
+        return (False, f"skill '{skill}' not present in lock file; available keys: {available}")
 
     if dry_run:
         return (True, f"would remove '{skill}' from {lock_path}")
@@ -85,12 +112,21 @@ def _resolve_npx():
 
 
 def run_skills_remove(skill: str, dry_run: bool = False) -> int:
-    """Invoke `npx skills remove -s <skill> -y`. Returns the CLI exit code,
-    or 0 if npx is unavailable (caller will still patch the lock file)."""
+    """Invoke `npx skills remove -s <skill> -y`.
+
+    Returns the CLI exit code. In non-dry-run mode, raises RuntimeError
+    if npx is not on PATH — a missing CLI is a hard failure for the
+    security cleanup contract, not a silent success.
+    """
     npx = _resolve_npx()
     if not npx:
-        print("warning: npx not found on PATH; skipping CLI step", file=sys.stderr)
-        return 0
+        if dry_run:
+            print(f"would run: npx skills remove -s {skill!r} -y "
+                  "(npx not on PATH; would be a hard error in non-dry-run)",
+                  file=sys.stderr)
+            return 0
+        raise RuntimeError("npx not found on PATH; cannot remove skill files")
+
     cmd = [npx, 'skills', 'remove', '-s', skill, '-y']
     if dry_run:
         print(f"would run: {' '.join(cmd)}")
@@ -99,21 +135,24 @@ def run_skills_remove(skill: str, dry_run: bool = False) -> int:
     return result.returncode
 
 
-def verify_removed(skill: str, dry_run: bool = False) -> bool:
-    """Return True if `npx skills list` does NOT mention <skill> as a token.
-    Returns True if verification cannot be performed (npx missing, dry-run)."""
-    if dry_run:
+def verify_lock_clean(lock_path: Path, skill: str) -> bool:
+    """Confirm the skill is absent from skills-lock.json after patching.
+
+    Deterministic: re-reads the lock file and inspects the in-memory
+    structure. Avoids fragile string/regex matching against the
+    ANSI-colored output of `npx skills list` (which also breaks for
+    skill names that contain spaces).
+    """
+    if not lock_path.exists():
+        return True  # no lock file = trivially clean
+    try:
+        data = json.loads(lock_path.read_text(encoding='utf-8'))
+    except json.JSONDecodeError:
+        return False  # corrupt lock file: cannot verify
+    skills_section = data.get('skills')
+    if not isinstance(skills_section, dict):
         return True
-    npx = _resolve_npx()
-    if not npx:
-        return True
-    result = subprocess.run(
-        [npx, 'skills', 'list'],
-        capture_output=True,
-        text=True,
-    )
-    pattern = re.compile(rf'\b{re.escape(skill)}\b')
-    return not pattern.search(result.stdout or '')
+    return skill not in skills_section
 
 
 def main() -> int:
@@ -121,7 +160,10 @@ def main() -> int:
         description="Cleanup helper for security-blocked skills: deletes the skill directory and clears its entry from skills-lock.json.",
     )
     parser.add_argument('--skill', required=True,
-                        help="Skill name to remove (single name only — no wildcards or slashes)")
+                        help="Skill name to remove. Accepts the same name surface "
+                             "as the upstream skills CLI (including spaces). "
+                             "Rejects path separators, wildcards, control chars, "
+                             "leading hyphen, and reserved '.'/'..'.")
     parser.add_argument('--root', default='.',
                         help="Project root containing skills-lock.json (default: cwd)")
     parser.add_argument('--dry-run', action='store_true',
@@ -129,10 +171,9 @@ def main() -> int:
     args = parser.parse_args()
 
     skill = args.skill
-    if not (SKILL_NAME_RE.match(skill) and HAS_ALNUM_RE.search(skill)):
-        print(f"error: invalid --skill value: {skill!r}", file=sys.stderr)
-        print("       must match [A-Za-z0-9._-]+ and contain at least one alphanumeric",
-              file=sys.stderr)
+    err = validate_skill_name(skill)
+    if err is not None:
+        print(f"error: invalid --skill value: {skill!r} ({err})", file=sys.stderr)
         return 2
 
     root = Path(args.root).resolve()
@@ -143,11 +184,22 @@ def main() -> int:
     lock_path = root / 'skills-lock.json'
 
     # Step 1: ask the CLI to remove (deletes files; may leave lock stale on project scope).
-    rc = run_skills_remove(skill, dry_run=args.dry_run)
-    if rc != 0:
-        # Non-fatal: files may already be gone, or upstream CLI may not be installed.
-        # The lock-patch step below is the security-critical part.
-        print(f"note: `npx skills remove` returned exit {rc} (continuing)", file=sys.stderr)
+    # If npx is missing in non-dry-run mode, this is a hard error.
+    cli_failed = False
+    try:
+        rc = run_skills_remove(skill, dry_run=args.dry_run)
+    except RuntimeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    if rc != 0 and not args.dry_run:
+        # Non-zero from npx is NOT immediately fatal: the lock patch below
+        # is the security-critical step. We still patch, then exit 1 at the
+        # end to signal partial failure (lock cleared but file deletion
+        # uncertain — caller should verify the skill directory is gone).
+        print(f"warning: `npx skills remove` returned exit {rc}; "
+              "continuing to lock-file patch (file deletion uncertain)",
+              file=sys.stderr)
+        cli_failed = True
 
     # Step 2: patch lock file (workaround for skills#977).
     try:
@@ -157,10 +209,14 @@ def main() -> int:
         return 1
     print(msg)
 
-    # Step 3: verify.
-    if not verify_removed(skill, dry_run=args.dry_run):
-        print(f"warning: '{skill}' still appears in `npx skills list` output",
+    # Step 3: verify by re-reading the lock file.
+    if not args.dry_run and not verify_lock_clean(lock_path, skill):
+        print(f"error: '{skill}' is still present in {lock_path} after patch",
               file=sys.stderr)
+        return 1
+
+    # Partial-failure exit: lock cleared but `npx skills remove` failed.
+    if cli_failed:
         return 1
 
     return 0
