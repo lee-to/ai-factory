@@ -111,17 +111,23 @@ def _resolve_npx():
     return shutil.which('npx') or shutil.which('npx.cmd')
 
 
-def run_skills_remove(skill: str, dry_run: bool = False) -> int:
-    """Invoke `npx skills remove -s <skill> -y`.
+def run_skills_remove(skill: str, root: Path, dry_run: bool = False) -> int:
+    """Invoke `npx skills remove -s <skill> -y` with cwd=<root>.
 
     Returns the CLI exit code. In non-dry-run mode, raises RuntimeError
     if npx is not on PATH — a missing CLI is a hard failure for the
     security cleanup contract, not a silent success.
+
+    The subprocess runs with cwd=root so the upstream CLI inspects the
+    correct project's `skills-lock.json` even when `--root` points at a
+    project other than the helper's own cwd. Without this, the helper
+    could patch one project's lock file while telling npx to remove
+    skills from a different project context.
     """
     npx = _resolve_npx()
     if not npx:
         if dry_run:
-            print(f"would run: npx skills remove -s {skill!r} -y "
+            print(f"would run (in {root}): npx skills remove -s {skill!r} -y "
                   "(npx not on PATH; would be a hard error in non-dry-run)",
                   file=sys.stderr)
             return 0
@@ -129,9 +135,9 @@ def run_skills_remove(skill: str, dry_run: bool = False) -> int:
 
     cmd = [npx, 'skills', 'remove', '-s', skill, '-y']
     if dry_run:
-        print(f"would run: {' '.join(cmd)}")
+        print(f"would run (in {root}): {' '.join(cmd)}")
         return 0
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, cwd=str(root))
     return result.returncode
 
 
@@ -184,10 +190,11 @@ def main() -> int:
     lock_path = root / 'skills-lock.json'
 
     # Step 1: ask the CLI to remove (deletes files; may leave lock stale on project scope).
+    # Subprocess runs with cwd=root so npx inspects the right project's lock file.
     # If npx is missing in non-dry-run mode, this is a hard error.
     cli_failed = False
     try:
-        rc = run_skills_remove(skill, dry_run=args.dry_run)
+        rc = run_skills_remove(skill, root, dry_run=args.dry_run)
     except RuntimeError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

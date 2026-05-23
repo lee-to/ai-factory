@@ -91,7 +91,7 @@ For each recommended skill:
   1. Search: npx skills search <name>
   2. If found → Install: npx skills install {{skills_cli_agent_flag}} <name>
   3. SECURITY: Scan installed EXTERNAL skill (never built-in aif*) → $PYTHON security-scan.py <path>
-     - BLOCKED? → $PYTHON cleanup-blocked-skill.py --skill <name>, warn user, skip this skill
+     - BLOCKED? → $PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name>, warn user, skip this skill
      - WARNINGS? → show to user, ask confirmation
   4. If not found → Generate: /aif-skill-generator <name>
   5. Has reference URLs? → Learn: /aif-skill-generator <url1> [url2]...

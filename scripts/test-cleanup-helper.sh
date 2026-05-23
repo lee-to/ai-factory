@@ -50,8 +50,11 @@ cat > "$FAKE_BIN/npx" << 'EOF'
 #!/bin/sh
 # Fake npx for cleanup-helper tests:
 # - logs each argv element on its own line into $NPX_ARGV_LOG
+# - logs the current working directory (as its basename) so tests can
+#   assert that the helper passes cwd=<root> to subprocess.run
 # - returns 0 unconditionally
 printf '%s\n' "$@" >> "${NPX_ARGV_LOG:-/dev/null}"
+echo "cwd_basename=$(basename "$(pwd)")" >> "${NPX_ARGV_LOG:-/dev/null}"
 exit 0
 EOF
 chmod +x "$FAKE_BIN/npx"
@@ -237,6 +240,37 @@ else
     else
         fail "missing npx fails fast" "helper failed but mutated the lock anyway"
     fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# ─────────────────────────────────────────────
+# Test 7: subprocess cwd matches --root (P2, second-review regression)
+# ─────────────────────────────────────────────
+# Ensures `npx skills remove` runs with cwd=<root> so the upstream CLI
+# inspects the same project's skills-lock.json that this helper patches.
+# Without cwd propagation, --root could patch one project while npx
+# acts on a different one.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"some-skill": {"source": "x/y"}}
+}'
+if "$PYTHON" "$HELPER" --skill some-skill --root "$TEST_TMPDIR" > "$TEST_TMPDIR/out" 2>&1; then
+    if [[ $IS_WINDOWS -eq 1 ]]; then
+        # Fake npx doesn't execute on Windows (PATHEXT — see top of file).
+        # The cwd-propagation contract is still covered by code inspection
+        # and Linux CI; document the platform gap.
+        pass "subprocess cwd matches --root (skipped on Windows)"
+    else
+        expected_basename=$(basename "$TEST_TMPDIR")
+        if grep -q "cwd_basename=${expected_basename}" "$NPX_ARGV_LOG"; then
+            pass "subprocess cwd matches --root"
+        else
+            fail "subprocess cwd matches --root" "subprocess cwd != --root. log: $(cat "$NPX_ARGV_LOG")"
+        fi
+    fi
+else
+    fail "subprocess cwd matches --root" "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
 fi
 rm -rf "$TEST_TMPDIR"
 
