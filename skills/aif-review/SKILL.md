@@ -1,8 +1,8 @@
 ---
 name: aif-review
-description: Perform code review on staged changes or a pull request. Checks for bugs, security issues, performance problems, and best practices. Use when user says "review code", "check my code", "review PR", or "is this code okay".
-argument-hint: "[PR number | branch/commit/tag | empty]"
-allowed-tools: Bash(git *) Bash(gh *) Read Glob Grep AskUserQuestion
+description: Perform code review on staged changes or a pull request. Checks for bugs, security issues, performance problems, and best practices. Use when user says "review code", "check my code", "review PR", or "is this code okay". Optional +check flag validates findings via a fresh-context subagent.
+argument-hint: "[PR number | branch/commit/tag | empty] [+check]"
+allowed-tools: Bash(git *) Bash(gh *) Read Glob Grep Task Agent AskUserQuestion
 disable-model-invocation: false
 ---
 
@@ -23,6 +23,16 @@ If config.yaml doesn't exist, use defaults:
 - Git: `base_branch: main`
 
 ## Behavior
+
+### Argument flags
+
+Before routing the argument string into one of the modes below, extract any standalone tokens that flag optional behavior. Strip them from the argument string and route the remainder normally.
+
+- `+check` — runs the optional findings validator after the review is produced. The full procedure (when to run, failure modes, output additions, gate-result recomputation) lives in `references/CHECK-MODE.md`. Default is OFF; the validator runs only when this token is present. The token may appear before or after the main argument (e.g. `/aif-review +check`, `/aif-review 123 +check`, `/aif-review main +check`).
+
+If the leftover argument string is empty, fall back to the empty-argument mode (staged review). Unknown `+`-prefixed tokens are passed through as part of the main argument so they are not silently consumed.
+
+> Edge case: a git ref literally named `+check` will be consumed by the flag stripper — acceptable compromise.
 
 ### Without Arguments (Review Staged Changes)
 
@@ -117,17 +127,19 @@ Human gate result severity:
 
 If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep human `/aif-review` gate labels at `WARN` / `ERROR`, then append the standard machine-readable gate result with `pass|warn|fail` status.
 
-Machine-readable gate result:
+### Machine-readable gate result
+
+This section is the single owner of `aif-gate-result` computation:
 - Append one final fenced `aif-gate-result` JSON block after the human-readable review.
 - Use `"gate": "review"`.
-- Use `"status": "pass|warn|fail"` where:
-  - `fail` = review findings should block merge, including critical correctness, security, data-loss, performance, or explicit blocking context-gate issues.
-  - `warn` = only non-blocking findings, suggestions, missing optional context, or review uncertainty remain.
-  - `pass` = no material review findings remain.
-- Use `"blocking": true|false`.
-- Include merge-blocking review findings only in `"blockers": [`.
-- Include reviewed or implicated paths in `"affected_files": [`.
-- Set `"suggested_next": {` to `/aif-fix`, `/aif-rules`, `/aif-architecture`, `/aif-roadmap`, `/aif-commit`, or `null`.
+- `"status": "pass|warn|fail"` — the more severe (`fail` > `warn` > `pass`) of two independent inputs:
+  - **findings input** — `fail` when any "Critical Issues" item remains (critical correctness, security, data-loss, performance, downstream regression — see `references/SEVERITY.md` for the authoritative critical/suggestion definitions); `warn` when only "Suggestions", missing optional context, or review uncertainty remain; `pass` when nothing material remains.
+  - **context-gate input** — `fail` for a blocking (`ERROR`) gate finding; `warn` for a non-blocking (`WARN`) one; `pass` when none.
+  - A failing context gate keeps `"status"` at `fail` even with zero Critical Issues — a clean findings list must never mask a failed gate.
+- `"blocking": true|false` — `true` only when `"status"` is `fail`.
+- `"blockers"` — merge-blocking findings only: every "Critical Issues" item and every blocking context-gate finding, nothing else.
+- `"affected_files"` — reviewed or implicated paths.
+- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`; `null` only when no command fits.
 
 `/aif-review` is read-only for context artifacts by default. Do not modify context files unless user explicitly asks.
 
@@ -204,17 +216,26 @@ If any rule is violated — fix the output before presenting it to the user.
 [Architecture / Rules / Roadmap gate results with WARN/ERROR labels]
 
 ### Critical Issues
-[Must be fixed before merge]
+[Each item is a short paragraph in prose, not a labeled record. Order inside the paragraph:
+1. Behavioral impact — what breaks for the user or downstream code.
+2. Optional note — a code citation, a consequence, or extra context. Include only if it adds signal; skip otherwise.
+3. Path — file:line of the affected location (or the closest anchor).
+4. Suggested fix — concrete edit that addresses the behavior above.
+
+Example:
+> Two clients buying the last item both get a confirmation and stock goes negative — the order creation and stock reservation run in separate transactions. `src/services/order.ts:42`. Wrap `OrderService.create` and `InventoryService.reserve` in a shared transaction so the second buyer fails fast with "out of stock".]
 
 ### Suggestions
-[Nice to have improvements]
+[Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug.]
 
 ### Questions
-[Clarifications needed]
+[Free-form clarifications. Path optional, fix optional — these are open questions for the author, not findings.]
 
 ### Positive Notes
-[Good patterns observed]
+[Free-form acknowledgements of good patterns. No path/fix required.]
 ```
+
+When `+check` reclassifies an item, a short ` [+check: …]` suffix is appended to the item text; see `references/CHECK-MODE.md` for the exact wording.
 
 Append the final machine-readable result after the markdown summary:
 
@@ -233,7 +254,7 @@ Append the final machine-readable result after the markdown summary:
 }
 ```
 
-Schema reminder: `"status": "pass|warn|fail"`, `"blocking": true|false`, `"blockers": [`, `"affected_files": [`, `"suggested_next": {`.
+When the `+check` flag is set, the `aif-gate-result` block is assembled **after** validator filtering — `status`, `blockers`, `affected_files`, and `suggested_next` are recomputed accordingly. Exception: the whole-dispatch failure path keeps the unfiltered original list and does NOT recompute these fields. See `references/CHECK-MODE.md` for the full procedure.
 
 ## Review Style
 
@@ -263,6 +284,12 @@ Review all commits on the current branch compared to `main` (or to whatever bran
 
 **User:** `/aif-review v1.0.0`
 Review all commits on the current branch compared to tag `v1.0.0`.
+
+**User:** `/aif-review +check`
+Review staged changes, then run the `+check` validator over Critical Issues and Suggestions before rendering. The validator can drop invented items, rewrite partially-correct ones, and reclassify items between the two severity levels (promote a suggestion to critical or demote a critical to suggestion — see `references/SEVERITY.md` for the rules). It adds a filtering-summary line and rebuilds the gate result from the surviving findings; see `references/CHECK-MODE.md` for the exact line format.
+
+**User:** `/aif-review 123 +check`
+Review PR #123 with `+check` validation enabled.
 
 ## Integration
 
