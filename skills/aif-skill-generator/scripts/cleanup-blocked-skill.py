@@ -9,22 +9,16 @@ Workaround for upstream bug vercel-labs/skills#977:
   blocked skill — defeating the security scan gate in /aif.
 
 This script:
-  1. Runs `npx skills remove -s <skill> -y` (best-effort first pass;
-     removes files when the logical name matches the on-disk basename,
-     may leave the lock entry behind on project scope, and is a no-op
-     when upstream cannot match the logical name to the sanitized
-     directory — see "Why we don't rely on `npx skills remove`" below).
+  1. Runs `npx skills remove -s <skill> -y` (best-effort first pass).
   2. Patches <root>/skills-lock.json to drop the "skills.<skill>" key
      atomically (tmp + os.replace). No-op if the entry is absent.
   3. Verifies the patched lock file no longer contains the skill entry.
   4. When --installed-path is provided: physically removes the directory
      via `safe_remove_installed()` after strict safety validation.
      This is the authoritative cleanup step — the helper is the
-     guarantor of physical removal, not the upstream CLI.
-
-When upstream skills#977 is fixed, step 2 becomes a no-op. Step 4 is
-still required because upstream `npx skills remove` does not apply
-sanitizeName() to its argument before matching (see below).
+     guarantor of physical removal, not the upstream CLI. See the
+     comment block above Step 4 in main() for the upstream-CLI
+     mismatch that makes this step necessary.
 
 Usage:
   cleanup-blocked-skill.py --skill <name> [--root <dir>]
@@ -38,34 +32,14 @@ Exit codes:
       --installed-path rejected the deletion)
   2 - usage error (missing/invalid arguments)
 
-Why we don't rely on `npx skills remove` for physical deletion:
-  Upstream removeCommand() matches the provided --skill argument against
-  installed directory basenames using `name.toLowerCase() === dir.toLowerCase()`,
-  WITHOUT applying sanitizeName() to the input. So `npx skills remove -s
-  "Convex Best Practices"` does not match a directory installed at
-  `.<agent>/skills/convex-best-practices` (spaces vs. dashes), returns no
-  matches, and exits 0 silently. The helper therefore handles physical
-  deletion in Python via `safe_remove_installed()` whenever --installed-path
-  is supplied.
-
-Notes on --installed-path:
-  When provided, the helper PHYSICALLY REMOVES the directory after a
-  series of strict safety checks (see `safe_remove_installed`). Pass
-  the ACTUAL installed directory (the one previously fed to
+Caller contract for --installed-path:
+  Pass the ACTUAL installed directory (the same path previously fed to
   security-scan.py). Do NOT synthesize the path from the logical skill
   name — upstream `skills` CLI sanitizes the on-disk directory name
   (lowercase, non-alphanumeric runs collapsed to `-`), so a logical
   name like "Convex Best Practices" lives at
-  `.<agent>/skills/convex-best-practices`, not
-  `.<agent>/skills/Convex Best Practices`. A synthesized path will
-  silently leave the real blocked skill on disk.
-
-Safety: `safe_remove_installed` rejects symlinks/junctions, paths
-outside --root, paths that are not under a `skills/` segment, paths
-without a `SKILL.md` marker (upstream skill format invariant), and
-non-directory targets. It does NOT defend against an active local
-adversary racing the filesystem between checks and deletion (TOCTOU);
-threat model is AI-agent local invocation, not adversarial-FS-race.
+  `.<agent>/skills/convex-best-practices`. A synthesized path silently
+  misses the real blocked skill.
 """
 
 import argparse
@@ -247,30 +221,9 @@ def safe_remove_installed(installed: Path, root: Path) -> None:
     """Physically remove the installed skill directory after safety checks.
 
     Raises RuntimeError when any check rejects the path; the caller maps
-    that to exit 1 with the rejection reason. Does nothing (returns
-    silently) when the directory is already absent — the goal state is
-    "directory is gone."
-
-    Safety checks (in order, first failure aborts):
-      1. Resolve absolute path (handles `--root`-relative input).
-      2. Already absent -> success (idempotent).
-      3. Reject symlinks and NTFS junctions (anti-redirect).
-      4. Must be a directory, not a file.
-      5. Must be inside --root via normcase-prefix compare (anti-escape;
-         portable across case-insensitive filesystems).
-      5b. Must not equal --root itself (defense-in-depth against
-         `--installed-path .` / "").
-      6. Must contain a `skills` path segment under --root (skill dirs
-         always live under `<agent>/skills/`).
-      7. Must contain a SKILL.md file at the top level (upstream skill
-         format invariant — anti-bug guard against the agent passing a
-         wrong path).
-      8. Delete via `shutil.rmtree` with an `onerror` that retries
-         after clearing the read-only bit (required on Windows).
-
-    NOT covered: TOCTOU races between checks and rmtree. Threat model
-    is AI-agent local invocation; an adversarial-FS-race actor is out
-    of scope. Documented in the module docstring.
+    that to exit 1 with the rejection reason. Returns silently (idempotent)
+    when the directory is already absent. See inline comments for the
+    rationale of each check.
     """
     # 1. Resolve. strict=False so we don't crash if dir already absent.
     original = installed
