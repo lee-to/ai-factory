@@ -1,3 +1,7 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the --list branches below executed.
+
 scenario: sequential-plan-discovery
 description: |
   With `workflow.plan_id_format: sequential` and multiple numbered plan files
@@ -6,7 +10,7 @@ description: |
     1. Resolve `workflow.plan_id_format` from `.ai-factory/config.yaml`
        (Step 0 of skills/aif-improve/SKILL.md — Load Config).
     2. Compute `<branch-slug>` = `git branch --show-current` with every `/`
-       replaced by `-` (Step 0.list of skills/aif-improve/SKILL.md).
+       replaced by `-` (step 2 of skills/aif-improve/references/LIST-MODE.md).
     3. Glob `<paths.plans>/[0-9][0-9][0-9][0-9]_<branch-slug>.md` and
        surface the matches in the availability summary (highest-numbered
        first) — the listing must include `0005_feature-user-auth.md`.

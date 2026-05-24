@@ -1,0 +1,151 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the +check branches below executed.
+
+scenario: check-mode-happy-path
+description: |
+  With staged changes that produce at least one Critical Issue and at
+  least one Suggestion, `/aif-review +check` must:
+
+    1. Draft the review internally (see skills/aif-review/SKILL.md
+       — Output Format).
+    2. Dispatch exactly one `Task(subagent_type: general-purpose, ...)`
+       — the +check validator (procedure in
+       skills/aif-review/references/CHECK-MODE.md).
+    3. Render the review with a single final filtering-summary line of
+       the form `Filtered: N hidden, M adjusted, K reclassified by
+       +check` — N, M, K may be zero, but the line is always emitted on
+       a successful validator pass.
+    4. Keep the `aif-gate-result` fenced JSON block as the very last
+       block in the output, AFTER the Filtered line (the
+       gate-result-stays-last rule from SKILL.md is preserved when
+       +check runs).
+    5. NOT print a `WARN [+check]` line — that is reserved for failure
+       paths (see check-mode-validator-failure.spec.yaml).
+
+  Regression context: this is the happy-path contract for ichinya's
+  PR #120 P2 ask — proves the validator is invoked once and that the
+  output keeps `aif-gate-result` last with a Filtered summary above it.
+
+  Fixture state:
+    Current branch:          main
+    Committed baseline:      src/auth.ts (trivial verifier),
+                             src/handler.ts absent.
+    Staged change:           src/auth.ts rewritten with a
+                             subtle pattern issue + new
+                             src/handler.ts that ignores
+                             the verifier return value
+                             (real Critical Issue material,
+                             plus at least one Suggestion the
+                             validator can choose to keep,
+                             reword, or drop).
+
+  Spec extension: this fixture introduces a `files_staged:` block,
+  parallel to `files_committed:`. The runner is expected to write
+  these paths to disk AND stage them (`git add`) before invoking the
+  skill so that `git diff --cached` is non-empty (no-arguments
+  staged-mode review). No existing runner consumes this field today;
+  introducing it is part of the contract this fixture documents. The
+  same convention is shared by check-mode-validator-failure.spec.yaml and
+  check-mode-validator-malformed.spec.yaml in this directory.
+
+  Runner requirements (checklist for the future runner — same items
+  are spelled out in prose above):
+    - Handle `files_staged:`: write each path to disk AND `git add` it
+      before invoking the skill, so `git diff --cached` is non-empty.
+skill: aif-review
+argument: "+check"
+max_turns: 50
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(gh *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - Task
+    - Agent
+    - AskUserQuestion
+    - Questions
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for /aif-review +check happy path. The committed baseline
+        is intentionally minimal so the staged diff contains both a
+        Critical Issue (silently-ignored verifier return) and at least
+        one Suggestion (timing-leak comparison).
+    - path: package.json
+      content: |
+        {
+          "name": "demo",
+          "version": "0.1.0"
+        }
+    - path: src/auth.ts
+      content: |
+        export function verifyToken(token: string): boolean {
+          return token === 'expected-token';
+        }
+  files_staged:
+    - path: src/auth.ts
+      content: |
+        export function verifyToken(token: string): boolean {
+          // direct equality leaks timing information — a reasonable
+          // Suggestion-level finding the validator can keep or reword.
+          if (token === 'expected-token') return true;
+          return false;
+        }
+    - path: src/handler.ts
+      content: |
+        import { verifyToken } from './auth';
+
+        export function handle(req: { token: string }) {
+          // verifier return value is ignored: every unauthenticated
+          // request silently 200s — Critical Issue material.
+          verifyToken(req.token);
+          return { status: 200 };
+        }
+
+user_responses: []
+
+assertions:
+  - id: dispatches-check-validator
+    type: tool_called
+    tool: Task
+    args_match:
+      subagent_type: "^general-purpose$"
+    weight: 4
+
+  - id: renders-filtered-summary
+    type: output_contains
+    pattern: "Filtered:\\s+\\d+\\s+hidden,\\s+\\d+\\s+adjusted,\\s+\\d+\\s+reclassified\\s+by\\s+\\+check"
+    weight: 4
+
+  - id: gate-result-block-present
+    type: output_contains
+    pattern: "```aif-gate-result"
+    weight: 3
+
+  - id: filtered-line-before-gate-result
+    type: output_contains
+    pattern: "Filtered:[^\\n]*by \\+check[\\s\\S]*```aif-gate-result"
+    weight: 3
+
+  - id: no-warn-on-success
+    type: no_output_contains
+    pattern: "WARN \\[\\+check\\]"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

@@ -254,16 +254,19 @@ High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROAD
 
 Two modes — **fast** (no branch, saves to `paths.plan`) and **full** (asks about testing/logging/docs policy and optional roadmap milestone linkage when the roadmap artifact exists, saves to `paths.plans/<branch-or-slug>.md`, and optionally creates a git branch/worktree when `git.enabled=true` and `git.create_branches=true`). When `workflow.plan_id_format: sequential` is enabled, the full-mode filename gains a 4-digit `NNNN_` prefix (`paths.plans/<NNNN>_<branch-or-slug>.md`) — see [Plan Files](plan-files.md) for the numbering contract. Analyzes requirements, explores codebase for patterns, creates tasks with dependencies. For 5+ tasks, includes commit checkpoints. For parallel work on multiple features, use `full --parallel` to create isolated worktrees.
 
-### `/aif-improve [--list] [@plan-file] [prompt]` — refine the plan
+### `/aif-improve [--list] [+check] [@plan-file] [prompt]` — refine the plan
 
 ```
 /aif-improve
 /aif-improve --list
+/aif-improve +check
 /aif-improve @my-custom-plan.md
 /aif-improve add validation and error handling
 ```
 
-Second-pass analysis. Finds missing tasks (migrations, configs, middleware), fixes dependencies, removes redundant work. Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan`. `--list` is a read-only discovery mode that shows available plan files and exits. Shows a diff-like report before applying changes.
+Second-pass analysis. Finds missing tasks (migrations, configs, middleware), fixes dependencies, removes redundant work, and surfaces useful-but-out-of-scope tasks in a separate "💡 Out of scope" report section so the user sees the idea without polluting the active plan (the skill does not persist them anywhere). Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan`. `--list` is a read-only discovery mode that shows available plan files and exits. Shows a diff-like report before applying changes.
+
+Optional `+check` runs a single fresh-context `general-purpose` subagent on the refinements (`missing` / `improvements` / `removals` / `out_of_scope` groups), drops invented items, rewrites partially-correct ones, and appends `Hidden by +check` / `Adjusted by +check` counters to the Step 5 Summary block. Dependency fixes are recomputed against the filtered list after validation. Combined with `--list`, the flag is silently ignored — there is no refinement to validate.
 
 ### `/aif-loop [new|resume|status|stop|list|history|clean] [task or alias]` — iterative quality loop
 
@@ -308,9 +311,11 @@ Also runs read-only context gates against the resolved architecture, roadmap, an
 
 Checks only rules compliance for staged changes, working-tree changes, or a provided git ref. It reads the resolved rules hierarchy, uses optional active plan context only to disambiguate scope, and stays read-only. Human verdicts are `PASS` / `WARN` / `FAIL`: missing or ambiguous rules stay `WARN`, while `FAIL` is reserved for explicit hard-rule violations tied to concrete diff evidence. The final output appends an `aif-gate-result` JSON block with lowercase `pass` / `warn` / `fail`.
 
-### `/aif-review` — code review with read-only context gates
+### `/aif-review [PR number or URL] [+check]` — code review with read-only context gates
 
 Reviews staged changes or PR diff and reports correctness/security/performance findings. Includes read-only architecture/roadmap/rules gate notes in review output (`WARN` for non-blocking inconsistencies, `ERROR` only for explicitly blocking criteria), then appends an `aif-gate-result` JSON block.
+
+Optional `+check` runs a single fresh-context `general-purpose` subagent on the drafted findings (Critical Issues and Suggestions only): drops invented items, rewrites partially-correct ones in place, and may reclassify items between the two severity levels — promote a suggestion to "Critical Issues" when the cited behavior is actually merge-blocking, or demote a critical finding to "Suggestions" when the framing was too harsh. Severity definitions and the promotion/demotion rules live in `skills/aif-review/references/SEVERITY.md`. The rendered review gains a final line `Filtered: N hidden, M adjusted, K reclassified by +check`. The `aif-gate-result` block is rebuilt **after** filtering — from the surviving findings merged with the unchanged context-gate result, so a failing context gate keeps `status` at `fail` even when no Critical Issues remain; `suggested_next` is recomputed (`/aif-commit` when no blockers remain; otherwise `/aif-fix`, or the failing gate's own command — `/aif-rules`, `/aif-architecture`, `/aif-roadmap` — when a single context gate is the sole blocker). If the validator call fails entirely the unfiltered review is kept and a single `WARN [+check]` line is appended above the `aif-gate-result` block (which always stays last).
 
 ### `/aif-commit` — conventional commit with read-only context gates
 
