@@ -9,53 +9,70 @@ Workaround for upstream bug vercel-labs/skills#977:
   blocked skill — defeating the security scan gate in /aif.
 
 This script:
-  1. Runs `npx skills remove -s <skill> -y` (best-effort; removes files,
-     may leave the lock entry behind on project scope).
+  1. Runs `npx skills remove -s <skill> -y` (best-effort first pass;
+     removes files when the logical name matches the on-disk basename,
+     may leave the lock entry behind on project scope, and is a no-op
+     when upstream cannot match the logical name to the sanitized
+     directory — see "Why we don't rely on `npx skills remove`" below).
   2. Patches <root>/skills-lock.json to drop the "skills.<skill>" key
      atomically (tmp + os.replace). No-op if the entry is absent.
   3. Verifies the patched lock file no longer contains the skill entry.
+  4. When --installed-path is provided: physically removes the directory
+     via `safe_remove_installed()` after strict safety validation.
+     This is the authoritative cleanup step — the helper is the
+     guarantor of physical removal, not the upstream CLI.
 
-When upstream skills#977 is fixed, step 2 becomes a no-op and the script
-can be reduced to just calling `npx skills remove`; no consumer changes
-needed.
+When upstream skills#977 is fixed, step 2 becomes a no-op. Step 4 is
+still required because upstream `npx skills remove` does not apply
+sanitizeName() to its argument before matching (see below).
 
 Usage:
   cleanup-blocked-skill.py --skill <name> [--root <dir>]
                            [--installed-path <path>] [--dry-run]
 
 Exit codes:
-  0 - clean removal
+  0 - clean removal (lock cleared; if --installed-path supplied, dir is gone)
   1 - operational error (invalid JSON, write failed, lock-verify failed,
-      npx missing in non-dry-run, skill directory still present at
-      --installed-path, or `npx skills remove` returned non-zero when
-      --installed-path was not supplied to confirm file deletion)
+      npx missing in non-dry-run, `npx skills remove` returned non-zero
+      and --installed-path was not supplied, or a safety check on
+      --installed-path rejected the deletion)
   2 - usage error (missing/invalid arguments)
 
-Notes on --installed-path:
-  When provided, the helper verifies the physical skill directory is
-  gone after cleanup. This makes the exit code an exact signal:
-    - dir still exists  -> exit 1 (covers the silent rc=0+dir-leak case)
-    - dir is gone       -> exit 0 even if `npx skills remove` returned
-                           non-zero (downgrade partial-failure when the
-                           actual security goal is achieved)
-  When omitted, behavior is unchanged for backward compatibility:
-  any non-zero from `npx skills remove` is reported as exit 1.
+Why we don't rely on `npx skills remove` for physical deletion:
+  Upstream removeCommand() matches the provided --skill argument against
+  installed directory basenames using `name.toLowerCase() === dir.toLowerCase()`,
+  WITHOUT applying sanitizeName() to the input. So `npx skills remove -s
+  "Convex Best Practices"` does not match a directory installed at
+  `.<agent>/skills/convex-best-practices` (spaces vs. dashes), returns no
+  matches, and exits 0 silently. The helper therefore handles physical
+  deletion in Python via `safe_remove_installed()` whenever --installed-path
+  is supplied.
 
-  IMPORTANT: pass the ACTUAL installed directory (the one previously
-  fed to security-scan.py). Do NOT synthesize the path from the
-  logical skill name — upstream `skills` CLI sanitizes the on-disk
-  directory name (lowercase, non-alphanumeric runs collapsed to `-`),
-  so a logical name like "Convex Best Practices" lives at
-  `.<agent>/skills/convex-best-practices`, not `.<agent>/skills/Convex Best Practices`.
-  Synthesizing the path from the logical name will silently verify
-  the wrong location and may report success while the blocked skill
-  remains on disk.
+Notes on --installed-path:
+  When provided, the helper PHYSICALLY REMOVES the directory after a
+  series of strict safety checks (see `safe_remove_installed`). Pass
+  the ACTUAL installed directory (the one previously fed to
+  security-scan.py). Do NOT synthesize the path from the logical skill
+  name — upstream `skills` CLI sanitizes the on-disk directory name
+  (lowercase, non-alphanumeric runs collapsed to `-`), so a logical
+  name like "Convex Best Practices" lives at
+  `.<agent>/skills/convex-best-practices`, not
+  `.<agent>/skills/Convex Best Practices`. A synthesized path will
+  silently leave the real blocked skill on disk.
+
+Safety: `safe_remove_installed` rejects symlinks/junctions, paths
+outside --root, paths that are not under a `skills/` segment, paths
+without a `SKILL.md` marker (upstream skill format invariant), and
+non-directory targets. It does NOT defend against an active local
+adversary racing the filesystem between checks and deletion (TOCTOU);
+threat model is AI-agent local invocation, not adversarial-FS-race.
 """
 
 import argparse
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -183,6 +200,150 @@ def verify_lock_clean(lock_path: Path, skill: str) -> bool:
     return skill not in skills_section
 
 
+# Reparse-point bit on Windows. NTFS junctions (created via `mklink /J`)
+# carry FILE_ATTRIBUTE_REPARSE_POINT but Path.is_symlink() does not detect
+# them reliably on Python <= 3.11. We detect them explicitly so an
+# attacker cannot redirect `.claude/skills/foo` to an arbitrary path on
+# disk via a junction.
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+
+
+def _is_reparse_point(p: Path) -> bool:
+    """True if `p` is a symlink OR (on Windows) a reparse point.
+
+    Inspects `os.lstat` BEFORE any resolve() — resolve() would follow the
+    redirect and hide it. On non-Windows platforms this falls back to
+    the standard `is_symlink()` check.
+    """
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    # st_file_attributes is Windows-only (Python 3.5+).
+    attrs = getattr(st, 'st_file_attributes', None)
+    if attrs is not None and (attrs & _FILE_ATTRIBUTE_REPARSE_POINT):
+        return True
+    return False
+
+
+def _chmod_retry(func, path, exc_info):
+    """`shutil.rmtree` onerror: retry after clearing the read-only bit.
+
+    Windows refuses to delete read-only files via the standard unlink
+    syscall; clearing FILE_ATTRIBUTE_READONLY makes the retry succeed.
+    On POSIX, chmod +w is harmless when the original failure was a
+    different cause (the retry will simply fail again and propagate).
+    """
+    try:
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        pass
+    func(path)
+
+
+def safe_remove_installed(installed: Path, root: Path) -> None:
+    """Physically remove the installed skill directory after safety checks.
+
+    Raises RuntimeError when any check rejects the path; the caller maps
+    that to exit 1 with the rejection reason. Does nothing (returns
+    silently) when the directory is already absent — the goal state is
+    "directory is gone."
+
+    Safety checks (in order, first failure aborts):
+      1. Resolve absolute path (handles `--root`-relative input).
+      2. Already absent -> success (idempotent).
+      3. Reject symlinks and NTFS junctions (anti-redirect).
+      4. Must be a directory, not a file.
+      5. Must be inside --root via normcase-prefix compare (anti-escape;
+         portable across case-insensitive filesystems).
+      5b. Must not equal --root itself (defense-in-depth against
+         `--installed-path .` / "").
+      6. Must contain a `skills` path segment under --root (skill dirs
+         always live under `<agent>/skills/`).
+      7. Must contain a SKILL.md file at the top level (upstream skill
+         format invariant — anti-bug guard against the agent passing a
+         wrong path).
+      8. Delete via `shutil.rmtree` with an `onerror` that retries
+         after clearing the read-only bit (required on Windows).
+
+    NOT covered: TOCTOU races between checks and rmtree. Threat model
+    is AI-agent local invocation; an adversarial-FS-race actor is out
+    of scope. Documented in the module docstring.
+    """
+    # 1. Resolve. strict=False so we don't crash if dir already absent.
+    original = installed
+    if not original.is_absolute():
+        original = root / original
+    resolved = original.resolve(strict=False)
+
+    # 2. Already absent -> trivially clean.
+    if not resolved.exists():
+        return
+
+    # 3. Symlink / NTFS junction (pre-resolve check on `original`).
+    if _is_reparse_point(original):
+        raise RuntimeError(
+            f"refusing to delete {original}: path is a symlink or junction "
+            "(possible redirect to another location)"
+        )
+
+    # 4. Must be a directory.
+    if not resolved.is_dir():
+        raise RuntimeError(
+            f"refusing to delete {resolved}: not a directory"
+        )
+
+    # 5. Anti-escape: resolved must be strictly inside root.
+    #
+    # Use normcase to handle case-insensitive filesystems (Windows, macOS
+    # HFS+). pathlib's is_relative_to() compares case-sensitively on
+    # POSIX even when the underlying FS is not, which can produce false
+    # rejects.
+    real_root = root.resolve()
+    resolved_n = os.path.normcase(str(resolved))
+    root_n = os.path.normcase(str(real_root))
+    if not (resolved_n == root_n or resolved_n.startswith(root_n + os.sep)):
+        raise RuntimeError(
+            f"refusing to delete {resolved}: outside --root {real_root} "
+            "(path traversal or symlink escape)"
+        )
+
+    # 5b. Explicit equality guard. Cheap defense-in-depth: catches the
+    # `--installed-path .` / `--installed-path ""` bug class where the
+    # caller passes an empty/dot path and the resolved value equals root.
+    if resolved_n == root_n:
+        raise RuntimeError(
+            f"refusing to delete {resolved}: equals --root"
+        )
+
+    # 6. Must have a `skills` segment under root. Skill dirs always live
+    # under `<agent>/skills/<name>` (e.g. .claude/skills/, .cursor/skills/).
+    rel_parts = resolved.relative_to(real_root).parts
+    if 'skills' not in rel_parts:
+        raise RuntimeError(
+            f"refusing to delete {resolved}: no 'skills' segment under "
+            f"--root {real_root} (skill directories live under <agent>/skills/)"
+        )
+
+    # 7. Plausibility marker: SKILL.md must exist. Upstream skills format
+    # requires SKILL.md at the root of every installed skill — its
+    # absence almost certainly means the caller passed the wrong path
+    # (parent, sibling, or unrelated dir). Hard block, not warning:
+    # soft-warning + delete would be silently destructive.
+    if not (resolved / 'SKILL.md').is_file():
+        raise RuntimeError(
+            f"refusing to delete {resolved}: no SKILL.md marker "
+            "(upstream skill format requires it). Verify --installed-path "
+            "points at the skill directory, not its parent or a sibling."
+        )
+
+    # 8. Delete. shutil.rmtree refuses top-level symlinks and uses
+    # os.scandir internally (no symlink-following for children).
+    shutil.rmtree(resolved, onerror=_chmod_retry)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Cleanup helper for security-blocked skills: deletes the skill directory and clears its entry from skills-lock.json.",
@@ -250,21 +411,31 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
-    # Step 4: optional physical-directory verification.
-    # When --installed-path is supplied, the helper can give an exact
-    # signal: a missing directory downgrades partial CLI failure to
-    # success, and a present directory escalates even an "all green"
-    # run to exit 1 (catches the rc=0 + dir-still-there silent leak).
+    # Step 4: authoritative physical-directory removal.
+    # When --installed-path is supplied, the helper itself removes the
+    # directory after strict safety checks (see safe_remove_installed).
+    # This is required because upstream `npx skills remove` does not
+    # apply sanitizeName() to its --skill argument before matching, so
+    # for logical names that differ from the sanitized on-disk basename
+    # (e.g. "Convex Best Practices" vs convex-best-practices) upstream
+    # is a silent no-op. With this step, the helper is the guarantor.
     if args.installed_path and not args.dry_run:
+        installed = Path(args.installed_path)
+        try:
+            safe_remove_installed(installed, root)
+        except RuntimeError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        # Successful removal (or already-absent) means we no longer care
+        # whether `npx skills remove` reported partial failure earlier:
+        # the security goal — directory gone, lock cleared — is met.
+        cli_failed = False
+    elif args.installed_path and args.dry_run:
+        # Surface the would-be action for transparency.
         installed = Path(args.installed_path)
         if not installed.is_absolute():
             installed = root / installed
-        if installed.exists():
-            print(f"error: skill directory still present at {installed}; "
-                  "manual cleanup required (`rm -rf` the path)",
-                  file=sys.stderr)
-            return 1
-        cli_failed = False
+        print(f"would safely remove installed directory: {installed}")
 
     # Partial-failure exit: lock cleared but `npx skills remove` failed
     # and we cannot independently confirm the files are gone.

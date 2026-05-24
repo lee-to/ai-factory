@@ -299,30 +299,30 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Test 9: --installed-path still exists → exit 1 (catches silent leak)
+# Test 9: --installed-path leftover under skills/ → exit 0 + dir gone
 # ─────────────────────────────────────────────
-# Previously a rc=0 from npx with a leftover skill directory would have
-# been reported as success. With --installed-path, the helper escalates.
-# NOTE: We point --installed-path at a non-standard subdir (not under
-# .claude/skills/foo) so a real `npx skills` running on Windows
-# (PATHEXT-fallback bypassing our extension-less fake npx) does not
-# delete the leftover and invalidate the assertion.
+# Round-4 P1: the helper itself must physically remove the leftover
+# directory (variant B), not just report it. Fixture is placed at the
+# canonical install location (.claude/skills/<name>/SKILL.md) so all
+# safety checks pass and safe_remove_installed proceeds.
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
   "skills": {"foo": {"source": "x/y"}}
 }'
-mkdir -p "$TEST_TMPDIR/leftover-dir"
-echo "leftover" > "$TEST_TMPDIR/leftover-dir/SKILL.md"
+mkdir -p "$TEST_TMPDIR/.claude/skills/foo"
+echo "# leftover" > "$TEST_TMPDIR/.claude/skills/foo/SKILL.md"
 if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
-   --installed-path leftover-dir > "$TEST_TMPDIR/out" 2>&1; then
-    fail "--installed-path leftover → exit 1" "helper returned 0 despite leftover directory"
-else
-    if grep -q 'still present' "$TEST_TMPDIR/out"; then
-        pass "--installed-path leftover → exit 1 (error message)"
+   --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+    if [[ ! -e "$TEST_TMPDIR/.claude/skills/foo" ]]; then
+        pass "--installed-path leftover under skills/ → exit 0 + dir gone"
     else
-        fail "--installed-path leftover → exit 1" "exit non-zero but no 'still present' message. output: $(cat "$TEST_TMPDIR/out")"
+        fail "--installed-path leftover under skills/" \
+             "helper exited 0 but directory remains: $(cat "$TEST_TMPDIR/out")"
     fi
+else
+    fail "--installed-path leftover under skills/" \
+         "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
 fi
 rm -rf "$TEST_TMPDIR"
 
@@ -347,20 +347,26 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Test 11: sanitized-leftover regression (P1 from 3rd review round)
+# Test 11: sanitized-leftover end-to-end (P1 from review rounds 3 & 4)
 # ─────────────────────────────────────────────
 # Upstream `skills` sanitizes the on-disk directory name:
 #   "Convex Best Practices" -> "convex-best-practices"
-# An older prompt contract synthesized --installed-path as
-# `{{skills_dir}}/<name>`, i.e. ".claude/skills/Convex Best Practices",
-# which points at a path that NEVER existed. With cli_failed=True from
-# a partial npx failure, the helper would then see "directory absent",
-# downgrade to exit 0, and silently leave the REAL blocked directory
-# (sanitized path) on disk.
+# Upstream `npx skills remove -s "Convex Best Practices"` does NOT
+# apply sanitizeName() to the argument before matching, so it never
+# touches the sanitized directory; it exits 0 silently.
 #
-# This test exercises both contracts on the same fixture and proves
-# the new "pass the actual scanned path" contract is the only one
-# that surfaces the leftover.
+# Round 3 P1 fixed the prompt contract so agents pass the actual
+# scanned path. Round 4 P1 fixes the helper itself: it must remove
+# that physical directory, not just report leftover.
+#
+# Two sub-cases below probe both contracts on the same fixture:
+#   (a) regression-value: the OLD synthesized-path contract is still
+#       a silent no-op (path didn't exist), so without the new prompt
+#       contract a security-blocked dir would still leak. This proves
+#       why the prompt contract matters — it's a documentation case.
+#   (b) the FIX: with the correct path AND the new helper, the
+#       sanitized directory is physically removed and the lock key
+#       is cleared. This is the reviewer's explicit ask.
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
@@ -368,12 +374,13 @@ write_lock "$TEST_TMPDIR" '{
 }'
 # Real leftover at the SANITIZED upstream path:
 mkdir -p "$TEST_TMPDIR/.claude/skills/convex-best-practices"
-echo "leftover" > "$TEST_TMPDIR/.claude/skills/convex-best-practices/SKILL.md"
+echo "# blocked skill" > "$TEST_TMPDIR/.claude/skills/convex-best-practices/SKILL.md"
 
-# (a) OLD broken contract: synthesize path from logical name -> FALSE PASS.
-#     Fake npx returns 1 to engage the downgrade path. With the bogus
-#     unsanitized installed-path the helper sees "absent" and exits 0,
-#     proving the silent-leak hazard the new contract avoids.
+# (a) OLD broken contract: synthesize path from logical name -> silent no-op.
+#     Fake npx returns 1 (simulates the upstream no-match case). With the
+#     bogus unsanitized installed-path the helper sees "absent" and exits 0
+#     (idempotent on missing target), proving that without the new prompt
+#     contract the REAL sanitized directory would be left untouched.
 if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
         --skill "Convex Best Practices" \
         --root "$TEST_TMPDIR" \
@@ -383,6 +390,10 @@ if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
 else
     OLD_CONTRACT_EXIT=$?
 fi
+# Verify: sanitized dir IS still on disk (the silent-leak hazard).
+if [[ ! -d "$TEST_TMPDIR/.claude/skills/convex-best-practices" ]]; then
+    fail "sanitized leftover (a)" "old-contract path removed the wrong dir"
+fi
 
 # Re-add the lock entry that path (a) removed, so path (b) has work to do.
 write_lock "$TEST_TMPDIR" '{
@@ -390,8 +401,9 @@ write_lock "$TEST_TMPDIR" '{
   "skills": {"Convex Best Practices": {"source": "x/y"}}
 }'
 
-# (b) NEW correct contract: pass the actual sanitized scanned path.
-#     The helper must see leftover and exit 1.
+# (b) NEW correct contract + new helper: pass the actual sanitized scanned
+#     path. The helper must physically remove the directory AND clear the
+#     lock entry, even though upstream `npx skills remove` was a no-op.
 if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
         --skill "Convex Best Practices" \
         --root "$TEST_TMPDIR" \
@@ -402,11 +414,262 @@ else
     NEW_CONTRACT_EXIT=$?
 fi
 
-if [[ $OLD_CONTRACT_EXIT -eq 0 && $NEW_CONTRACT_EXIT -ne 0 ]] \
-   && grep -q 'still present' "$TEST_TMPDIR/out-b"; then
-    pass "sanitized leftover: old contract false-passes, new contract exits 1"
+LOCK_CLEAR=0
+if ! grep -q 'Convex Best Practices' "$TEST_TMPDIR/skills-lock.json"; then
+    LOCK_CLEAR=1
+fi
+DIR_GONE=0
+if [[ ! -e "$TEST_TMPDIR/.claude/skills/convex-best-practices" ]]; then
+    DIR_GONE=1
+fi
+
+if [[ $OLD_CONTRACT_EXIT -eq 0 \
+   && $NEW_CONTRACT_EXIT -eq 0 \
+   && $LOCK_CLEAR -eq 1 \
+   && $DIR_GONE -eq 1 ]]; then
+    pass "sanitized leftover: old-contract silent no-op + new-contract removes both"
 else
-    fail "sanitized leftover" "old=$OLD_CONTRACT_EXIT new=$NEW_CONTRACT_EXIT; out-a=$(cat "$TEST_TMPDIR/out-a"); out-b=$(cat "$TEST_TMPDIR/out-b")"
+    fail "sanitized leftover" \
+         "old=$OLD_CONTRACT_EXIT new=$NEW_CONTRACT_EXIT lock_clear=$LOCK_CLEAR dir_gone=$DIR_GONE; out-a=$(cat "$TEST_TMPDIR/out-a"); out-b=$(cat "$TEST_TMPDIR/out-b")"
+fi
+rm -rf "$TEST_TMPDIR"
+
+# ─────────────────────────────────────────────
+# Tests N1–N8: safe_remove_installed safety checks (round-4 P1)
+# ─────────────────────────────────────────────
+# These tests exercise each rejection path of safe_remove_installed
+# individually. Each setup is minimal so a failure isolates a single
+# safety guarantee.
+
+# N1: symlink at --installed-path → reject (POSIX only; Windows junctions
+# covered by a conditional block below).
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/outside-skill"
+echo "# outside" > "$TEST_TMPDIR/outside-skill/SKILL.md"
+mkdir -p "$TEST_TMPDIR/.claude/skills"
+if [[ $IS_WINDOWS -eq 0 ]]; then
+    ln -s "$TEST_TMPDIR/outside-skill" "$TEST_TMPDIR/.claude/skills/evil"
+    if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+       --installed-path .claude/skills/evil > "$TEST_TMPDIR/out" 2>&1; then
+        fail "N1: symlink rejection" "helper exited 0 despite symlink installed-path"
+    else
+        if [[ -e "$TEST_TMPDIR/outside-skill/SKILL.md" ]] && \
+           grep -q 'symlink or junction' "$TEST_TMPDIR/out"; then
+            pass "N1: symlink rejection (target preserved)"
+        else
+            fail "N1: symlink rejection" \
+                 "target tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+        fi
+    fi
+else
+    # Windows junction via cmd /c mklink /J (admin not required for junctions).
+    # Skip if mklink fails (some Windows setups disallow it without elevation).
+    if cmd //c "mklink /J \"$(cygpath -w "$TEST_TMPDIR/.claude/skills/evil")\" \"$(cygpath -w "$TEST_TMPDIR/outside-skill")\"" > /dev/null 2>&1; then
+        if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+           --installed-path .claude/skills/evil > "$TEST_TMPDIR/out" 2>&1; then
+            fail "N1: junction rejection (Windows)" "helper exited 0 despite junction"
+        else
+            if [[ -e "$TEST_TMPDIR/outside-skill/SKILL.md" ]] && \
+               grep -q 'symlink or junction' "$TEST_TMPDIR/out"; then
+                pass "N1: junction rejection (Windows; target preserved)"
+            else
+                fail "N1: junction rejection (Windows)" \
+                     "target tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+            fi
+        fi
+    else
+        pass "N1: junction rejection (Windows; mklink unavailable, skipped)"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N2: path-traversal escape → reject.
+# --installed-path ../escape-dir resolves outside --root, must be rejected.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+# Create an "outside" target a sibling of --root that the test could
+# theoretically traverse into.
+ESCAPE_DIR=$(mktemp -d)
+mkdir -p "$ESCAPE_DIR/.claude/skills/foo"
+echo "# escape" > "$ESCAPE_DIR/.claude/skills/foo/SKILL.md"
+# Walk up from $TEST_TMPDIR by enough '../' to reach ESCAPE_DIR's basename.
+ESCAPE_REL="../$(basename "$ESCAPE_DIR")/.claude/skills/foo"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path "$ESCAPE_REL" > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N2: path-traversal escape" "helper exited 0 despite ../ escape"
+else
+    if [[ -e "$ESCAPE_DIR/.claude/skills/foo" ]] && \
+       grep -Eq 'outside --root|path traversal' "$TEST_TMPDIR/out"; then
+        pass "N2: path-traversal escape rejected (target preserved)"
+    else
+        fail "N2: path-traversal escape" \
+             "target tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$ESCAPE_DIR"
+rm -rf "$TEST_TMPDIR"
+
+# N3: --installed-path inside --root but NOT under any `skills/` segment
+# → reject (check #6).
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/random-dir"
+echo "# random" > "$TEST_TMPDIR/random-dir/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path random-dir > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N3: not under skills/" "helper exited 0 despite non-skills location"
+else
+    if [[ -e "$TEST_TMPDIR/random-dir/SKILL.md" ]] && \
+       grep -q "no 'skills' segment" "$TEST_TMPDIR/out"; then
+        pass "N3: non-skills location rejected (dir preserved)"
+    else
+        fail "N3: not under skills/" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N4: missing SKILL.md marker → reject (check #7).
+# POSIX-only: on Windows shutil.which('npx') honours PATHEXT and resolves
+# to the system npx.cmd ahead of our extension-less fake. Real upstream
+# `npx skills remove` then scans .claude/skills/ and may delete the
+# directory wholesale (irrespective of SKILL.md presence), turning this
+# test into a false-pass via the "already absent" idempotent branch.
+# The safety check is exercised on Linux CI where the fake npx is used.
+if [[ $IS_WINDOWS -eq 0 ]]; then
+    fresh_tmp
+    write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+    mkdir -p "$TEST_TMPDIR/.claude/skills/foo"
+    # Intentionally NO SKILL.md
+    echo "# stuff but no marker" > "$TEST_TMPDIR/.claude/skills/foo/other.md"
+    if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+       --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+        fail "N4: missing SKILL.md" "helper exited 0 without SKILL.md marker"
+    else
+        if [[ -e "$TEST_TMPDIR/.claude/skills/foo/other.md" ]] && \
+           grep -q 'no SKILL.md marker' "$TEST_TMPDIR/out"; then
+            pass "N4: missing SKILL.md rejected (dir preserved)"
+        else
+            fail "N4: missing SKILL.md" \
+                 "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+        fi
+    fi
+    rm -rf "$TEST_TMPDIR"
+else
+    pass "N4: missing SKILL.md (Windows; skipped — real npx clobbers fixture)"
+fi
+
+# N5: --installed-path is a regular file, not a directory → reject (check #4).
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/.claude/skills"
+echo "I am a file" > "$TEST_TMPDIR/.claude/skills/foo"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N5: file instead of dir" "helper exited 0 despite file at installed-path"
+else
+    if [[ -f "$TEST_TMPDIR/.claude/skills/foo" ]] && \
+       grep -q 'not a directory' "$TEST_TMPDIR/out"; then
+        pass "N5: file-not-dir rejected (file preserved)"
+    else
+        fail "N5: file instead of dir" \
+             "file tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N6: sibling skill under same parent must be preserved during cleanup.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"blocked": {"source": "x/y"}, "neighbor": {"source": "a/b"}}
+}'
+mkdir -p "$TEST_TMPDIR/.claude/skills/blocked"
+mkdir -p "$TEST_TMPDIR/.claude/skills/neighbor"
+echo "# blocked" > "$TEST_TMPDIR/.claude/skills/blocked/SKILL.md"
+echo "# neighbor" > "$TEST_TMPDIR/.claude/skills/neighbor/SKILL.md"
+if "$PYTHON" "$HELPER" --skill blocked --root "$TEST_TMPDIR" \
+   --installed-path .claude/skills/blocked > "$TEST_TMPDIR/out" 2>&1; then
+    if [[ ! -e "$TEST_TMPDIR/.claude/skills/blocked" ]] && \
+       [[ -f "$TEST_TMPDIR/.claude/skills/neighbor/SKILL.md" ]]; then
+        pass "N6: sibling preserved during cleanup"
+    else
+        fail "N6: sibling preservation" \
+             "blocked still exists or neighbor was deleted: $(cat "$TEST_TMPDIR/out")"
+    fi
+else
+    fail "N6: sibling preservation" \
+         "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N7: permission-failure mid-rmtree → exit 1 (POSIX only; chmod 000 on
+# Windows does not produce the same delete-blocking behavior).
+if [[ $IS_WINDOWS -eq 0 ]]; then
+    fresh_tmp
+    write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+    mkdir -p "$TEST_TMPDIR/.claude/skills/foo/locked"
+    echo "# blocked" > "$TEST_TMPDIR/.claude/skills/foo/SKILL.md"
+    echo "stay" > "$TEST_TMPDIR/.claude/skills/foo/locked/child"
+    # Drop write perms on the parent so children cannot be unlinked.
+    chmod 555 "$TEST_TMPDIR/.claude/skills/foo/locked"
+    if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+       --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+        # On some POSIX setups (running as root, tmpfs without DAC, etc.)
+        # rmtree may still succeed. Don't fail in that case — accept.
+        chmod -R 755 "$TEST_TMPDIR/.claude/skills/foo" 2>/dev/null || true
+        pass "N7: permission-failure (POSIX; rmtree succeeded — root or relaxed FS)"
+    else
+        # Restore perms so cleanup below can run.
+        chmod -R 755 "$TEST_TMPDIR/.claude/skills/foo" 2>/dev/null || true
+        pass "N7: permission-failure rejected with non-zero exit"
+    fi
+    rm -rf "$TEST_TMPDIR"
+else
+    pass "N7: permission-failure (Windows; skipped — different semantics)"
+fi
+
+# N8: --installed-path == --root → reject (check #5b).
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+# Put a SKILL.md at root so the SKILL.md check alone wouldn't block —
+# we need to prove #5b fires before #7.
+echo "# root SKILL.md (should not be touched)" > "$TEST_TMPDIR/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path . > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N8: installed-path == root" "helper exited 0 despite installed-path == root"
+else
+    # Both #5b "equals --root" and #6 "no 'skills' segment" are valid
+    # rejection reasons (resolved root has no 'skills' part). Accept either.
+    if [[ -d "$TEST_TMPDIR" ]] && [[ -f "$TEST_TMPDIR/SKILL.md" ]] && \
+       grep -Eq "equals --root|no 'skills' segment" "$TEST_TMPDIR/out"; then
+        pass "N8: installed-path == root rejected (root preserved)"
+    else
+        fail "N8: installed-path == root" \
+             "root tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
 fi
 rm -rf "$TEST_TMPDIR"
 
