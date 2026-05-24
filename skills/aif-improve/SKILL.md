@@ -1,8 +1,8 @@
 ---
 name: aif-improve
-description: Refine and enhance an existing implementation plan with a second iteration. Re-analyzes the codebase, checks for gaps, missing tasks, wrong dependencies, and improves the plan quality. Use after /aif-plan to polish the plan before implementation, or to improve an existing /aif-fix plan.
-argument-hint: "[--list] [@plan-file] [improvement prompt or empty for auto-review]"
-allowed-tools: Read Write Edit Glob Grep Bash(git *) TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
+description: Refine an existing implementation plan with a second iteration. Re-analyzes the codebase for gaps, missing tasks, and wrong dependencies. Use after /aif-plan or to improve an /aif-fix plan. Optional +check flag validates refinements via a fresh-context subagent.
+argument-hint: "[--list] [+check] [@plan-file] [improvement prompt or empty for auto-review]"
+allowed-tools: Read Write Edit Glob Grep Bash(git *) Task Agent TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 ---
 
@@ -22,7 +22,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 
 ## Workflow
 
-### Step 0: Load Config & Find the Plan
+### Step 0: Load Config & Parse Arguments
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, and `paths.patches`
@@ -49,41 +49,22 @@ If config.yaml doesn't exist, use defaults:
 
 ```
 - --list    → list available plans only (read-only, then STOP)
+- +check    → after refinement, validate findings via a fresh-context subagent
 - @<path>   → explicit plan file override (highest priority)
 - remaining argument text → optional improvement prompt
 ```
 
-When both are present, `--list` wins and no refinement is executed.
+`+check` is orthogonal to the other flags and may appear anywhere in `$ARGUMENTS`. Strip it from the argument string before resolving `@<path>` and the improvement prompt.
+
+When `--list` is present, it wins and no refinement is executed. `+check` is silently ignored in `--list` mode (there is nothing to validate before refinement runs).
 
 ### Step 0.list: List Available Plans (`--list`)
 
-If `$ARGUMENTS` contains `--list`, run read-only discovery and stop.
+If `$ARGUMENTS` contains `--list`, execute the procedure in `references/LIST-MODE.md` and STOP. That document is the single source of truth for the discovery rules, output shape, and read-only contract (no refinement, no file modifications, `+check` is silently ignored). Do not duplicate its content here.
 
-```
-1. Get current branch:
-   git branch --show-current (git mode only)
-2. Convert branch to filename stem: replace "/" with "-" (git mode only)
-   → this is <branch-slug>
-3. Check existence of:
-   - <configured plans dir>/<branch-slug>.md (default `plan_id_format`)
-   - when `workflow.plan_id_format = sequential`: also glob
-     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md`;
-     report all matches (highest-numbered first)
-   - if git mode is off or branch creation is disabled: any `*.md` full-mode plan in `<configured plans dir>/`
-     (a leading 4-digit prefix counts as a match)
-   - <resolved fast plan path>
-   - <resolved fix plan path>
-4. Print availability summary and usage hints:
-   - /aif-improve @<path> <optional prompt>
-   - /aif-improve <optional prompt>      # automatic priority
-5. If none found, suggest creating a plan via /aif-plan or /aif-fix
-6. STOP.
-```
+### Step 1: Resolve Active Plan
 
-**Important:** In `--list` mode:
-- Do not execute refinement
-- Do not modify files
-- Do not update TaskList/plan content
+This step runs in the default (non-`--list`) mode and picks **one** plan file for refinement using the priority chain below. The discovery-list logic for `--list` lives in `references/LIST-MODE.md` and is independent of this step.
 
 **Locate the active plan file using this priority:**
 
@@ -126,11 +107,11 @@ To create a plan first, use:
 
 → **STOP here.** Do not proceed without a plan file.
 
-**If plan file found → read it and continue to Step 1.**
+**If plan file found → proceed to Step 2 (Load Context).**
 
-### Step 1: Load Context
+### Step 2: Load Context
 
-**1.1: Read the plan file**
+**2.1: Read the plan file**
 
 Read the found plan file completely. Understand:
 - Feature scope and goals
@@ -139,7 +120,7 @@ Read the found plan file completely. Understand:
 - Commit checkpoints
 - Which tasks are already completed (checkboxes `- [x]`)
 
-**1.2: Read project context**
+**2.2: Read project context**
 
 Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists:
 - Tech stack
@@ -149,7 +130,7 @@ Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists:
 
 Read `.ai-factory/RESEARCH.md` (use path from config) if it exists and is relevant to the plan being refined.
 
-**1.3: Read patches (limited fallback)**
+**2.3: Read patches (limited fallback)**
 
 Use patches as fallback context, not the default source:
 
@@ -181,7 +162,7 @@ codebase conventions, and tech-stack analysis. These rules are tailored to the c
 **Enforcement:** After generating any output artifact, verify it against all skill-context rules.
 If any rule is violated — fix the output before presenting it to the user.
 
-**1.4: Load current task list**
+**2.4: Load current task list**
 
 ```
 TaskList → Get all tasks with statuses
@@ -189,11 +170,11 @@ TaskList → Get all tasks with statuses
 
 Understand what's already been created, what's in progress, what's completed.
 
-### Step 2: Deep Codebase Analysis
+### Step 3: Deep Codebase Analysis
 
 Now do a **deeper** codebase exploration than what `/aif-plan` did initially:
 
-**2.1: Trace through existing code paths**
+**3.1: Trace through existing code paths**
 
 For each task in the plan, find the relevant files:
 ```
@@ -207,7 +188,7 @@ Look for:
 - Hidden dependencies the plan missed
 - Shared utilities or services the plan should use instead of creating new ones
 
-**2.2: Check for integration points**
+**3.2: Check for integration points**
 
 Look for things the plan might have missed:
 - API routes that need updating
@@ -217,7 +198,7 @@ Look for things the plan might have missed:
 - Middleware or guards that apply
 - Existing validation patterns
 
-**2.3: Check for edge cases**
+**3.3: Check for edge cases**
 
 Based on the tech stack and codebase:
 - Error handling patterns used in the project
@@ -226,45 +207,62 @@ Based on the tech stack and codebase:
 - Rate limiting, caching considerations
 - Data validation at boundaries
 
-### Step 3: Identify Improvements
+### Step 4: Identify Improvements
 
 Compare the plan against what you found. Categorize issues:
 
-**3.1: Missing tasks**
+**4.1: Missing tasks**
 - Tasks that should exist but don't (e.g., migration, config update, index creation)
 - Tasks for edge cases not covered
 
-**3.2: Task quality issues**
+**4.2: Task quality issues**
 - Descriptions too vague (no file paths, no specific implementation details)
 - Missing logging requirements
 - Missing error handling details
 - Incorrect file paths
 
-**3.3: Dependency issues**
+**4.3: Dependency issues**
 - Wrong task order (task A depends on B but B comes after A)
 - Missing dependencies (task C needs task A's output but isn't blocked by it)
 - Unnecessary dependencies (tasks could run in parallel)
 
-**3.4: Redundant or duplicate tasks**
+**4.4: Redundant or duplicate tasks**
 - Two tasks doing the same thing
 - Task that's unnecessary because the code already exists
 - Task that duplicates existing functionality
 
-**3.5: Scope issues**
+**4.5: Task size issues**
 - Tasks too large (should be split)
 - Tasks too small (should be merged)
-- Tasks outside the feature scope (gold-plating)
+- Split/merge findings go into the "📝 Task Improvements" report section (`improvements` group, alongside 4.2) — they restructure existing tasks rather than add or remove them.
 
-**3.6: User-prompted improvements (if $ARGUMENTS provided)**
+**4.6: Out-of-scope tasks**
+- Tasks already in the plan that look useful in themselves but are unrelated to the feature this plan is about (gold-plating)
+- On approval these are removed from the active plan — the same drop action as `removals` (see Step 6.4). The difference is the report only: an out-of-scope task goes to its own "💡 Out of scope" section instead of being lumped into "🗑️ Removals", so the user sees a useful-but-unrelated idea before it is dropped and can choose to capture it elsewhere. The skill itself does not persist out-of-scope items anywhere.
 
-If the user provided specific improvement instructions in `$ARGUMENTS` (excluding `--list` and `@<path>` tokens):
+**4.7: User-prompted improvements (if $ARGUMENTS provided)**
+
+If the user provided specific improvement instructions in `$ARGUMENTS` (excluding `--list`, `+check`, and `@<path>` tokens):
 - Apply the user's feedback to the plan
 - Look for tasks that need modification based on the prompt
 - Add new tasks if the user's prompt requires them
 
-### Step 4: Present Improvements
+This is a dispatcher step, not a separate finding category. Each finding it produces is routed to its natural group based on its nature: a new task goes to 4.1 (`missing`), a rewording or expansion of an existing task goes to 4.2 (`improvements`), an explicit removal request goes to 4.4 (`removals`), and a "useful-but-out-of-scope" idea goes to 4.6 (`out_of_scope`). There is no separate 4.7 group in the Step 5 report or in `+check` validation.
 
-Show the user what you found in a clear format:
+### Optional: `+check` validation between Step 4 and Step 5
+
+When the `+check` flag is set (and `--list` is not), run the validation procedure from `references/CHECK-MODE.md` here, between Step 4 and Step 5. It re-reads cited files via a fresh-context subagent, then drops invented items, rewrites partially-correct ones, and recomputes dependencies on the filtered list. Without `+check`, skip this entirely — the output has no validator-related lines and the Summary block stays in its default shape without the two `+check` counter rows.
+
+### Step 5: Present Improvements
+
+Show the user what you found in a clear format. The emoji-grouped sections are kept for scannability, but the items inside "🆕 Missing Tasks", "📝 Task Improvements", "🗑️ Removals", and "💡 Out of scope" all follow the same prose shape — no labeled `Why:` / `Issue:` / `Fix:` fields:
+
+1. **Behavioral impact** — what breaks or becomes harder if the plan stays as-is (missing capability, vague task that will be misimplemented, redundant task that wastes effort).
+2. **Optional note** — short citation from the codebase, an existing pattern the plan should match, or a consequence. Include only when it adds signal.
+3. **Plan anchor** — `Task #X` reference (or "after Task #X" for new tasks).
+4. **Suggested edit** — concrete change: what to add / how to reword / what to remove.
+
+The "🔗 Dependency Fixes" group is **not** restated in this shape — it is always computed after the four other groups (and after `+check` filtering when the flag is set, see `references/CHECK-MODE.md`) and uses the short legacy form: `Task #X should depend on Task #Y. Reason: …`. The dependency entries reference only tasks that survived filtering.
 
 ```
 ## Plan Refinement Report
@@ -275,35 +273,28 @@ Tasks analyzed: N
 ### Findings
 
 #### 🆕 Missing Tasks (N found)
-1. **[New task subject]**
-   Why: [reason this task is needed]
-   After: Task #X (dependency)
-
-2. **[New task subject]**
-   Why: [reason]
+1. The plan currently leaves authenticated requests without a session refresh step — long-running clients silently lose access after the access-token TTL. The existing middleware in `src/middleware/auth.ts` already exposes a `refresh()` hook, so the plan should reuse it instead of inventing a new one. After Task #3. Add a new task: "Wire `authMiddleware.refresh()` into the login flow and cover the expired-token path with an explicit test."
 
 #### 📝 Task Improvements (N found)
-1. **Task #X: [subject]**
-   Issue: [what's wrong]
-   Fix: [what should change]
-
-2. **Task #Y: [subject]**
-   Issue: [what's wrong]
-   Fix: [what should change]
+1. Task #4 ("Add validation") gives no field-by-field contract — implementer will either over-validate or skip the email format check that the rest of the codebase enforces via `validators/email.ts`. Task #4. Rewrite as: "Validate `email` (via `validators/email.ts`), `password` (min 12 chars), and `displayName` (1-64 chars) in `RegisterRequest`; return 422 with field-level errors when validation fails."
 
 #### 🔗 Dependency Fixes (N found)
-1. Task #X should depend on Task #Y
-   Reason: [why]
+1. Task #5 should depend on Task #2. Reason: Task #5 consumes the session helper introduced in Task #2.
 
 #### 🗑️ Removals (N found)
-1. **Task #X: [subject]**
-   Reason: [why it's redundant/unnecessary]
+1. Task #7 ("Create UserRepository") duplicates `src/repos/user.ts:12` which already exposes the same query surface — keeping the task will lead to a parallel implementation. Task #7. Remove the task; rely on the existing repository and adjust Task #8 to import it.
+
+#### 💡 Out of scope — for later (N found)
+1. Task #11 ("Refactor the logging module") looks reasonable on its own but is unrelated to the login feature this plan is about — keeping it expands scope without any concrete trigger from the current code paths. Task #11. Drop it from the active plan; the idea is surfaced here so you can capture it elsewhere (issue tracker, backlog note) if it's worth revisiting as its own feature later.
 
 #### 📋 Summary
 - Missing tasks: N
 - Tasks to improve: N
 - Dependencies to fix: N
 - Tasks to remove: N
+- Out of scope: N
+
+When `+check` ran successfully, two extra rows (`Hidden by +check: N`, `Adjusted by +check: M`) are appended to the Summary block — the exact wording and failure-mode replacements live in `references/CHECK-MODE.md`.
 
 AskUserQuestion: Apply these improvements?
 
@@ -332,11 +323,11 @@ Ready to implement:
 /aif-implement
 ```
 
-### Step 5: Apply Approved Improvements
+### Step 6: Apply Approved Improvements
 
 Based on user's choice:
 
-**5.1: Apply task improvements**
+**6.1: Apply task improvements**
 
 For existing tasks that need better descriptions:
 ```
@@ -344,7 +335,7 @@ TaskGet(taskId) → read current
 TaskUpdate(taskId, description: "improved description", subject: "improved subject")
 ```
 
-**5.2: Add missing tasks**
+**6.2: Add missing tasks**
 
 For new tasks:
 ```
@@ -352,19 +343,23 @@ TaskCreate(subject, description, activeForm)
 TaskUpdate(taskId, addBlockedBy: [...]) → set dependencies
 ```
 
-**5.3: Fix dependencies**
+**6.3: Fix dependencies**
 
 ```
 TaskUpdate(taskId, addBlockedBy: [...])
 ```
 
-**5.4: Remove redundant tasks**
+**6.4: Remove redundant or out-of-scope tasks**
+
+Both `removals` and `out_of_scope` translate to the same plan-file action — drop the task:
 
 ```
 TaskUpdate(taskId, status: "deleted")
 ```
 
-**5.5: Update the plan file**
+The difference between the two is the report only. `removals` are dead-weight duplicates: mentioned once and forgotten. `out_of_scope` items appear in the "💡 Out of scope" section so the user sees the idea was noticed and consciously dropped from this plan, not removed without a trace. The skill does not persist out-of-scope tasks anywhere — capturing the idea elsewhere (issue tracker, backlog) is the user's call.
+
+**6.5: Update the plan file**
 
 **CRITICAL:** After all changes, update the plan file to reflect the new state:
 
@@ -383,7 +378,7 @@ exact numeric prefix on rewrite. Never renumber a plan during an improve pass �
 the prefix is permanent and must survive any regeneration. Write back to the
 same absolute path you read from.
 
-**5.6: Confirm completion**
+**6.6: Confirm completion**
 
 ```
 ## Plan Refined
@@ -417,108 +412,11 @@ Suggest the user to free up context space if needed: `/clear` (full reset) or `/
 2. **Preserve completed work** — never modify or remove `- [x]` completed tasks
 3. **Traceable improvements** — every change must be justified by codebase analysis or user input
 4. **Respect settings** — if testing is "no", don't add test tasks. If logging is "minimal", don't add verbose logging tasks
-5. **No gold-plating** — don't add tasks outside the feature scope unless critical
+5. **No gold-plating** — don't propose adding tasks outside the feature scope unless critical. When you find a task already in the plan that drifts outside scope, route it to the "💡 Out of scope" report section, not to "🗑️ Removals" — the user should see useful-but-not-here ideas separately from dead-weight duplicates.
 6. **Minimal viable improvements** — suggest only what matters, not every possible enhancement
 7. **User approves first** — never apply changes without user confirmation
 8. **Keep plan file in sync** — the plan file MUST match the task list after improvements
 
 ## Examples
 
-### Example 1: Auto-review (no arguments)
-
-```
-User: /aif-improve
-
-→ Found plan: .ai-factory/plans/feature-user-auth.md
-→ 6 tasks in plan
-→ Deep codebase analysis...
-→ Found: project uses middleware pattern for auth, plan misses middleware task
-→ Found: Task #3 description doesn't mention existing UserService
-→ Found: Task #5 depends on Task #3 but no dependency set
-
-Report:
-- 1 missing task (auth middleware)
-- 1 task to improve (reference UserService)
-- 1 dependency to fix
-
-Apply? → Yes → Changes applied
-```
-
-### Example 2: With user prompt
-
-```
-User: /aif-improve добавь обработку ошибок и валидацию входных данных
-
-→ Found plan: <resolved fast plan path>
-→ 4 tasks in plan
-→ User wants: error handling + input validation
-→ Analyzing each task for missing error handling...
-→ Found: none of the tasks mention input validation
-→ Found: error handling is inconsistent
-
-Report:
-- 2 tasks improved (added validation details to descriptions)
-- 1 new task (create shared validation utils)
-- Updated task descriptions with error handling patterns from codebase
-
-Apply? → Yes → Changes applied
-```
-
-### Example 3: No plan found
-
-```
-User: /aif-improve
-
-→ Branch: <current-branch-or-empty>
-→ No matching branch-based full plan found
-→ No resolved fast plan found
-→ No resolved fix plan found
-→ No plan file found
-
-"No active plan found. Create one first:
-- /aif-plan full <description>
-- /aif-plan fast <description>
-- /aif-fix <bug description>"
-```
-
-### Example 4: Explicit plan file
-
-```
-User: /aif-improve @my-custom-plan.md add rollback and edge-case handling
-
-→ Explicit plan override: my-custom-plan.md
-→ Found plan: my-custom-plan.md
-→ User wants: rollback + edge-case handling
-→ Deep codebase analysis...
-→ Report prepared
-```
-
-### Example 5: List mode
-
-```
-User: /aif-improve --list
-
-## Available Plans
-Current branch: feature/user-auth
-- [x] .ai-factory/plans/feature-user-auth.md
-- [ ] <resolved fast plan path>
-- [x] <resolved fix plan path>
-
-Use:
-- /aif-improve @.ai-factory/plans/feature-user-auth.md
-- /aif-improve add validation and retries
-```
-
-### Example 6: Plan already looks good
-
-```
-User: /aif-improve
-
-→ Found plan: .ai-factory/plans/feature-product-search.md
-→ 5 tasks in plan
-→ Deep analysis... all tasks well-defined, dependencies correct
-→ No significant improvements found
-
-"Plan looks solid! Ready to implement:
-/aif-implement"
-```
+Worked examples for the default, prompt-driven, no-plan, explicit-plan-file, and "plan looks solid" flows live in `references/EXAMPLES.md`. The `--list` mode example lives in `references/LIST-MODE.md`; the `+check` mode example lives in `references/CHECK-MODE.md`.

@@ -1,0 +1,135 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the +check branches below executed.
+
+scenario: list-mode-ignores-check
+description: |
+  When `--list` and `+check` are passed together, `--list` wins. The
+  skill must:
+
+    1. Run the read-only discovery procedure from
+       skills/aif-improve/references/LIST-MODE.md.
+    2. NEVER dispatch the +check validator — no
+       `Task(subagent_type: general-purpose, ...)` call at any point in
+       the run, even though `Task` is in the allowed-tools list (the
+       silent-ignore contract must hold even when the tool is available).
+    3. NEVER modify any file, plan, or task list (read-only `--list`
+       contract — Write and Edit are deliberately not invoked).
+    4. NEVER print a `Filtered: ... by +check` summary line or a
+       `WARN [+check]` line — both belong only to runs where +check
+       actually executes.
+
+  Documents the silent-ignore contract spelled out in
+  skills/aif-improve/references/CHECK-MODE.md and LIST-MODE.md
+  ("+check together with --list is silently ignored — no refinement to
+  validate"). Per ichinya's PR #120 P2 ask.
+
+  Fixture state:
+    Current branch:                    feature/user-auth
+    Branch-derived slug:               feature-user-auth
+    .ai-factory/plans/feature-user-auth.md   (single discovery target)
+skill: aif-improve
+argument: "--list +check"
+max_turns: 30
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  # `Task` IS in the allowed list on purpose. The contract is that the
+  # skill must not USE it in --list mode regardless of availability;
+  # omitting Task here would weaken the test to "couldn't, not wouldn't".
+  allowed_tools_override:
+    - Read
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(pwd)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(printenv *)
+    - Task
+    - Agent
+    - AskUserQuestion
+    - Questions
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/user-auth
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+
+        Fixture for /aif-improve --list +check no-op contract.
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: slug
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: .ai-factory/plans/feature-user-auth.md
+      content: |
+        # Feature: user-auth
+
+        ## Context
+        - Mode: full
+        - Tests: no
+        - Logging: no
+        - Docs: no
+
+        ## Tasks
+
+        - [ ] Task 1: Stub task — discovery target for --list, not
+              refinement.
+
+assertions:
+  - id: validator-not-dispatched
+    type: no_tool_called
+    tool: Task
+    args_match:
+      subagent_type: "^general-purpose$"
+    weight: 4
+
+  - id: list-output-rendered
+    type: output_contains
+    pattern: "(?i)available plans"
+    weight: 3
+
+  - id: lists-the-branch-plan
+    type: output_contains
+    pattern: "feature-user-auth\\.md"
+    weight: 2
+
+  - id: no-filtered-summary
+    type: no_output_contains
+    pattern: "Filtered:[^\\n]*by \\+check"
+
+  - id: no-warn-check
+    type: no_output_contains
+    pattern: "WARN \\[\\+check\\]"
+
+  - id: list-mode-does-not-write
+    type: no_tool_called
+    tool: Write
+
+  - id: list-mode-does-not-edit
+    type: no_tool_called
+    tool: Edit
+
+  - id: list-mode-does-not-create-tasks
+    type: no_tool_called
+    tool: TaskCreate
+
+  - id: list-mode-does-not-update-tasks
+    type: no_tool_called
+    tool: TaskUpdate
+
+  - id: stay-in-sandbox
+    type: no_path_escape
