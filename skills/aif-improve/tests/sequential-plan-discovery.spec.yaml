@@ -1,3 +1,7 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the --list branches below executed.
+
 scenario: sequential-plan-discovery
 description: |
   With `workflow.plan_id_format: sequential` and multiple numbered plan files

@@ -1,3 +1,7 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the +check branches below executed.
+
 scenario: list-mode-ignores-check
 description: |
   When `--list` and `+check` are passed together, `--list` wins. The

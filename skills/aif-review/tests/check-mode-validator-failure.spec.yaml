@@ -1,3 +1,7 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the +check branches below executed.
+
 scenario: check-mode-validator-failure
 description: |
   With `+check` enabled but the `Task` tool intentionally NOT in the
@@ -22,7 +26,7 @@ description: |
   partial-filter output when the validator is unreachable, and the
   WARN line is always above the gate-result fence.
 
-  Fixture state mirrors check-mode-happy-path.yaml — the only difference
+  Fixture state mirrors check-mode-happy-path.spec.yaml — the only difference
   is the runner's allowed-tools list, which deliberately omits `Task` so
   the validator dispatch is denied.
 

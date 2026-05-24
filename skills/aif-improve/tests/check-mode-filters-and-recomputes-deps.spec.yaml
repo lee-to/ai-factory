@@ -1,3 +1,7 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the +check branches below executed.
+
 scenario: check-mode-filters-and-recomputes-deps
 description: |
   With a plan that lets the auto-review produce at least one fabricated

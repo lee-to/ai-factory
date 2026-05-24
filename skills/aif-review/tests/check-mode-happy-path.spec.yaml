@@ -1,3 +1,7 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the +check branches below executed.
+
 scenario: check-mode-happy-path
 description: |
   With staged changes that produce at least one Critical Issue and at
@@ -17,7 +21,7 @@ description: |
        gate-result-stays-last rule from SKILL.md is preserved when
        +check runs).
     5. NOT print a `WARN [+check]` line — that is reserved for failure
-       paths (see check-mode-validator-failure.yaml).
+       paths (see check-mode-validator-failure.spec.yaml).
 
   Regression context: this is the happy-path contract for ichinya's
   PR #120 P2 ask — proves the validator is invoked once and that the
@@ -42,8 +46,8 @@ description: |
   skill so that `git diff --cached` is non-empty (no-arguments
   staged-mode review). No existing runner consumes this field today;
   introducing it is part of the contract this fixture documents. The
-  same convention is shared by check-mode-validator-failure.yaml and
-  check-mode-validator-malformed.yaml in this directory.
+  same convention is shared by check-mode-validator-failure.spec.yaml and
+  check-mode-validator-malformed.spec.yaml in this directory.
 
   Runner requirements (checklist for the future runner — same items
   are spelled out in prose above):

@@ -1,3 +1,7 @@
+# spec-only fixture (.spec.yaml): describes the contract for a future
+# runner. No existing runner consumes this file, so a green CI does not
+# prove the +check branches below executed.
+
 scenario: check-mode-validator-malformed
 description: |
   With `+check` enabled and the Task tool available, but with the
@@ -7,7 +11,7 @@ description: |
   must take the per-item-malformed branch of the procedure described in
   skills/aif-review/references/CHECK-MODE.md (distinct from the
   whole-dispatch failure path covered by
-  check-mode-validator-failure.yaml):
+  check-mode-validator-failure.spec.yaml):
 
     1. Dispatch the validator exactly once (the dispatch itself
        succeeds — the failure is per-item, not at the dispatch level).
@@ -36,14 +40,14 @@ description: |
   (well-formed item filtered, malformed item kept-with-WARN) are
   exercised in a single run.
 
-  Spec extension: like check-mode-happy-path.yaml and
-  check-mode-validator-failure.yaml, this fixture uses a `files_staged:`
+  Spec extension: like check-mode-happy-path.spec.yaml and
+  check-mode-validator-failure.spec.yaml, this fixture uses a `files_staged:`
   block (parallel to `files_committed:`) so that `git diff --cached`
   produces non-empty input for the no-arguments staged-mode review.
   No existing runner consumes this field today; introducing it is part
   of the contract this fixture documents.
 
-  Fixture state mirrors check-mode-happy-path.yaml — same baseline
+  Fixture state mirrors check-mode-happy-path.spec.yaml — same baseline
   commit + same staged diff. Only the validator response shape differs.
 
   Runner requirements (checklist for the future runner — same items
