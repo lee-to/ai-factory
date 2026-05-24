@@ -40,6 +40,16 @@ Notes on --installed-path:
                            actual security goal is achieved)
   When omitted, behavior is unchanged for backward compatibility:
   any non-zero from `npx skills remove` is reported as exit 1.
+
+  IMPORTANT: pass the ACTUAL installed directory (the one previously
+  fed to security-scan.py). Do NOT synthesize the path from the
+  logical skill name — upstream `skills` CLI sanitizes the on-disk
+  directory name (lowercase, non-alphanumeric runs collapsed to `-`),
+  so a logical name like "Convex Best Practices" lives at
+  `.<agent>/skills/convex-best-practices`, not `.<agent>/skills/Convex Best Practices`.
+  Synthesizing the path from the logical name will silently verify
+  the wrong location and may report success while the blocked skill
+  remains on disk.
 """
 
 import argparse

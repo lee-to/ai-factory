@@ -346,6 +346,100 @@ else
 fi
 rm -rf "$TEST_TMPDIR"
 
+# ─────────────────────────────────────────────
+# Test 11: sanitized-leftover regression (P1 from 3rd review round)
+# ─────────────────────────────────────────────
+# Upstream `skills` sanitizes the on-disk directory name:
+#   "Convex Best Practices" -> "convex-best-practices"
+# An older prompt contract synthesized --installed-path as
+# `{{skills_dir}}/<name>`, i.e. ".claude/skills/Convex Best Practices",
+# which points at a path that NEVER existed. With cli_failed=True from
+# a partial npx failure, the helper would then see "directory absent",
+# downgrade to exit 0, and silently leave the REAL blocked directory
+# (sanitized path) on disk.
+#
+# This test exercises both contracts on the same fixture and proves
+# the new "pass the actual scanned path" contract is the only one
+# that surfaces the leftover.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"Convex Best Practices": {"source": "x/y"}}
+}'
+# Real leftover at the SANITIZED upstream path:
+mkdir -p "$TEST_TMPDIR/.claude/skills/convex-best-practices"
+echo "leftover" > "$TEST_TMPDIR/.claude/skills/convex-best-practices/SKILL.md"
+
+# (a) OLD broken contract: synthesize path from logical name -> FALSE PASS.
+#     Fake npx returns 1 to engage the downgrade path. With the bogus
+#     unsanitized installed-path the helper sees "absent" and exits 0,
+#     proving the silent-leak hazard the new contract avoids.
+if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
+        --skill "Convex Best Practices" \
+        --root "$TEST_TMPDIR" \
+        --installed-path ".claude/skills/Convex Best Practices" \
+        > "$TEST_TMPDIR/out-a" 2>&1; then
+    OLD_CONTRACT_EXIT=0
+else
+    OLD_CONTRACT_EXIT=$?
+fi
+
+# Re-add the lock entry that path (a) removed, so path (b) has work to do.
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"Convex Best Practices": {"source": "x/y"}}
+}'
+
+# (b) NEW correct contract: pass the actual sanitized scanned path.
+#     The helper must see leftover and exit 1.
+if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
+        --skill "Convex Best Practices" \
+        --root "$TEST_TMPDIR" \
+        --installed-path ".claude/skills/convex-best-practices" \
+        > "$TEST_TMPDIR/out-b" 2>&1; then
+    NEW_CONTRACT_EXIT=0
+else
+    NEW_CONTRACT_EXIT=$?
+fi
+
+if [[ $OLD_CONTRACT_EXIT -eq 0 && $NEW_CONTRACT_EXIT -ne 0 ]] \
+   && grep -q 'still present' "$TEST_TMPDIR/out-b"; then
+    pass "sanitized leftover: old contract false-passes, new contract exits 1"
+else
+    fail "sanitized leftover" "old=$OLD_CONTRACT_EXIT new=$NEW_CONTRACT_EXIT; out-a=$(cat "$TEST_TMPDIR/out-a"); out-b=$(cat "$TEST_TMPDIR/out-b")"
+fi
+rm -rf "$TEST_TMPDIR"
+
+# ─────────────────────────────────────────────
+# Test 12: prompt-contract grep — skill docs must NOT synthesize the
+# installed path from {{skills_dir}}/<name>; they must reuse the same
+# path token passed to security-scan.py.
+# ─────────────────────────────────────────────
+PROMPT_FILES=(
+    "$ROOT_DIR/skills/aif/SKILL.md"
+    "$ROOT_DIR/skills/aif-skill-generator/SKILL.md"
+    "$ROOT_DIR/skills/aif-skill-generator/references/SECURITY-SCANNING.md"
+)
+BAD_LINES=()
+for f in "${PROMPT_FILES[@]}"; do
+    if [[ ! -f "$f" ]]; then
+        continue
+    fi
+    # Regression = the synthesized template appears IMMEDIATELY after
+    # --installed-path (i.e. it is the VALUE of the flag, not part of
+    # surrounding explanatory text that warns against the pattern).
+    while IFS= read -r line; do
+        if printf '%s' "$line" | grep -Eq -- '--installed-path[[:space:]]+\{\{skills_dir\}\}/<'; then
+            BAD_LINES+=("$f: $line")
+        fi
+    done < "$f"
+done
+if [[ ${#BAD_LINES[@]} -eq 0 ]]; then
+    pass "prompt-contract: no skill doc synthesizes --installed-path from {{skills_dir}}/<name>"
+else
+    fail "prompt-contract regression" "$(printf '%s\n' "${BAD_LINES[@]}")"
+fi
+
 # Restore PATH for any post-suite work
 export PATH="$ORIGINAL_PATH"
 if [[ -n "$ORIGINAL_PATHEXT" ]]; then

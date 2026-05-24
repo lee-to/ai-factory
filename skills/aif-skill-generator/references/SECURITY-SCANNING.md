@@ -82,7 +82,7 @@ Install anyway? [y/N]
 1. npx skills install {{skills_cli_agent_flag}} <name>  # Downloads skill
 2. LEVEL 1: Run automated scan on installed directory
 3. LEVEL 2: Read and review the skill content semantically
-4. If BLOCKED → run `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path {{skills_dir}}/<name>` (removes the skill directory AND clears its `skills-lock.json` entry; `--installed-path` lets the helper verify physical removal) and warn user
+4. If BLOCKED → run `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path <installed-directory>` (reuse the same `<installed-directory>` you scanned in step 2 — upstream `skills` sanitizes the on-disk directory name, so synthesizing `{{skills_dir}}/<name>` can miss the real folder; `--installed-path` lets the helper verify physical removal) and warn user
 ```
 
 **When generating skills from URLs (Learn Mode):**
