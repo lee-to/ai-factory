@@ -203,31 +203,40 @@ For each plan to archive:
 
 1. `mkdir -p <paths.archive>/plans/`
 
-2. Read the plan file. Add or update YAML frontmatter with archive metadata:
+2. **Collision check.** Before moving, verify the destination does not already exist:
+   ```
+   Read <paths.archive>/plans/<original-filename>
+   ```
+   If the file exists, STOP with an error:
+   ```
+   ERROR [aif-archive] destination already exists: <paths.archive>/plans/<filename>
+   A previously archived plan has the same filename. This can happen when
+   sequential numbering reuses a freed number after archiving.
+   To resolve: rename the existing archive file, or delete it if it is no
+   longer needed.
+   ```
+   Do NOT overwrite. Move to the next plan in the batch (if `--all`).
 
-   If the plan already has YAML frontmatter (between `---` markers at the top):
-   - Add `archived: YYYY-MM-DD` field
+3. **Move the source file** into the archive path first:
+   ```bash
+   mv <paths.plans>/<filename> <paths.archive>/plans/<filename>
+   ```
+   This atomically removes the plan from the active directory.
 
-   If the plan has no YAML frontmatter:
-   - Prepend a minimal frontmatter block:
+4. **Add archive metadata** to the moved file using `Edit`:
+
+   If the file already has YAML frontmatter (between `---` markers at the top):
+   - Use `Edit` to add `archived: YYYY-MM-DD` field inside the existing frontmatter block.
+
+   If the file has no YAML frontmatter:
+   - Use `Edit` to prepend a minimal frontmatter block before the first line:
      ```yaml
      ---
      archived: YYYY-MM-DD
      ---
      ```
-   - Keep the rest of the file content unchanged.
 
-3. Write the updated content to `<paths.archive>/plans/<original-filename>`.
-   Preserve the original filename exactly, including any sequential `NNNN_` prefix.
-
-4. Remove the original file from `paths.plans/`:
-   ```bash
-   mv <paths.plans>/<filename> <paths.archive>/plans/<filename>
-   ```
-   Note: since we already wrote the updated content, use `mv` only if the
-   frontmatter was already correct, otherwise `Write` the updated content to
-   the archive path and delete the original with `Bash(mv *)` or
-   `Edit` to remove.
+   The original filename is preserved exactly, including any sequential `NNNN_` prefix.
 
 5. Logging: `INFO [aif-archive] archived: <filename> -> <paths.archive>/plans/<filename>`
 

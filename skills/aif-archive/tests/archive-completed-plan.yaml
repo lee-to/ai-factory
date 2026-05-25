@@ -4,14 +4,19 @@ description: |
   to paths.archive/plans/, preserving the original filename and adding
   `archived: YYYY-MM-DD` to YAML frontmatter.
 
+  The correct operation order is:
+    1. mkdir -p for archive/plans/
+    2. mv source -> archive destination (atomic move)
+    3. Edit the destination file to add archived: date
+
   Fixture state:
     .ai-factory/plans/0005_feature-auth.md — all tasks completed
     .ai-factory/config.yaml — paths.archive set
 
   Expected:
-    - mkdir called for archive/plans/
-    - Write to .ai-factory/archive/plans/0005_feature-auth.md with archived date
-    - Original file removed from plans/
+    - Bash(mv) moves the plan to archive/plans/
+    - Edit adds archived: date to the moved file
+    - Original file no longer in plans/ (moved by mv)
 skill: aif-archive
 argument: "0005_feature-auth"
 
@@ -72,19 +77,26 @@ assertions:
     args_match:
       command: "mkdir.*archive/plans"
 
-  - id: writes-to-archive
+  - id: moves-plan-to-archive
     type: tool_called
-    tool: Write
+    tool: Bash
     args_match:
-      file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
+      command: "mv.*0005_feature-auth.*archive/plans"
     weight: 4
 
-  - id: archived-content-has-date
+  - id: edits-archive-with-date
     type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
+      new_string: "archived:"
+    weight: 2
+
+  - id: no-write-to-archive
+    type: no_tool_called
     tool: Write
     args_match:
       file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
-      content: "archived:"
 
   - id: stay-in-sandbox
     type: no_path_escape
