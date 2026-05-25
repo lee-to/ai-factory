@@ -343,6 +343,8 @@ try {
 
 **ALWAYS suggest covering this case with a test:**
 
+The Step 5 and After Fixing output templates define structure only. Render all human-readable text in these user-facing responses in `ui_language`. Preserve code snippets, commands, file paths, line references, log prefixes such as `[FIX]`, and AskUserQuestion option structure unchanged.
+
 ```
 ## Fix Applied ✅
 

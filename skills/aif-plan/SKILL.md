@@ -651,6 +651,8 @@ CONTEXT FROM /aif-plan:
 
 **Full mode normal:** STOP after planning. The user reviews the plan and decides when to implement.
 
+The next-step templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`. Preserve command names, configured paths, task counts, and TaskList references unchanged.
+
 ```
 Plan created with [N] tasks.
 Plan file: <configured plans dir>/<resolved-plan-file>      # see Step 1.2 / Step 5 for the exact stem

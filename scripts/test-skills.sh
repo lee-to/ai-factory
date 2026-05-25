@@ -584,6 +584,14 @@ else
     fail "workflow artifact skills missing artifact_language write target contract"
 fi
 
+if grep -Fq 'The next-step templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'The completion templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`.' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'The Step 5 and After Fixing output templates define structure only. Render all human-readable text in these user-facing responses in `ui_language`.' "$AIF_FIX_SKILL"; then
+    pass "workflow user-facing templates use ui_language"
+else
+    fail "workflow user-facing templates missing ui_language structure-only contract"
+fi
+
 if grep -Fq 'Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged.' "$AIF_PLAN_SKILL" \
    && grep -Fq 'Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged.' "$AIF_FIX_SKILL" \
    && grep -Fq 'Preserve source quotations, source titles, URLs, local paths, code examples, API signatures, command names, config keys, package names, version strings, raw errors, and link targets unchanged.' "$AIF_REFERENCE_SKILL" \
@@ -607,10 +615,11 @@ CONFIG_LANGUAGE_TECH_TERMS_ROW="$(grep -F '| `language.technical_terms` |' "$CON
 CONFIG_AIF_PLAN_ROW="$(grep -F '| `/aif-plan` |' "$CONFIG_REFERENCE_DOC" || true)"
 CONFIG_AIF_IMPROVE_ROW="$(grep -F '| `/aif-improve` |' "$CONFIG_REFERENCE_DOC" || true)"
 CONFIG_AIF_FIX_ROW="$(grep -F '| `/aif-fix` |' "$CONFIG_REFERENCE_DOC" || true)"
-CONFIG_AIF_RULES_ROW="$(grep -F '| `/aif-rules` | Yes | No |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_RULES_ROW="$(grep -F '| `/aif-rules` | Yes | Yes, limited |' "$CONFIG_REFERENCE_DOC" || true)"
 CONFIG_AIF_REFERENCE_ROW="$(grep -F '| `/aif-reference` |' "$CONFIG_REFERENCE_DOC" || true)"
 CONFIG_AIF_SECURITY_ROW="$(grep -F '| `/aif-security-checklist` |' "$CONFIG_REFERENCE_DOC" || true)"
 CONFIG_AIF_VERIFY_ROW="$(grep -F '| `/aif-verify` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_RULES_CONTRADICTORY_ROW="$(grep -F '| `/aif-rules` | Yes | No |' "$CONFIG_REFERENCE_DOC" || true)"
 if [[ "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-plan"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-improve"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-fix"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-rules"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-reference"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-security-checklist"* ]] \
    && [[ "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-plan"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-improve"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-fix"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-rules"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-reference"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-security-checklist"* ]] \
    && [[ "$CONFIG_AIF_PLAN_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_PLAN_ROW" == *'`language.technical_terms`'* ]] \
@@ -619,7 +628,8 @@ if [[ "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-plan"* && "$CONFIG_LANGUAGE_ART
    && [[ "$CONFIG_AIF_RULES_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_RULES_ROW" == *'`language.technical_terms`'* ]] \
    && [[ "$CONFIG_AIF_REFERENCE_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_REFERENCE_ROW" == *'`language.technical_terms`'* ]] \
    && [[ "$CONFIG_AIF_SECURITY_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_SECURITY_ROW" == *'`language.technical_terms`'* ]] \
-   && [[ "$CONFIG_AIF_VERIFY_ROW" == *'`language.ui`'* ]]; then
+   && [[ "$CONFIG_AIF_VERIFY_ROW" == *'`language.ui`'* ]] \
+   && [[ -z "$CONFIG_AIF_RULES_CONTRADICTORY_ROW" ]]; then
     pass "config reference documents broadened workflow language keys"
 else
     fail "config reference missing broadened workflow language keys"

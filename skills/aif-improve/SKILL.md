@@ -326,6 +326,8 @@ Options:
 
 **If no improvements found:**
 
+The completion templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`. Preserve command names, paths, task counts, and numeric counts unchanged.
+
 ```
 ## Plan Review Complete
 

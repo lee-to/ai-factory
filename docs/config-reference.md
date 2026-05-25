@@ -135,7 +135,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `/aif-reference` | Yes | No | `paths.references`, `paths.rules_file`, `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-distillation` | Yes | No | `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-security-checklist` | Yes | No | `paths.security`, `language.ui`, `language.artifacts`, `language.technical_terms` |
-| `/aif-rules` | Yes | No | `paths.rules_file`, `paths.rules`, `language.ui`, `language.artifacts`, `language.technical_terms` |
+| `/aif-rules` | Yes | Yes, limited | `paths.rules_file`, `paths.rules`, `language.ui`, `language.artifacts`, `language.technical_terms`; writes only `rules.<area>` registrations and may bootstrap minimal config for first area rule |
 | `/aif-qa` | Yes | No | `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`, `git.base_branch` |
 
 ### Config-Agnostic Built-ins
