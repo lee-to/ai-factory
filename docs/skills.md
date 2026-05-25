@@ -23,6 +23,7 @@ Explore ideas, constraints, and trade-offs before planning:
 ```
 - Uses a thinking-partner mode: open questions, option mapping, and ASCII visualization
 - Reads project context from the resolved description, architecture, rules, and research artifacts plus active plan files when present
+- Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots, and `language.technical_terms` to preserve commands, paths, identifiers, and config keys where appropriate
 - Does **not** implement code in this mode; when direction is clear, move to `/aif-plan`
 - Can optionally persist exploration context to `paths.research` (default: `.ai-factory/RESEARCH.md`) so you can `/clear` and still feed results into `/aif-plan`
 - Best when the problem is still fuzzy: requirements unclear, trade-offs unresolved, or you want to inspect the codebase before choosing a direction
@@ -44,6 +45,8 @@ Both modes explore your codebase for patterns, create tasks with dependencies, a
 If the resolved research artifact exists, `/aif-plan` reads the `Active Summary` and includes it as `Research Context` in the plan.
 
 If the resolved roadmap artifact exists, `/aif-plan` may also capture a `Roadmap Linkage` section (milestone name + brief rationale) to make milestone alignment explicit.
+
+Plan prompts and summaries use `language.ui`; saved plan artifacts use `language.artifacts` and preserve commands, paths, branch names, identifiers, config keys, and raw errors according to `language.technical_terms`.
 
 **Parallel mode** — work on multiple features simultaneously using `git worktree`:
 ```
@@ -84,7 +87,7 @@ Refine an existing plan with a second iteration:
 /aif-improve добавь валидацию и обработку ошибок # Improve based on specific feedback
 ```
 - Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan`
-- Reads `.ai-factory/config.yaml` for `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, and `language.ui`
+- Reads `.ai-factory/config.yaml` for `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - `--list` mode is read-only: shows available plan files and exits
 - Performs deeper codebase analysis than the initial `/aif-plan` planning
 - Finds missing tasks (migrations, configs, middleware)
@@ -172,6 +175,7 @@ Verifies completed implementation against the plan:
 - **Issue remediation** — if issues found, first suggests `/aif-fix <issue summary>` (recommended), with optional direct fix in-session
 - **Follow-up suggestions** — if all green, suggests `/aif-security-checklist`, `/aif-review`, then `/aif-commit`
 - **Machine-readable result** — appends a final `aif-gate-result` JSON block with `status: pass|warn|fail`, `blocking`, `blockers`, `affected_files`, and `suggested_next`
+- Uses `language.ui` for prompts, verification reports, context-gate summaries, issue remediation prompts, and follow-up guidance; machine-readable JSON values stay stable
 
 **Strict mode** (`--strict`) is recommended before merging: requires all tasks complete, build passing, tests passing, lint clean, zero TODOs in changed files, and passing architecture/rules/roadmap gates. For `feat`/`fix`/`perf`, missing roadmap milestone linkage is reported as a warning, not a failure.
 
@@ -181,11 +185,12 @@ Bug fix with optional plan-first mode:
 /aif-fix TypeError: Cannot read property 'name' of undefined
 ```
 - Asks to choose mode: **Fix now** (immediate) or **Plan first** (review before fixing)
-- Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, and `language.ui`
+- Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - Investigates codebase to find root cause
 - Applies fix WITH logging (`[FIX]` prefix for easy filtering)
 - Suggests test coverage for the bug
 - Creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`)
+- User-facing fix summaries use `language.ui`; `FIX_PLAN.md` and patch artifacts use `language.artifacts` while preserving `[FIX]`, commands, paths, identifiers, raw errors, and patch tags according to `language.technical_terms`
 
 **Plan-first mode** — for complex bugs or when you want to review the approach:
 ```
@@ -422,6 +427,7 @@ Adds project-specific rules and conventions:
 - **Area rules:** `area:api`, `area:frontend`, `area:backend` - creates `<configured rules dir>/<area>.md` and registers it as `rules.<area>` in `.ai-factory/config.yaml`
 - **Rules hierarchy:** `rules.<area>` > `rules/base.md` > `paths.rules_file`
 - Rules are automatically loaded by `/aif-implement` before task execution
+- Prompts and confirmations use `language.ui`; persisted rule artifacts use `language.artifacts` and preserve stable technical tokens according to `language.technical_terms`
 - Use for coding conventions, naming rules, architectural constraints
 
 ### `/aif-commit`
@@ -489,13 +495,13 @@ Creates knowledge references from external sources for AI agents:
 - Synthesizes structured reference documents: overview, core concepts, API/interface, usage patterns, configuration, best practices, pitfalls
 - Saves to `paths.references/<name>.md` with source attribution and timestamps
 - Maintains an index in `paths.references/INDEX.md`
-- Reads `.ai-factory/config.yaml` for `paths.references`, `paths.rules_file`, and `language.ui`
+- Reads `.ai-factory/config.yaml` for `paths.references`, `paths.rules_file`, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - `--update` re-fetches sources and refreshes an existing reference
 - `list` / `show <name>` / `delete <name>` for managing existing references
 - References are available to all AI Factory skills — `/aif-plan`, `/aif-implement`, `/aif-grounded` can read them for domain context
 - Best when AI needs knowledge it wasn't trained on: new libraries, internal APIs, project-specific specs, or rapidly changing documentation
 
-- Config policy: config-aware; reference storage uses `paths.references`
+- Config policy: config-aware; reference storage uses `paths.references`, prompts use `language.ui`, and generated reference files plus `INDEX.md` use `language.artifacts` while preserving source quotes, code examples, API signatures, URLs, paths, and raw errors according to `language.technical_terms`
 
 ### `/aif-distillation <path|url> [path|url...] [--name <skill-name>] [--path <directory>] [--update] [--redact-source-map] [--split|--split-by <strategy>]`
 Distills books, documents, folders, or URLs into one reusable Agent Skill or a split set of focused skills:
@@ -577,9 +583,9 @@ Audit outputs append a final `aif-gate-result` JSON block for full and category 
 - Asks for a reason, saves to `paths.security`
 - Future audits skip these items but still show them in an **"Ignored Items"** section for transparency
 - Review ignored items periodically — risks change over time
-- Reads `.ai-factory/config.yaml` for `paths.security` and `language.ui`
+- Reads `.ai-factory/config.yaml` for `paths.security`, `language.ui`, `language.artifacts`, and `language.technical_terms`
 
-- Config policy: config-aware; persistent ignore state uses `paths.security`
+- Config policy: config-aware; audit summaries use `language.ui`, persistent ignore state uses `paths.security` and `language.artifacts`, and stable IDs/status values remain unchanged under `language.technical_terms`
 
 ### `/aif-qa [--all] [change-summary | test-plan | test-cases] [<branch>]`
 

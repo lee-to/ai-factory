@@ -390,11 +390,20 @@ fi
 
 # /aif localization contract regression checks
 AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
+AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
+AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
+AIF_IMPROVE_SKILL="$ROOT_DIR/skills/aif-improve/SKILL.md"
+AIF_FIX_SKILL="$ROOT_DIR/skills/aif-fix/SKILL.md"
+AIF_RULES_SKILL="$ROOT_DIR/skills/aif-rules/SKILL.md"
+AIF_REFERENCE_SKILL="$ROOT_DIR/skills/aif-reference/SKILL.md"
+AIF_SECURITY_SKILL="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
+AIF_VERIFY_SKILL="$ROOT_DIR/skills/aif-verify/SKILL.md"
 AIF_COMMIT_SKILL="$ROOT_DIR/skills/aif-commit/SKILL.md"
 AIF_ARCH_SKILL="$ROOT_DIR/skills/aif-architecture/SKILL.md"
 CONFIG_REFERENCE_DOC="$ROOT_DIR/docs/config-reference.md"
 WORKFLOW_DOC="$ROOT_DIR/docs/workflow.md"
 SKILLS_DOC="$ROOT_DIR/docs/skills.md"
+CONFIGURATION_DOC="$ROOT_DIR/docs/configuration.md"
 MODE1_SECTION="$(awk '
     /^### Mode 1: Analyze Existing Project$/ { capture=1 }
     capture { print }
@@ -493,6 +502,148 @@ if grep -Fq 'After creating DESCRIPTION.md, resolve the project language setting
     fail "late language resolution wording reintroduced in /aif"
 else
     pass "no late language resolution wording in /aif"
+fi
+
+if grep -Fq 'ui_language = language.ui || "en"' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'artifact_language = language.artifacts || language.ui || "en"' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'technical_terms_policy = language.technical_terms || "keep"' "$AIF_EXPLORE_SKILL"; then
+    pass "/aif-explore resolves language variables"
+else
+    fail "/aif-explore language variable resolution missing"
+fi
+
+if grep -Fq 'All user-facing responses from `/aif-explore` MUST be written in `ui_language`.' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'Persisted exploration artifacts under `paths.research` MUST be written in `artifact_language`.' "$AIF_EXPLORE_SKILL"; then
+    pass "/aif-explore separates ui and artifact language"
+else
+    fail "/aif-explore ui/artifact language split missing"
+fi
+
+if grep -Fq 'If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`.' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'Legacy values such as `english` also behave like `keep`.' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'commands, paths, identifiers, config keys, API names, package names, branch names, code terms, and raw error messages unchanged' "$AIF_EXPLORE_SKILL"; then
+    pass "/aif-explore technical terms policy is explicit"
+else
+    fail "/aif-explore technical terms policy missing"
+fi
+
+CONFIG_LANGUAGE_ARTIFACTS_ROW="$(grep -F '| `language.artifacts` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_LANGUAGE_TECH_TERMS_ROW="$(grep -F '| `language.technical_terms` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_EXPLORE_ROW="$(grep -F '| `/aif-explore` |' "$CONFIG_REFERENCE_DOC" || true)"
+
+if [[ "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-explore"* ]] \
+   && [[ "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-explore"* ]] \
+   && [[ "$CONFIG_AIF_EXPLORE_ROW" == *'`language.ui`'* ]] \
+   && [[ "$CONFIG_AIF_EXPLORE_ROW" == *'`language.artifacts`'* ]] \
+   && [[ "$CONFIG_AIF_EXPLORE_ROW" == *'`language.technical_terms`'* ]]; then
+    pass "config reference documents /aif-explore language keys"
+else
+    fail "config reference missing /aif-explore language keys"
+fi
+
+if grep -Fq 'Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots, and `language.technical_terms`' "$SKILLS_DOC" \
+   && grep -Fq '`language.artifacts` controls generated or persisted artifacts, including plans, fix plans, patches, rules, references, security ignore state, documentation, QA outputs, and `/aif-explore` research snapshots in `paths.research`.' "$CONFIGURATION_DOC" \
+   && grep -Fq '`language.ui` / `language.artifacts` / `language.technical_terms`' "$ROOT_DIR/AGENTS.md"; then
+    pass "docs summarize /aif-explore language policy"
+else
+    fail "docs missing /aif-explore language policy summary"
+fi
+
+LANGUAGE_ARTIFACT_SKILLS=(
+    "$AIF_PLAN_SKILL"
+    "$AIF_IMPROVE_SKILL"
+    "$AIF_FIX_SKILL"
+    "$AIF_RULES_SKILL"
+    "$AIF_REFERENCE_SKILL"
+    "$AIF_SECURITY_SKILL"
+)
+LANGUAGE_ARTIFACT_CONTRACT_MISSING=0
+for skill_file in "${LANGUAGE_ARTIFACT_SKILLS[@]}"; do
+    if ! grep -Fq 'ui_language = language.ui || "en"' "$skill_file" \
+        || ! grep -Fq 'artifact_language = language.artifacts || language.ui || "en"' "$skill_file" \
+        || ! grep -Fq 'technical_terms_policy = language.technical_terms || "keep"' "$skill_file" \
+        || ! grep -Fq 'Legacy values such as `english` also behave like `keep`.' "$skill_file"; then
+        LANGUAGE_ARTIFACT_CONTRACT_MISSING=1
+        echo "      Missing language variable contract in $skill_file"
+    fi
+done
+if [[ "$LANGUAGE_ARTIFACT_CONTRACT_MISSING" -eq 0 ]]; then
+    pass "workflow artifact skills resolve ui/artifact/technical language variables"
+else
+    fail "workflow artifact skills missing ui/artifact/technical language variables"
+fi
+
+if grep -Fq 'Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Any generated or updated plan artifact content under `paths.plan`, `paths.plans`, or `paths.fix_plan` MUST be written in `artifact_language`.' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'Generated `FIX_PLAN.md` and self-improvement patch files under `paths.patches` MUST be written in `artifact_language`.' "$AIF_FIX_SKILL" \
+   && grep -Fq 'Generated or updated rules artifacts under `paths.rules_file` and `paths.rules/<area>.md` MUST be written in `artifact_language`.' "$AIF_RULES_SKILL" \
+   && grep -Fq 'Generated reference files and the reference `INDEX.md` MUST be written in `artifact_language`.' "$AIF_REFERENCE_SKILL" \
+   && grep -Fq 'The persistent `SECURITY.md` ignored-item artifact under `paths.security` MUST be written in `artifact_language`.' "$AIF_SECURITY_SKILL"; then
+    pass "workflow artifact skills state artifact_language write targets"
+else
+    fail "workflow artifact skills missing artifact_language write target contract"
+fi
+
+if grep -Fq 'The next-step templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'The completion templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`.' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'The Step 5 and After Fixing output templates define structure only. Render all human-readable text in these user-facing responses in `ui_language`.' "$AIF_FIX_SKILL"; then
+    pass "workflow user-facing templates use ui_language"
+else
+    fail "workflow user-facing templates missing ui_language structure-only contract"
+fi
+
+if grep -Fq 'Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged.' "$AIF_FIX_SKILL" \
+   && grep -Fq 'Preserve source quotations, source titles, URLs, local paths, code examples, API signatures, command names, config keys, package names, version strings, raw errors, and link targets unchanged.' "$AIF_REFERENCE_SKILL" \
+   && grep -Fq 'Preserve item IDs, dates, author handles, commands, paths, config keys, package names, API names, security category IDs, severity/status enum values, raw errors, and the final `aif-gate-result` JSON schema unchanged.' "$AIF_SECURITY_SKILL"; then
+    pass "workflow artifact skills preserve stable technical tokens"
+else
+    fail "workflow artifact skills missing stable technical token preservation"
+fi
+
+if grep -Fq 'Language:** `language.ui` for prompts, user-visible explanations, verification reports, context-gate summaries, issue remediation prompts, and next-step guidance' "$AIF_VERIFY_SKILL" \
+   && grep -Fq 'ui_language = language.ui || "en"' "$AIF_VERIFY_SKILL" \
+   && grep -Fq 'All AskUserQuestion prompts, user-visible explanations, verification reports, context-gate summaries, issue remediation prompts, and next-step guidance MUST be written in `ui_language`.' "$AIF_VERIFY_SKILL" \
+   && grep -Fq 'Preserve machine-readable `aif-gate-result` JSON schema fields and enum values (`pass`, `warn`, `fail`) unchanged.' "$AIF_VERIFY_SKILL"; then
+    pass "/aif-verify report language contract"
+else
+    fail "/aif-verify report language contract missing"
+fi
+
+CONFIG_LANGUAGE_ARTIFACTS_ROW="$(grep -F '| `language.artifacts` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_LANGUAGE_TECH_TERMS_ROW="$(grep -F '| `language.technical_terms` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_PLAN_ROW="$(grep -F '| `/aif-plan` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_IMPROVE_ROW="$(grep -F '| `/aif-improve` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_FIX_ROW="$(grep -F '| `/aif-fix` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_RULES_ROW="$(grep -F '| `/aif-rules` | Yes | Yes, limited |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_REFERENCE_ROW="$(grep -F '| `/aif-reference` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_SECURITY_ROW="$(grep -F '| `/aif-security-checklist` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_VERIFY_ROW="$(grep -F '| `/aif-verify` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_RULES_CONTRADICTORY_ROW="$(grep -F '| `/aif-rules` | Yes | No |' "$CONFIG_REFERENCE_DOC" || true)"
+if [[ "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-plan"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-improve"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-fix"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-rules"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-reference"* && "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-security-checklist"* ]] \
+   && [[ "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-plan"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-improve"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-fix"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-rules"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-reference"* && "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-security-checklist"* ]] \
+   && [[ "$CONFIG_AIF_PLAN_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_PLAN_ROW" == *'`language.technical_terms`'* ]] \
+   && [[ "$CONFIG_AIF_IMPROVE_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_IMPROVE_ROW" == *'`language.technical_terms`'* ]] \
+   && [[ "$CONFIG_AIF_FIX_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_FIX_ROW" == *'`language.technical_terms`'* ]] \
+   && [[ "$CONFIG_AIF_RULES_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_RULES_ROW" == *'`language.technical_terms`'* ]] \
+   && [[ "$CONFIG_AIF_REFERENCE_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_REFERENCE_ROW" == *'`language.technical_terms`'* ]] \
+   && [[ "$CONFIG_AIF_SECURITY_ROW" == *'`language.artifacts`'* && "$CONFIG_AIF_SECURITY_ROW" == *'`language.technical_terms`'* ]] \
+   && [[ "$CONFIG_AIF_VERIFY_ROW" == *'`language.ui`'* ]] \
+   && [[ -z "$CONFIG_AIF_RULES_CONTRADICTORY_ROW" ]]; then
+    pass "config reference documents broadened workflow language keys"
+else
+    fail "config reference missing broadened workflow language keys"
+fi
+
+if grep -Fq 'Plan prompts and summaries use `language.ui`; saved plan artifacts use `language.artifacts`' "$SKILLS_DOC" \
+   && grep -Fq 'User-facing fix summaries use `language.ui`; `FIX_PLAN.md` and patch artifacts use `language.artifacts`' "$SKILLS_DOC" \
+   && grep -Fq 'Prompts and confirmations use `language.ui`; persisted rule artifacts use `language.artifacts`' "$SKILLS_DOC" \
+   && grep -Fq 'reference storage uses `paths.references`, prompts use `language.ui`, and generated reference files plus `INDEX.md` use `language.artifacts`' "$SKILLS_DOC" \
+   && grep -Fq 'persistent ignore state uses `paths.security` and `language.artifacts`' "$SKILLS_DOC" \
+   && grep -Fq '`language.artifacts` controls generated or persisted artifacts, including plans, fix plans, patches, rules, references, security ignore state, documentation, QA outputs, and `/aif-explore` research snapshots in `paths.research`.' "$CONFIGURATION_DOC"; then
+    pass "docs summarize broadened workflow language policy"
+else
+    fail "docs missing broadened workflow language policy"
 fi
 
 if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then

@@ -21,12 +21,27 @@ Create structured knowledge references from external sources and store them in t
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.references` and `paths.rules_file`
-- **Language:** `language.ui` for prompts
+- **Language:** `language.ui` for prompts and summaries, `language.artifacts` for generated reference artifacts, and `language.technical_terms` for human-readable technical terminology in references
 
 If config.yaml doesn't exist, use defaults:
 - references/: `.ai-factory/references/`
 - RULES.md: `.ai-factory/RULES.md`
-- Language: `en` (English)
+- `ui_language`: `en`
+- `artifact_language`: `en`
+- `technical_terms_policy`: `keep`
+
+Resolved language values:
+- `ui_language = language.ui || "en"`
+- `artifact_language = language.artifacts || language.ui || "en"`
+- `technical_terms_policy = language.technical_terms || "keep"`
+
+If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`. Legacy values such as `english` also behave like `keep`.
+
+All AskUserQuestion prompts, progress updates, summaries, and next-step guidance MUST be written in `ui_language`.
+
+Generated reference files and the reference `INDEX.md` MUST be written in `artifact_language`.
+
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, summaries, concept explanations, best-practice prose, pitfalls, and index descriptions before saving. Preserve source quotations, source titles, URLs, local paths, code examples, API signatures, command names, config keys, package names, version strings, raw errors, and link targets unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 ### Project Context
 
@@ -123,6 +138,8 @@ Transform collected material into a structured reference document.
 
 **Reference file format:**
 
+Render this structure in `artifact_language` before saving. The headings below are canonical structure labels, not fixed English output.
+
 ```markdown
 # <Topic> Reference
 
@@ -186,6 +203,8 @@ Transform collected material into a structured reference document.
 
 Check if `<resolved references dir>/INDEX.md` exists. Create or update it:
 
+Write human-readable index headings, topic descriptions, and source summaries in `artifact_language`; keep filenames, links, URLs, and dates unchanged.
+
 ```markdown
 # References Index
 
@@ -241,7 +260,7 @@ To make a skill aware of a specific reference, mention it in the resolved RULES.
 - **Primary ownership:** the resolved references directory (default: `.ai-factory/references/`)
 - **Shared ownership:** the resolved references index file (`INDEX.md` inside that directory)
 - **Read-only:** all other `.ai-factory/` files
-- **Config policy:** config-aware. Use `paths.references` for storage and `paths.rules_file` when pointing other skills at a saved reference.
+- **Config policy:** config-aware. Use `paths.references` for storage, `paths.rules_file` when pointing other skills at a saved reference, `language.ui` for prompts and summaries, `language.artifacts` for generated reference artifacts, and `language.technical_terms` for human-readable terminology policy.
 
 ## Guardrails
 

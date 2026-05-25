@@ -28,11 +28,26 @@ Comprehensive security checklist based on OWASP Top 10 (2021) and industry best 
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.security`
-- **Language:** `language.ui` for prompts
+- **Language:** `language.ui` for prompts, audit summaries, and next-step guidance; `language.artifacts` for the ignored-item state artifact; `language.technical_terms` for human-readable technical terminology in the ignored-item artifact
 
 If config.yaml doesn't exist, use defaults:
 - SECURITY.md: `.ai-factory/SECURITY.md`
-- Language: `en` (English)
+- `ui_language`: `en`
+- `artifact_language`: `en`
+- `technical_terms_policy`: `keep`
+
+Resolved language values:
+- `ui_language = language.ui || "en"`
+- `artifact_language = language.artifacts || language.ui || "en"`
+- `technical_terms_policy = language.technical_terms || "keep"`
+
+If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`. Legacy values such as `english` also behave like `keep`.
+
+All AskUserQuestion prompts, audit summaries, ignored-item explanations shown to the user, and next-step guidance MUST be written in `ui_language`.
+
+The persistent `SECURITY.md` ignored-item artifact under `paths.security` MUST be written in `artifact_language`.
+
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, table captions, notes, ignored-item reasons when generated, and review guidance before saving. Preserve item IDs, dates, author handles, commands, paths, config keys, package names, API names, security category IDs, severity/status enum values, raw errors, and the final `aif-gate-result` JSON schema unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 ## Ignored Items (SECURITY.md)
 
@@ -57,6 +72,8 @@ Before running any audit, **always read** the resolved SECURITY.md path (default
 3. Non-ignored items are audited as usual
 
 ### SECURITY.md format
+
+Render this structure in `artifact_language` before saving. The headings below are canonical structure labels, not fixed English output; item IDs and table field meanings stay stable.
 
 ```markdown
 # Security: Ignored Items
@@ -589,4 +606,4 @@ grep -rn "innerHTML.*llm\|innerHTML.*response\|innerHTML.*completion" --include=
 
 - Primary ownership: the resolved SECURITY.md artifact (default: `.ai-factory/SECURITY.md`) for ignored-item state created through the `ignore` flow.
 - Write policy: audit findings are normally conversational output; persistent writes are limited to the ignore-state artifact above unless the user explicitly asks for more.
-- Config policy: config-aware. Use `paths.security` for the ignore-state artifact while deriving audit scope from repo evidence and audit commands.
+- Config policy: config-aware. Use `paths.security` for the ignore-state artifact, `language.ui` for prompts and audit summaries, `language.artifacts` for the ignored-item artifact, and `language.technical_terms` for human-readable terminology policy while deriving audit scope from repo evidence and audit commands.
