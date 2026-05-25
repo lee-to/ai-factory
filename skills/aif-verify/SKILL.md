@@ -30,6 +30,7 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 - **verify_mode:** default verification strictness (`strict` | `normal` | `lenient`)
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Rules hierarchy:** the resolved RULES.md path + `rules.base` + named `rules.<area>` entries
+- **Language:** `language.ui` for prompts, user-visible explanations, verification reports, context-gate summaries, issue remediation prompts, and next-step guidance
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery in Step 0.2.
   Active values: `slug` and `sequential`. When `sequential`, the resolver globs
   `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and falls back to
@@ -46,7 +47,15 @@ If config.yaml doesn't exist, use defaults:
 - Paths: `.ai-factory/` for all artifacts
 - verify_mode: `normal`
 - Rules: RULES.md only
+- `ui_language`: `en`
 - `workflow.plan_id_format`: `slug`
+
+Resolved language value:
+- `ui_language = language.ui || "en"`
+
+All AskUserQuestion prompts, user-visible explanations, verification reports, context-gate summaries, issue remediation prompts, and next-step guidance MUST be written in `ui_language`.
+
+Preserve machine-readable `aif-gate-result` JSON schema fields and enum values (`pass`, `warn`, `fail`) unchanged. Preserve `WARN`/`ERROR` gate labels, commands, paths, config keys, code identifiers, package names, API names, and raw command output unchanged.
 
 ### 0.1 Load Ownership and Gate Contract
 
@@ -362,6 +371,8 @@ Options:
 ## Step 4: Verification Report
 
 ### 4.1 Display Results
+
+Write the human-readable verification report in `ui_language`. The template below defines structure only; keep stable technical tokens and the final `aif-gate-result` JSON schema unchanged.
 
 ```
 ## Verification Report

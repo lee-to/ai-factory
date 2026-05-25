@@ -142,7 +142,7 @@ Current config keys in active use:
 
 - `paths.*` - artifact discovery for description, architecture, roadmap, research, RULES.md, plan files, fix plans, QA artifacts,
   references, security state, patches, evolutions, loop state, and rules
-- `language.ui` / `language.artifacts` / `language.technical_terms` - prompt language, generated artifact language, and terminology handling
+- `language.ui` / `language.artifacts` / `language.technical_terms` - prompt/report language, generated artifact language, and terminology handling while preserving commands, paths, identifiers, config keys, and raw errors where required
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
 - `workflow.verify_mode` - default verification strictness
 - `rules.base` plus named `rules.<area>` entries - rules hierarchy
@@ -463,7 +463,7 @@ docs/
 3. Decide config policy explicitly:
    - Config-aware skills must read `.ai-factory/config.yaml` first and document exact keys used.
    - Config-agnostic skills must say why they do not read config.
-   - Use `language.ui` for prompts/summaries and `language.artifacts` for generated artifacts when applicable.
+   - Use `language.ui` for prompts/reports/summaries, `language.artifacts` for generated artifacts when applicable, and `language.technical_terms` to preserve stable technical tokens where required.
 4. Add an Artifact Ownership section. Owner commands write only their owned artifacts; non-owner context artifacts stay read-only. Quality gates must follow the shared `aif-gate-result` contract only when they are machine-readable gates.
 5. Never hardcode installed skill directories in built-in skills. Use template variables such as `{{skills_dir}}` or `{{home_skills_dir}}`; the installer resolves them per agent.
 6. If the skill creates user skills, save them in the current agent skills directory (`{{skills_dir}}/<skill-name>/`) with concise lowercase-hyphen names unless the command explicitly supports and receives a custom output path.

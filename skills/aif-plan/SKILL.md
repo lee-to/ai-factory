@@ -87,16 +87,31 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
 - **Paths:** `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.research`, `paths.rules_file`, `paths.plan`, `paths.plans`, `paths.patches`, `paths.evolutions`, `paths.specs`, and `paths.rules`
-- **Language:** `language.ui` for AskUserQuestion prompts
+- **Language:** `language.ui` for AskUserQuestion prompts, `language.artifacts` for generated plan files, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`, and `git.branch_prefix`
 - **Workflow:** `workflow.plan_id_format` — controls full-mode plan filename shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. Only `slug` and `sequential` are active; `timestamp` and `uuid` are **reserved** and currently behave like `slug` (with an `INFO` log). The `sequential` value writes plan files as `<NNNN>_<plan_file_stem>.md` (see Step 1.2 for the canonical stem and the algorithm). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
 
 If config.yaml doesn't exist, use defaults:
 
 - Paths: `.ai-factory/` for all artifacts
-- Language: `en` (English)
+- `ui_language`: `en`
+- `artifact_language`: `en`
+- `technical_terms_policy`: `keep`
 - Git: `enabled: true`, `base_branch: main`, `create_branches: true`, `branch_prefix: feature/`
 - Workflow: `plan_id_format: slug`
+
+Resolved language values:
+- `ui_language = language.ui || "en"`
+- `artifact_language = language.artifacts || language.ui || "en"`
+- `technical_terms_policy = language.technical_terms || "keep"`
+
+If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`. Legacy values such as `english` also behave like `keep`.
+
+All AskUserQuestion prompts, progress updates, summaries, and next-step guidance MUST be written in `ui_language`.
+
+Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
+
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 **THEN:** Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists to understand:
 
@@ -610,6 +625,8 @@ If the resolved research path exists:
 - Keep it compact; it should be readable as a one-screen requirements snapshot
 
 Use the canonical template in `references/TASK-FORMAT.md` (Plan File Template).
+
+The canonical template defines the required sections and ordering only. Render all human-readable plan content in `artifact_language` before writing the file, applying `technical_terms_policy` and preserving stable tokens as described in Step 0.
 
 **Commit Plan Rules:**
 

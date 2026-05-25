@@ -26,7 +26,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, and `paths.patches`
-- **Language:** `language.ui` for prompts
+- **Language:** `language.ui` for prompts and summaries, `language.artifacts` for plan artifact updates, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
   Active values: `slug` and `sequential`. When `sequential`, the resolver globs
@@ -42,8 +42,23 @@ If config.yaml doesn't exist, use defaults:
 - research: `.ai-factory/RESEARCH.md`
 - patches/: `.ai-factory/patches/`
 - DESCRIPTION.md: `.ai-factory/DESCRIPTION.md`
-- Language: `en` (English)
+- `ui_language`: `en`
+- `artifact_language`: `en`
+- `technical_terms_policy`: `keep`
 - `workflow.plan_id_format`: `slug`
+
+Resolved language values:
+- `ui_language = language.ui || "en"`
+- `artifact_language = language.artifacts || language.ui || "en"`
+- `technical_terms_policy = language.technical_terms || "keep"`
+
+If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`. Legacy values such as `english` also behave like `keep`.
+
+All AskUserQuestion prompts, progress updates, refinement reports, summaries, and next-step guidance MUST be written in `ui_language`.
+
+Any generated or updated plan artifact content under `paths.plan`, `paths.plans`, or `paths.fix_plan` MUST be written in `artifact_language`.
+
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, improvement notes, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, numeric prefixes, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 **First parse arguments:**
 
@@ -371,6 +386,8 @@ The difference between the two is the report only. `removals` are dead-weight du
 - Preserve any `- [x]` checkboxes for already completed tasks
 
 Use `Edit` to make surgical changes to the plan file, or `Write` to regenerate it if changes are extensive.
+
+When editing or regenerating the plan file, keep all human-readable artifact content in `artifact_language`; the examples above are structural only. Preserve completed `- [x]` checkboxes exactly.
 
 **Filename invariant:** when the existing plan filename matches the sequential
 pattern `^[0-9]{4}_.*\.md$` (e.g. `0042_feature-user-auth.md`), preserve the
