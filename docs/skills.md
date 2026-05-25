@@ -2,7 +2,7 @@
 
 # Core Skills
 
-**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, and `/aif-qa`.
+**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, and `/aif-archive`.
 
 `/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
@@ -480,6 +480,23 @@ Runs a standalone read-only rules compliance gate:
 - Remains read-only; if rules need to change, route that through `/aif-rules`
 
 - Config policy: config-aware; reads rule paths, optional active plan context, and git diff defaults from `config.yaml`
+
+### `/aif-archive [list | --roadmap | --all | <plan-name>]`
+Archives completed plans and trims closed roadmap milestones:
+```
+/aif-archive                    # Scan for completed plans, ask which to archive
+/aif-archive list               # Show archived plans and roadmap snapshots
+/aif-archive --all              # Archive all completed plans (with confirmation)
+/aif-archive --roadmap          # Trim closed milestones from ROADMAP.md into a snapshot
+/aif-archive 0005_feature-auth  # Archive a specific plan by name or partial stem
+```
+- Reads `.ai-factory/config.yaml` for `paths.plans`, `paths.archive`, `paths.plan`, `paths.fix_plan`, `paths.roadmap`, `workflow.plan_id_format`, and `language.ui`
+- A plan is "completed" when all checkboxes in its `## Tasks` section are `- [x]`
+- Preserves original filenames (including sequential `NNNN_` prefix) when moving to archive
+- Adds `archived: YYYY-MM-DD` to the plan's YAML frontmatter
+- Archived plans are excluded from plan discovery by `/aif-implement`, `/aif-verify`, `/aif-improve`
+- Does not touch fast plans (`paths.plan`) or fix plans (`paths.fix_plan`)
+- `--roadmap` creates a dated snapshot under `paths.archive/roadmap/` and removes closed milestones from the source roadmap (with confirmation)
 
 ### `/aif-reference <url|path> [url2|path2] [--name <ref-name>] [--update]`
 Creates knowledge references from external sources for AI agents:

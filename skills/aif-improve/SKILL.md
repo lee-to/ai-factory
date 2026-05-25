@@ -25,7 +25,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 ### Step 0: Load Config & Parse Arguments
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
-- **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, and `paths.patches`
+- **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, and `paths.archive`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for plan artifact updates, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
@@ -108,6 +108,8 @@ This step runs in the default (non-`--list`) mode and picks **one** plan file fo
 4. No full-mode plan → Check the resolved fast plan path (from /aif-plan fast)
 5. No full-mode plan and no resolved fast plan → Check the resolved fix plan path (from /aif-fix plan mode)
 ```
+
+**Note:** Plan discovery scans `paths.plans/` only. Plans archived to `paths.archive/plans/` by `/aif-archive` are excluded from discovery.
 
 **If NO plan file found at any location:**
 

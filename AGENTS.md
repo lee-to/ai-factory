@@ -107,6 +107,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor                                                      |
 | `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
 | `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`              | change-summary, test-plan, test-cases artifacts; branch slug used as subdirectory                |
+| `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                                      | `/aif-archive`         | archived completed plans and dated roadmap snapshots                                             |
 
 Quality commands (`/aif-rules-check`, `/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
 
@@ -141,7 +142,7 @@ Current config-agnostic built-ins:
 Current config keys in active use:
 
 - `paths.*` - artifact discovery for description, architecture, roadmap, research, RULES.md, plan files, fix plans, QA artifacts,
-  references, security state, patches, evolutions, loop state, and rules
+  references, security state, patches, evolutions, loop state, rules, and archive
 - `language.ui` / `language.artifacts` / `language.technical_terms` - prompt/report language, generated artifact language, and terminology handling while preserving commands, paths, identifiers, config keys, and raw errors where required
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
 - `workflow.verify_mode` - default verification strictness

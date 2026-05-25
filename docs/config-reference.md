@@ -77,6 +77,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `paths.specs` | `.ai-factory/specs/` | `/aif-plan`, `/aif-verify` | Specs / archived plan support |
 | `paths.rules` | `.ai-factory/rules/` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-rules` | Area-rules directory and relative rule resolution base |
 | `paths.qa` | `.ai-factory/qa/` | `/aif-qa` | QA artifacts root; branch slug is appended as subdirectory (`<paths.qa>/<branch-slug>/`) |
+| `paths.archive` | `.ai-factory/archive/` | `/aif-archive`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-improve` | Archive directory for completed plans and roadmap snapshots. Subdirectories: `archive/plans/` for archived plan files, `archive/roadmap/` for dated roadmap snapshots. Plans retain original filenames including sequential prefix. |
 
 ### `workflow`
 
@@ -137,6 +138,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `/aif-security-checklist` | Yes | No | `paths.security`, `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-rules` | Yes | Yes, limited | `paths.rules_file`, `paths.rules`, `language.ui`, `language.artifacts`, `language.technical_terms`; writes only `rules.<area>` registrations and may bootstrap minimal config for first area rule |
 | `/aif-qa` | Yes | No | `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`, `git.base_branch` |
+| `/aif-archive` | Yes | No | `paths.plans`, `paths.archive`, `paths.plan`, `paths.fix_plan`, `paths.roadmap`, `workflow.plan_id_format`, `language.ui` |
 
 ### Config-Agnostic Built-ins
 

@@ -48,6 +48,7 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
 1. Read `.ai-factory/config.yaml` if it exists to resolve:
    - `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`
    - `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.patches`
+   - `paths.archive`
    - `paths.rules`
    - `language.ui`, `language.artifacts`
    - `git.enabled`, `git.base_branch`, `git.create_branches`
@@ -460,6 +461,8 @@ Then continue with normal execution using the selected plan file.
 3. Single named full-plan file in `paths.plans` (from `/aif-plan full` without branch creation)
 4. `paths.plan` (from `/aif-plan fast`) - fallback when no full plan exists
 5. `paths.fix_plan` - redirect to `/aif-fix` (from `/aif-fix` plan mode)
+
+**Note:** Plan discovery scans `paths.plans/` only. Plans archived to `paths.archive/plans/` by `/aif-archive` are excluded from discovery.
 
 **Read the plan file** to understand:
 
