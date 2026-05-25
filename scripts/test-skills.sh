@@ -390,11 +390,13 @@ fi
 
 # /aif localization contract regression checks
 AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
+AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
 AIF_COMMIT_SKILL="$ROOT_DIR/skills/aif-commit/SKILL.md"
 AIF_ARCH_SKILL="$ROOT_DIR/skills/aif-architecture/SKILL.md"
 CONFIG_REFERENCE_DOC="$ROOT_DIR/docs/config-reference.md"
 WORKFLOW_DOC="$ROOT_DIR/docs/workflow.md"
 SKILLS_DOC="$ROOT_DIR/docs/skills.md"
+CONFIGURATION_DOC="$ROOT_DIR/docs/configuration.md"
 MODE1_SECTION="$(awk '
     /^### Mode 1: Analyze Existing Project$/ { capture=1 }
     capture { print }
@@ -493,6 +495,51 @@ if grep -Fq 'After creating DESCRIPTION.md, resolve the project language setting
     fail "late language resolution wording reintroduced in /aif"
 else
     pass "no late language resolution wording in /aif"
+fi
+
+if grep -Fq 'ui_language = language.ui || "en"' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'artifact_language = language.artifacts || language.ui || "en"' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'technical_terms_policy = language.technical_terms || "keep"' "$AIF_EXPLORE_SKILL"; then
+    pass "/aif-explore resolves language variables"
+else
+    fail "/aif-explore language variable resolution missing"
+fi
+
+if grep -Fq 'All user-facing responses from `/aif-explore` MUST be written in `ui_language`.' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'Persisted exploration artifacts under `paths.research` MUST be written in `artifact_language`.' "$AIF_EXPLORE_SKILL"; then
+    pass "/aif-explore separates ui and artifact language"
+else
+    fail "/aif-explore ui/artifact language split missing"
+fi
+
+if grep -Fq 'If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`.' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'Legacy values such as `english` also behave like `keep`.' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'commands, paths, identifiers, config keys, API names, package names, branch names, code terms, and raw error messages unchanged' "$AIF_EXPLORE_SKILL"; then
+    pass "/aif-explore technical terms policy is explicit"
+else
+    fail "/aif-explore technical terms policy missing"
+fi
+
+CONFIG_LANGUAGE_ARTIFACTS_ROW="$(grep -F '| `language.artifacts` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_LANGUAGE_TECH_TERMS_ROW="$(grep -F '| `language.technical_terms` |' "$CONFIG_REFERENCE_DOC" || true)"
+CONFIG_AIF_EXPLORE_ROW="$(grep -F '| `/aif-explore` |' "$CONFIG_REFERENCE_DOC" || true)"
+
+if [[ "$CONFIG_LANGUAGE_ARTIFACTS_ROW" == *"/aif-explore"* ]] \
+   && [[ "$CONFIG_LANGUAGE_TECH_TERMS_ROW" == *"/aif-explore"* ]] \
+   && [[ "$CONFIG_AIF_EXPLORE_ROW" == *'`language.ui`'* ]] \
+   && [[ "$CONFIG_AIF_EXPLORE_ROW" == *'`language.artifacts`'* ]] \
+   && [[ "$CONFIG_AIF_EXPLORE_ROW" == *'`language.technical_terms`'* ]]; then
+    pass "config reference documents /aif-explore language keys"
+else
+    fail "config reference missing /aif-explore language keys"
+fi
+
+if grep -Fq 'Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots, and `language.technical_terms`' "$SKILLS_DOC" \
+   && grep -Fq '`language.artifacts` controls generated or persisted artifacts, including `/aif-explore` research snapshots in `paths.research`.' "$CONFIGURATION_DOC" \
+   && grep -Fq '`language.ui` / `language.artifacts` / `language.technical_terms`' "$ROOT_DIR/AGENTS.md"; then
+    pass "docs summarize /aif-explore language policy"
+else
+    fail "docs missing /aif-explore language policy summary"
 fi
 
 if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then

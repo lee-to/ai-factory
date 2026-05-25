@@ -142,7 +142,7 @@ Current config keys in active use:
 
 - `paths.*` - artifact discovery for description, architecture, roadmap, research, RULES.md, plan files, fix plans, QA artifacts,
   references, security state, patches, evolutions, loop state, and rules
-- `language.ui` / `language.artifacts` - prompt language vs generated artifact language
+- `language.ui` / `language.artifacts` / `language.technical_terms` - prompt language, generated artifact language, and terminology handling
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
 - `workflow.verify_mode` - default verification strictness
 - `rules.base` plus named `rules.<area>` entries - rules hierarchy

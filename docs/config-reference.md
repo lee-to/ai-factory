@@ -53,8 +53,8 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
 | `language.ui` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa` | UI language for prompts, questions, and summaries; `/aif` resolves it before downstream setup questions |
-| `language.artifacts` | `en` | `/aif`, `/aif-architecture`, `/aif-roadmap`, `/aif-implement`, `/aif-loop`, `/aif-docs`, `/aif-evolve`, `/aif-distillation`, `/aif-qa` | Language for generated artifacts; `/aif` locks it before the first setup artifact so DESCRIPTION/rules base/AGENTS/ARCHITECTURE stay aligned in one run; `/aif-distillation` uses it for generated skill package content; `/aif-qa` uses it for QA markdown artifacts with fallback to `language.ui` |
-| `language.technical_terms` | `keep` | `/aif-distillation`, `/aif-qa` | Present in schema and template; `/aif` preserves an existing value when present and otherwise writes the default `keep`; `/aif-distillation` and `/aif-qa` use it to decide whether human-readable terminology should stay in English, be translated, or use mixed style |
+| `language.artifacts` | `en` | `/aif`, `/aif-architecture`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-loop`, `/aif-docs`, `/aif-evolve`, `/aif-distillation`, `/aif-qa` | Language for generated artifacts; `/aif` locks it before the first setup artifact so DESCRIPTION/rules base/AGENTS/ARCHITECTURE stay aligned in one run; `/aif-explore` uses it for persisted research snapshots; `/aif-distillation` uses it for generated skill package content; `/aif-qa` uses it for QA markdown artifacts with fallback to `language.ui` |
+| `language.technical_terms` | `keep` | `/aif-explore`, `/aif-distillation`, `/aif-qa` | Present in schema and template; `/aif` preserves an existing value when present and otherwise writes the default `keep`; `/aif-explore`, `/aif-distillation`, and `/aif-qa` use it to decide whether human-readable terminology should stay in English, be translated, or use mixed style |
 
 ### `paths`
 
@@ -120,7 +120,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 |-------|--------------|---------------|--------------------|
 | `/aif-architecture` | Yes | No | `paths.description`, `paths.architecture`, `language.ui`, `language.artifacts` |
 | `/aif-plan` | Yes | No | `paths.*` for planning artifacts, `language.ui`, `git.*` |
-| `/aif-explore` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.rules`, `language.ui` |
+| `/aif-explore` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.rules`, `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-roadmap` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.rules`, `language.ui`, `language.artifacts` |
 | `/aif-improve` | Yes | No | `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, `language.ui`, `git.enabled`, `git.base_branch`, `git.create_branches` |
 | `/aif-implement` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.patches`, `paths.rules`, `language.ui`, `language.artifacts`, `git.enabled`, `git.base_branch`, `git.create_branches`, `rules.base`, `rules.<area>` |

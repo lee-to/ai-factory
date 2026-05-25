@@ -195,6 +195,11 @@ Other skills are config-agnostic for now and rely on repository context, explici
 
 Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-automation`, `/aif-ci`, `/aif-dockerize`, `/aif-grounded`, and `/aif-skill-generator`.
 
+**Language semantics:**
+- `language.ui` controls prompts, questions, progress updates, summaries, and next-step guidance.
+- `language.artifacts` controls generated or persisted artifacts, including `/aif-explore` research snapshots in `paths.research`.
+- `language.technical_terms` controls whether human-readable terminology is kept, translated, or mixed while commands, paths, identifiers, config keys, package names, and raw errors stay unchanged where required.
+
 **Git workflow semantics:**
 - `git.enabled: false` disables branch/worktree assumptions entirely. `/aif-plan full` still creates a rich full plan, but it stores it in `paths.plans/<slug>.md` without running git commands.
 - `git.base_branch` is the branch used for diff, review, verify, rules-check, and merge guidance. Skills must not hardcode `main`.

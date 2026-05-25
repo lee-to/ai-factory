@@ -23,6 +23,7 @@ Explore ideas, constraints, and trade-offs before planning:
 ```
 - Uses a thinking-partner mode: open questions, option mapping, and ASCII visualization
 - Reads project context from the resolved description, architecture, rules, and research artifacts plus active plan files when present
+- Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots, and `language.technical_terms` to preserve commands, paths, identifiers, and config keys where appropriate
 - Does **not** implement code in this mode; when direction is clear, move to `/aif-plan`
 - Can optionally persist exploration context to `paths.research` (default: `.ai-factory/RESEARCH.md`) so you can `/clear` and still feed results into `/aif-plan`
 - Best when the problem is still fuzzy: requirements unclear, trade-offs unresolved, or you want to inspect the codebase before choosing a direction
