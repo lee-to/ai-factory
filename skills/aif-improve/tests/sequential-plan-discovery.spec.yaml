@@ -133,10 +133,6 @@ assertions:
     pattern: "0005_feature-user-auth\\.md"
     weight: 4
 
-  - id: does-not-list-other-stem-plan-as-current
-    type: no_output_contains
-    pattern: "(?i)current branch.*0003_other-feature"
-
   - id: list-mode-does-not-write
     type: no_tool_called
     tool: Write

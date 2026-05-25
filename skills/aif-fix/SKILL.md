@@ -48,7 +48,7 @@ When creating a new FIX_PLAN.md: if there is no existing annotation and no Hando
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.fix_plan`, and `paths.patches`
-- **Language:** `language.ui` for prompts
+- **Language:** `language.ui` for prompts and summaries, `language.artifacts` for `FIX_PLAN.md` and patch artifacts, and `language.technical_terms` for human-readable technical terminology in artifacts
 - **Rules:** `rules.base` plus any named `rules.<area>` entries
 
 If config.yaml doesn't exist, use defaults:
@@ -59,7 +59,22 @@ If config.yaml doesn't exist, use defaults:
 - rules/: `.ai-factory/rules/`
 - FIX_PLAN.md: `.ai-factory/FIX_PLAN.md`
 - patches/: `.ai-factory/patches/`
-- Language: `en` (English)
+- `ui_language`: `en`
+- `artifact_language`: `en`
+- `technical_terms_policy`: `keep`
+
+Resolved language values:
+- `ui_language = language.ui || "en"`
+- `artifact_language = language.artifacts || language.ui || "en"`
+- `technical_terms_policy = language.technical_terms || "keep"`
+
+If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`. Legacy values such as `english` also behave like `keep`.
+
+All AskUserQuestion prompts, progress updates, fix summaries, test prompts, and next-step guidance MUST be written in `ui_language`.
+
+Generated `FIX_PLAN.md` and self-improvement patch files under `paths.patches` MUST be written in `artifact_language`.
+
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, analysis text, fix steps, risks, prevention notes, and patch prose before saving. Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 ### Step 0.1: Check for Existing Fix Plan
 
@@ -180,6 +195,8 @@ After agents return, synthesize findings to:
 3. Assess impact scope
 
 Then create the resolved fix plan file (default: `.ai-factory/FIX_PLAN.md`).
+
+Write the fix plan in `artifact_language`. The template below is the required structure only; translate human-readable headings, labels, and prose before saving when `artifact_language` is not `en`, while preserving stable technical tokens from Step 0.
 
 **Before writing:** If `HANDOFF_MODE` is `1` and `HANDOFF_TASK_ID` is non-empty, the very first line of the file MUST be `<!-- handoff:task:<HANDOFF_TASK_ID> -->` followed by a blank line, then the plan content below. If in manual mode and a task ID was extracted from an existing annotation, preserve it.
 
@@ -325,6 +342,8 @@ try {
 3. Otherwise: call `handoff_sync_status` with `{ taskId: <id>, newStatus: "review", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
 
 **ALWAYS suggest covering this case with a test:**
+
+The Step 5 and After Fixing output templates define structure only. Render all human-readable text in these user-facing responses in `ui_language`. Preserve code snippets, commands, file paths, line references, log prefixes such as `[FIX]`, and AskUserQuestion option structure unchanged.
 
 ```
 ## Fix Applied ✅
@@ -482,6 +501,8 @@ function fixedFunction(input) {
    **Format:** `YYYY-MM-DD-HH.mm.md` (e.g., `2026-02-07-14.30.md`)
 
 3. Use this template:
+
+Write the patch artifact in `artifact_language`. The template below is the required structure only; translate human-readable headings, labels, root-cause text, solution text, and prevention text before saving when `artifact_language` is not `en`, while preserving stable technical tokens from Step 0.
 
 ```markdown
 # [Brief title describing the fix]

@@ -37,12 +37,27 @@ AI Factory supports a three-level rules hierarchy:
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.rules_file` and `paths.rules`
-- **Language:** `language.ui` for prompts
+- **Language:** `language.ui` for prompts and summaries, `language.artifacts` for rules artifacts, and `language.technical_terms` for human-readable technical terminology in rules
 
 If config.yaml doesn't exist, use defaults:
 - RULES.md: `.ai-factory/RULES.md`
 - rules/: `.ai-factory/rules/`
-- Language: `en` (English)
+- `ui_language`: `en`
+- `artifact_language`: `en`
+- `technical_terms_policy`: `keep`
+
+Resolved language values:
+- `ui_language = language.ui || "en"`
+- `artifact_language = language.artifacts || language.ui || "en"`
+- `technical_terms_policy = language.technical_terms || "keep"`
+
+If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat it as `keep`. Legacy values such as `english` also behave like `keep`.
+
+All AskUserQuestion prompts, progress updates, confirmations, and next-step guidance MUST be written in `ui_language`.
+
+Generated or updated rules artifacts under `paths.rules_file` and `paths.rules/<area>.md` MUST be written in `artifact_language`.
+
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, notes, rule text, labels, and confirmation prose before saving. Preserve markdown structure, paths, commands, config keys such as `rules.<area>`, area names, code identifiers, package names, API names, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 ### Step 0.1: Load Skill Context
 
@@ -215,6 +230,7 @@ Use `Edit` to append the new rule as a `- ` list item at the end of the `## Rule
 - No categories, headers, or sub-lists - flat list only
 - No duplicates - if rule already exists (same meaning), tell user and skip
 - If user provides multiple rules at once (separated by newlines or semicolons), add each as a separate line
+- Write generated rule text in `artifact_language`; translate user-provided human-readable rule text when needed so the persisted artifact follows `language.artifacts`, while preserving stable technical tokens from Step 0.
 
 ### Step 4: Confirm
 
