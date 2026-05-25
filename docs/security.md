@@ -72,13 +72,13 @@ A skill with **any CRITICAL threat is never installed**. No exceptions, no overr
 
 ```bash
 PYTHON_CMD=()
-if python3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+if python3 --version 2>&1 | grep -Eq '^Python 3\.'; then
   PYTHON_CMD=(python3)
-elif python -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+elif python --version 2>&1 | grep -Eq '^Python 3\.'; then
   PYTHON_CMD=(python)
-elif py -3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+elif py -3 --version 2>&1 | grep -Eq '^Python 3\.'; then
   PYTHON_CMD=(py -3)
-elif py -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+elif py --version 2>&1 | grep -Eq '^Python 3\.'; then
   PYTHON_CMD=(py)
 fi
 

@@ -32,13 +32,13 @@ fail() {
 
 PYTHON_CMD=()
 find_python3() {
-    if python3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+    if python3 --version 2>&1 | grep -Eq '^Python 3\.'; then
         PYTHON_CMD=(python3)
-    elif python -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+    elif python --version 2>&1 | grep -Eq '^Python 3\.'; then
         PYTHON_CMD=(python)
-    elif py -3 -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+    elif py -3 --version 2>&1 | grep -Eq '^Python 3\.'; then
         PYTHON_CMD=(py -3)
-    elif py -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+    elif py --version 2>&1 | grep -Eq '^Python 3\.'; then
         PYTHON_CMD=(py)
     else
         PYTHON_CMD=()
@@ -227,26 +227,53 @@ else
     fail "found $DOTTED_REFS dotted invocations in docs"
 fi
 
-# Skills that document the shared Python 3 detection block must allow the
-# exact command families used by that block and by the scanner/helper calls.
+# Security-sensitive skills that document Python 3 detection must allow only
+# the exact command shapes used by version probes and scanner execution.
 PYTHON_ALLOWLIST_FAILURES=0
-for skill_file in "$ROOT_DIR"/skills/*/SKILL.md; do
-    if grep -qF "PYTHON_CMD=()" "$skill_file" \
-        && grep -qF "python3 -c" "$skill_file" \
-        && grep -qF "py -3 -c" "$skill_file"; then
-        ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$skill_file" || true)
-        if ! grep -qF "Bash(python3 *)" <<< "$ALLOWED_TOOLS_LINE" \
-            || ! grep -qF "Bash(python *)" <<< "$ALLOWED_TOOLS_LINE" \
-            || ! grep -qF "Bash(py *)" <<< "$ALLOWED_TOOLS_LINE"; then
+for skill_name in aif aif-skill-generator; do
+    skill_file="$ROOT_DIR/skills/$skill_name/SKILL.md"
+    ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$skill_file" || true)
+
+    for required in \
+        "Bash(python3 --version)" \
+        "Bash(python --version)" \
+        "Bash(py -3 --version)" \
+        "Bash(py --version)" \
+        "Bash(python3 *security-scan.py*)" \
+        "Bash(python *security-scan.py*)" \
+        "Bash(py -3 *security-scan.py*)" \
+        "Bash(py *security-scan.py*)"; do
+        if ! grep -qF "$required" <<< "$ALLOWED_TOOLS_LINE"; then
             PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
-            echo "      $(basename "$(dirname "$skill_file")") missing python3/python/py allowed-tools"
+            echo "      $skill_name missing allowed-tools pattern: $required"
         fi
+    done
+
+    for forbidden in "Bash(python3 *)" "Bash(python *)" "Bash(py *)"; do
+        if grep -qF "$forbidden" <<< "$ALLOWED_TOOLS_LINE"; then
+            PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+            echo "      $skill_name grants unrestricted Python command family: $forbidden"
+        fi
+    done
+
+    if ! grep -qF "python3 --version" "$skill_file" \
+        || ! grep -qF "py -3 --version" "$skill_file"; then
+        PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+        echo "      $skill_name missing documented Python version probes"
+    fi
+
+    if grep -qF "python3 -c" "$skill_file" \
+        || grep -qF "python -c" "$skill_file" \
+        || grep -qF "py -3 -c" "$skill_file" \
+        || grep -qF "py -c" "$skill_file"; then
+        PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+        echo "      $skill_name still documents Python -c detection"
     fi
 done
 if [[ "$PYTHON_ALLOWLIST_FAILURES" -eq 0 ]]; then
-    pass "Python detection skills allow documented command families"
+    pass "Python scanner skills use least-privilege allowed-tools"
 else
-    fail "found $PYTHON_ALLOWLIST_FAILURES Python detection allowlist mismatch(es)"
+    fail "found $PYTHON_ALLOWLIST_FAILURES Python scanner allowlist mismatch(es)"
 fi
 
 AIF_SKILL_GENERATOR="$ROOT_DIR/skills/aif-skill-generator/SKILL.md"
