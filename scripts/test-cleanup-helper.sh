@@ -435,7 +435,7 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Tests N1–N8: safe_remove_installed safety checks (round-4 P1)
+# Tests N1–N11: safe_remove_installed safety checks (round-4 P1)
 # ─────────────────────────────────────────────
 # These tests exercise each rejection path of safe_remove_installed
 # individually. Each setup is minimal so a failure isolates a single
@@ -530,7 +530,7 @@ if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
     fail "N3: not under skills/" "helper exited 0 despite non-skills location"
 else
     if [[ -e "$TEST_TMPDIR/random-dir/SKILL.md" ]] && \
-       grep -q "no 'skills' segment" "$TEST_TMPDIR/out"; then
+       grep -q "not an installed agent skill directory" "$TEST_TMPDIR/out"; then
         pass "N3: non-skills location rejected (dir preserved)"
     else
         fail "N3: not under skills/" \
@@ -661,14 +661,80 @@ if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
    --installed-path . > "$TEST_TMPDIR/out" 2>&1; then
     fail "N8: installed-path == root" "helper exited 0 despite installed-path == root"
 else
-    # Both #5b "equals --root" and #6 "no 'skills' segment" are valid
-    # rejection reasons (resolved root has no 'skills' part). Accept either.
     if [[ -d "$TEST_TMPDIR" ]] && [[ -f "$TEST_TMPDIR/SKILL.md" ]] && \
-       grep -Eq "equals --root|no 'skills' segment" "$TEST_TMPDIR/out"; then
+       grep -q "equals --root" "$TEST_TMPDIR/out"; then
         pass "N8: installed-path == root rejected (root preserved)"
     else
         fail "N8: installed-path == root" \
              "root tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N9: root-level source skills must be rejected and preserved, even
+# when the requested skill key is absent from skills-lock.json.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"other-skill": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/skills/source-skill"
+echo "# source skill" > "$TEST_TMPDIR/skills/source-skill/SKILL.md"
+if "$PYTHON" "$HELPER" --skill source-skill --root "$TEST_TMPDIR" \
+   --installed-path skills/source-skill > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N9: root source skill rejection" "helper exited 0 for source skills/ path"
+else
+    if [[ -f "$TEST_TMPDIR/skills/source-skill/SKILL.md" ]] && \
+       grep -q "not an installed agent skill directory" "$TEST_TMPDIR/out"; then
+        pass "N9: root source skills/ path rejected (dir preserved)"
+    else
+        fail "N9: root source skill rejection" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N10: nested docs skills must be rejected and preserved, even when the
+# requested skill key is absent from skills-lock.json.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"other-skill": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/docs/skills/source-skill"
+echo "# docs source skill" > "$TEST_TMPDIR/docs/skills/source-skill/SKILL.md"
+if "$PYTHON" "$HELPER" --skill source-skill --root "$TEST_TMPDIR" \
+   --installed-path docs/skills/source-skill > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N10: docs source skill rejection" "helper exited 0 for docs/skills path"
+else
+    if [[ -f "$TEST_TMPDIR/docs/skills/source-skill/SKILL.md" ]] && \
+       grep -q "not an installed agent skill directory" "$TEST_TMPDIR/out"; then
+        pass "N10: docs/skills source path rejected (dir preserved)"
+    else
+        fail "N10: docs source skill rejection" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N11: mismatched requested skill and installed-path basename must be rejected.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/.claude/skills/bar"
+echo "# bar" > "$TEST_TMPDIR/.claude/skills/bar/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .claude/skills/bar > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N11: mismatched installed-path basename" "helper exited 0 for foo -> bar"
+else
+    if [[ -f "$TEST_TMPDIR/.claude/skills/bar/SKILL.md" ]] && \
+       grep -q "does not match requested skill directory" "$TEST_TMPDIR/out"; then
+        pass "N11: mismatched installed-path basename rejected (dir preserved)"
+    else
+        fail "N11: mismatched installed-path basename" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
     fi
 fi
 rm -rf "$TEST_TMPDIR"

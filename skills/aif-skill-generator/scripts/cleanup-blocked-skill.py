@@ -38,8 +38,8 @@ Caller contract for --installed-path:
   name — upstream `skills` CLI sanitizes the on-disk directory name
   (lowercase, non-alphanumeric runs collapsed to `-`), so a logical
   name like "Convex Best Practices" lives at
-  `.<agent>/skills/convex-best-practices`. A synthesized path silently
-  misses the real blocked skill.
+  `.<agent-config>/skills/convex-best-practices`. A synthesized path
+  silently misses the real blocked skill.
 """
 
 import argparse
@@ -50,6 +50,26 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+
+
+def sanitize_skill_dir(name: str) -> str:
+    """Return the upstream-style installed directory basename for a skill.
+
+    The `skills` CLI lowercases names and collapses non-alphanumeric runs
+    to `-` for on-disk directories, e.g. "Convex Best Practices" becomes
+    "convex-best-practices". Keep this local and conservative: the helper
+    only uses it to prove --installed-path points at the requested skill.
+    """
+    chars = []
+    last_was_dash = False
+    for c in name.lower():
+        if 'a' <= c <= 'z' or '0' <= c <= '9':
+            chars.append(c)
+            last_was_dash = False
+        elif not last_was_dash:
+            chars.append('-')
+            last_was_dash = True
+    return ''.join(chars).strip('-')
 
 
 def validate_skill_name(name: str):
@@ -217,7 +237,7 @@ def _chmod_retry(func, path, exc_info):
     func(path)
 
 
-def safe_remove_installed(installed: Path, root: Path) -> None:
+def safe_remove_installed(installed: Path, root: Path, skill: str) -> None:
     """Physically remove the installed skill directory after safety checks.
 
     Raises RuntimeError when any check rejects the path; the caller maps
@@ -271,13 +291,29 @@ def safe_remove_installed(installed: Path, root: Path) -> None:
             f"refusing to delete {resolved}: equals --root"
         )
 
-    # 6. Must have a `skills` segment under root. Skill dirs always live
-    # under `<agent>/skills/<name>` (e.g. .claude/skills/, .cursor/skills/).
+    # 6. Must be an installed agent-skill directory, not source/docs
+    # content that merely contains a `skills` path segment. Installed
+    # project skills live at `.<agent-config>/skills/<skill-dir>`, e.g.
+    # `.claude/skills/foo` or `.cursor/skills/foo`.
     rel_parts = resolved.relative_to(real_root).parts
-    if 'skills' not in rel_parts:
+    if (
+        len(rel_parts) != 3
+        or not rel_parts[0].startswith('.')
+        or rel_parts[0] in ('.', '..')
+        or rel_parts[1] != 'skills'
+    ):
         raise RuntimeError(
-            f"refusing to delete {resolved}: no 'skills' segment under "
-            f"--root {real_root} (skill directories live under <agent>/skills/)"
+            f"refusing to delete {resolved}: not an installed agent skill "
+            f"directory under --root {real_root} (expected "
+            ".<agent-config>/skills/<skill-dir>)"
+        )
+
+    expected_basename = sanitize_skill_dir(skill)
+    if rel_parts[2] != expected_basename:
+        raise RuntimeError(
+            f"refusing to delete {resolved}: installed-path basename "
+            f"{rel_parts[2]!r} does not match requested skill directory "
+            f"{expected_basename!r}"
         )
 
     # 7. Plausibility marker: SKILL.md must exist. Upstream skills format
@@ -375,7 +411,7 @@ def main() -> int:
     if args.installed_path and not args.dry_run:
         installed = Path(args.installed_path)
         try:
-            safe_remove_installed(installed, root)
+            safe_remove_installed(installed, root, skill)
         except RuntimeError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
