@@ -108,7 +108,7 @@ write_config() {
 echo -e "\n${BOLD}=== cleanup-blocked-skill.py regression tests ===${NC}\n"
 
 # ─────────────────────────────────────────────
-# Test 1: removes target, preserves siblings (#117 regression)
+# Test 1: removes target lock entry, preserves siblings
 # ─────────────────────────────────────────────
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
@@ -131,7 +131,7 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Test 2: skill name with spaces (P1.1 regression)
+# Test 2: skill name with spaces
 # ─────────────────────────────────────────────
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
@@ -151,9 +151,9 @@ if "$PYTHON" "$HELPER" --skill "Convex Best Practices" --root "$TEST_TMPDIR" > "
     if [[ $LOCK_OK -eq 0 ]]; then
         fail "skill name with spaces" "lock content unexpected: $(cat "$TEST_TMPDIR/skills-lock.json")"
     elif [[ $IS_WINDOWS -eq 1 ]]; then
-        # Lock-state proves the P1.1 fix (validation + patch_lock both
-        # accepted the spaced name); argv-passing assertion is unreliable
-        # on Windows (see PATHEXT note above).
+        # Lock-state proves validation + patch_lock accepted the spaced
+        # name; argv-passing assertion is unreliable on Windows (see
+        # PATHEXT note above).
         pass "skill name with spaces (lock; argv check skipped on Windows)"
     else
         # Fake npx logged each argv on its own line — verify the full
@@ -231,7 +231,7 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Test 6: missing npx → non-zero exit, lock unchanged (P2.1 regression)
+# Test 6: missing npx → non-zero exit, lock unchanged
 # ─────────────────────────────────────────────
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{"version": 1, "skills": {"foo": {"source": "a/b"}}}'
@@ -253,7 +253,7 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Test 7: subprocess cwd matches --root (P2, second-review regression)
+# Test 7: subprocess cwd matches --root
 # ─────────────────────────────────────────────
 # Ensures `npx skills remove` runs with cwd=<root> so the upstream CLI
 # inspects the same project's skills-lock.json that this helper patches.
@@ -306,10 +306,10 @@ rm -rf "$TEST_TMPDIR"
 # ─────────────────────────────────────────────
 # Test 9: --installed-path leftover under skills/ → exit 0 + dir gone
 # ─────────────────────────────────────────────
-# Round-4 P1: the helper itself must physically remove the leftover
-# directory (variant B), not just report it. Fixture is placed at the
-# canonical install location (.claude/skills/<name>/SKILL.md) so all
-# safety checks pass and safe_remove_installed proceeds.
+# The helper must physically remove the leftover directory, not just
+# report it. Fixture is placed at the canonical install location
+# (.claude/skills/<name>/SKILL.md) so all safety checks pass and
+# safe_remove_installed proceeds.
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
@@ -352,7 +352,7 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Test 11: sanitized-leftover end-to-end (P1 from review rounds 3 & 4)
+# Test 11: sanitized-leftover end-to-end
 # ─────────────────────────────────────────────
 # Upstream `skills` sanitizes the on-disk directory name:
 #   "Convex Best Practices" -> "convex-best-practices"
@@ -360,16 +360,12 @@ rm -rf "$TEST_TMPDIR"
 # apply sanitizeName() to the argument before matching, so it never
 # touches the sanitized directory; it exits 0 silently.
 #
-# Round 3 P1 fixed the prompt contract so agents pass the actual
-# scanned path. Round 4 P1 fixes the helper itself: it must remove
-# that physical directory, not just report leftover.
-#
-# Two sub-cases below probe both contracts on the same fixture:
-#   (a) the OLD synthesized-path contract is now rejected instead of
-#       being accepted as an idempotent absent-path cleanup.
-#   (b) the FIX: with the correct path AND the new helper, the
-#       sanitized directory is physically removed and the lock key
-#       is cleared. This is the reviewer's explicit ask.
+# Two sub-cases probe both contracts on the same fixture:
+#   (a) a synthesized path (logical name as-is) is rejected by the
+#       identity check rather than accepted as an idempotent no-op.
+#   (b) the correct sanitized scanned path: helper physically removes
+#       the directory AND clears the lock entry, even though upstream
+#       `npx skills remove` was a no-op.
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
@@ -379,9 +375,9 @@ write_lock "$TEST_TMPDIR" '{
 mkdir -p "$TEST_TMPDIR/.claude/skills/convex-best-practices"
 echo "# blocked skill" > "$TEST_TMPDIR/.claude/skills/convex-best-practices/SKILL.md"
 
-# (a) OLD broken contract: synthesize path from logical name. The helper
-#     should now reject this absent wrong path by identity before it can
-#     silently claim cleanup of the real sanitized directory.
+# (a) Synthesized path from logical name. Helper must reject this
+#     absent wrong path by identity rather than silently claim cleanup
+#     of the real sanitized directory.
 if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
         --skill "Convex Best Practices" \
         --root "$TEST_TMPDIR" \
@@ -391,8 +387,8 @@ if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
 else
     OLD_CONTRACT_EXIT=$?
 fi
-# Verify: sanitized dir IS still on disk, and the old synthesized path
-# is no longer accepted as a clean no-op.
+# Verify: sanitized dir IS still on disk, and the synthesized path
+# is rejected (not treated as a clean no-op).
 if [[ $OLD_CONTRACT_EXIT -eq 0 ]] || \
    [[ ! -d "$TEST_TMPDIR/.claude/skills/convex-best-practices" ]] || \
    ! grep -q 'identity mismatch' "$TEST_TMPDIR/out-a"; then
@@ -400,16 +396,15 @@ if [[ $OLD_CONTRACT_EXIT -eq 0 ]] || \
          "old-contract path was not rejected as expected; exit=$OLD_CONTRACT_EXIT out=$(cat "$TEST_TMPDIR/out-a")"
 fi
 
-# Re-add the lock entry defensively so path (b) has work to do if a
-# future refactor moves validation later.
+# Re-add the lock entry so path (b) has work to do.
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
   "skills": {"Convex Best Practices": {"source": "x/y"}}
 }'
 
-# (b) NEW correct contract + new helper: pass the actual sanitized scanned
-#     path. The helper must physically remove the directory AND clear the
-#     lock entry, even though upstream `npx skills remove` was a no-op.
+# (b) Correct contract: pass the actual sanitized scanned path. Helper
+#     physically removes the directory AND clears the lock entry, even
+#     though upstream `npx skills remove` was a no-op.
 if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
         --skill "Convex Best Practices" \
         --root "$TEST_TMPDIR" \
@@ -433,7 +428,7 @@ if [[ $OLD_CONTRACT_EXIT -ne 0 \
    && $NEW_CONTRACT_EXIT -eq 0 \
    && $LOCK_CLEAR -eq 1 \
    && $DIR_GONE -eq 1 ]]; then
-    pass "sanitized leftover: old-contract rejected + new-contract removes both"
+    pass "sanitized leftover: synthesized path rejected + correct path removes both"
 else
     fail "sanitized leftover" \
          "old=$OLD_CONTRACT_EXIT new=$NEW_CONTRACT_EXIT lock_clear=$LOCK_CLEAR dir_gone=$DIR_GONE; out-a=$(cat "$TEST_TMPDIR/out-a"); out-b=$(cat "$TEST_TMPDIR/out-b")"
@@ -441,7 +436,7 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Tests N1–N8: safe_remove_installed safety checks (round-4 P1)
+# Tests N1–N8: safe_remove_installed safety checks
 # ─────────────────────────────────────────────
 # These tests exercise each rejection path of safe_remove_installed
 # individually. Each setup is minimal so a failure isolates a single
@@ -851,9 +846,9 @@ for f in "${PROMPT_FILES[@]}"; do
     if [[ ! -f "$f" ]]; then
         continue
     fi
-    # Regression = the synthesized template appears IMMEDIATELY after
-    # --installed-path (i.e. it is the VALUE of the flag, not part of
-    # surrounding explanatory text that warns against the pattern).
+    # A violation is when the synthesized template appears IMMEDIATELY
+    # after --installed-path (i.e. it is the VALUE of the flag, not part
+    # of surrounding explanatory text that warns against the pattern).
     while IFS= read -r line; do
         if printf '%s' "$line" | grep -Eq -- '--installed-path[[:space:]]+\{\{skills_dir\}\}/<'; then
             BAD_LINES+=("$f: $line")
@@ -863,7 +858,7 @@ done
 if [[ ${#BAD_LINES[@]} -eq 0 ]]; then
     pass "prompt-contract: no skill doc synthesizes --installed-path from {{skills_dir}}/<name>"
 else
-    fail "prompt-contract regression" "$(printf '%s\n' "${BAD_LINES[@]}")"
+    fail "prompt-contract violation" "$(printf '%s\n' "${BAD_LINES[@]}")"
 fi
 
 # Restore PATH for any post-suite work

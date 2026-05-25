@@ -16,9 +16,7 @@ This script:
   4. When --installed-path is provided: physically removes the directory
      via `safe_remove_installed()` after strict safety validation.
      This is the authoritative cleanup step — the helper is the
-     guarantor of physical removal, not the upstream CLI. See the
-     comment block above Step 4 in main() for the upstream-CLI
-     mismatch that makes this step necessary.
+     guarantor of physical removal, not the upstream CLI.
 
 Usage:
   cleanup-blocked-skill.py --skill <name> [--root <dir>]
