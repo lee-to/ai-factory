@@ -100,6 +100,11 @@ write_lock() {
     printf '%s\n' "$2" > "$1/skills-lock.json"
 }
 
+write_config() {
+    # write_config <tmpdir> <json>
+    printf '%s\n' "$2" > "$1/.ai-factory.json"
+}
+
 echo -e "\n${BOLD}=== cleanup-blocked-skill.py regression tests ===${NC}\n"
 
 # ─────────────────────────────────────────────
@@ -360,10 +365,8 @@ rm -rf "$TEST_TMPDIR"
 # that physical directory, not just report leftover.
 #
 # Two sub-cases below probe both contracts on the same fixture:
-#   (a) regression-value: the OLD synthesized-path contract is still
-#       a silent no-op (path didn't exist), so without the new prompt
-#       contract a security-blocked dir would still leak. This proves
-#       why the prompt contract matters — it's a documentation case.
+#   (a) the OLD synthesized-path contract is now rejected instead of
+#       being accepted as an idempotent absent-path cleanup.
 #   (b) the FIX: with the correct path AND the new helper, the
 #       sanitized directory is physically removed and the lock key
 #       is cleared. This is the reviewer's explicit ask.
@@ -376,11 +379,9 @@ write_lock "$TEST_TMPDIR" '{
 mkdir -p "$TEST_TMPDIR/.claude/skills/convex-best-practices"
 echo "# blocked skill" > "$TEST_TMPDIR/.claude/skills/convex-best-practices/SKILL.md"
 
-# (a) OLD broken contract: synthesize path from logical name -> silent no-op.
-#     Fake npx returns 1 (simulates the upstream no-match case). With the
-#     bogus unsanitized installed-path the helper sees "absent" and exits 0
-#     (idempotent on missing target), proving that without the new prompt
-#     contract the REAL sanitized directory would be left untouched.
+# (a) OLD broken contract: synthesize path from logical name. The helper
+#     should now reject this absent wrong path by identity before it can
+#     silently claim cleanup of the real sanitized directory.
 if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
         --skill "Convex Best Practices" \
         --root "$TEST_TMPDIR" \
@@ -390,12 +391,17 @@ if FAKE_NPX_EXIT=1 "$PYTHON" "$HELPER" \
 else
     OLD_CONTRACT_EXIT=$?
 fi
-# Verify: sanitized dir IS still on disk (the silent-leak hazard).
-if [[ ! -d "$TEST_TMPDIR/.claude/skills/convex-best-practices" ]]; then
-    fail "sanitized leftover (a)" "old-contract path removed the wrong dir"
+# Verify: sanitized dir IS still on disk, and the old synthesized path
+# is no longer accepted as a clean no-op.
+if [[ $OLD_CONTRACT_EXIT -eq 0 ]] || \
+   [[ ! -d "$TEST_TMPDIR/.claude/skills/convex-best-practices" ]] || \
+   ! grep -q 'identity mismatch' "$TEST_TMPDIR/out-a"; then
+    fail "sanitized leftover (a)" \
+         "old-contract path was not rejected as expected; exit=$OLD_CONTRACT_EXIT out=$(cat "$TEST_TMPDIR/out-a")"
 fi
 
-# Re-add the lock entry that path (a) removed, so path (b) has work to do.
+# Re-add the lock entry defensively so path (b) has work to do if a
+# future refactor moves validation later.
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
   "skills": {"Convex Best Practices": {"source": "x/y"}}
@@ -423,11 +429,11 @@ if [[ ! -e "$TEST_TMPDIR/.claude/skills/convex-best-practices" ]]; then
     DIR_GONE=1
 fi
 
-if [[ $OLD_CONTRACT_EXIT -eq 0 \
+if [[ $OLD_CONTRACT_EXIT -ne 0 \
    && $NEW_CONTRACT_EXIT -eq 0 \
    && $LOCK_CLEAR -eq 1 \
    && $DIR_GONE -eq 1 ]]; then
-    pass "sanitized leftover: old-contract silent no-op + new-contract removes both"
+    pass "sanitized leftover: old-contract rejected + new-contract removes both"
 else
     fail "sanitized leftover" \
          "old=$OLD_CONTRACT_EXIT new=$NEW_CONTRACT_EXIT lock_clear=$LOCK_CLEAR dir_gone=$DIR_GONE; out-a=$(cat "$TEST_TMPDIR/out-a"); out-b=$(cat "$TEST_TMPDIR/out-b")"
@@ -516,8 +522,8 @@ fi
 rm -rf "$ESCAPE_DIR"
 rm -rf "$TEST_TMPDIR"
 
-# N3: --installed-path inside --root but NOT under any `skills/` segment
-# → reject (check #6).
+# N3: --installed-path inside --root but NOT under a known agent skills
+# directory → reject.
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
@@ -530,7 +536,7 @@ if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
     fail "N3: not under skills/" "helper exited 0 despite non-skills location"
 else
     if [[ -e "$TEST_TMPDIR/random-dir/SKILL.md" ]] && \
-       grep -q "no 'skills' segment" "$TEST_TMPDIR/out"; then
+       grep -Eq "known project agent skills directory|no 'skills' segment" "$TEST_TMPDIR/out"; then
         pass "N3: non-skills location rejected (dir preserved)"
     else
         fail "N3: not under skills/" \
@@ -661,14 +667,171 @@ if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
    --installed-path . > "$TEST_TMPDIR/out" 2>&1; then
     fail "N8: installed-path == root" "helper exited 0 despite installed-path == root"
 else
-    # Both #5b "equals --root" and #6 "no 'skills' segment" are valid
-    # rejection reasons (resolved root has no 'skills' part). Accept either.
+    # Both #5b "equals --root" and later path-boundary checks are valid
+    # rejection reasons. Accept either so ordering can stay defensive.
     if [[ -d "$TEST_TMPDIR" ]] && [[ -f "$TEST_TMPDIR/SKILL.md" ]] && \
-       grep -Eq "equals --root|no 'skills' segment" "$TEST_TMPDIR/out"; then
+       grep -Eq "equals --root|known project agent skills directory|no 'skills' segment" "$TEST_TMPDIR/out"; then
         pass "N8: installed-path == root rejected (root preserved)"
     else
         fail "N8: installed-path == root" \
              "root tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N9: root-level source skill path → reject and preserve.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"source-skill": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/skills/source-skill"
+printf '%s\n' '---' 'name: source-skill' '---' '# source' > "$TEST_TMPDIR/skills/source-skill/SKILL.md"
+if "$PYTHON" "$HELPER" --skill source-skill --root "$TEST_TMPDIR" \
+   --installed-path skills/source-skill > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N9: root source skills/ rejected" "helper exited 0 despite source path"
+else
+    if [[ -f "$TEST_TMPDIR/skills/source-skill/SKILL.md" ]] && \
+       grep -q "known project agent skills directory" "$TEST_TMPDIR/out"; then
+        pass "N9: root source skills/ rejected (dir preserved)"
+    else
+        fail "N9: root source skills/" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N10: docs/skills source path → reject and preserve.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"source-skill": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/docs/skills/source-skill"
+printf '%s\n' '---' 'name: source-skill' '---' '# docs source' > "$TEST_TMPDIR/docs/skills/source-skill/SKILL.md"
+if "$PYTHON" "$HELPER" --skill source-skill --root "$TEST_TMPDIR" \
+   --installed-path docs/skills/source-skill > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N10: docs/skills source rejected" "helper exited 0 despite docs path"
+else
+    if [[ -f "$TEST_TMPDIR/docs/skills/source-skill/SKILL.md" ]] && \
+       grep -q "known project agent skills directory" "$TEST_TMPDIR/out"; then
+        pass "N10: docs/skills source rejected (dir preserved)"
+    else
+        fail "N10: docs/skills source" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N11: canonical .claude/skills/foo path still works.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/.claude/skills/foo"
+printf '%s\n' '---' 'name: foo' '---' '# foo' > "$TEST_TMPDIR/.claude/skills/foo/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+    if [[ ! -e "$TEST_TMPDIR/.claude/skills/foo" ]]; then
+        pass "N11: canonical .claude skill accepted and removed"
+    else
+        fail "N11: canonical .claude skill" \
+             "helper exited 0 but dir remains: $(cat "$TEST_TMPDIR/out")"
+    fi
+else
+    fail "N11: canonical .claude skill" "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N12: mismatched --skill and installed basename/frontmatter → reject.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/.claude/skills/bar"
+printf '%s\n' '---' 'name: bar' '---' '# bar' > "$TEST_TMPDIR/.claude/skills/bar/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .claude/skills/bar > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N12: identity mismatch rejected" "helper exited 0 despite mismatched path"
+else
+    if [[ -f "$TEST_TMPDIR/.claude/skills/bar/SKILL.md" ]] && \
+       grep -q "identity mismatch" "$TEST_TMPDIR/out"; then
+        pass "N12: identity mismatch rejected (dir preserved)"
+    else
+        fail "N12: identity mismatch" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N13: .cache/skills/foo is rejected when not an explicit agent skillsDir.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/.cache/skills/foo"
+printf '%s\n' '---' 'name: foo' '---' '# cache' > "$TEST_TMPDIR/.cache/skills/foo/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .cache/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N13: unregistered .cache skills root rejected" "helper exited 0 despite unregistered root"
+else
+    if [[ -f "$TEST_TMPDIR/.cache/skills/foo/SKILL.md" ]] && \
+       grep -q "known project agent skills directory" "$TEST_TMPDIR/out"; then
+        pass "N13: unregistered .cache skills root rejected (dir preserved)"
+    else
+        fail "N13: unregistered .cache skills root" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N14: extension runtime skillsDir from .ai-factory.json is accepted.
+fresh_tmp
+write_config "$TEST_TMPDIR" '{
+  "agents": [
+    {"id": "my-agent", "skillsDir": ".my-agent/skills"}
+  ]
+}'
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/.my-agent/skills/foo"
+printf '%s\n' '---' 'name: foo' '---' '# extension runtime' > "$TEST_TMPDIR/.my-agent/skills/foo/SKILL.md"
+if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+   --installed-path .my-agent/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+    if [[ ! -e "$TEST_TMPDIR/.my-agent/skills/foo" ]]; then
+        pass "N14: extension runtime skillsDir accepted and removed"
+    else
+        fail "N14: extension runtime skillsDir" \
+             "helper exited 0 but dir remains: $(cat "$TEST_TMPDIR/out")"
+    fi
+else
+    fail "N14: extension runtime skillsDir" "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N15: dry-run still validates unsafe installed paths and preserves them.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"source-skill": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/skills/source-skill"
+printf '%s\n' '---' 'name: source-skill' '---' '# source' > "$TEST_TMPDIR/skills/source-skill/SKILL.md"
+if "$PYTHON" "$HELPER" --skill source-skill --root "$TEST_TMPDIR" \
+   --installed-path skills/source-skill --dry-run > "$TEST_TMPDIR/out" 2>&1; then
+    fail "N15: dry-run validates source path" "helper exited 0 despite unsafe dry-run path"
+else
+    if [[ -f "$TEST_TMPDIR/skills/source-skill/SKILL.md" ]] && \
+       grep -q "known project agent skills directory" "$TEST_TMPDIR/out"; then
+        pass "N15: dry-run validates source path (dir preserved)"
+    else
+        fail "N15: dry-run validates source path" \
+             "dir tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
     fi
 fi
 rm -rf "$TEST_TMPDIR"

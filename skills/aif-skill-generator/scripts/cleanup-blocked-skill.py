@@ -33,23 +33,43 @@ Exit codes:
   2 - usage error (missing/invalid arguments)
 
 Caller contract for --installed-path:
-  Pass the ACTUAL installed directory (the same path previously fed to
-  security-scan.py). Do NOT synthesize the path from the logical skill
-  name — upstream `skills` CLI sanitizes the on-disk directory name
-  (lowercase, non-alphanumeric runs collapsed to `-`), so a logical
-  name like "Convex Best Practices" lives at
-  `.<agent>/skills/convex-best-practices`. A synthesized path silently
-  misses the real blocked skill.
+  This helper is project-scoped; global skill cleanup is out of scope.
+  Pass the ACTUAL installed project-skill directory (the same path
+  previously fed to security-scan.py). The path must be a direct child
+  of a known agent skillsDir (for example
+  `.<agent>/skills/convex-best-practices`). Do NOT synthesize the path
+  from the logical skill name — upstream `skills` CLI sanitizes the
+  on-disk directory name, so a synthesized path can miss the real
+  blocked skill.
 """
 
 import argparse
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
 import sys
 from pathlib import Path
+
+_BUILTIN_AGENT_SKILLS_DIRS = (
+    '.claude/skills',
+    '.cursor/skills',
+    '.codex/skills',
+    '.agents/skills',
+    '.github/skills',
+    '.gemini/skills',
+    '.junie/skills',
+    '.qwen/skills',
+    '.windsurf/skills',
+    '.warp/skills',
+    '.zencoder/skills',
+    '.roo/skills',
+    '.kilocode/skills',
+    '.agent/skills',
+    '.opencode/skills',
+)
 
 
 def validate_skill_name(name: str):
@@ -217,53 +237,151 @@ def _chmod_retry(func, path, exc_info):
     func(path)
 
 
-def safe_remove_installed(installed: Path, root: Path) -> None:
-    """Physically remove the installed skill directory after safety checks.
+def _normalize_configured_skills_dir(value):
+    """Return a normalized project-relative skillsDir or None.
+
+    Runtime extensions may define additional agent skills roots in
+    `.ai-factory.json`. Accept only safe dot-prefixed project-relative
+    paths ending in `skills`, matching the installed-agent shape this
+    helper is allowed to clean.
+    """
+    if not isinstance(value, str):
+        return None
+    raw = value.strip().replace('\\', '/')
+    if raw.startswith('./'):
+        raw = raw[2:]
+    if not raw or raw.startswith('/') or re.match(r'^[A-Za-z]:($|/)', raw):
+        return None
+    parts = raw.split('/')
+    if any(not part or part == '.' or part == '..' for part in parts):
+        return None
+    if not parts[0].startswith('.') or parts[-1].lower() != 'skills':
+        return None
+    return '/'.join(parts)
+
+
+def _allowed_agent_skills_dirs(root: Path):
+    """Known project agent skills roots, as root-relative path strings."""
+    roots = set(_BUILTIN_AGENT_SKILLS_DIRS)
+    config_path = root / '.ai-factory.json'
+    try:
+        data = json.loads(config_path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return tuple(sorted(roots))
+
+    agents = data.get('agents')
+    if not isinstance(agents, list):
+        return tuple(sorted(roots))
+
+    for agent in agents:
+        if not isinstance(agent, dict):
+            continue
+        normalized = _normalize_configured_skills_dir(agent.get('skillsDir'))
+        if normalized:
+            roots.add(normalized)
+    return tuple(sorted(roots))
+
+
+def _path_norm(value: Path) -> str:
+    return os.path.normcase(str(value))
+
+
+def _existing_path_prefixes(path: Path, root: Path):
+    """Yield existing path prefixes from root to path without resolving."""
+    try:
+        rel_parts = path.relative_to(root).parts
+    except ValueError:
+        return
+
+    current = root
+    for part in rel_parts:
+        current = current / part
+        if current.exists() or current.is_symlink():
+            yield current
+
+
+def _matching_agent_skills_root(resolved: Path, root: Path):
+    """Return the matching allowed skills root if resolved is its child."""
+    resolved_parent_n = _path_norm(resolved.parent)
+    for skills_dir in _allowed_agent_skills_dirs(root):
+        skills_root = (root / Path(*skills_dir.split('/'))).resolve(strict=False)
+        if resolved_parent_n == _path_norm(skills_root):
+            return skills_root
+    return None
+
+
+def _sanitize_skill_name(name: str) -> str:
+    """Port of upstream skills sanitizeName() used for install paths."""
+    return re.sub(r'[^a-z0-9._]+', '-', name.lower()).strip('.-')
+
+
+def _read_skill_frontmatter_name(skill_md: Path):
+    """Best-effort parser for a simple `name:` key in YAML frontmatter."""
+    try:
+        lines = skill_md.read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return None
+    if not lines or lines[0].strip() != '---':
+        return None
+
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == '---':
+            return None
+        if not stripped or stripped.startswith('#') or ':' not in stripped:
+            continue
+        key, value = stripped.split(':', 1)
+        if key.strip() != 'name':
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+            value = value[1:-1]
+        return value
+    return None
+
+
+def validate_installed_skill_path(installed: Path, root: Path, skill: str) -> Path:
+    """Resolve and validate an installed project skill directory path.
 
     Raises RuntimeError when any check rejects the path; the caller maps
-    that to exit 1 with the rejection reason. Returns silently (idempotent)
-    when the directory is already absent. See inline comments for the
-    rationale of each check.
+    that to exit 1 with the rejection reason. The path may already be
+    absent for idempotent retries, but it still must point to a plausible
+    installed-agent skill child and match the requested skill identity.
     """
-    # 1. Resolve. strict=False so we don't crash if dir already absent.
     original = installed
     if not original.is_absolute():
         original = root / original
+    real_root = root.resolve()
     resolved = original.resolve(strict=False)
 
-    # 2. Already absent -> trivially clean.
-    if not resolved.exists():
-        return
-
-    # 3. Symlink / NTFS junction (pre-resolve check on `original`).
+    # Reject symlinks / NTFS junctions before resolve() can hide them.
+    for prefix in _existing_path_prefixes(original, real_root):
+        if _is_reparse_point(prefix):
+            raise RuntimeError(
+                f"refusing to delete {prefix}: path is a symlink or junction "
+                "(possible redirect to another location)"
+            )
     if _is_reparse_point(original):
         raise RuntimeError(
             f"refusing to delete {original}: path is a symlink or junction "
             "(possible redirect to another location)"
         )
 
-    # 4. Must be a directory.
-    if not resolved.is_dir():
-        raise RuntimeError(
-            f"refusing to delete {resolved}: not a directory"
-        )
-
-    # 5. Anti-escape: resolved must be strictly inside root.
+    # Anti-escape: resolved must be strictly inside root.
     #
     # Use normcase to handle case-insensitive filesystems (Windows, macOS
     # HFS+). pathlib's is_relative_to() compares case-sensitively on
     # POSIX even when the underlying FS is not, which can produce false
     # rejects.
-    real_root = root.resolve()
-    resolved_n = os.path.normcase(str(resolved))
-    root_n = os.path.normcase(str(real_root))
+    resolved_n = _path_norm(resolved)
+    root_n = _path_norm(real_root)
     if not (resolved_n == root_n or resolved_n.startswith(root_n + os.sep)):
         raise RuntimeError(
             f"refusing to delete {resolved}: outside --root {real_root} "
             "(path traversal or symlink escape)"
         )
 
-    # 5b. Explicit equality guard. Cheap defense-in-depth: catches the
+    # Explicit equality guard. Cheap defense-in-depth: catches the
     # `--installed-path .` / `--installed-path ""` bug class where the
     # caller passes an empty/dot path and the resolved value equals root.
     if resolved_n == root_n:
@@ -271,28 +389,52 @@ def safe_remove_installed(installed: Path, root: Path) -> None:
             f"refusing to delete {resolved}: equals --root"
         )
 
-    # 6. Must have a `skills` segment under root. Skill dirs always live
-    # under `<agent>/skills/<name>` (e.g. .claude/skills/, .cursor/skills/).
-    rel_parts = resolved.relative_to(real_root).parts
-    if 'skills' not in rel_parts:
+    if resolved.exists() and not resolved.is_dir():
         raise RuntimeError(
-            f"refusing to delete {resolved}: no 'skills' segment under "
-            f"--root {real_root} (skill directories live under <agent>/skills/)"
+            f"refusing to delete {resolved}: not a directory"
         )
 
-    # 7. Plausibility marker: SKILL.md must exist. Upstream skills format
+    skills_root = _matching_agent_skills_root(resolved, real_root)
+    if skills_root is None:
+        raise RuntimeError(
+            f"refusing to delete {resolved}: not a direct child of a known "
+            "project agent skills directory"
+        )
+
+    sanitized = _sanitize_skill_name(skill)
+    if resolved.name.lower() != sanitized:
+        frontmatter_name = None
+        if resolved.exists():
+            frontmatter_name = _read_skill_frontmatter_name(resolved / 'SKILL.md')
+        if not frontmatter_name or frontmatter_name.strip().lower() != skill.strip().lower():
+            raise RuntimeError(
+                f"refusing to delete {resolved}: identity mismatch "
+                f"(--skill {skill!r} does not match installed directory "
+                f"basename {resolved.name!r} or SKILL.md name)"
+            )
+
+    # Plausibility marker: SKILL.md must exist. Upstream skills format
     # requires SKILL.md at the root of every installed skill — its
     # absence almost certainly means the caller passed the wrong path
     # (parent, sibling, or unrelated dir). Hard block, not warning:
     # soft-warning + delete would be silently destructive.
-    if not (resolved / 'SKILL.md').is_file():
+    if resolved.exists() and not (resolved / 'SKILL.md').is_file():
         raise RuntimeError(
             f"refusing to delete {resolved}: no SKILL.md marker "
             "(upstream skill format requires it). Verify --installed-path "
             "points at the skill directory, not its parent or a sibling."
         )
 
-    # 8. Delete. shutil.rmtree refuses top-level symlinks and uses
+    return resolved
+
+
+def safe_remove_installed(installed: Path, root: Path, skill: str) -> None:
+    """Physically remove the installed skill directory after validation."""
+    resolved = validate_installed_skill_path(installed, root, skill)
+    if not resolved.exists():
+        return
+
+    # Delete. shutil.rmtree refuses top-level symlinks and uses
     # os.scandir internally (no symlink-following for children).
     shutil.rmtree(resolved, onerror=_chmod_retry)
 
@@ -328,6 +470,15 @@ def main() -> int:
     if not root.is_dir():
         print(f"error: --root is not a directory: {root}", file=sys.stderr)
         return 2
+
+    installed = Path(args.installed_path) if args.installed_path else None
+    resolved_installed = None
+    if installed is not None:
+        try:
+            resolved_installed = validate_installed_skill_path(installed, root, skill)
+        except RuntimeError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
 
     lock_path = root / 'skills-lock.json'
 
@@ -372,10 +523,9 @@ def main() -> int:
     # for logical names that differ from the sanitized on-disk basename
     # (e.g. "Convex Best Practices" vs convex-best-practices) upstream
     # is a silent no-op. With this step, the helper is the guarantor.
-    if args.installed_path and not args.dry_run:
-        installed = Path(args.installed_path)
+    if installed is not None and not args.dry_run:
         try:
-            safe_remove_installed(installed, root)
+            safe_remove_installed(installed, root, skill)
         except RuntimeError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
@@ -383,12 +533,9 @@ def main() -> int:
         # whether `npx skills remove` reported partial failure earlier:
         # the security goal — directory gone, lock cleared — is met.
         cli_failed = False
-    elif args.installed_path and args.dry_run:
+    elif installed is not None and args.dry_run:
         # Surface the would-be action for transparency.
-        installed = Path(args.installed_path)
-        if not installed.is_absolute():
-            installed = root / installed
-        print(f"would safely remove installed directory: {installed}")
+        print(f"would safely remove installed directory: {resolved_installed}")
 
     # Partial-failure exit: lock cleared but `npx skills remove` failed
     # and we cannot independently confirm the files are gone.
