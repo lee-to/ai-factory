@@ -70,6 +70,7 @@ cat > "$CREATE_PAYLOAD" <<'EOF'
     "paths.specs": ".ai-factory/specs/",
     "paths.rules": ".ai-factory/rules/",
     "paths.qa": ".ai-factory/qa/",
+    "paths.archive": ".ai-factory/archive/",
     "workflow.auto_create_dirs": true,
     "workflow.plan_id_format": "slug",
     "workflow.analyze_updates_architecture": true,
@@ -96,6 +97,7 @@ assert_contains "$CREATE_TARGET" '^  ui: ru$' "fresh create must set language.ui
 assert_contains "$CREATE_TARGET" '^  docs: handbook/$' "fresh create must set overridden docs path"
 assert_contains "$CREATE_TARGET" '^  # QA artifacts root directory$' "fresh create must preserve QA path comments"
 assert_contains "$CREATE_TARGET" '^  qa: \.ai-factory/qa/$' "fresh create must set paths.qa"
+assert_contains "$CREATE_TARGET" '^  archive: \.ai-factory/archive/$' "fresh create must set paths.archive"
 assert_contains "$CREATE_TARGET" '^  base_branch: 2.x$' "fresh create must set git.base_branch"
 assert_contains "$CREATE_TARGET" '^  branch_prefix: fix/$' "fresh create must set git.branch_prefix"
 assert_contains "$CREATE_TARGET" '^  # frontend: \.ai-factory/rules/frontend\.md$' "fresh create must preserve commented rules examples"
