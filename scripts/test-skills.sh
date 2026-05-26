@@ -228,7 +228,8 @@ else
 fi
 
 # Security-sensitive skills that document Python 3 detection must allow only
-# the exact command shapes used by version probes and scanner execution.
+# the exact command shapes used by version probes, scanner execution, and
+# blocked-skill cleanup helper execution.
 PYTHON_ALLOWLIST_FAILURES=0
 for skill_name in aif aif-skill-generator; do
     skill_file="$ROOT_DIR/skills/$skill_name/SKILL.md"
@@ -242,7 +243,11 @@ for skill_name in aif aif-skill-generator; do
         "Bash(python3 *security-scan.py*)" \
         "Bash(python *security-scan.py*)" \
         "Bash(py -3 *security-scan.py*)" \
-        "Bash(py *security-scan.py*)"; do
+        "Bash(py *security-scan.py*)" \
+        "Bash(python3 *cleanup-blocked-skill.py*)" \
+        "Bash(python *cleanup-blocked-skill.py*)" \
+        "Bash(py -3 *cleanup-blocked-skill.py*)" \
+        "Bash(py *cleanup-blocked-skill.py*)"; do
         if ! grep -qF "$required" <<< "$ALLOWED_TOOLS_LINE"; then
             PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
             echo "      $skill_name missing allowed-tools pattern: $required"
@@ -260,6 +265,11 @@ for skill_name in aif aif-skill-generator; do
         || ! grep -qF "py -3 --version" "$skill_file"; then
         PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
         echo "      $skill_name missing documented Python version probes"
+    fi
+
+    if ! grep -qF "cleanup-blocked-skill.py" "$skill_file"; then
+        PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+        echo "      $skill_name missing documented cleanup helper execution"
     fi
 
     if grep -qF "python3 -c" "$skill_file" \
