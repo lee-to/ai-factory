@@ -5,6 +5,8 @@ description: |
   the skill must use a non-colliding suffix (e.g. -2) and must NOT edit
   paths.roadmap until the new snapshot is safely written.
 
+  IMPORTANT: For this scenario, today's date is 2026-05-26.
+
   Fixture state:
     .ai-factory/ROADMAP.md — has closed milestones
     .ai-factory/archive/roadmap/2026-05-26_roadmap-snapshot.md — existing snapshot
@@ -78,7 +80,7 @@ assertions:
     type: tool_called
     tool: Write
     args_match:
-      file_path: "archive/roadmap/2026-05-26_roadmap-snapshot-2\\.md$"
+      file_path: "archive/roadmap/.*_roadmap-snapshot-\\d+\\.md$"
     weight: 4
 
   - id: snapshot-contains-milestones

@@ -24,7 +24,6 @@ runner:
     - Grep
     - Bash(mv *)
     - Bash(mkdir *)
-    - Bash(cp *)
     - Bash(git *)
     - AskUserQuestion
 
