@@ -2,7 +2,7 @@
 name: aif-archive
 description: "Archive completed plans and roadmap milestones. Moves finished plans to the archive directory and optionally trims closed milestones from ROADMAP.md. Use when user says \"archive plans\", \"clean up plans\", \"archive completed\", or \"trim roadmap\"."
 argument-hint: "[list | --roadmap | --all | <plan-name>]"
-allowed-tools: Read Write Edit Glob Grep Bash(mv *) Bash(mkdir *) Bash(cp *) Bash(git *) AskUserQuestion
+allowed-tools: Read Write Edit Glob Grep Bash(mv *) Bash(mkdir *) Bash(git *) AskUserQuestion
 disable-model-invocation: false
 metadata:
   author: AI Factory
@@ -180,7 +180,15 @@ Parsing rules:
    ```
 6. Create snapshot:
    - `mkdir -p <paths.archive>/roadmap/`
-   - Write `<paths.archive>/roadmap/YYYY-MM-DD_roadmap-snapshot.md` with:
+   - Determine snapshot filename: `YYYY-MM-DD_roadmap-snapshot.md`
+   - **Collision check.** Before writing, verify the destination does not already exist:
+     ```
+     Read <paths.archive>/roadmap/YYYY-MM-DD_roadmap-snapshot.md
+     ```
+     If the file exists, append a counter suffix to produce a non-colliding name:
+     `YYYY-MM-DD_roadmap-snapshot-2.md`, `YYYY-MM-DD_roadmap-snapshot-3.md`, etc.
+     Check each candidate until a free name is found.
+   - Write the resolved snapshot path with:
      ```markdown
      # Roadmap Snapshot — YYYY-MM-DD
 
@@ -193,7 +201,8 @@ Parsing rules:
      ```
 7. Edit `paths.roadmap`: remove the archived `- [x]` lines from the
    `## Milestones` section. Keep the `## Completed` table if it exists.
-8. Logging: `INFO [aif-archive] roadmap snapshot: <path> (<N> milestones archived)`
+   **Do NOT edit `paths.roadmap` unless the snapshot write in step 6 succeeded.**
+8. Logging: `INFO [aif-archive] roadmap snapshot: <resolved-path> (<N> milestones archived)`
 
 ---
 
@@ -207,15 +216,20 @@ For each plan to archive:
    ```
    Read <paths.archive>/plans/<original-filename>
    ```
-   If the file exists, STOP with an error:
-   ```
-   ERROR [aif-archive] destination already exists: <paths.archive>/plans/<filename>
-   A previously archived plan has the same filename. This can happen when
-   sequential numbering reuses a freed number after archiving.
-   To resolve: rename the existing archive file, or delete it if it is no
-   longer needed.
-   ```
-   Do NOT overwrite. Move to the next plan in the batch (if `--all`).
+   If the file exists:
+   - **Single plan** (interactive or `<plan-name>`): STOP with an error:
+     ```
+     ERROR [aif-archive] destination already exists: <paths.archive>/plans/<filename>
+     A previously archived plan has the same filename. This can happen when
+     sequential numbering reuses a freed number after archiving.
+     To resolve: rename the existing archive file, or delete it if it is no
+     longer needed.
+     ```
+   - **Batch** (`--all`): SKIP this plan with a warning, continue to the next:
+     ```
+     WARN [aif-archive] skipped: <filename> — destination already exists
+     ```
+   Do NOT overwrite in either case.
 
 3. **Move the source file** into the archive path first:
    ```bash
@@ -240,7 +254,7 @@ For each plan to archive:
 
 5. Logging: `INFO [aif-archive] archived: <filename> -> <paths.archive>/plans/<filename>`
 
-6. After all plans are archived, display summary:
+6. After all plans are processed, display summary:
    ```
    ## Archive Complete
 
@@ -248,8 +262,12 @@ For each plan to archive:
      - 0001_feature-alpha.md
      - 0003_feature-gamma.md
 
+   Skipped: K (destination already exists)
+     - 0002_feature-beta.md
+
    Plans directory: <paths.plans/> (M plans remaining)
    ```
+   Omit the "Skipped" section when K is 0.
 
 ### Completion Detection Algorithm
 

@@ -132,7 +132,7 @@ Context gate policy for quality commands:
   `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
 - Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`,
   `/aif-distillation`,
-  `/aif-security-checklist`, `/aif-qa`
+  `/aif-security-checklist`, `/aif-qa`, `/aif-archive`
 
 Current config-agnostic built-ins:
 

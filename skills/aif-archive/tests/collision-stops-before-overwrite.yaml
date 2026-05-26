@@ -86,5 +86,9 @@ assertions:
     args_match:
       file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
 
+  - id: output-mentions-collision
+    type: output_contains
+    text: "already exists"
+
   - id: stay-in-sandbox
     type: no_path_escape
