@@ -56,6 +56,11 @@ cat > "$FAKE_BIN/npx" << 'EOF'
 #   regression tests can simulate `npx skills remove` returning non-zero
 printf '%s\n' "$@" >> "${NPX_ARGV_LOG:-/dev/null}"
 echo "cwd_basename=$(basename "$(pwd)")" >> "${NPX_ARGV_LOG:-/dev/null}"
+if [ -n "${FAKE_NPX_REPLACE_WITH_FILE:-}" ]; then
+  rm -rf "$FAKE_NPX_REPLACE_WITH_FILE"
+  mkdir -p "$(dirname "$FAKE_NPX_REPLACE_WITH_FILE")"
+  printf '%s\n' "fake npx replacement" > "$FAKE_NPX_REPLACE_WITH_FILE"
+fi
 exit "${FAKE_NPX_EXIT:-0}"
 EOF
 chmod +x "$FAKE_BIN/npx"
@@ -442,49 +447,130 @@ rm -rf "$TEST_TMPDIR"
 # individually. Each setup is minimal so a failure isolates a single
 # safety guarantee.
 
-# N1: symlink at --installed-path → reject (POSIX only; Windows junctions
-# covered by a conditional block below).
+# N1: managed symlink/junction install → accept and remove both canonical
+# target and agent-specific link.
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
   "skills": {"foo": {"source": "x/y"}}
 }'
-mkdir -p "$TEST_TMPDIR/outside-skill"
-echo "# outside" > "$TEST_TMPDIR/outside-skill/SKILL.md"
+mkdir -p "$TEST_TMPDIR/.agents/skills/foo"
+printf '%s\n' '---' 'name: foo' '---' '# canonical' > "$TEST_TMPDIR/.agents/skills/foo/SKILL.md"
 mkdir -p "$TEST_TMPDIR/.claude/skills"
 if [[ $IS_WINDOWS -eq 0 ]]; then
-    ln -s "$TEST_TMPDIR/outside-skill" "$TEST_TMPDIR/.claude/skills/evil"
+    ln -s "../../.agents/skills/foo" "$TEST_TMPDIR/.claude/skills/foo"
     if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
-       --installed-path .claude/skills/evil > "$TEST_TMPDIR/out" 2>&1; then
-        fail "N1: symlink rejection" "helper exited 0 despite symlink installed-path"
-    else
-        if [[ -e "$TEST_TMPDIR/outside-skill/SKILL.md" ]] && \
-           grep -q 'symlink or junction' "$TEST_TMPDIR/out"; then
-            pass "N1: symlink rejection (target preserved)"
+       --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+        if [[ ! -e "$TEST_TMPDIR/.agents/skills/foo" ]] && \
+           [[ ! -e "$TEST_TMPDIR/.claude/skills/foo" ]] && \
+           [[ ! -L "$TEST_TMPDIR/.claude/skills/foo" ]] && \
+           ! grep -q '"foo"' "$TEST_TMPDIR/skills-lock.json"; then
+            pass "N1: managed symlink accepted and cleaned"
         else
-            fail "N1: symlink rejection" \
-                 "target tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+            fail "N1: managed symlink cleanup" \
+                 "canonical/link/lock not clean: $(cat "$TEST_TMPDIR/out")"
         fi
+    else
+        fail "N1: managed symlink cleanup" "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
     fi
 else
     # Windows junction via cmd /c mklink /J (admin not required for junctions).
     # Skip if mklink fails (some Windows setups disallow it without elevation).
-    if cmd //c "mklink /J \"$(cygpath -w "$TEST_TMPDIR/.claude/skills/evil")\" \"$(cygpath -w "$TEST_TMPDIR/outside-skill")\"" > /dev/null 2>&1; then
+    if cmd //c "mklink /J \"$(cygpath -w "$TEST_TMPDIR/.claude/skills/foo")\" \"$(cygpath -w "$TEST_TMPDIR/.agents/skills/foo")\"" > /dev/null 2>&1; then
         if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
-           --installed-path .claude/skills/evil > "$TEST_TMPDIR/out" 2>&1; then
-            fail "N1: junction rejection (Windows)" "helper exited 0 despite junction"
-        else
-            if [[ -e "$TEST_TMPDIR/outside-skill/SKILL.md" ]] && \
-               grep -q 'symlink or junction' "$TEST_TMPDIR/out"; then
-                pass "N1: junction rejection (Windows; target preserved)"
+           --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+            if [[ ! -e "$TEST_TMPDIR/.agents/skills/foo" ]] && \
+               [[ ! -e "$TEST_TMPDIR/.claude/skills/foo" ]] && \
+               ! grep -q '"foo"' "$TEST_TMPDIR/skills-lock.json"; then
+                pass "N1: managed junction accepted and cleaned"
             else
-                fail "N1: junction rejection (Windows)" \
-                     "target tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+                fail "N1: managed junction cleanup" \
+                     "canonical/link/lock not clean: $(cat "$TEST_TMPDIR/out")"
+            fi
+        else
+            fail "N1: managed junction cleanup" "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
+        fi
+    else
+        pass "N1: managed junction cleanup (Windows; mklink unavailable, skipped)"
+    fi
+fi
+rm -rf "$TEST_TMPDIR"
+
+# N1b: symlink/junction that escapes --root → reject and preserve lock.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+OUTSIDE_SKILL=$(mktemp -d)
+mkdir -p "$OUTSIDE_SKILL/foo"
+printf '%s\n' '---' 'name: foo' '---' '# outside' > "$OUTSIDE_SKILL/foo/SKILL.md"
+mkdir -p "$TEST_TMPDIR/.claude/skills"
+if [[ $IS_WINDOWS -eq 0 ]]; then
+    ln -s "$OUTSIDE_SKILL/foo" "$TEST_TMPDIR/.claude/skills/foo"
+    if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+       --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+        fail "N1b: escaping symlink rejection" "helper exited 0 despite outside symlink"
+    else
+        if [[ -e "$OUTSIDE_SKILL/foo/SKILL.md" ]] && \
+           [[ -L "$TEST_TMPDIR/.claude/skills/foo" ]] && \
+           grep -q '"foo"' "$TEST_TMPDIR/skills-lock.json" && \
+           grep -Eq 'outside --root|path traversal|symlink escape' "$TEST_TMPDIR/out"; then
+            pass "N1b: escaping symlink rejected (target + lock preserved)"
+        else
+            fail "N1b: escaping symlink rejection" \
+                 "target/link/lock tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
+        fi
+    fi
+else
+    if cmd //c "mklink /J \"$(cygpath -w "$TEST_TMPDIR/.claude/skills/foo")\" \"$(cygpath -w "$OUTSIDE_SKILL/foo")\"" > /dev/null 2>&1; then
+        if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+           --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+            fail "N1b: escaping junction rejection (Windows)" "helper exited 0 despite outside junction"
+        else
+            if [[ -e "$OUTSIDE_SKILL/foo/SKILL.md" ]] && \
+               grep -q '"foo"' "$TEST_TMPDIR/skills-lock.json" && \
+               grep -Eq 'outside --root|path traversal|symlink escape' "$TEST_TMPDIR/out"; then
+                pass "N1b: escaping junction rejected (Windows; target + lock preserved)"
+            else
+                fail "N1b: escaping junction rejection (Windows)" \
+                     "target/lock tampered or wrong error: $(cat "$TEST_TMPDIR/out")"
             fi
         fi
     else
-        pass "N1: junction rejection (Windows; mklink unavailable, skipped)"
+        pass "N1b: escaping junction rejection (Windows; mklink unavailable, skipped)"
     fi
+fi
+rm -rf "$OUTSIDE_SKILL"
+rm -rf "$TEST_TMPDIR"
+
+# N1c: lock entry is cleared only after managed symlink cleanup succeeds.
+fresh_tmp
+write_lock "$TEST_TMPDIR" '{
+  "version": 1,
+  "skills": {"foo": {"source": "x/y"}}
+}'
+mkdir -p "$TEST_TMPDIR/.agents/skills/foo"
+printf '%s\n' '---' 'name: foo' '---' '# canonical' > "$TEST_TMPDIR/.agents/skills/foo/SKILL.md"
+mkdir -p "$TEST_TMPDIR/.claude/skills"
+if [[ $IS_WINDOWS -eq 0 ]]; then
+    ln -s "../../.agents/skills/foo" "$TEST_TMPDIR/.claude/skills/foo"
+    if FAKE_NPX_REPLACE_WITH_FILE="$TEST_TMPDIR/.agents/skills/foo" \
+       "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
+       --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
+        fail "N1c: lock waits for symlink cleanup success" "helper exited 0 despite cleanup failure"
+    else
+        if grep -q '"foo"' "$TEST_TMPDIR/skills-lock.json" && \
+           [[ -L "$TEST_TMPDIR/.claude/skills/foo" ]] && \
+           grep -q 'not a directory' "$TEST_TMPDIR/out"; then
+            pass "N1c: lock preserved when managed symlink cleanup fails"
+        else
+            fail "N1c: lock waits for symlink cleanup success" \
+                 "lock/link not preserved or wrong error: $(cat "$TEST_TMPDIR/out")"
+        fi
+    fi
+else
+    pass "N1c: lock waits for symlink cleanup success (Windows; skipped)"
 fi
 rm -rf "$TEST_TMPDIR"
 
@@ -832,7 +918,48 @@ fi
 rm -rf "$TEST_TMPDIR"
 
 # ─────────────────────────────────────────────
-# Test 12: prompt-contract grep — skill docs must NOT synthesize the
+# Test 12: built-in agent skills roots do not drift from src/core/agents.ts
+# ─────────────────────────────────────────────
+if DRIFT_OUTPUT=$("$PYTHON" - "$ROOT_DIR" <<'PY'
+import ast
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+helper_path = root / 'skills/aif-skill-generator/scripts/cleanup-blocked-skill.py'
+agents_path = root / 'src/core/agents.ts'
+
+tree = ast.parse(helper_path.read_text(encoding='utf-8'))
+helper_dirs = None
+for node in tree.body:
+    if not isinstance(node, ast.Assign):
+        continue
+    for target in node.targets:
+        if isinstance(target, ast.Name) and target.id == '_BUILTIN_AGENT_SKILLS_DIRS':
+            helper_dirs = set(ast.literal_eval(node.value))
+            break
+    if helper_dirs is not None:
+        break
+
+if helper_dirs is None:
+    print('could not find _BUILTIN_AGENT_SKILLS_DIRS')
+    sys.exit(1)
+
+agent_dirs = set(re.findall(r"skillsDir:\s*'([^']+)'", agents_path.read_text(encoding='utf-8')))
+if helper_dirs != agent_dirs:
+    print(f'missing in helper: {sorted(agent_dirs - helper_dirs)}')
+    print(f'extra in helper: {sorted(helper_dirs - agent_dirs)}')
+    sys.exit(1)
+PY
+); then
+    pass "built-in skills roots match src/core/agents.ts"
+else
+    fail "built-in skills roots drift" "$DRIFT_OUTPUT"
+fi
+
+# ─────────────────────────────────────────────
+# Test 13: prompt-contract grep — skill docs must NOT synthesize the
 # installed path from {{skills_dir}}/<name>; they must reuse the same
 # path token passed to security-scan.py.
 # ─────────────────────────────────────────────

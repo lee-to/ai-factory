@@ -10,13 +10,13 @@ Workaround for upstream bug vercel-labs/skills#977:
 
 This script:
   1. Runs `npx skills remove -s <skill> -y` (best-effort first pass).
-  2. Patches <root>/skills-lock.json to drop the "skills.<skill>" key
-     atomically (tmp + os.replace). No-op if the entry is absent.
-  3. Verifies the patched lock file no longer contains the skill entry.
-  4. When --installed-path is provided: physically removes the directory
+  2. When --installed-path is provided: physically removes the directory
      via `safe_remove_installed()` after strict safety validation.
      This is the authoritative cleanup step — the helper is the
      guarantor of physical removal, not the upstream CLI.
+  3. Patches <root>/skills-lock.json to drop the "skills.<skill>" key
+     atomically (tmp + os.replace). No-op if the entry is absent.
+  4. Verifies the patched lock file no longer contains the skill entry.
 
 Usage:
   cleanup-blocked-skill.py --skill <name> [--root <dir>]
@@ -49,6 +49,7 @@ import shutil
 import stat
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _BUILTIN_AGENT_SKILLS_DIRS = (
@@ -68,6 +69,14 @@ _BUILTIN_AGENT_SKILLS_DIRS = (
     '.agent/skills',
     '.opencode/skills',
 )
+
+
+@dataclass(frozen=True)
+class ValidatedInstalledPath:
+    original: Path
+    resolved: Path
+    original_is_reparse: bool
+    skills_root: Path
 
 
 def validate_skill_name(name: str):
@@ -284,6 +293,12 @@ def _path_norm(value: Path) -> str:
     return os.path.normcase(str(value))
 
 
+def _is_inside_path(path: Path, parent: Path) -> bool:
+    path_n = _path_norm(path)
+    parent_n = _path_norm(parent)
+    return path_n == parent_n or path_n.startswith(parent_n + os.sep)
+
+
 def _existing_path_prefixes(path: Path, root: Path):
     """Yield existing path prefixes from root to path without resolving."""
     try:
@@ -338,32 +353,37 @@ def _read_skill_frontmatter_name(skill_md: Path):
     return None
 
 
-def validate_installed_skill_path(installed: Path, root: Path, skill: str) -> Path:
+def validate_installed_skill_path(installed: Path, root: Path, skill: str) -> ValidatedInstalledPath:
     """Resolve and validate an installed project skill directory path.
 
     Raises RuntimeError when any check rejects the path; the caller maps
     that to exit 1 with the rejection reason. The path may already be
     absent for idempotent retries, but it still must point to a plausible
     installed-agent skill child and match the requested skill identity.
+    A symlink/junction at the installed path itself is allowed only for
+    managed project installs whose canonical target is another known
+    project agent skills root.
     """
     original = installed
     if not original.is_absolute():
         original = root / original
     real_root = root.resolve()
     resolved = original.resolve(strict=False)
+    original_n = _path_norm(original)
 
-    # Reject symlinks / NTFS junctions before resolve() can hide them.
+    # Reject parent redirects before resolve() can hide them. The final
+    # installed path may itself be a managed symlink/junction; that case
+    # is validated below against the same project-root and skills-root
+    # boundaries as a normal installed directory.
     for prefix in _existing_path_prefixes(original, real_root):
+        if _path_norm(prefix) == original_n:
+            continue
         if _is_reparse_point(prefix):
             raise RuntimeError(
                 f"refusing to delete {prefix}: path is a symlink or junction "
                 "(possible redirect to another location)"
             )
-    if _is_reparse_point(original):
-        raise RuntimeError(
-            f"refusing to delete {original}: path is a symlink or junction "
-            "(possible redirect to another location)"
-        )
+    original_is_reparse = _is_reparse_point(original)
 
     # Anti-escape: resolved must be strictly inside root.
     #
@@ -373,7 +393,7 @@ def validate_installed_skill_path(installed: Path, root: Path, skill: str) -> Pa
     # rejects.
     resolved_n = _path_norm(resolved)
     root_n = _path_norm(real_root)
-    if not (resolved_n == root_n or resolved_n.startswith(root_n + os.sep)):
+    if not _is_inside_path(resolved, real_root):
         raise RuntimeError(
             f"refusing to delete {resolved}: outside --root {real_root} "
             "(path traversal or symlink escape)"
@@ -390,6 +410,12 @@ def validate_installed_skill_path(installed: Path, root: Path, skill: str) -> Pa
     if resolved.exists() and not resolved.is_dir():
         raise RuntimeError(
             f"refusing to delete {resolved}: not a directory"
+        )
+
+    if original_is_reparse and _matching_agent_skills_root(original, real_root) is None:
+        raise RuntimeError(
+            f"refusing to delete {original}: symlink or junction is not a "
+            "direct child of a known project agent skills directory"
         )
 
     skills_root = _matching_agent_skills_root(resolved, real_root)
@@ -423,18 +449,56 @@ def validate_installed_skill_path(installed: Path, root: Path, skill: str) -> Pa
             "points at the skill directory, not its parent or a sibling."
         )
 
-    return resolved
+    return ValidatedInstalledPath(
+        original=original,
+        resolved=resolved,
+        original_is_reparse=original_is_reparse,
+        skills_root=skills_root,
+    )
 
 
-def safe_remove_installed(installed: Path, root: Path, skill: str) -> None:
-    """Physically remove the installed skill directory after validation."""
-    resolved = validate_installed_skill_path(installed, root, skill)
-    if not resolved.exists():
+def _remove_reparse_point(path: Path) -> None:
+    """Remove a symlink or Windows junction without following it."""
+    if not _is_reparse_point(path):
         return
+    try:
+        path.unlink()
+        return
+    except OSError as unlink_error:
+        try:
+            path.rmdir()
+            return
+        except OSError as rmdir_error:
+            raise RuntimeError(
+                f"failed to remove symlink or junction {path}: {rmdir_error}"
+            ) from unlink_error
 
-    # Delete. shutil.rmtree refuses top-level symlinks and uses
-    # os.scandir internally (no symlink-following for children).
-    shutil.rmtree(resolved, onerror=_chmod_retry)
+
+def safe_remove_installed(validated: ValidatedInstalledPath) -> None:
+    """Physically remove the installed skill directory after validation."""
+    resolved = validated.resolved
+    if not resolved.exists():
+        pass
+    elif not resolved.is_dir():
+        raise RuntimeError(
+            f"refusing to delete {resolved}: not a directory"
+        )
+    else:
+        try:
+            shutil.rmtree(resolved, onerror=_chmod_retry)
+        except OSError as e:
+            raise RuntimeError(f"failed to remove {resolved}: {e}") from e
+
+    if validated.original_is_reparse:
+        _remove_reparse_point(validated.original)
+        if validated.original.exists() or validated.original.is_symlink():
+            raise RuntimeError(
+                f"failed to remove symlink or junction {validated.original}: "
+                "path still exists"
+            )
+
+    if resolved.exists():
+        raise RuntimeError(f"failed to remove {resolved}: path still exists")
 
 
 def main() -> int:
@@ -470,10 +534,10 @@ def main() -> int:
         return 2
 
     installed = Path(args.installed_path) if args.installed_path else None
-    resolved_installed = None
+    validated_installed = None
     if installed is not None:
         try:
-            resolved_installed = validate_installed_skill_path(installed, root, skill)
+            validated_installed = validate_installed_skill_path(installed, root, skill)
         except RuntimeError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
@@ -490,30 +554,17 @@ def main() -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     if rc != 0 and not args.dry_run:
-        # Non-zero from npx is NOT immediately fatal: the lock patch below
-        # is the security-critical step. We still patch, then exit 1 at the
-        # end to signal partial failure (lock cleared but file deletion
-        # uncertain — caller should verify the skill directory is gone).
+        # Non-zero from npx is NOT immediately fatal: the bounded helper
+        # cleanup and lock patch below are the security-critical steps.
+        # We still continue, then exit 1 at the end if no installed path
+        # was supplied to independently confirm physical cleanup.
         print(f"warning: `npx skills remove` returned exit {rc}; "
-              "continuing to lock-file patch (file deletion uncertain)",
+              "continuing to bounded cleanup and lock-file patch "
+              "(file deletion uncertain)",
               file=sys.stderr)
         cli_failed = True
 
-    # Step 2: patch lock file (workaround for skills#977).
-    try:
-        _, msg = patch_lock(lock_path, skill, dry_run=args.dry_run)
-    except RuntimeError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 1
-    print(msg)
-
-    # Step 3: verify by re-reading the lock file.
-    if not args.dry_run and not verify_lock_clean(lock_path, skill):
-        print(f"error: '{skill}' is still present in {lock_path} after patch",
-              file=sys.stderr)
-        return 1
-
-    # Step 4: authoritative physical-directory removal.
+    # Step 2: authoritative physical-directory removal.
     # When --installed-path is supplied, the helper itself removes the
     # directory after strict safety checks (see safe_remove_installed).
     # This is required because upstream `npx skills remove` does not
@@ -521,19 +572,38 @@ def main() -> int:
     # for logical names that differ from the sanitized on-disk basename
     # (e.g. "Convex Best Practices" vs convex-best-practices) upstream
     # is a silent no-op. With this step, the helper is the guarantor.
-    if installed is not None and not args.dry_run:
+    if validated_installed is not None and not args.dry_run:
         try:
-            safe_remove_installed(installed, root, skill)
+            safe_remove_installed(validated_installed)
         except RuntimeError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
         # Successful removal (or already-absent) means we no longer care
         # whether `npx skills remove` reported partial failure earlier:
-        # the security goal — directory gone, lock cleared — is met.
+        # the directory is gone and the lock patch below can finish cleanup.
         cli_failed = False
-    elif installed is not None and args.dry_run:
+    elif validated_installed is not None and args.dry_run:
         # Surface the would-be action for transparency.
-        print(f"would safely remove installed directory: {resolved_installed}")
+        print(f"would safely remove installed directory: {validated_installed.resolved}")
+        if validated_installed.original_is_reparse:
+            print(f"would remove managed symlink or junction: {validated_installed.original}")
+
+    # Step 3: patch lock file (workaround for skills#977). For calls
+    # with --installed-path, this intentionally happens after physical
+    # cleanup so a failed deletion cannot leave a stale blocked skill
+    # installed with its lock entry already cleared.
+    try:
+        _, msg = patch_lock(lock_path, skill, dry_run=args.dry_run)
+    except RuntimeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(msg)
+
+    # Step 4: verify by re-reading the lock file.
+    if not args.dry_run and not verify_lock_clean(lock_path, skill):
+        print(f"error: '{skill}' is still present in {lock_path} after patch",
+              file=sys.stderr)
+        return 1
 
     # Partial-failure exit: lock cleared but `npx skills remove` failed
     # and we cannot independently confirm the files are gone.
