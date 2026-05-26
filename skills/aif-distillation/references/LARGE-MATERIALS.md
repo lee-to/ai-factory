@@ -4,26 +4,29 @@ Large books, PDFs, and source folders need staged processing. The goal is to fit
 
 ## Helper Script
 
-Use the helper only when a working Python 3 interpreter is available. Detect and verify it first:
+Use the helper only when a working Python 3 interpreter is available. Detect and verify it by running these version probes in order:
 
 ```bash
-PYTHON_CMD=()
-if python3 --version 2>&1 | grep -Eq '^Python 3\.'; then
-  PYTHON_CMD=(python3)
-elif python --version 2>&1 | grep -Eq '^Python 3\.'; then
-  PYTHON_CMD=(python)
-elif py -3 --version 2>&1 | grep -Eq '^Python 3\.'; then
-  PYTHON_CMD=(py -3)
-elif py --version 2>&1 | grep -Eq '^Python 3\.'; then
-  PYTHON_CMD=(py)
-fi
-
-if [ ${#PYTHON_CMD[@]} -gt 0 ]; then
-  "${PYTHON_CMD[@]}" {{skills_dir}}/aif-distillation/scripts/material-prep.py <source...>
-fi
+python3 --version
+python --version
+py -3 --version
+py --version
 ```
 
-If `PYTHON_CMD` is empty, do not call the helper. Use direct reads/searches for text sources, ask the user for text/markdown exports for PDFs or very large sources, and state the coverage limitation in the final result.
+Use the first command that exits successfully and reports `Python 3.x`:
+
+- `python3 --version` -> `python3`
+- `python --version` -> `python`
+- `py -3 --version` -> `py -3`
+- `py --version` -> `py`
+
+Then run the helper with that concrete command shape:
+
+```bash
+python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py <source...>
+```
+
+Use `python`, `py -3`, or `py` only if that was the selected Python 3 command. If no probe reports Python 3, do not call the helper. Use direct reads/searches for text sources, ask the user for text/markdown exports for PDFs or very large sources, and state the coverage limitation in the final result.
 
 The script:
 
@@ -73,12 +76,10 @@ Required cleanup:
 Preferred cleanup command:
 
 ```bash
-if [ ${#PYTHON_CMD[@]} -gt 0 ]; then
-  "${PYTHON_CMD[@]}" {{skills_dir}}/aif-distillation/scripts/material-prep.py --cleanup <temp-dir>
-else
-  echo "Python 3 not found; remove only known helper-generated temporary files manually."
-fi
+python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py --cleanup <temp-dir>
 ```
+
+Use `python`, `py -3`, or `py` only if that was the selected Python 3 command. If no probe reports Python 3, remove only known helper-generated temporary files manually.
 
 The cleanup guard removes only directories with this helper's dedicated marker file.
 

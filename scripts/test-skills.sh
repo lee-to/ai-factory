@@ -276,6 +276,64 @@ else
     fail "found $PYTHON_ALLOWLIST_FAILURES Python scanner allowlist mismatch(es)"
 fi
 
+DISTILL_ALLOWLIST_FAILURES=0
+DISTILL_SKILL_FILE="$ROOT_DIR/skills/aif-distillation/SKILL.md"
+DISTILL_LARGE_MATERIALS="$ROOT_DIR/skills/aif-distillation/references/LARGE-MATERIALS.md"
+DISTILL_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$DISTILL_SKILL_FILE" || true)
+
+for required in \
+    "Bash(python3 --version)" \
+    "Bash(python --version)" \
+    "Bash(py -3 --version)" \
+    "Bash(py --version)" \
+    "Bash(python3 *material-prep.py*)" \
+    "Bash(python *material-prep.py*)" \
+    "Bash(py -3 *material-prep.py*)" \
+    "Bash(py *material-prep.py*)"; do
+    if ! grep -qF "$required" <<< "$DISTILL_ALLOWED_TOOLS_LINE"; then
+        DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+        echo "      aif-distillation missing allowed-tools pattern: $required"
+    fi
+done
+
+for forbidden in "Bash(python3 *)" "Bash(python *)" "Bash(py *)"; do
+    if grep -qF "$forbidden" <<< "$DISTILL_ALLOWED_TOOLS_LINE"; then
+        DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+        echo "      aif-distillation grants unrestricted Python command family: $forbidden"
+    fi
+done
+
+if ! grep -qF "python3 --version" "$DISTILL_SKILL_FILE" \
+    || ! grep -qF "py -3 --version" "$DISTILL_SKILL_FILE"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation missing documented Python version probes"
+fi
+
+if ! grep -qF "material-prep.py" "$DISTILL_SKILL_FILE" \
+    || ! grep -qF "material-prep.py" "$DISTILL_LARGE_MATERIALS"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation missing documented material-prep helper execution"
+fi
+
+if grep -qF "python3 -c" "$DISTILL_SKILL_FILE" \
+    || grep -qF "python -c" "$DISTILL_SKILL_FILE" \
+    || grep -qF "py -3 -c" "$DISTILL_SKILL_FILE" \
+    || grep -qF "py -c" "$DISTILL_SKILL_FILE"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation still documents Python -c detection"
+fi
+
+if grep -qF '"${PYTHON_CMD[@]}"' "$DISTILL_LARGE_MATERIALS"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation large-materials guide still documents variable-based helper invocation"
+fi
+
+if [[ "$DISTILL_ALLOWLIST_FAILURES" -eq 0 ]]; then
+    pass "aif-distillation helper uses least-privilege allowed-tools"
+else
+    fail "found $DISTILL_ALLOWLIST_FAILURES aif-distillation allowlist mismatch(es)"
+fi
+
 AIF_SKILL_GENERATOR="$ROOT_DIR/skills/aif-skill-generator/SKILL.md"
 SCAN_MODE_SECTION="$(awk '
     /^### Security Scan Mode$/ { capture=1 }
