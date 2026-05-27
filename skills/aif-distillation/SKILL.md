@@ -6,7 +6,7 @@ description: >-
   split set of focused skills, each with a concise SKILL.md plus detailed
   references and examples.
 argument-hint: "<path|url> [path|url...] [--name <skill-name>] [--path <directory>] [--update] [--redact-source-map] [--split|--split-by <strategy>]"
-allowed-tools: Read Write Edit Glob Grep Bash(mkdir *) Bash(ls *) Bash(find *) Bash(wc *) Bash(python3 *) WebFetch WebSearch AskUserQuestion
+allowed-tools: Read Write Edit Glob Grep Bash(mkdir *) Bash(ls *) Bash(find *) Bash(wc *) Bash(python3 --version) Bash(python --version) Bash(py -3 --version) Bash(py --version) Bash(python3 *material-prep.py*) Bash(python *material-prep.py*) Bash(py -3 *material-prep.py*) Bash(py *material-prep.py*) WebFetch WebSearch AskUserQuestion
 disable-model-invocation: false
 metadata:
   author: ai-factory
@@ -72,7 +72,9 @@ Do not save distilled skills into the package `skills/` directory unless the use
 
 1. Prepare sources.
    - For normal text, markdown, JSON, YAML, HTML, or code files, read directly.
-   - For large folders or PDFs, use `{{skills_dir}}/aif-distillation/scripts/material-prep.py` to extract and chunk material, then clean temporary extraction artifacts with the helper after the skill is generated.
+   - For large folders or PDFs, use `{{skills_dir}}/aif-distillation/scripts/material-prep.py` only when a working Python 3 interpreter is available. Detect it with `python3 --version`, `python --version`, `py -3 --version`, then `py --version`; use the first command that exits successfully and reports Python major version 3.
+   - When invoking the helper, expand the selected interpreter to the concrete command shape, such as `python3 ...material-prep.py` or `py -3 ...material-prep.py`. Do not run arbitrary Python payloads; the pre-approved tool contract only covers version probes and `material-prep.py` execution.
+   - If Python 3 is not available, do not invoke the helper. Continue with direct `Read`/`Glob`/`Grep`/`find`/`wc` sampling for accessible text files, ask the user for a text/markdown export for PDFs or very large sources, and clearly report any reduced coverage.
    - For URLs, fetch the source and any critical linked pages needed to understand the topic.
 
 2. Distill, do not copy.

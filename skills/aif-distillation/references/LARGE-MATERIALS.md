@@ -4,11 +4,29 @@ Large books, PDFs, and source folders need staged processing. The goal is to fit
 
 ## Helper Script
 
-Use:
+Use the helper only when a working Python 3 interpreter is available. Detect and verify it by running these version probes in order:
+
+```bash
+python3 --version
+python --version
+py -3 --version
+py --version
+```
+
+Use the first command that exits successfully and reports `Python 3.x`:
+
+- `python3 --version` -> `python3`
+- `python --version` -> `python`
+- `py -3 --version` -> `py -3`
+- `py --version` -> `py`
+
+Then run the helper with that concrete command shape:
 
 ```bash
 python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py <source...>
 ```
+
+Use `python`, `py -3`, or `py` only if that was the selected Python 3 command. If no probe reports Python 3, do not call the helper. Use direct reads/searches for text sources, ask the user for text/markdown exports for PDFs or very large sources, and state the coverage limitation in the final result.
 
 The script:
 
@@ -60,6 +78,8 @@ Preferred cleanup command:
 ```bash
 python3 {{skills_dir}}/aif-distillation/scripts/material-prep.py --cleanup <temp-dir>
 ```
+
+Use `python`, `py -3`, or `py` only if that was the selected Python 3 command. If no probe reports Python 3, remove only known helper-generated temporary files manually.
 
 The cleanup guard removes only directories with this helper's dedicated marker file.
 

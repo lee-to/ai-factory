@@ -30,6 +30,22 @@ fail() {
     echo -e "  ${RED}✗${NC} $1"
 }
 
+PYTHON_CMD=()
+find_python3() {
+    if python3 --version 2>&1 | grep -Eq '^Python 3\.'; then
+        PYTHON_CMD=(python3)
+    elif python --version 2>&1 | grep -Eq '^Python 3\.'; then
+        PYTHON_CMD=(python)
+    elif py -3 --version 2>&1 | grep -Eq '^Python 3\.'; then
+        PYTHON_CMD=(py -3)
+    elif py --version 2>&1 | grep -Eq '^Python 3\.'; then
+        PYTHON_CMD=(py)
+    else
+        PYTHON_CMD=()
+        return 1
+    fi
+}
+
 # ─────────────────────────────────────────────
 # Part 1: All real skills must pass validation
 # ─────────────────────────────────────────────
@@ -211,8 +227,150 @@ else
     fail "found $DOTTED_REFS dotted invocations in docs"
 fi
 
+# Security-sensitive skills that document Python 3 detection must allow only
+# the exact command shapes used by version probes, scanner execution, and
+# blocked-skill cleanup helper execution.
+PYTHON_ALLOWLIST_FAILURES=0
+for skill_name in aif aif-skill-generator; do
+    skill_file="$ROOT_DIR/skills/$skill_name/SKILL.md"
+    ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$skill_file" || true)
+
+    for required in \
+        "Bash(python3 --version)" \
+        "Bash(python --version)" \
+        "Bash(py -3 --version)" \
+        "Bash(py --version)" \
+        "Bash(python3 *security-scan.py*)" \
+        "Bash(python *security-scan.py*)" \
+        "Bash(py -3 *security-scan.py*)" \
+        "Bash(py *security-scan.py*)" \
+        "Bash(python3 *cleanup-blocked-skill.py*)" \
+        "Bash(python *cleanup-blocked-skill.py*)" \
+        "Bash(py -3 *cleanup-blocked-skill.py*)" \
+        "Bash(py *cleanup-blocked-skill.py*)"; do
+        if ! grep -qF "$required" <<< "$ALLOWED_TOOLS_LINE"; then
+            PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+            echo "      $skill_name missing allowed-tools pattern: $required"
+        fi
+    done
+
+    for forbidden in "Bash(python3 *)" "Bash(python *)" "Bash(py *)"; do
+        if grep -qF "$forbidden" <<< "$ALLOWED_TOOLS_LINE"; then
+            PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+            echo "      $skill_name grants unrestricted Python command family: $forbidden"
+        fi
+    done
+
+    if ! grep -qF "python3 --version" "$skill_file" \
+        || ! grep -qF "py -3 --version" "$skill_file"; then
+        PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+        echo "      $skill_name missing documented Python version probes"
+    fi
+
+    if ! grep -qF "cleanup-blocked-skill.py" "$skill_file"; then
+        PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+        echo "      $skill_name missing documented cleanup helper execution"
+    fi
+
+    if grep -qF "python3 -c" "$skill_file" \
+        || grep -qF "python -c" "$skill_file" \
+        || grep -qF "py -3 -c" "$skill_file" \
+        || grep -qF "py -c" "$skill_file"; then
+        PYTHON_ALLOWLIST_FAILURES=$((PYTHON_ALLOWLIST_FAILURES + 1))
+        echo "      $skill_name still documents Python -c detection"
+    fi
+done
+if [[ "$PYTHON_ALLOWLIST_FAILURES" -eq 0 ]]; then
+    pass "Python scanner skills use least-privilege allowed-tools"
+else
+    fail "found $PYTHON_ALLOWLIST_FAILURES Python scanner allowlist mismatch(es)"
+fi
+
+DISTILL_ALLOWLIST_FAILURES=0
+DISTILL_SKILL_FILE="$ROOT_DIR/skills/aif-distillation/SKILL.md"
+DISTILL_LARGE_MATERIALS="$ROOT_DIR/skills/aif-distillation/references/LARGE-MATERIALS.md"
+DISTILL_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$DISTILL_SKILL_FILE" || true)
+
+for required in \
+    "Bash(python3 --version)" \
+    "Bash(python --version)" \
+    "Bash(py -3 --version)" \
+    "Bash(py --version)" \
+    "Bash(python3 *material-prep.py*)" \
+    "Bash(python *material-prep.py*)" \
+    "Bash(py -3 *material-prep.py*)" \
+    "Bash(py *material-prep.py*)"; do
+    if ! grep -qF "$required" <<< "$DISTILL_ALLOWED_TOOLS_LINE"; then
+        DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+        echo "      aif-distillation missing allowed-tools pattern: $required"
+    fi
+done
+
+for forbidden in "Bash(python3 *)" "Bash(python *)" "Bash(py *)"; do
+    if grep -qF "$forbidden" <<< "$DISTILL_ALLOWED_TOOLS_LINE"; then
+        DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+        echo "      aif-distillation grants unrestricted Python command family: $forbidden"
+    fi
+done
+
+if ! grep -qF "python3 --version" "$DISTILL_SKILL_FILE" \
+    || ! grep -qF "py -3 --version" "$DISTILL_SKILL_FILE"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation missing documented Python version probes"
+fi
+
+if ! grep -qF "material-prep.py" "$DISTILL_SKILL_FILE" \
+    || ! grep -qF "material-prep.py" "$DISTILL_LARGE_MATERIALS"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation missing documented material-prep helper execution"
+fi
+
+if grep -qF "python3 -c" "$DISTILL_SKILL_FILE" \
+    || grep -qF "python -c" "$DISTILL_SKILL_FILE" \
+    || grep -qF "py -3 -c" "$DISTILL_SKILL_FILE" \
+    || grep -qF "py -c" "$DISTILL_SKILL_FILE"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation still documents Python -c detection"
+fi
+
+if grep -qF '"${PYTHON_CMD[@]}"' "$DISTILL_LARGE_MATERIALS"; then
+    DISTILL_ALLOWLIST_FAILURES=$((DISTILL_ALLOWLIST_FAILURES + 1))
+    echo "      aif-distillation large-materials guide still documents variable-based helper invocation"
+fi
+
+if [[ "$DISTILL_ALLOWLIST_FAILURES" -eq 0 ]]; then
+    pass "aif-distillation helper uses least-privilege allowed-tools"
+else
+    fail "found $DISTILL_ALLOWLIST_FAILURES aif-distillation allowlist mismatch(es)"
+fi
+
+AIF_SKILL_GENERATOR="$ROOT_DIR/skills/aif-skill-generator/SKILL.md"
+SCAN_MODE_SECTION="$(awk '
+    /^### Security Scan Mode$/ { capture=1 }
+    capture { print }
+    capture && /^### Validate Mode$/ { exit }
+' "$AIF_SKILL_GENERATOR")"
+VALIDATE_MODE_SECTION="$(awk '
+    /^### Validate Mode$/ { capture=1 }
+    capture { print }
+    capture && /^### Learn Mode/ { exit }
+' "$AIF_SKILL_GENERATOR")"
+if grep -qF 'If `PYTHON_CMD` is empty' <<< "$SCAN_MODE_SECTION" \
+    && grep -qF 'Level 1 skipped: Python 3 unavailable' <<< "$SCAN_MODE_SECTION"; then
+    pass "aif-skill-generator scan mode has no-Python branch"
+else
+    fail "aif-skill-generator scan mode should branch before Level 1 when Python is unavailable"
+fi
+if grep -qF 'If `PYTHON_CMD` is empty' <<< "$VALIDATE_MODE_SECTION" \
+    && grep -qF 'Level 1 skipped: Python 3 unavailable' <<< "$VALIDATE_MODE_SECTION"; then
+    pass "aif-skill-generator validate mode has no-Python branch"
+else
+    fail "aif-skill-generator validate mode should branch before Level 1 when Python is unavailable"
+fi
+
 # aif-distillation helper safety regression checks
 DISTILL_HELPER="$ROOT_DIR/skills/aif-distillation/scripts/material-prep.py"
+if find_python3; then
 DISTILL_SRC="$TMPDIR/distillation-source"
 mkdir -p "$DISTILL_SRC/docs/.hidden-dir" "$DISTILL_SRC/docs/secrets" "$DISTILL_SRC/docs/.ai-factory" "$DISTILL_SRC/.ssh"
 cat > "$DISTILL_SRC/docs/guide.md" << 'EOF'
@@ -255,7 +413,7 @@ ln -s ../.ssh "$DISTILL_SRC/docs/symlink-ssh-dir"
 ln -s .env.md "$DISTILL_SRC/docs/symlink-hidden-sensitive.md"
 
 DISTILL_OUT="$TMPDIR/distillation-out"
-if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_OUT" --chunk-chars 200 > "$TMPDIR/distillation-helper.log" 2>&1; then
+if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_OUT" --chunk-chars 200 > "$TMPDIR/distillation-helper.log" 2>&1; then
     if grep -q "guide.md" "$DISTILL_OUT/source-index.md" \
         && ! grep -q ".hidden.md" "$DISTILL_OUT/source-index.md" \
         && ! grep -q ".hidden-dir" "$DISTILL_OUT/source-index.md" \
@@ -275,7 +433,7 @@ else
 fi
 
 DISTILL_SENSITIVE_ONLY_OUT="$TMPDIR/distillation-sensitive-only-out"
-if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SENSITIVE_ONLY_OUT" --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-sensitive-only.log" 2>&1; then
+if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SENSITIVE_ONLY_OUT" --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-sensitive-only.log" 2>&1; then
     if ! grep -q ".env.md" "$DISTILL_SENSITIVE_ONLY_OUT/source-index.md" \
         && ! grep -q "symlink-hidden-sensitive.md" "$DISTILL_SENSITIVE_ONLY_OUT/source-index.md"; then
         pass "aif-distillation helper requires --include-hidden for hidden sensitive paths"
@@ -289,7 +447,7 @@ else
 fi
 
 DISTILL_SYMLINK_OUT="$TMPDIR/distillation-symlink-out"
-if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SYMLINK_OUT" --include-symlinks --include-hidden --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-symlink.log" 2>&1; then
+if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SYMLINK_OUT" --include-symlinks --include-hidden --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-symlink.log" 2>&1; then
     if grep -q "symlink-hidden-sensitive.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
         && ! grep -q "symlink-env.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
         && ! grep -q "symlink-ssh.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
@@ -310,7 +468,7 @@ mkdir -p "$DISTILL_EXISTING_OUT"
 cat > "$DISTILL_EXISTING_OUT/user-notes.md" << 'EOF'
 user-owned file
 EOF
-if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs/guide.md" --out "$DISTILL_EXISTING_OUT" > "$TMPDIR/distillation-existing-out.log" 2>&1; then
+if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs/guide.md" --out "$DISTILL_EXISTING_OUT" > "$TMPDIR/distillation-existing-out.log" 2>&1; then
     fail "aif-distillation helper should refuse non-empty user-owned --out"
 else
     if [[ -f "$DISTILL_EXISTING_OUT/user-notes.md" ]]; then
@@ -321,10 +479,10 @@ else
 fi
 
 DISTILL_TEMP_LOG="$TMPDIR/distillation-temp.log"
-if python3 "$DISTILL_HELPER" "$DISTILL_SRC/docs/guide.md" --chunk-chars 200 > "$DISTILL_TEMP_LOG" 2>&1; then
+if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs/guide.md" --chunk-chars 200 > "$DISTILL_TEMP_LOG" 2>&1; then
     DISTILL_TEMP_OUT=$(sed -n 's/^Output: //p' "$DISTILL_TEMP_LOG" | tail -n 1)
     if [[ -n "$DISTILL_TEMP_OUT" && -d "$DISTILL_TEMP_OUT" ]]; then
-        if python3 "$DISTILL_HELPER" --cleanup "$DISTILL_TEMP_OUT" > "$TMPDIR/distillation-cleanup.log" 2>&1 && [[ ! -e "$DISTILL_TEMP_OUT" ]]; then
+        if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" --cleanup "$DISTILL_TEMP_OUT" > "$TMPDIR/distillation-cleanup.log" 2>&1 && [[ ! -e "$DISTILL_TEMP_OUT" ]]; then
             pass "aif-distillation helper cleans generated temp output"
         else
             fail "aif-distillation helper should clean generated temp output"
@@ -347,7 +505,7 @@ EOF
 cat > "$DISTILL_USER_DIR/source-index.md" << 'EOF'
 # Source Index
 EOF
-if python3 "$DISTILL_HELPER" --cleanup "$DISTILL_USER_DIR" > "$TMPDIR/distillation-user-cleanup.log" 2>&1; then
+if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" --cleanup "$DISTILL_USER_DIR" > "$TMPDIR/distillation-user-cleanup.log" 2>&1; then
     fail "aif-distillation helper cleanup should refuse user-owned directory with generic marker names"
 else
     if [[ -f "$DISTILL_USER_DIR/manifest.json" && -f "$DISTILL_USER_DIR/source-index.md" ]]; then
@@ -374,11 +532,11 @@ await installSkills({ projectDir, skillsDir: '.claude/skills', skills: ['aif-dis
 EOF
     if [[ -f "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/scripts/material-prep.py" ]] \
         && [[ -f "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/scripts/material-prep.py" ]] \
-        && grep -q "python3 .codex/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/references/LARGE-MATERIALS.md" \
-        && grep -q "python3 .claude/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/references/LARGE-MATERIALS.md" \
+        && grep -qF ".codex/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/references/LARGE-MATERIALS.md" \
+        && grep -qF ".claude/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/references/LARGE-MATERIALS.md" \
         && ! grep -q "~/.codex/skills/aif-distillation/scripts/material-prep.py" "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/references/LARGE-MATERIALS.md" \
-        && python3 "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/scripts/material-prep.py" --help > /dev/null \
-        && python3 "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/scripts/material-prep.py" --help > /dev/null; then
+        && "${PYTHON_CMD[@]}" "$DISTILL_INSTALL_PROJECT/.codex/skills/aif-distillation/scripts/material-prep.py" --help > /dev/null \
+        && "${PYTHON_CMD[@]}" "$DISTILL_INSTALL_PROJECT/.claude/skills/aif-distillation/scripts/material-prep.py" --help > /dev/null; then
         pass "aif-distillation installed helper path works for Codex and Claude"
     else
         fail "aif-distillation installed helper path should be project-local for Codex and Claude"
@@ -386,6 +544,9 @@ EOF
     fi
 else
     fail "dist/core/installer.js missing; run npm run build before skill tests"
+fi
+else
+    pass "aif-distillation helper tests skipped ${YELLOW}(Python 3 not found)${NC}"
 fi
 
 # /aif localization contract regression checks

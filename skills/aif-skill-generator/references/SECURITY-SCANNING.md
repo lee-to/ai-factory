@@ -80,9 +80,11 @@ Install anyway? [y/N]
 **When using `npx skills install`:**
 ```
 1. npx skills install {{skills_cli_agent_flag}} <name>  # Downloads skill
-2. LEVEL 1: Run automated scan on installed directory
-3. LEVEL 2: Read and review the skill content semantically
-4. If BLOCKED → run `$PYTHON ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path <installed-directory>` (reuse the same `<installed-directory>` you scanned in step 2 — upstream `skills` sanitizes the on-disk directory name, so synthesizing `{{skills_dir}}/<name>` can miss the real folder; `--installed-path` lets the helper verify physical removal) and warn user
+2. LEVEL 1: If a Python 3 command was detected, run the automated scan on the installed directory with that concrete command, for example `python3 ~/{{skills_dir}}/aif-skill-generator/scripts/security-scan.py <installed-directory>`.
+3. If Python 3 is unavailable, do not invoke `security-scan.py`; report "Level 1 skipped: Python 3 unavailable" and continue to Level 2 only if the user accepted that risk.
+4. LEVEL 2: Read and review the skill content semantically
+5. If BLOCKED and Python 3 is available → run the cleanup helper with the same selected Python 3 command, for example `python3 ~/{{skills_dir}}/aif-skill-generator/scripts/cleanup-blocked-skill.py --skill <name> --installed-path <installed-directory>` (reuse the same `<installed-directory>` you scanned in step 2 — upstream `skills` sanitizes the on-disk directory name, so synthesizing `{{skills_dir}}/<name>` can miss the real folder; `--installed-path` lets the helper verify physical removal) and warn user.
+6. If BLOCKED and Python 3 is unavailable → do not use the skill; ask the user to remove the installed directory or provide Python 3 so the cleanup helper can run.
 ```
 
 **When generating skills from URLs (Learn Mode):**
