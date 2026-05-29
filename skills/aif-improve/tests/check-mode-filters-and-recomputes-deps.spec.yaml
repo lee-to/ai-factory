@@ -131,7 +131,8 @@ fixtures:
         - [ ] Task 3: Add integration test for the login route happy path.
 
 user_responses:
-  - "Don't apply — keep the plan as-is, just show the report"
+  - match_question: "(?i)(apply|keep.*plan|show.*report|report)"
+    choose: "Don't apply — keep the plan as-is, just show the report"
 
 assertions:
   - id: dispatches-check-validator
