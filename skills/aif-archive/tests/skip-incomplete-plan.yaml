@@ -1,0 +1,69 @@
+scenario: skip-incomplete-plan
+description: |
+  /aif-archive must NOT archive a plan with incomplete tasks.
+
+  Fixture state:
+    .ai-factory/plans/0003_feature-search.md — has unchecked tasks
+
+  Expected:
+    - No Write or Bash(mv) to archive directory
+    - Output mentions the plan is incomplete / not completed
+skill: aif-archive
+argument: "0003_feature-search"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(mv *)
+    - Bash(mkdir *)
+    - Bash(git *)
+    - AskUserQuestion
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plans: .ai-factory/plans/
+          archive: .ai-factory/archive/
+        workflow:
+          plan_id_format: sequential
+    - path: .ai-factory/plans/0003_feature-search.md
+      content: |
+        # Implementation Plan: Product Search
+
+        Branch: feature/search
+        Created: 2026-05-15
+
+        ## Tasks
+
+        ### Phase 1: Setup
+        - [x] **Task 1 — Create search index.**
+        - [ ] **Task 2 — Add search API endpoint.**
+
+        ### Phase 2: Testing
+        - [ ] **Task 3 — Write integration tests.**
+
+assertions:
+  - id: no-write-to-archive
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/archive/"
+
+  - id: no-mv-to-archive
+    type: no_tool_called
+    tool: Bash
+    args_match:
+      command: "mv.*archive"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

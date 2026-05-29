@@ -1,5 +1,6 @@
 const SKILL_HINTS: Record<string, string> = {
     'aif': 'Set up AI context',
+    'aif-archive': 'Archive completed plans and roadmap',
     'aif-architecture': 'Generate architecture guide',
     'aif-best-practices': 'Clean code guidelines',
     'aif-build-automation': 'Build file automation',

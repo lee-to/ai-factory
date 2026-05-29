@@ -51,7 +51,9 @@ This file describes the read-only plan discovery procedure that runs when `aif-i
    - /aif-fix <bug description>
    ```
 
-6. **STOP.** Do not proceed to any refinement step.
+6. **Archived plans.** If `paths.archive/plans/` exists and contains `*.md` files, display a separate count line after the main list: `Archived plans: N (in <paths.archive>/plans/)`. Do not list individual archived plans — use `/aif-archive list` for that.
+
+7. **STOP.** Do not proceed to any refinement step.
 
 ## Read-only contract
 

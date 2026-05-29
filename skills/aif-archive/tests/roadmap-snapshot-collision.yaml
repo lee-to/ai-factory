@@ -1,0 +1,100 @@
+scenario: roadmap-snapshot-collision
+description: |
+  /aif-archive --roadmap must NOT overwrite an existing same-day roadmap snapshot.
+  When a snapshot for today's date already exists in paths.archive/roadmap/,
+  the skill must use a non-colliding suffix (e.g. -2) and must NOT edit
+  paths.roadmap until the new snapshot is safely written.
+
+  IMPORTANT: For this scenario, today's date is 2026-05-26.
+
+  Fixture state:
+    .ai-factory/ROADMAP.md — has closed milestones
+    .ai-factory/archive/roadmap/2026-05-26_roadmap-snapshot.md — existing snapshot
+
+  Expected:
+    - No Write to the existing snapshot path (would overwrite)
+    - Write to a suffixed path (e.g. 2026-05-26_roadmap-snapshot-2.md)
+    - Edit to ROADMAP.md only AFTER snapshot is written
+skill: aif-archive
+argument: "--roadmap"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(mv *)
+    - Bash(mkdir *)
+    - Bash(git *)
+    - AskUserQuestion
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plans: .ai-factory/plans/
+          archive: .ai-factory/archive/
+          plan: .ai-factory/PLAN.md
+          fix_plan: .ai-factory/FIX_PLAN.md
+          roadmap: .ai-factory/ROADMAP.md
+        workflow:
+          plan_id_format: sequential
+    - path: .ai-factory/ROADMAP.md
+      content: |
+        # Project Roadmap
+
+        ## Milestones
+
+        - [x] MVP Launch — core features shipped
+        - [x] Beta Testing — user feedback round
+        - [ ] Production Release — final deploy
+    - path: .ai-factory/archive/roadmap/2026-05-26_roadmap-snapshot.md
+      content: |
+        # Roadmap Snapshot — 2026-05-26
+
+        Archived from: .ai-factory/ROADMAP.md
+
+        ## Archived Milestones
+
+        - [x] Initial Setup — project scaffolding
+
+user_responses:
+  - match_question: "(?i)(confirm|proceed|trim|snapshot|sure)"
+    choose: "Yes"
+
+assertions:
+  - id: no-overwrite-existing-snapshot
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "archive/roadmap/2026-05-26_roadmap-snapshot\\.md$"
+
+  - id: writes-suffixed-snapshot
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "archive/roadmap/.*_roadmap-snapshot-\\d+\\.md$"
+    weight: 4
+
+  - id: snapshot-contains-milestones
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "MVP Launch"
+    weight: 2
+
+  - id: edits-roadmap-after-snapshot
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "ROADMAP\\.md$"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

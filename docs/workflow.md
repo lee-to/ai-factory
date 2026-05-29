@@ -180,6 +180,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-rules-check` | Standalone read-only rules compliance gate for staged work, working tree, or a git ref | No | No (reads existing rules and optional plan context) |
 | `/aif-verify` | Post-implementation quality check | No | No (reads existing) |
 | `/aif-qa` | Manual QA for a feature/fix: change summary → test plan → test cases | No | `paths.qa/<branch-slug>/*.md` (default: `.ai-factory/qa/<branch-slug>/`) |
+| `/aif-archive` | Archive completed plans and trim closed roadmap milestones | No | `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md` (default: `.ai-factory/archive/`) |
 
 `/aif-qa change-summary` normally derives context from git diffs. When `git.enabled=false` or the target/base refs cannot be resolved locally or through `origin/<base_branch>`, it asks for manual change context instead of failing on git commands.
 
@@ -200,6 +201,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-fix`                                | `paths.fix_plan`, `paths.patches/*.md`                                                        | bug-fix learning loop artifacts                           |
 | `/aif-evolve`                             | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`, `.ai-factory/skill-context/*`  | skill-context overrides + evolution logs + cursor state   |
 | `/aif-qa`                                 | `paths.qa/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`                   | derived branch slug as subdirectory (see aif-qa SKILL.md) |
+| `/aif-archive`                            | `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                                      | moves completed plans from `paths.plans/`; trims closed milestones from `paths.roadmap` |
 | `/aif-rules-check`                        | read-only context by default                                                                  | standalone rules gate; no default context-file writes     |
 | `/aif-commit` `/aif-review` `/aif-verify` | read-only context by default                                                                  | gate and report, no default context-file writes           |
 

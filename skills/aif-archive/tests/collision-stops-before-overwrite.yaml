@@ -1,0 +1,93 @@
+scenario: collision-stops-before-overwrite
+description: |
+  /aif-archive must NOT overwrite an existing archived plan.
+  When the destination file already exists in paths.archive/plans/,
+  the skill must stop with an error and leave both files untouched.
+
+  Fixture state:
+    .ai-factory/plans/0005_feature-auth.md — completed plan in active dir
+    .ai-factory/archive/plans/0005_feature-auth.md — previously archived plan
+
+  Expected:
+    - No Bash(mv) call to archive (would overwrite)
+    - No Write to archive (would overwrite)
+    - No Edit to the active plan (nothing should change)
+    - Output mentions collision / already exists
+skill: aif-archive
+argument: "0005_feature-auth"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(mv *)
+    - Bash(mkdir *)
+    - Bash(git *)
+    - AskUserQuestion
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plans: .ai-factory/plans/
+          archive: .ai-factory/archive/
+          plan: .ai-factory/PLAN.md
+          fix_plan: .ai-factory/FIX_PLAN.md
+          roadmap: .ai-factory/ROADMAP.md
+        workflow:
+          plan_id_format: sequential
+    - path: .ai-factory/plans/0005_feature-auth.md
+      content: |
+        # Implementation Plan: User Authentication
+
+        Branch: feature/auth
+        Created: 2026-05-25
+
+        ## Tasks
+
+        - [x] **Task 1 — Create user model.**
+        - [x] **Task 2 — Implement login.**
+    - path: .ai-factory/archive/plans/0005_feature-auth.md
+      content: |
+        ---
+        archived: 2026-05-20
+        ---
+        # Implementation Plan: User Authentication (old)
+
+        ## Tasks
+
+        - [x] **Task 1 — Setup.**
+
+assertions:
+  - id: no-mv-to-archive
+    type: no_tool_called
+    tool: Bash
+    args_match:
+      command: "mv.*0005_feature-auth.*archive"
+
+  - id: no-write-to-archive
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
+
+  - id: no-edit-to-archive
+    type: no_tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
+
+  - id: output-mentions-collision
+    type: output_contains
+    text: "already exists"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

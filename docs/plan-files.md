@@ -12,6 +12,21 @@ Paths below show the default `.ai-factory/` layout. `config.yaml` can relocate p
 | `/aif-plan full` | `paths.plans/<stem>.md` (default; `stem` = Handoff branch → git branch → description slug, per `/aif-plan` Step 1.2.a) | Keep (user decides) |
 | `/aif-plan full` (`workflow.plan_id_format: sequential`) | `paths.plans/<NNNN>_<stem>.md` (4-digit, capped at `9999`; `NNNN` is derived from existing numbered plans in the directory) | Keep (user decides) |
 
+## Archive Lifecycle
+
+When plans accumulate, `/aif-archive` moves completed plans to `paths.archive/plans/` (default: `.ai-factory/archive/plans/`):
+
+```
+paths.plans/<plan>.md  →  (all tasks [x])  →  paths.archive/plans/<plan>.md
+```
+
+- Original filenames are preserved (including sequential `NNNN_` prefix)
+- An `archived: YYYY-MM-DD` field is added to the plan's YAML frontmatter
+- Archived plans are excluded from plan discovery by `/aif-implement`, `/aif-verify`, `/aif-improve`
+- Sequential numbering in `/aif-plan` only counts files in `paths.plans/`, not the archive
+
+Roadmap snapshots: `/aif-archive --roadmap` trims closed milestones from `ROADMAP.md` into dated snapshots under `paths.archive/roadmap/`.
+
 ## Artifact Ownership Quick Map
 
 To avoid ownership conflicts, artifact writers are command-scoped:
@@ -27,6 +42,7 @@ To avoid ownership conflicts, artifact writers are command-scoped:
 | `paths.fix_plan` and `paths.patches/*.md`                                 | `/aif-fix`            | defaults shown; actual paths come from `paths.fix_plan` and `paths.patches`                    |
 | `.ai-factory/skill-context/*`                                             | `/aif-evolve`         | project-specific skill overrides derived from patches                                          |
 | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`             | `/aif-evolve`         | defaults shown; actual evolution-log path comes from `paths.evolutions`                        |
+| `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                  | `/aif-archive`        | archived plan files and dated roadmap snapshots                                                |
 
 Quality commands (`/aif-commit`, `/aif-review`, `/aif-verify`) treat these files as read-only context by default.
 

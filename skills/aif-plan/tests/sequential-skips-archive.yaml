@@ -1,0 +1,104 @@
+scenario: sequential-skips-archive
+description: |
+  Sequential numbering in /aif-plan must only count plans in paths.plans/,
+  NOT plans in paths.archive/plans/. This is a consumer-side regression test
+  for the /aif-archive feature.
+
+  Fixture state:
+    .ai-factory/plans/0001_alpha.md — active plan
+    .ai-factory/archive/plans/0003_beta.md — archived plan (must be ignored)
+
+  Expected: the new plan is written as 0002_*, not 0004_*.
+  The archived plan with prefix 0003 must NOT influence the numbering.
+skill: aif-plan
+argument: "full add user dashboard"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - Bash(cp *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo repo
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+          archive: .ai-factory/archive/
+        workflow:
+          plan_id_format: sequential
+        git:
+          enabled: true
+          base_branch: main
+          create_branches: true
+          branch_prefix: feature/
+    - path: .ai-factory/plans/0001_alpha.md
+      content: |
+        # Plan: alpha
+        - [x] Task 1
+    - path: .ai-factory/archive/plans/0003_beta.md
+      content: |
+        ---
+        archived: 2026-05-20
+        ---
+        # Plan: beta
+        - [x] Task 1
+
+user_responses:
+  - match_question: "(?i)\\b(fast|full)\\b"
+    choose: "Full"
+  - match_question: "(?i)test"
+    choose: "No, skip tests"
+  - match_question: "(?i)log"
+    choose: "Standard"
+  - match_question: "(?i)doc"
+    choose: "No"
+  - match_question: "(?i)(requirement|constraint|clarif)"
+    choose: "None"
+  - match_question: "(?i)(roadmap|milestone|linkage)"
+    choose: "Skip"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: writes-0002-not-0004
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0002_"
+    weight: 4
+
+  - id: does-not-write-0004
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0004_"
+
+  - id: does-not-write-0003
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0003_"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

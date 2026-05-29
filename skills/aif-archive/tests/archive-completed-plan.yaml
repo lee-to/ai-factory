@@ -1,0 +1,101 @@
+scenario: archive-completed-plan
+description: |
+  /aif-archive must move a completed plan (all tasks [x]) from paths.plans/
+  to paths.archive/plans/, preserving the original filename and adding
+  `archived: YYYY-MM-DD` to YAML frontmatter.
+
+  The correct operation order is:
+    1. mkdir -p for archive/plans/
+    2. mv source -> archive destination (atomic move)
+    3. Edit the destination file to add archived: date
+
+  Fixture state:
+    .ai-factory/plans/0005_feature-auth.md — all tasks completed
+    .ai-factory/config.yaml — paths.archive set
+
+  Expected:
+    - Bash(mv) moves the plan to archive/plans/
+    - Edit adds archived: date to the moved file
+    - Original file no longer in plans/ (moved by mv)
+skill: aif-archive
+argument: "0005_feature-auth"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(mv *)
+    - Bash(mkdir *)
+    - Bash(git *)
+    - AskUserQuestion
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plans: .ai-factory/plans/
+          archive: .ai-factory/archive/
+          plan: .ai-factory/PLAN.md
+          fix_plan: .ai-factory/FIX_PLAN.md
+          roadmap: .ai-factory/ROADMAP.md
+        workflow:
+          plan_id_format: sequential
+    - path: .ai-factory/plans/0005_feature-auth.md
+      content: |
+        # Implementation Plan: User Authentication
+
+        Branch: feature/auth
+        Created: 2026-05-10
+
+        ## Tasks
+
+        ### Phase 1: Setup
+        - [x] **Task 1 — Create user model.**
+        - [x] **Task 2 — Add auth middleware.**
+
+        ### Phase 2: Implementation
+        - [x] **Task 3 — Implement registration.**
+        - [x] **Task 4 — Implement login.**
+
+user_responses:
+  - match_question: "(?i)(confirm|proceed|archive|sure)"
+    choose: "Yes"
+
+assertions:
+  - id: creates-archive-dir
+    type: tool_called
+    tool: Bash
+    args_match:
+      command: "mkdir.*archive/plans"
+
+  - id: moves-plan-to-archive
+    type: tool_called
+    tool: Bash
+    args_match:
+      command: "mv.*0005_feature-auth.*archive/plans"
+    weight: 4
+
+  - id: edits-archive-with-date
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
+      new_string: "archived:"
+    weight: 2
+
+  - id: no-write-to-archive
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/archive/plans/0005_feature-auth\\.md$"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

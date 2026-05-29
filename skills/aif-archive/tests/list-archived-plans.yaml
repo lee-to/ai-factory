@@ -1,0 +1,79 @@
+scenario: list-archived-plans
+description: |
+  /aif-archive list must show archived plans from paths.archive/plans/
+  without modifying any files (read-only mode).
+
+  Fixture state:
+    .ai-factory/archive/plans/0001_feature-alpha.md — archived plan
+    .ai-factory/archive/plans/0003_feature-gamma.md — archived plan
+
+  Expected:
+    - Output lists both archived plan filenames
+    - No Write or Edit calls (read-only)
+skill: aif-archive
+argument: "list"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(mv *)
+    - Bash(mkdir *)
+    - Bash(git *)
+    - AskUserQuestion
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plans: .ai-factory/plans/
+          archive: .ai-factory/archive/
+        workflow:
+          plan_id_format: sequential
+    - path: .ai-factory/archive/plans/0001_feature-alpha.md
+      content: |
+        ---
+        archived: 2026-05-20
+        ---
+        # Implementation Plan: Feature Alpha
+
+        ## Tasks
+        - [x] **Task 1 — Setup.**
+        - [x] **Task 2 — Implement.**
+    - path: .ai-factory/archive/plans/0003_feature-gamma.md
+      content: |
+        ---
+        archived: 2026-05-24
+        ---
+        # Implementation Plan: Feature Gamma
+
+        ## Tasks
+        - [x] **Task 1 — Design.**
+        - [x] **Task 2 — Build.**
+        - [x] **Task 3 — Test.**
+
+assertions:
+  - id: no-write-calls
+    type: no_tool_called
+    tool: Write
+
+  - id: no-edit-calls
+    type: no_tool_called
+    tool: Edit
+
+  - id: reads-archive-dir
+    type: tool_called
+    tool: Glob
+    args_match:
+      pattern: ".*archive/plans"
+
+  - id: stay-in-sandbox
+    type: no_path_escape

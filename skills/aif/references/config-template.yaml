@@ -115,6 +115,16 @@ paths:
   # Default: .ai-factory/qa/
   qa: .ai-factory/qa/
 
+  # Archive directory for completed plans and roadmap snapshots.
+  # /aif-archive moves finished plans here (retaining original filenames,
+  # including any sequential NNNN_ prefix). Subdirectories:
+  #   archive/plans/   — archived plan files
+  #   archive/roadmap/ — dated roadmap snapshots
+  # Referenced by /aif-archive (owner), /aif-plan, /aif-implement,
+  # /aif-verify, /aif-improve.
+  # Default: .ai-factory/archive/
+  archive: .ai-factory/archive/
+
 # =============================================================================
 # Workflow Settings
 # =============================================================================
