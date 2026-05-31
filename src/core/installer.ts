@@ -85,6 +85,7 @@ export interface UpdateConfigFilesResult {
 export interface UpdateSkillsOptions {
   excludeSkills?: string[];
   force?: boolean;
+  installNewSkills?: string[];
 }
 
 export interface InstallOptions {
@@ -106,6 +107,7 @@ export interface InstallConfigFilesOptions {
   agentId: string;
   configFiles: string[];
   installedConfigFiles?: string[];
+  managedConfigFiles?: Record<string, ManagedArtifactState>;
 }
 
 interface ResolvedSkillPaths {
@@ -785,14 +787,41 @@ export async function installConfigFiles(options: InstallConfigFilesOptions): Pr
   }
 
   const previousInstalledSet = new Set(options.installedConfigFiles ?? []);
+  const previousManaged = options.managedConfigFiles ?? {};
   const installed: string[] = [];
 
   for (const relPath of configFiles) {
     const paths = resolveManagedConfigFilePaths(projectDir, agentId, relPath);
-    if (!previousInstalledSet.has(relPath) && await fileExists(paths.targetFile)) {
+    const sourceHash = await hashManagedFile(paths.sourceFile, relPath);
+    const installedHash = await hashManagedFile(paths.targetFile, relPath);
+    const previousState = previousManaged[relPath];
+
+    if (!previousInstalledSet.has(relPath) && installedHash) {
       console.warn(
         `Warning: Existing untracked config file "${relPath}" detected — preserving it and skipping managed install.`,
       );
+      continue;
+    }
+
+    if (previousInstalledSet.has(relPath) && !previousState && installedHash) {
+      console.warn(`Warning: Managed config file "${relPath}" has no saved state — preserving existing file.`);
+      installed.push(relPath);
+      continue;
+    }
+
+    if (previousState && installedHash && previousState.installedHash !== installedHash) {
+      console.warn(`Warning: Local modifications detected in config file "${relPath}" — preserving existing file.`);
+      installed.push(relPath);
+      continue;
+    }
+
+    if (previousState && installedHash && previousState.installedHash === installedHash && previousState.installedHash !== previousState.sourceHash) {
+      installed.push(relPath);
+      continue;
+    }
+
+    if (!sourceHash && installedHash) {
+      installed.push(relPath);
       continue;
     }
 
@@ -925,10 +954,11 @@ export async function updateSkills(
   projectDir: string,
   options: UpdateSkillsOptions = {},
 ): Promise<UpdateSkillsResult> {
-  const { excludeSkills = [], force = false } = options;
+  const { excludeSkills = [], force = false, installNewSkills = [] } = options;
   const availableSkills = await getAvailableSkills();
   const availableSet = new Set(availableSkills);
   const excludeSet = new Set(excludeSkills);
+  const installNewSet = new Set(installNewSkills);
 
   const entries: SkillUpdateEntry[] = [];
 
@@ -958,7 +988,28 @@ export async function updateSkills(
   }
 
   const newlyAvailable = availableSkills.filter(s => !previousBaseSet.has(s) && !excludeSet.has(s));
-  for (const skill of newlyAvailable) {
+  const newSkillsToInstall = newlyAvailable.filter(s => installNewSet.has(s));
+  const skippedNewSkills = newlyAvailable.filter(s => !installNewSet.has(s));
+
+  const installedNewSkills = newSkillsToInstall.length > 0
+    ? await installSkills({
+      projectDir,
+      skillsDir: agentInstallation.skillsDir,
+      skills: newSkillsToInstall,
+      agentId: agentInstallation.id,
+    })
+    : [];
+  const installedNewSet = new Set(installedNewSkills);
+
+  for (const skill of newSkillsToInstall) {
+    entries.push({
+      skill,
+      status: installedNewSet.has(skill) ? 'changed' : 'skipped',
+      reason: installedNewSet.has(skill) ? 'new-in-package' : 'install-failed',
+    });
+  }
+
+  for (const skill of skippedNewSkills) {
     entries.push({
       skill,
       status: 'skipped',
@@ -1054,7 +1105,7 @@ export async function updateSkills(
   const retainedBaseSkills = previousBaseSkills.filter(s => (availableSet.has(s) || excludeSet.has(s)) && !removedSkills.includes(s));
 
   return {
-    installedSkills: [...retainedBaseSkills, ...custom],
+    installedSkills: [...retainedBaseSkills, ...installedNewSkills, ...custom],
     entries,
   };
 }
@@ -1250,12 +1301,36 @@ export async function updateConfigFiles(
     const sourceHash = await hashManagedFile(paths.sourceFile, relPath);
     const installedHash = await hashManagedFile(paths.targetFile, relPath);
     const previousState = previousManaged[relPath];
+    const hasLocalCustomization = Boolean(
+      previousState &&
+      installedHash &&
+      previousState.installedHash === installedHash &&
+      previousState.installedHash !== previousState.sourceHash,
+    );
 
     if (!previousInstalledSet.has(relPath) && installedHash) {
       console.warn(
         `Warning: Existing untracked config file "${relPath}" detected — preserving it and skipping managed install.`,
       );
       shouldInstall.set(relPath, { install: false, reason: 'untracked-target-exists' });
+      continue;
+    }
+
+    if (previousInstalledSet.has(relPath) && !previousState && installedHash) {
+      console.warn(`Warning: Managed config file "${relPath}" has no saved state — preserving existing file.`);
+      shouldInstall.set(relPath, { install: false, reason: 'local-modifications-preserved' });
+      continue;
+    }
+
+    if (hasLocalCustomization) {
+      shouldInstall.set(relPath, { install: false, reason: 'local-modifications-preserved' });
+      continue;
+    }
+
+    if (previousState && installedHash && previousState.installedHash !== installedHash) {
+      const forceNote = force ? ' --force does not overwrite local config changes.' : '';
+      console.warn(`Warning: Local modifications detected in config file "${relPath}" — preserving existing file.${forceNote}`);
+      shouldInstall.set(relPath, { install: false, reason: 'local-modifications-preserved' });
       continue;
     }
 
@@ -1286,12 +1361,6 @@ export async function updateConfigFiles(
 
     if (previousState.sourceHash !== sourceHash) {
       shouldInstall.set(relPath, { install: true, reason: 'source-hash-changed' });
-      continue;
-    }
-
-    if (previousState.installedHash !== installedHash) {
-      console.warn(`Warning: Local modifications detected in config file "${relPath}" — will be overwritten by update.`);
-      shouldInstall.set(relPath, { install: true, reason: 'installed-hash-drift' });
       continue;
     }
 

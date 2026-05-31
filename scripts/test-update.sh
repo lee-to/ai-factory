@@ -121,6 +121,73 @@ assert_contains "$FORCE_OUTPUT" "force reinstall" "force reason should be visibl
 echo "update smoke tests passed"
 
 # -------------------------------------------------------------------
+# New base skills update prompt smoke
+# -------------------------------------------------------------------
+
+NEW_SKILL_PROMPT_PROJECT_DIR="$TMPDIR/update-smoke-new-skill-prompt"
+mkdir -p "$NEW_SKILL_PROMPT_PROJECT_DIR"
+
+cat > "$NEW_SKILL_PROMPT_PROJECT_DIR/.ai-factory.json" << 'EOF'
+{
+  "version": "2.4.0",
+  "agents": [
+    {
+      "id": "universal",
+      "skillsDir": ".agents/skills",
+      "installedSkills": ["aif"],
+      "mcp": {
+        "github": false,
+        "filesystem": false,
+        "postgres": false,
+        "chromeDevtools": false,
+        "playwright": false
+      }
+    }
+  ],
+  "extensions": []
+}
+EOF
+
+NEW_SKILL_PROMPT_OUTPUT="$TMPDIR/update-new-skill-prompt.log"
+AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$NEW_SKILL_PROMPT_PROJECT_DIR" node --input-type=module > "$NEW_SKILL_PROMPT_OUTPUT" 2>&1 <<'EOF'
+import inquirer from 'inquirer';
+import path from 'path';
+import { pathToFileURL } from 'url';
+
+Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true });
+
+const originalPrompt = inquirer.prompt.bind(inquirer);
+inquirer.prompt = async (questions) => {
+  const first = Array.isArray(questions) ? questions[0] : questions;
+  if (first?.name === 'shouldUpdate') {
+    return { shouldUpdate: false };
+  }
+  if (first?.name === 'selectedNewSkills') {
+    return { selectedNewSkills: ['aif-plan'] };
+  }
+  throw new Error(`Unexpected prompt: ${JSON.stringify(questions)}`);
+};
+
+process.chdir(process.env.AIF_TEST_PROJECT_DIR);
+
+const moduleUrl = pathToFileURL(path.join(process.env.AIF_TEST_ROOT_DIR, 'dist/cli/commands/update.js')).href;
+const { updateCommand } = await import(moduleUrl);
+
+try {
+  await updateCommand();
+} finally {
+  inquirer.prompt = originalPrompt;
+}
+EOF
+
+assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "New base skills available:" "update must announce newly available base skills"
+assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "aif-plan \(new in package\)" "accepted new skill must be reported as installed"
+assert_exists "$NEW_SKILL_PROMPT_PROJECT_DIR/.agents/skills/aif-plan/SKILL.md" "accepted new skill must be installed"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(!Array.isArray(a.installedSkills)||!a.installedSkills.includes('aif-plan'))process.exit(1);if(!a.managedSkills||!a.managedSkills['aif-plan'])process.exit(1);" "$NEW_SKILL_PROMPT_PROJECT_DIR/.ai-factory.json"
+
+echo "new base skill prompt smoke tests passed"
+
+# -------------------------------------------------------------------
 # Codex app update smoke: repo skills should keep Codex $ invocations,
 # custom skills should be preserved, and incompatible shared repo skills
 # runtime configs should fail before mutation.
@@ -432,8 +499,9 @@ echo "# drift" >> "$CODEX_PROJECT_DIR/.codex/config.toml"
 
 (cd "$CODEX_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CODEX_SECOND_OUTPUT" 2>&1)
 assert_contains "$CODEX_SECOND_OUTPUT" "Local modifications detected in config file" "Codex config drift warning must be printed"
-assert_contains "$CODEX_SECOND_OUTPUT" "config\\.toml \(local drift\)" "Codex config drift must be repaired on update"
-assert_contains "$CODEX_PROJECT_DIR/.codex/config.toml" "\\[agents\\]" "Codex config content must be restored"
+assert_contains "$CODEX_SECOND_OUTPUT" "config\\.toml \(local changes preserved\)" "Codex config drift must be preserved on update"
+assert_contains "$CODEX_PROJECT_DIR/.codex/config.toml" "\\[agents\\]" "Codex config base content must remain"
+assert_contains "$CODEX_PROJECT_DIR/.codex/config.toml" "# drift" "Codex config local drift must be preserved"
 
 echo "codex assets smoke tests passed"
 
@@ -490,6 +558,61 @@ assert_not_contains "$CODEX_USER_CONFIG_PROJECT_DIR/.codex/config.toml" "\\[agen
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='codex')process.exit(1);if(!Array.isArray(a.configFiles)||!a.configFiles.includes('config.toml'))process.exit(1);if(Array.isArray(a.installedConfigFiles)&&a.installedConfigFiles.includes('config.toml'))process.exit(1);if(a.managedConfigFiles&&a.managedConfigFiles['config.toml'])process.exit(1);" "$CODEX_USER_CONFIG_PROJECT_DIR/.ai-factory.json"
 
 echo "codex user-owned config migration smoke tests passed"
+
+# -------------------------------------------------------------------
+# Codex config source+target drift smoke
+# -------------------------------------------------------------------
+
+CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR="$TMPDIR/update-smoke-codex-config-source-target-drift"
+mkdir -p "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR/.codex"
+
+node - "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR" <<'EOF'
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const projectDir = process.argv[2];
+const oldConfig = '[agents]\nmax_threads = 2\n';
+const localConfig = `${oldConfig}\n[user]\nkeep = true\n`;
+fs.writeFileSync(path.join(projectDir, '.codex/config.toml'), localConfig);
+
+const oldHash = crypto.createHash('sha256')
+  .update('path:config.toml\n')
+  .update(Buffer.from(oldConfig))
+  .update('\n')
+  .digest('hex');
+
+fs.writeFileSync(path.join(projectDir, '.ai-factory.json'), JSON.stringify({
+  version: '2.4.0',
+  agents: [{
+    id: 'codex',
+    skillsDir: '.codex/skills',
+    installedSkills: ['aif'],
+    configFiles: ['config.toml'],
+    installedConfigFiles: ['config.toml'],
+    managedConfigFiles: { 'config.toml': { sourceHash: oldHash, installedHash: oldHash } },
+    mcp: {
+      github: false,
+      filesystem: false,
+      postgres: false,
+      chromeDevtools: false,
+      playwright: false,
+    },
+  }],
+  extensions: [],
+}, null, 2) + '\n');
+EOF
+
+CODEX_CONFIG_SOURCE_TARGET_DRIFT_OUTPUT="$TMPDIR/update-codex-config-source-target-drift.log"
+(cd "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_OUTPUT" 2>&1)
+assert_contains "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_OUTPUT" "Local modifications detected in config file" "Codex config source+target drift warning must be printed"
+assert_contains "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_OUTPUT" "config\\.toml \(local changes preserved\)" "Codex config source+target drift must be preserved on update"
+assert_contains "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR/.codex/config.toml" "\\[user\\]" "Codex config source+target drift must keep user section"
+assert_contains "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR/.codex/config.toml" "keep = true" "Codex config source+target drift must keep user content"
+assert_contains "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR/.codex/config.toml" "max_threads = 2" "Codex config source+target drift must keep local old config"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];const state=a.managedConfigFiles&&a.managedConfigFiles['config.toml'];if(!state||state.sourceHash===state.installedHash)process.exit(1);" "$CODEX_CONFIG_SOURCE_TARGET_DRIFT_PROJECT_DIR/.ai-factory.json"
+
+echo "codex config source+target drift smoke tests passed"
 
 # -------------------------------------------------------------------
 # Codex TOML drift smoke

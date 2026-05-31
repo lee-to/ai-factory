@@ -227,6 +227,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
           agentId: agentSelection.id,
           configFiles: agentConfig.configFiles,
           installedConfigFiles: existingAgent?.installedConfigFiles,
+          managedConfigFiles: existingAgent?.managedConfigFiles,
         })
         : [];
 
