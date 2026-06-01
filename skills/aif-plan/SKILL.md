@@ -651,6 +651,16 @@ CONTEXT FROM /aif-plan:
 
 **Full mode normal:** STOP after planning. The user reviews the plan and decides when to implement.
 
+**Cross-agent handoff (optional, backwards-compatible):** before rendering the next-step text below, attempt to dispatch the implement phase to its configured agent:
+
+```
+ai-factory dispatch implement --prompt "Implement plan <configured plans dir>/<resolved-plan-file>"
+```
+
+- **"Cross-agent dispatch" block on stdout (`Mode  : manual`)** → the `implement` phase is assigned to another agent. Show that block INSTEAD of the plain `/aif-implement` line below (it already names the agent, model, and exact command). Still surface the plan file + Testing/Logging/Docs context.
+- **Auto mode (exit 0, no block)** → the implement agent was spawned by the command; tell the user implementation is running in that agent.
+- **No block / exit 0, or non-zero exit** → no dispatch configured (or it failed): render the normal next-step text below unchanged. Dispatch must NEVER block planning.
+
 The next-step templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`. Preserve command names, configured paths, task counts, and TaskList references unchanged.
 
 ```

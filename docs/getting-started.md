@@ -30,6 +30,8 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Codex app | `.agents/` | `.agents/skills/` |
 | GitHub Copilot | `.github/` | `.github/skills/` |
 | Gemini CLI | `.gemini/` | `.gemini/skills/` |
+| ChatGPT CLI | `.chatgpt/` | `.chatgpt/skills/` |
+| OpenRouter CLI | `.openrouter/` | `.openrouter/skills/` |
 | Junie | `.junie/` | `.junie/skills/` |
 | Qwen Code | `.qwen/` | `.qwen/skills/` |
 | Universal / Other | `.agents/` | `.agents/skills/` |

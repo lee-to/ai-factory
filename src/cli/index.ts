@@ -3,6 +3,7 @@ import { initCommand } from './commands/init.js';
 import { updateCommand } from './commands/update.js';
 import { upgradeCommand } from './commands/upgrade.js';
 import { auditArtifactsCommand } from './commands/audit-artifacts.js';
+import { dispatchCommand } from './commands/dispatch.js';
 import { extensionAddCommand, extensionRemoveCommand, extensionListCommand, extensionUpdateCommand } from './commands/extension.js';
 import { getCurrentVersion, loadConfig } from '../core/config.js';
 import { loadAllExtensions } from '../core/extensions.js';
@@ -17,7 +18,7 @@ program
 program
   .command('init')
   .description('Initialize ai-factory in current project')
-  .option('--agents <agents>', 'Comma-separated list of agents (e.g. claude,codex,codex-app,cursor)')
+  .option('--agents <agents>', 'Comma-separated list of agents (e.g. claude,codex,cursor,chatgpt,openrouter)')
   .option('--mcp <servers>', 'Comma-separated list of MCP servers (e.g. github,playwright,postgres,filesystem,chrome-devtools)')
   .option('--skills <skills>', 'Comma-separated list of skills or "all" for all skills (default: all)')
   .option('--no-skills', 'Skip installing base skills')
@@ -41,6 +42,13 @@ program
   .option('--json', 'Print machine-readable JSON')
   .option('--strict', 'Treat warnings as failures')
   .action(auditArtifactsCommand);
+
+program
+  .command('dispatch <phase>')
+  .description('Resolve the agent/model for a loop phase and switch or spawn it')
+  .option('--prompt <text>', 'Instruction passed to the target agent (fills {prompt})')
+  .option('--print', 'Force manual mode: print instructions, never spawn')
+  .action(dispatchCommand);
 
 const ext = program
   .command('extension')
