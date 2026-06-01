@@ -78,6 +78,7 @@ export interface ConfigFileUpdateEntry {
 }
 
 export interface UpdateConfigFilesResult {
+  configFiles: string[];
   installedConfigFiles: string[];
   entries: ConfigFileUpdateEntry[];
 }
@@ -318,14 +319,8 @@ export function resolveManagedConfigFilePaths(projectDir: string, agentId: strin
     throw new Error(`Agent "${agentId}" does not define managed config files.`);
   }
 
-  const targetRoot = path.join(projectDir, agentConfig.configDir);
   const sourceFile = path.join(sourceRoot, relPath);
-  const targetFile = path.join(targetRoot, relPath);
-  ensureTargetWithinRoot(targetRoot, targetFile, {
-    rootLabel: 'Managed config directory',
-    targetLabel: 'Managed config target',
-    rootDescription: 'config directory',
-  });
+  const targetFile = resolveInstalledConfigFileTargetPath(projectDir, agentId, relPath);
   ensureTargetWithinRoot(sourceRoot, sourceFile, {
     rootLabel: 'Managed config source directory',
     targetLabel: 'Managed config source',
@@ -337,6 +332,19 @@ export function resolveManagedConfigFilePaths(projectDir: string, agentId: strin
     targetFile,
     relPath,
   };
+}
+
+function resolveInstalledConfigFileTargetPath(projectDir: string, agentId: string, relPath: string): string {
+  assertSafeManagedRelativePath(relPath);
+  const agentConfig = getAgentConfig(agentId);
+  const targetRoot = path.join(projectDir, agentConfig.configDir);
+  const targetFile = path.join(targetRoot, relPath);
+  ensureTargetWithinRoot(targetRoot, targetFile, {
+    rootLabel: 'Managed config directory',
+    targetLabel: 'Managed config target',
+    rootDescription: 'config directory',
+  });
+  return targetFile;
 }
 
 function getBundledAgentFilesSourceDir(agentId: string): string | null {
@@ -930,7 +938,7 @@ async function removeConfigFilesByName(
 
   for (const relPath of configFiles) {
     try {
-      const { targetFile } = resolveManagedConfigFilePaths(projectDir, agentInstallation.id, relPath);
+      const targetFile = resolveInstalledConfigFileTargetPath(projectDir, agentInstallation.id, relPath);
       await removeFile(targetFile);
       removed.push(relPath);
     } catch {
@@ -1267,13 +1275,7 @@ export async function updateConfigFiles(
   projectDir: string,
   options: UpdateSkillsOptions = {},
 ): Promise<UpdateConfigFilesResult> {
-  const configuredFiles = agentInstallation.configFiles ?? getAgentConfig(agentInstallation.id).configFiles ?? [];
-  if (configuredFiles.length === 0) {
-    return {
-      installedConfigFiles: [],
-      entries: [],
-    };
-  }
+  const configuredFiles = getAgentConfig(agentInstallation.id).configFiles ?? [];
 
   const { force = false } = options;
   const availableSet = new Set(configuredFiles);
@@ -1284,13 +1286,65 @@ export async function updateConfigFiles(
 
   const removedFiles = previousInstalled.filter(file => !availableSet.has(file));
   if (removedFiles.length > 0) {
-    await removeConfigFilesByName(projectDir, agentInstallation, removedFiles);
-    for (const file of removedFiles) {
+    const cleanRemovedFiles: string[] = [];
+
+    for (const relPath of removedFiles) {
+      const previousState = previousManaged[relPath];
+      let installedHash: string | null = null;
+
+      try {
+        const targetFile = resolveInstalledConfigFileTargetPath(projectDir, agentInstallation.id, relPath);
+        installedHash = await hashManagedFile(targetFile, relPath);
+      } catch {
+        console.warn(
+          `Warning: Config file "${relPath}" was removed from the package, but its target path could not be verified — preserving existing file and dropping managed ownership.`,
+        );
+        entries.push({
+          configFile: relPath,
+          status: 'skipped',
+          reason: 'local-modifications-preserved',
+        });
+        continue;
+      }
+
+      if (!installedHash) {
+        entries.push({
+          configFile: relPath,
+          status: 'removed',
+          reason: 'package-removed',
+        });
+        continue;
+      }
+
+      if (previousState && previousState.installedHash === installedHash && previousState.sourceHash === previousState.installedHash) {
+        cleanRemovedFiles.push(relPath);
+        continue;
+      }
+
+      const warningSuffix = previousState
+        ? 'local changes exist'
+        : 'managed state is missing';
+      console.warn(
+        `Warning: Config file "${relPath}" was removed from the package, but ${warningSuffix} — preserving existing file and dropping managed ownership.`,
+      );
       entries.push({
-        configFile: file,
-        status: 'removed',
-        reason: 'package-removed',
+        configFile: relPath,
+        status: 'skipped',
+        reason: 'local-modifications-preserved',
       });
+    }
+
+    if (cleanRemovedFiles.length > 0) {
+      const removed = await removeConfigFilesByName(projectDir, agentInstallation, cleanRemovedFiles);
+      const removedSet = new Set(removed);
+
+      for (const relPath of cleanRemovedFiles) {
+        entries.push({
+          configFile: relPath,
+          status: removedSet.has(relPath) ? 'removed' : 'skipped',
+          reason: removedSet.has(relPath) ? 'package-removed' : 'local-modifications-preserved',
+        });
+      }
     }
   }
 
@@ -1418,6 +1472,7 @@ export async function updateConfigFiles(
   });
 
   return {
+    configFiles: configuredFiles,
     installedConfigFiles: syncedFiles,
     entries,
   };

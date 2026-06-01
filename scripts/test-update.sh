@@ -560,6 +560,105 @@ node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[
 echo "codex user-owned config migration smoke tests passed"
 
 # -------------------------------------------------------------------
+# Package-removed config ownership smoke
+# -------------------------------------------------------------------
+
+CLAUDE_REMOVED_CONFIG_LOCAL_PROJECT_DIR="$TMPDIR/update-smoke-removed-config-local"
+mkdir -p "$CLAUDE_REMOVED_CONFIG_LOCAL_PROJECT_DIR/.claude"
+
+node - "$CLAUDE_REMOVED_CONFIG_LOCAL_PROJECT_DIR" <<'EOF'
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const projectDir = process.argv[2];
+const oldConfig = '[managed]\nkeep = true\n';
+const localConfig = `${oldConfig}\n[user]\nkeep = true\n`;
+fs.writeFileSync(path.join(projectDir, '.claude/config.toml'), localConfig);
+
+const oldHash = crypto.createHash('sha256')
+  .update('path:config.toml\n')
+  .update(Buffer.from(oldConfig))
+  .update('\n')
+  .digest('hex');
+
+fs.writeFileSync(path.join(projectDir, '.ai-factory.json'), JSON.stringify({
+  version: '2.4.0',
+  agents: [{
+    id: 'claude',
+    skillsDir: '.claude/skills',
+    installedSkills: ['aif'],
+    configFiles: ['config.toml'],
+    installedConfigFiles: ['config.toml'],
+    managedConfigFiles: { 'config.toml': { sourceHash: oldHash, installedHash: oldHash } },
+    mcp: {
+      github: false,
+      filesystem: false,
+      postgres: false,
+      chromeDevtools: false,
+      playwright: false,
+    },
+  }],
+  extensions: [],
+}, null, 2) + '\n');
+EOF
+
+CLAUDE_REMOVED_CONFIG_LOCAL_OUTPUT="$TMPDIR/update-removed-config-local.log"
+(cd "$CLAUDE_REMOVED_CONFIG_LOCAL_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CLAUDE_REMOVED_CONFIG_LOCAL_OUTPUT" 2>&1)
+assert_contains "$CLAUDE_REMOVED_CONFIG_LOCAL_OUTPUT" "removed from the package" "package-removed local config warning must be printed"
+assert_contains "$CLAUDE_REMOVED_CONFIG_LOCAL_OUTPUT" "config\\.toml \(local changes preserved\)" "package-removed local config must be reported as preserved"
+assert_exists "$CLAUDE_REMOVED_CONFIG_LOCAL_PROJECT_DIR/.claude/config.toml" "package-removed local config must remain on disk"
+assert_contains "$CLAUDE_REMOVED_CONFIG_LOCAL_PROJECT_DIR/.claude/config.toml" "\\[user\\]" "package-removed local config must keep user section"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(Array.isArray(a.configFiles)&&a.configFiles.length>0)process.exit(1);if(Array.isArray(a.installedConfigFiles)&&a.installedConfigFiles.length>0)process.exit(1);if(a.managedConfigFiles&&Object.keys(a.managedConfigFiles).length>0)process.exit(1);" "$CLAUDE_REMOVED_CONFIG_LOCAL_PROJECT_DIR/.ai-factory.json"
+
+CLAUDE_REMOVED_CONFIG_CLEAN_PROJECT_DIR="$TMPDIR/update-smoke-removed-config-clean"
+mkdir -p "$CLAUDE_REMOVED_CONFIG_CLEAN_PROJECT_DIR/.claude"
+
+node - "$CLAUDE_REMOVED_CONFIG_CLEAN_PROJECT_DIR" <<'EOF'
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const projectDir = process.argv[2];
+const oldConfig = '[managed]\nkeep = true\n';
+fs.writeFileSync(path.join(projectDir, '.claude/config.toml'), oldConfig);
+
+const oldHash = crypto.createHash('sha256')
+  .update('path:config.toml\n')
+  .update(Buffer.from(oldConfig))
+  .update('\n')
+  .digest('hex');
+
+fs.writeFileSync(path.join(projectDir, '.ai-factory.json'), JSON.stringify({
+  version: '2.4.0',
+  agents: [{
+    id: 'claude',
+    skillsDir: '.claude/skills',
+    installedSkills: ['aif'],
+    configFiles: ['config.toml'],
+    installedConfigFiles: ['config.toml'],
+    managedConfigFiles: { 'config.toml': { sourceHash: oldHash, installedHash: oldHash } },
+    mcp: {
+      github: false,
+      filesystem: false,
+      postgres: false,
+      chromeDevtools: false,
+      playwright: false,
+    },
+  }],
+  extensions: [],
+}, null, 2) + '\n');
+EOF
+
+CLAUDE_REMOVED_CONFIG_CLEAN_OUTPUT="$TMPDIR/update-removed-config-clean.log"
+(cd "$CLAUDE_REMOVED_CONFIG_CLEAN_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CLAUDE_REMOVED_CONFIG_CLEAN_OUTPUT" 2>&1)
+assert_contains "$CLAUDE_REMOVED_CONFIG_CLEAN_OUTPUT" "config\\.toml \(removed from package\)" "package-removed clean config must be reported as removed"
+assert_not_exists "$CLAUDE_REMOVED_CONFIG_CLEAN_PROJECT_DIR/.claude/config.toml" "package-removed clean config must be deleted"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(Array.isArray(a.configFiles)&&a.configFiles.length>0)process.exit(1);if(Array.isArray(a.installedConfigFiles)&&a.installedConfigFiles.length>0)process.exit(1);if(a.managedConfigFiles&&Object.keys(a.managedConfigFiles).length>0)process.exit(1);" "$CLAUDE_REMOVED_CONFIG_CLEAN_PROJECT_DIR/.ai-factory.json"
+
+echo "package-removed config ownership smoke tests passed"
+
+# -------------------------------------------------------------------
 # Codex config source+target drift smoke
 # -------------------------------------------------------------------
 

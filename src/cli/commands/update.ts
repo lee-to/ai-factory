@@ -323,6 +323,7 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       subagentEntriesByAgent.set(agent.id, subagentResult.entries);
 
       const configFileResult = await updateConfigFiles(agent, projectDir, { force });
+      agent.configFiles = configFileResult.configFiles;
       agent.installedConfigFiles = configFileResult.installedConfigFiles;
       configFileEntriesByAgent.set(agent.id, configFileResult.entries);
     }
@@ -443,6 +444,8 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       agent.managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills);
       if ((agent.configFiles ?? []).length > 0) {
         agent.managedConfigFiles = await buildManagedConfigFilesState(projectDir, agent, agent.installedConfigFiles ?? []);
+      } else {
+        agent.managedConfigFiles = {};
       }
     }
     await rebuildManagedAgentFilesForAgents(projectDir, config.agents, {
