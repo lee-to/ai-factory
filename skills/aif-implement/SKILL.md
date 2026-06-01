@@ -665,6 +665,16 @@ What's next?
 2. 💾 /aif-commit — Commit the changes directly
 ```
 
+**Cross-agent handoff (optional, backwards-compatible):** after implementation completes, attempt to dispatch the review phase to its configured agent:
+
+```
+ai-factory dispatch review --prompt "Review the changes for plan <plan file>"
+```
+
+- **"Cross-agent dispatch" block on stdout (`Mode  : manual`)** → the `review` phase is assigned to another agent: show that block (it names the agent, model, and command, e.g. switch and run `/aif-review`) alongside the "What's next?" options.
+- **Auto mode (exit 0, no block)** → the review agent was spawned; tell the user review is running there.
+- **No block / exit 0, or non-zero exit** → no dispatch configured (or it failed): proceed with the normal "What's next?" options unchanged. Dispatch must NEVER block completion.
+
 **Check ROADMAP.md progress:**
 
 If the resolved roadmap artifact exists:

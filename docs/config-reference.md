@@ -161,6 +161,32 @@ These locations are still fixed by contract and are not yet configurable via `co
 | `README.md` | Landing page for `/aif-docs` |
 | `docs-html/` | Static HTML output for `/aif-docs --web` |
 
+## Cross-agent dispatch (`.ai-factory.json`)
+
+Unlike `config.yaml`, the cross-agent dispatch configuration lives in the top-level `.ai-factory.json` file. It allows assigning different external AI agents and models to specific workflow phases — both the `aif-loop` phases and the spec-driven `aif-plan → aif-implement → aif-review` flow (e.g. plan in Claude Code, implement in Antigravity).
+
+### Config Options
+
+- `dispatch`: Mode of dispatch. Can be `manual` (default) or `auto`.
+  - `manual`: The CLI prints switch instructions and pauses, requiring the user to resume the loop.
+  - `auto`: Spawns the target agent's CLI as a subprocess.
+- `phases`: Phase configuration map.
+  - Key: a workflow phase. `aif-loop` phases: `plan`, `produce`, `prepare`, `evaluate`, `critique`, `refine`. Spec-driven workflow phases: `implement` (dispatched at the end of `/aif-plan`) and `review` (dispatched at the end of `/aif-implement`). `plan` is shared by both workflows.
+  - Value: `{ "agent": "<agent-id>", "model": "<model-name>" }` where `model` is optional and falls back to the agent's default model.
+- `dispatchAgents`: Command templates for custom or overridden agents.
+  - Key: Agent ID (e.g. `claude-code`, `gemini-cli`, `antigravity`, or custom).
+  - Value: `{ "command": "<cmd-template>", "defaultModel": "<model-name>" }` where the template supports `{model}`, `{phase}`, and `{prompt}` placeholders.
+
+### Built-in Agent Defaults
+
+| Agent ID | Display Name | Command Template | Default Model |
+|----------|--------------|------------------|---------------|
+| `claude-code` | Claude Code | `claude --model {model} -p {prompt}` | `sonnet` |
+| `gemini-cli` | Gemini CLI | `gemini -m {model} -p {prompt}` | `gemini-2.5-pro` |
+| `antigravity` | Antigravity | `antigravity run --model {model} --prompt {prompt}` | `gemini-3.5-flash` |
+| `chatgpt-cli` | ChatGPT CLI | `chatgpt --model {model} -p {prompt}` | `gpt-4o` |
+| `openrouter-cli` | OpenRouter CLI | `openrouter --model {model} -p {prompt}` | `anthropic/claude-3.5-sonnet` |
+
 ## See Also
 
 - [Configuration](configuration.md) — high-level config architecture and project structure

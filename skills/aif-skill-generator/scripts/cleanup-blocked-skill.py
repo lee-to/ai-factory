@@ -59,6 +59,8 @@ _BUILTIN_AGENT_SKILLS_DIRS = (
     '.agents/skills',
     '.github/skills',
     '.gemini/skills',
+    '.chatgpt/skills',
+    '.openrouter/skills',
     '.junie/skills',
     '.qwen/skills',
     '.windsurf/skills',

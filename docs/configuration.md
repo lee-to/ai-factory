@@ -110,6 +110,45 @@ Extension refresh uses the saved `source` field:
 
 When GitHub-backed extension refreshes are frequent, set `GITHUB_TOKEN` to raise the GitHub API rate limit used by these checks.
 
+### Cross-Agent Dispatch Configuration
+
+`.ai-factory.json` also supports configuring **Cross-Agent Dispatch**, allowing you to delegate different workflow phases to different external AI agents and models — both the `aif-loop` phases and the spec-driven `aif-plan → aif-implement → aif-review` flow:
+
+```json
+{
+  "version": "2.13.2",
+  "agents": [],
+  "dispatch": "manual",
+  "phases": {
+    "plan":     { "agent": "claude-code", "model": "opus" },
+    "produce":  { "agent": "antigravity", "model": "gemini-3.5-flash" },
+    "prepare":  { "agent": "antigravity" },
+    "evaluate": { "agent": "claude-code", "model": "sonnet" },
+    "critique": { "agent": "claude-code", "model": "sonnet" },
+    "refine":   { "agent": "antigravity" }
+  },
+  "dispatchAgents": {
+    "antigravity": { "command": "antigravity run --model {model} --prompt {prompt}", "defaultModel": "gemini-3.5-flash" }
+  }
+}
+```
+
+For the spec-driven workflow, set the `implement` and/or `review` phases instead — e.g. plan in Claude Code, implement in Antigravity:
+
+```json
+{
+  "dispatch": "manual",
+  "phases": {
+    "implement": { "agent": "antigravity", "model": "gemini-3.5-flash" },
+    "review":    { "agent": "claude-code", "model": "sonnet" }
+  }
+}
+```
+
+With this, `/aif-plan` ends by handing off the `implement` phase to the configured agent, and `/aif-implement` hands off `review` on completion.
+
+For more details on dispatch options and configuration, see the [Config Reference](config-reference.md#cross-agent-dispatch-ai-factoryjson).
+
 ## `.ai-factory/config.yaml` — User Preferences
 
 User-editable configuration file for language, paths, workflow settings, and rules hierarchy. Created by `/aif` during project setup.

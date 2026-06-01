@@ -6,7 +6,7 @@
 
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
-1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
+1. **CLI tool** (`ai-factory init/update/upgrade/dispatch`) — installs skills, configures MCP, and dispatches loop phases
 2. **Built-in skills** (27 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
@@ -385,12 +385,15 @@ ai-factory upgrade
 
 | File | Purpose |
 |------|---------|
-| `src/cli/index.ts` | CLI entry point, registers init/update/upgrade commands |
+| `src/cli/index.ts` | CLI entry point, registers commands including dispatch |
 | `src/cli/commands/init.ts` | Interactive wizard: select agents, skills, configure MCP |
 | `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
 | `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
+| `src/cli/commands/dispatch.ts` | Resolves loop phase and dispatches to manual switch or auto subprocess |
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
 | `src/core/agents.ts` | Agent registry (16 agents) |
+| `src/core/dispatch.ts` | Core dispatch logic (resolution, template rendering, and subprocess spawning) |
+| `src/core/dispatch-registry.ts` | Registry for external agent run configuration and built-in CLI commands |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/mcp.ts` | MCP server configuration |
 | `src/core/template.ts` | `{{var}}` template substitution in SKILL.md |

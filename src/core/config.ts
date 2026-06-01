@@ -48,10 +48,68 @@ export interface ExtensionRecord {
   replacedSkills?: string[];
 }
 
+export type DispatchMode = 'manual' | 'auto';
+
+export const DISPATCH_PHASES = [
+  // aif-loop phases
+  'plan', 'produce', 'prepare', 'evaluate', 'critique', 'refine',
+  // spec-driven workflow phases (aif-plan -> aif-implement -> aif-review)
+  'implement', 'review',
+] as const;
+export type DispatchPhase = typeof DISPATCH_PHASES[number];
+
+export interface PhaseDispatch {
+  agent: string;   // dispatch-agent id: claude-code | gemini-cli | antigravity | <custom>
+  model?: string;  // optional; falls back to the agent's defaultModel
+}
+
+export type PhasesConfig = Partial<Record<DispatchPhase, PhaseDispatch>>;
+
+export interface AgentRunOverride {
+  command?: string;       // template, e.g. "claude --model {model} -p {prompt}"
+  defaultModel?: string;
+}
+
 export interface AiFactoryConfig {
   version: string;
   agents: AgentInstallation[];
   extensions?: ExtensionRecord[];
+  dispatch?: DispatchMode;                            // NEW, top-level
+  phases?: PhasesConfig;                              // NEW, top-level
+  dispatchAgents?: Record<string, AgentRunOverride>;  // NEW, top-level (per-agent overrides)
+}
+
+function normalizeDispatchMode(raw: unknown): DispatchMode {
+  return raw === 'auto' ? 'auto' : 'manual';          // unknown/invalid → 'manual'
+}
+
+function normalizePhases(raw: unknown): PhasesConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: PhasesConfig = {};
+  for (const phase of DISPATCH_PHASES) {               // ignores unknown phase keys
+    const entry = (raw as Record<string, unknown>)[phase];
+    if (!entry || typeof entry !== 'object') continue;
+    const agent = (entry as { agent?: unknown }).agent;
+    const model = (entry as { model?: unknown }).model;
+    if (typeof agent !== 'string' || !agent) continue; // agent required
+    out[phase] = { agent, ...(typeof model === 'string' && model ? { model } : {}) };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function normalizeDispatchAgents(raw: unknown): Record<string, AgentRunOverride> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: Record<string, AgentRunOverride> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object') continue;
+    const command = (v as { command?: unknown }).command;
+    const defaultModel = (v as { defaultModel?: unknown }).defaultModel;
+    const e: AgentRunOverride = {};
+    if (typeof command === 'string' && command) e.command = command;
+    if (typeof defaultModel === 'string' && defaultModel) e.defaultModel = defaultModel;
+    if (Object.keys(e).length) out[id] = e;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 interface SaveConfigOptions {
@@ -234,6 +292,16 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
     return null;
   }
 
+  const dispatchPhases = normalizePhases(raw.phases);
+  const dispatchMode =
+    (raw.dispatch !== undefined || dispatchPhases) ? normalizeDispatchMode(raw.dispatch) : undefined;
+  const dispatchAgents = normalizeDispatchAgents((raw as unknown as Record<string, unknown>).dispatchAgents);
+  const dispatchFields = {
+    ...(dispatchMode !== undefined ? { dispatch: dispatchMode } : {}),
+    ...(dispatchPhases ? { phases: dispatchPhases } : {}),
+    ...(dispatchAgents ? { dispatchAgents } : {}),
+  };
+
   if (Array.isArray(raw.agents)) {
     const rawExtensions = Array.isArray(raw.extensions) ? raw.extensions : [];
 
@@ -289,6 +357,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
       version: raw.version ?? CURRENT_VERSION,
       agents: normalizedAgents,
       extensions: rawExtensions,
+      ...dispatchFields,
     };
   }
 
@@ -297,6 +366,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
       version: raw.version ?? CURRENT_VERSION,
       agents: [createAgentInstallation(raw.agent, raw)],
       extensions: [],
+      ...dispatchFields,
     };
   }
 
@@ -304,6 +374,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
     version: raw.version ?? CURRENT_VERSION,
     agents: [],
     extensions: [],
+    ...dispatchFields,
   };
 }
 
