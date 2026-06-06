@@ -236,6 +236,7 @@ export async function upgradeCommand(): Promise<void> {
         agentId: agent.id,
         configFiles: effectiveConfigFiles,
         installedConfigFiles: agent.installedConfigFiles,
+        managedConfigFiles: agent.managedConfigFiles,
       })
       : [];
 

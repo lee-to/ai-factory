@@ -167,6 +167,19 @@ EXPECTED_CODEX_AGENT_FILES="$EXPECTED_CODEX_AGENT_FILES" node -e "const fs=requi
 
 echo "codex init smoke tests passed"
 
+cat >> "$PROJECT_DIR/.codex/config.toml" << 'EOF'
+
+[user]
+keep = true
+EOF
+
+(cd "$PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents codex --skills aif > "$TMPDIR/init-codex-rerun.log" 2>&1)
+assert_contains "$PROJECT_DIR/.codex/config.toml" "\\[user\\]" "Codex init rerun must preserve tracked local config changes"
+assert_contains "$PROJECT_DIR/.codex/config.toml" "keep = true" "Codex init rerun must preserve tracked local config content"
+EXPECTED_CODEX_AGENT_FILES="$EXPECTED_CODEX_AGENT_FILES" node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];const expected=Number(process.env.EXPECTED_CODEX_AGENT_FILES);if(a.id!=='codex')process.exit(1);if(!Array.isArray(a.installedAgentFiles)||a.installedAgentFiles.length!==expected)process.exit(1);if(!a.installedConfigFiles||a.installedConfigFiles[0]!=='config.toml')process.exit(1);if(!a.managedConfigFiles||!a.managedConfigFiles['config.toml'])process.exit(1);" "$PROJECT_DIR/.ai-factory.json"
+
+echo "codex init rerun preserves config smoke tests passed"
+
 CODEX_USER_CONFIG_INIT_PROJECT_DIR="$TMPDIR/init-smoke-codex-user-config"
 mkdir -p "$CODEX_USER_CONFIG_INIT_PROJECT_DIR/.codex"
 
@@ -184,6 +197,96 @@ assert_not_contains "$CODEX_USER_CONFIG_INIT_PROJECT_DIR/.codex/config.toml" "\\
 EXPECTED_CODEX_AGENT_FILES="$EXPECTED_CODEX_AGENT_FILES" node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];const expected=Number(process.env.EXPECTED_CODEX_AGENT_FILES);if(a.id!=='codex')process.exit(1);if(!Array.isArray(a.installedAgentFiles)||a.installedAgentFiles.length!==expected)process.exit(1);if(!a.configFiles||a.configFiles[0]!=='config.toml')process.exit(1);if(Array.isArray(a.installedConfigFiles)&&a.installedConfigFiles.includes('config.toml'))process.exit(1);if(a.managedConfigFiles&&a.managedConfigFiles['config.toml'])process.exit(1);" "$CODEX_USER_CONFIG_INIT_PROJECT_DIR/.ai-factory.json"
 
 echo "codex user-owned config init smoke tests passed"
+
+CODEX_CLEAN_SOURCE_CHANGE_INIT_PROJECT_DIR="$TMPDIR/init-smoke-codex-clean-source-change"
+mkdir -p "$CODEX_CLEAN_SOURCE_CHANGE_INIT_PROJECT_DIR/.codex"
+
+node - "$CODEX_CLEAN_SOURCE_CHANGE_INIT_PROJECT_DIR" <<'EOF'
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const projectDir = process.argv[2];
+const oldConfig = '[agents]\nmax_threads = 2\n';
+fs.writeFileSync(path.join(projectDir, '.codex/config.toml'), oldConfig);
+
+const hash = crypto.createHash('sha256')
+  .update('path:config.toml\n')
+  .update(Buffer.from(oldConfig))
+  .update('\n')
+  .digest('hex');
+
+fs.writeFileSync(path.join(projectDir, '.ai-factory.json'), JSON.stringify({
+  version: '2.4.0',
+  agents: [{
+    id: 'codex',
+    skillsDir: '.codex/skills',
+    installedSkills: ['aif'],
+    configFiles: ['config.toml'],
+    installedConfigFiles: ['config.toml'],
+    managedConfigFiles: { 'config.toml': { sourceHash: hash, installedHash: hash } },
+    mcp: {
+      github: false,
+      filesystem: false,
+      postgres: false,
+      chromeDevtools: false,
+      playwright: false,
+    },
+  }],
+  extensions: [],
+}, null, 2) + '\n');
+EOF
+
+(cd "$CODEX_CLEAN_SOURCE_CHANGE_INIT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents codex --skills aif > "$TMPDIR/init-codex-clean-source-change.log" 2>&1)
+assert_contains "$CODEX_CLEAN_SOURCE_CHANGE_INIT_PROJECT_DIR/.codex/config.toml" "max_threads = 6" "Codex init rerun must update clean tracked config when bundled source changed"
+assert_not_contains "$CODEX_CLEAN_SOURCE_CHANGE_INIT_PROJECT_DIR/.codex/config.toml" "max_threads = 2" "Codex init rerun must not freeze clean old config as local customization"
+
+CODEX_LOCAL_SOURCE_CHANGE_INIT_PROJECT_DIR="$TMPDIR/init-smoke-codex-local-source-change"
+mkdir -p "$CODEX_LOCAL_SOURCE_CHANGE_INIT_PROJECT_DIR/.codex"
+
+node - "$CODEX_LOCAL_SOURCE_CHANGE_INIT_PROJECT_DIR" <<'EOF'
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+const projectDir = process.argv[2];
+const oldConfig = '[agents]\nmax_threads = 2\n';
+const localConfig = `${oldConfig}\n[user]\nkeep = true\n`;
+fs.writeFileSync(path.join(projectDir, '.codex/config.toml'), localConfig);
+
+const hash = crypto.createHash('sha256')
+  .update('path:config.toml\n')
+  .update(Buffer.from(oldConfig))
+  .update('\n')
+  .digest('hex');
+
+fs.writeFileSync(path.join(projectDir, '.ai-factory.json'), JSON.stringify({
+  version: '2.4.0',
+  agents: [{
+    id: 'codex',
+    skillsDir: '.codex/skills',
+    installedSkills: ['aif'],
+    configFiles: ['config.toml'],
+    installedConfigFiles: ['config.toml'],
+    managedConfigFiles: { 'config.toml': { sourceHash: hash, installedHash: hash } },
+    mcp: {
+      github: false,
+      filesystem: false,
+      postgres: false,
+      chromeDevtools: false,
+      playwright: false,
+    },
+  }],
+  extensions: [],
+}, null, 2) + '\n');
+EOF
+
+(cd "$CODEX_LOCAL_SOURCE_CHANGE_INIT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents codex --skills aif > "$TMPDIR/init-codex-local-source-change.log" 2>&1)
+assert_contains "$CODEX_LOCAL_SOURCE_CHANGE_INIT_PROJECT_DIR/.codex/config.toml" "\\[user\\]" "Codex init rerun must preserve local config edits when bundled source changed"
+assert_contains "$CODEX_LOCAL_SOURCE_CHANGE_INIT_PROJECT_DIR/.codex/config.toml" "keep = true" "Codex init rerun must preserve local config content when bundled source changed"
+assert_contains "$CODEX_LOCAL_SOURCE_CHANGE_INIT_PROJECT_DIR/.codex/config.toml" "max_threads = 2" "Codex init rerun must not overwrite locally edited old config when bundled source changed"
+
+echo "codex init source-change config smoke tests passed"
 
 PROJECT_DIR="$TMPDIR/init-smoke-claude-codex"
 mkdir -p "$PROJECT_DIR"

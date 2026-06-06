@@ -43,6 +43,10 @@ function formatReason(reason: string): string {
       return 'source changed';
     case 'installed-hash-drift':
       return 'local drift';
+    case 'local-modifications-preserved':
+      return 'local changes preserved';
+    case 'force-ignored-local-modifications-preserved':
+      return '--force ignored; local changes preserved';
     case 'missing-managed-state':
       return 'state missing';
     case 'missing-installed-artifact':
@@ -68,6 +72,39 @@ function formatReason(reason: string): string {
     default:
       return reason;
   }
+}
+
+async function promptForNewSkills(
+  availableSkills: string[],
+  agents: Array<{ installedSkills: string[] }>,
+  excludedSkills: Set<string>,
+): Promise<string[]> {
+  const candidates = availableSkills.filter(skill => {
+    if (excludedSkills.has(skill)) {
+      return false;
+    }
+    return agents.some(agent => !partitionSkills(agent.installedSkills).base.includes(skill));
+  });
+
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  if (!process.stdin.isTTY) {
+    console.log(chalk.dim(`New base skills available but not installed: ${candidates.join(', ')}`));
+    console.log(chalk.dim('Non-interactive mode — skipping new skills. Re-run `ai-factory update` interactively to add them.\n'));
+    return [];
+  }
+
+  console.log(chalk.cyan(`New base skills available: ${candidates.join(', ')}`));
+  const { selectedNewSkills } = await inquirer.prompt([{
+    type: 'checkbox',
+    name: 'selectedNewSkills',
+    message: 'Add new base skills to configured agents?',
+    choices: candidates.map(skill => ({ name: skill, value: skill, checked: true })),
+  }]);
+
+  return Array.isArray(selectedNewSkills) ? selectedNewSkills : [];
 }
 
 function groupAndSortEntriesByStatus<T extends { status: 'changed' | 'unchanged' | 'skipped' | 'removed' }>(
@@ -271,10 +308,13 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       console.log(chalk.dim(`Skipping replaced skills: ${[...allReplacedSkills].join(', ')}`));
     }
 
+    const selectedNewSkills = await promptForNewSkills(availableSkills, config.agents, allReplacedSkills);
+
     for (const agent of config.agents) {
       const result = await updateSkills(agent, projectDir, {
         excludeSkills: [...allReplacedSkills],
         force,
+        installNewSkills: selectedNewSkills,
       });
       agent.installedSkills = result.installedSkills;
       skillEntriesByAgent.set(agent.id, result.entries);
@@ -285,6 +325,7 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       subagentEntriesByAgent.set(agent.id, subagentResult.entries);
 
       const configFileResult = await updateConfigFiles(agent, projectDir, { force });
+      agent.configFiles = configFileResult.configFiles;
       agent.installedConfigFiles = configFileResult.installedConfigFiles;
       configFileEntriesByAgent.set(agent.id, configFileResult.entries);
     }
@@ -405,6 +446,8 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
       agent.managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills);
       if ((agent.configFiles ?? []).length > 0) {
         agent.managedConfigFiles = await buildManagedConfigFilesState(projectDir, agent, agent.installedConfigFiles ?? []);
+      } else {
+        agent.managedConfigFiles = {};
       }
     }
     await rebuildManagedAgentFilesForAgents(projectDir, config.agents, {
