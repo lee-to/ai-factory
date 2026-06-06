@@ -482,6 +482,7 @@ EOF
 
 CODEX_FIRST_OUTPUT="$TMPDIR/update-codex-first.log"
 CODEX_SECOND_OUTPUT="$TMPDIR/update-codex-second.log"
+CODEX_FORCE_RECORDED_CUSTOMIZATION_OUTPUT="$TMPDIR/update-codex-force-recorded-customization.log"
 
 (cd "$CODEX_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CODEX_FIRST_OUTPUT" 2>&1)
 assert_contains "$CODEX_FIRST_OUTPUT" "\[codex\] Agent files:" "codex agent files section must be printed"
@@ -502,6 +503,12 @@ assert_contains "$CODEX_SECOND_OUTPUT" "Local modifications detected in config f
 assert_contains "$CODEX_SECOND_OUTPUT" "config\\.toml \(local changes preserved\)" "Codex config drift must be preserved on update"
 assert_contains "$CODEX_PROJECT_DIR/.codex/config.toml" "\\[agents\\]" "Codex config base content must remain"
 assert_contains "$CODEX_PROJECT_DIR/.codex/config.toml" "# drift" "Codex config local drift must be preserved"
+
+(cd "$CODEX_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update --force > "$CODEX_FORCE_RECORDED_CUSTOMIZATION_OUTPUT" 2>&1)
+assert_contains "$CODEX_FORCE_RECORDED_CUSTOMIZATION_OUTPUT" "Force mode enabled" "force update must print force mode for recorded config customization"
+assert_contains "$CODEX_FORCE_RECORDED_CUSTOMIZATION_OUTPUT" "Previously preserved local customization detected in config file" "force update must explain recorded config customization preservation"
+assert_contains "$CODEX_FORCE_RECORDED_CUSTOMIZATION_OUTPUT" "config\\.toml \(--force ignored; local changes preserved\)" "force update must report ignored force for recorded config customization"
+assert_contains "$CODEX_PROJECT_DIR/.codex/config.toml" "# drift" "force update must preserve recorded config customization"
 
 echo "codex assets smoke tests passed"
 

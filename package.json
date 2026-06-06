@@ -1,6 +1,6 @@
 {
   "name": "ai-factory",
-  "version": "2.14.0",
+  "version": "2.15.0",
   "type": "module",
   "description": "CLI tool for automating AI agent context setup in projects",
   "main": "dist/cli/index.js",

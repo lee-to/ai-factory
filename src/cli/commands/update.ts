@@ -45,6 +45,8 @@ function formatReason(reason: string): string {
       return 'local drift';
     case 'local-modifications-preserved':
       return 'local changes preserved';
+    case 'force-ignored-local-modifications-preserved':
+      return '--force ignored; local changes preserved';
     case 'missing-managed-state':
       return 'state missing';
     case 'missing-installed-artifact':

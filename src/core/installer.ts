@@ -1377,14 +1377,25 @@ export async function updateConfigFiles(
     }
 
     if (hasLocalCustomization) {
-      shouldInstall.set(relPath, { install: false, reason: 'local-modifications-preserved' });
+      if (force) {
+        console.warn(
+          `Warning: Previously preserved local customization detected in config file "${relPath}" — preserving existing file. --force does not overwrite local config changes.`,
+        );
+      }
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
       continue;
     }
 
     if (previousState && installedHash && previousState.installedHash !== installedHash) {
       const forceNote = force ? ' --force does not overwrite local config changes.' : '';
       console.warn(`Warning: Local modifications detected in config file "${relPath}" — preserving existing file.${forceNote}`);
-      shouldInstall.set(relPath, { install: false, reason: 'local-modifications-preserved' });
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
       continue;
     }
 
