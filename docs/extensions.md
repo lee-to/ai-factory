@@ -574,6 +574,7 @@ Extensions built by the community. To add yours, submit a PR to this file.
 |-----------|-------------|---------|
 | [Remote Skills](https://github.com/dealenx/ai-factory-extension-remote-skills) | Install and manage skills from GitHub repositories. Supports branch selection, interactive removal, and sync with active agents. | `ai-factory extension add https://github.com/dealenx/ai-factory-extension-remote-skills.git` |
 | [AIF Extension Creator](https://github.com/dealenx/ai-factory-extension-aif-extension-creator-skill) |An AI Factory extension that provides an interactive skill for scaffolding new AI Factory extensions. | `ai-factory extension add https://github.com/dealenx/ai-factory-extension-aif-extension-creator-skill.git` |
+| [Implementation Notes](https://github.com/sattva2020/aif-ext-implementation-notes) | Append-only decision journal for `/aif-implement` — records decisions, deviations, tradeoffs, surprises and open questions (markdown canon + auto-generated HTML view). Feeds notes into `/aif-commit` bodies, adds a WARN-only coverage gate to `/aif-verify`, and archives the journal with the plan via `/aif-archive`. | `ai-factory extension add https://github.com/sattva2020/aif-ext-implementation-notes.git` |
 
 ## See Also
 
