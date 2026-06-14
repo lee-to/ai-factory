@@ -64,7 +64,7 @@
       "file": "aif-skill-generator/SKILL.md",
       "severity": "CRITICAL",
       "description": "Scanner evasion: skill claims findings are false positives",
-      "match": "false positive"
+      "match": "scanner will flag false positives"
     },
     {
       "file": "aif-skill-generator/SKILL.md",
@@ -148,7 +148,7 @@
       "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
       "severity": "CRITICAL",
       "description": "Scanner evasion: skill claims findings are false positives",
-      "match": "false positive"
+      "match": "Scanner Evasion | \"scanner findings are false positives"
     },
     {
       "file": "aif-skill-generator/references/SECURITY-SCANNING.md",

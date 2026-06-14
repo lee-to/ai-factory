@@ -31,7 +31,7 @@ The scanner checks for:
 | Config Tampering | Modifying `.claude/`, `.bashrc`, `.gitconfig` | CRITICAL |
 | Encoded Payloads | Base64 hidden text, hex sequences, zero-width chars | CRITICAL |
 | Social Engineering | "authorized by admin", "debug mode disable safety" | CRITICAL |
-| Scanner Evasion | "false positive", "safe to ignore", "skip scan" | CRITICAL |
+| Scanner Evasion | "scanner findings are false positives", "safe to ignore", "skip scan" | CRITICAL |
 | Unrestricted Shell | `allowed-tools: Bash` without command patterns | WARNING |
 | External Requests | `curl`/`wget` to unknown domains | WARNING |
 | Privilege Escalation | `sudo`, `eval()`, package installs | WARNING |
