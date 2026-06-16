@@ -2,6 +2,8 @@
 
 This file describes the optional findings-validation pass that runs when `aif-improve` is invoked with the `+check` flag. The parent skill defers to this document so the main `SKILL.md` stays focused on the default refinement workflow; `+check` is opt-in and most invocations do not need it.
 
+The examples and output shapes in this reference define structure only. Render user-facing human-readable text in resolved `ui_language`.
+
 ## When this runs
 
 `aif-improve` is invoked with `+check` and **without** `--list`. The pass executes between Step 4 (Identify Improvements) and Step 5 (Present Improvements). Without `+check`, skip this procedure entirely — there are no validator-related lines in the output and the Step 5 Summary block stays in its default shape without the two `+check` counter rows.
