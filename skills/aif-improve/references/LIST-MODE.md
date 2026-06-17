@@ -2,6 +2,8 @@
 
 This file describes the read-only plan discovery procedure that runs when `aif-improve` is invoked with the `--list` flag. The parent skill defers to this document instead of inlining the procedure, because `--list` is a conditional branch and keeps the main `SKILL.md` body within the size limit.
 
+The examples and output shapes in this reference define structure only. Render user-facing human-readable text in resolved `ui_language`.
+
 ## When this runs
 
 `aif-improve --list` is invoked. The flag may appear anywhere in `$ARGUMENTS`. When `--list` is present, this procedure runs to completion and the skill stops — no refinement is performed even if other tokens (`+check`, `@path`, free-form prompt) are also passed. Those tokens are silently ignored in `--list` mode.

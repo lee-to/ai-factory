@@ -281,6 +281,8 @@ Show the user what you found in a clear format. The emoji-grouped sections are k
 
 The "🔗 Dependency Fixes" group is **not** restated in this shape — it is always computed after the four other groups (and after `+check` filtering when the flag is set, see `references/CHECK-MODE.md`) and uses the short legacy form: `Task #X should depend on Task #Y. Reason: …`. The dependency entries reference only tasks that survived filtering.
 
+The Step 5 report template below defines structure only. Render all human-readable text in this user-facing response in `ui_language`. Preserve command names, paths, task IDs, section structure, option structure, task counts, numeric counts, `WARN`/`INFO` labels, and raw errors unchanged.
+
 ```
 ## Plan Refinement Report
 
@@ -400,6 +402,8 @@ the prefix is permanent and must survive any regeneration. Write back to the
 same absolute path you read from.
 
 **6.6: Confirm completion**
+
+The Step 6.6 completion template below defines structure only. Render all human-readable text in this user-facing response in `ui_language`. Preserve command names, paths, task counts, and numeric counts unchanged.
 
 ```
 ## Plan Refined

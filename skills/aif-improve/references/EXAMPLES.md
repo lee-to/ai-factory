@@ -2,6 +2,8 @@
 
 This file collects the worked examples that previously lived inline in `SKILL.md`. The parent skill defers to this document so the main file stays under the soft skill-size budget; the examples themselves are non-normative and exist as a reading aid.
 
+The examples and output shapes in this reference define structure only. Render user-facing human-readable text in resolved `ui_language`.
+
 The `--list` mode example lives in `references/LIST-MODE.md`. The `+check` mode example lives in `references/CHECK-MODE.md` — these two are not duplicated here.
 
 ## Example 1: Auto-review (no arguments)

@@ -406,11 +406,44 @@ cat > "$DISTILL_SRC/docs/.ai-factory/config.yaml" << 'EOF'
 language:
   ui: en
 EOF
-ln -s ../.env "$DISTILL_SRC/docs/symlink-env.md"
-ln -s ../.ssh/id_rsa "$DISTILL_SRC/docs/symlink-ssh.md"
-ln -s ../outside.md "$DISTILL_SRC/docs/symlink-outside.md"
-ln -s ../.ssh "$DISTILL_SRC/docs/symlink-ssh-dir"
-ln -s .env.md "$DISTILL_SRC/docs/symlink-hidden-sensitive.md"
+create_distill_symlink() {
+    local target="$1"
+    local link="$2"
+    local target_is_dir="${3:-0}"
+    "${PYTHON_CMD[@]}" -c '
+import os
+import pathlib
+import sys
+
+target, link, target_is_dir = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+try:
+    os.symlink(target, link, target_is_directory=target_is_dir)
+except (OSError, NotImplementedError):
+    raise SystemExit(1)
+raise SystemExit(0 if pathlib.Path(link).is_symlink() else 1)
+' "$target" "$link" "$target_is_dir"
+}
+
+cleanup_distill_symlinks() {
+    rm -f \
+        "$DISTILL_SRC/docs/symlink-env.md" \
+        "$DISTILL_SRC/docs/symlink-ssh.md" \
+        "$DISTILL_SRC/docs/symlink-outside.md" \
+        "$DISTILL_SRC/docs/symlink-hidden-sensitive.md" \
+        "$DISTILL_SRC/docs/symlink-ssh-dir"
+}
+
+DISTILL_SYMLINKS_SUPPORTED=0
+cleanup_distill_symlinks
+if create_distill_symlink "$DISTILL_SRC/.env" "$DISTILL_SRC/docs/symlink-env.md" \
+    && create_distill_symlink "$DISTILL_SRC/.ssh/id_rsa" "$DISTILL_SRC/docs/symlink-ssh.md" \
+    && create_distill_symlink "$DISTILL_SRC/outside.md" "$DISTILL_SRC/docs/symlink-outside.md" \
+    && create_distill_symlink "$DISTILL_SRC/.ssh" "$DISTILL_SRC/docs/symlink-ssh-dir" 1 \
+    && create_distill_symlink "$DISTILL_SRC/docs/.env.md" "$DISTILL_SRC/docs/symlink-hidden-sensitive.md"; then
+    DISTILL_SYMLINKS_SUPPORTED=1
+else
+    cleanup_distill_symlinks
+fi
 
 DISTILL_OUT="$TMPDIR/distillation-out"
 if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_OUT" --chunk-chars 200 > "$TMPDIR/distillation-helper.log" 2>&1; then
@@ -447,20 +480,147 @@ else
 fi
 
 DISTILL_SYMLINK_OUT="$TMPDIR/distillation-symlink-out"
-if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SYMLINK_OUT" --include-symlinks --include-hidden --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-symlink.log" 2>&1; then
-    if grep -q "symlink-hidden-sensitive.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
-        && ! grep -q "symlink-env.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
-        && ! grep -q "symlink-ssh.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
-        && ! grep -q "symlink-outside.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
-        && ! grep -q "symlink-ssh-dir" "$DISTILL_SYMLINK_OUT/source-index.md"; then
-        pass "aif-distillation helper allows only in-root symlink files with all required opt-ins"
+if [[ "$DISTILL_SYMLINKS_SUPPORTED" -eq 1 ]]; then
+    if "${PYTHON_CMD[@]}" "$DISTILL_HELPER" "$DISTILL_SRC/docs" --out "$DISTILL_SYMLINK_OUT" --include-symlinks --include-hidden --include-sensitive --chunk-chars 200 > "$TMPDIR/distillation-symlink.log" 2>&1; then
+        if grep -q "symlink-hidden-sensitive.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+            && ! grep -q "symlink-env.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+            && ! grep -q "symlink-ssh.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+            && ! grep -q "symlink-outside.md" "$DISTILL_SYMLINK_OUT/source-index.md" \
+            && ! grep -q "symlink-ssh-dir" "$DISTILL_SYMLINK_OUT/source-index.md"; then
+            pass "aif-distillation helper allows only in-root symlink files with all required opt-ins"
+        else
+            fail "aif-distillation helper symlink opt-in should keep source-root and hidden/sensitive boundaries"
+            cat "$DISTILL_SYMLINK_OUT/source-index.md"
+        fi
     else
-        fail "aif-distillation helper symlink opt-in should keep source-root and hidden/sensitive boundaries"
-        cat "$DISTILL_SYMLINK_OUT/source-index.md"
+        fail "aif-distillation helper should process folder with explicit symlink opt-ins"
+        cat "$TMPDIR/distillation-symlink.log"
     fi
 else
-    fail "aif-distillation helper should process folder with explicit symlink opt-ins"
-    cat "$TMPDIR/distillation-symlink.log"
+    if "${PYTHON_CMD[@]}" - "$DISTILL_HELPER" > "$TMPDIR/distillation-symlink-boundary-unit.log" 2>&1 << 'PY'
+import importlib.util
+import sys
+
+helper_path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("material_prep", helper_path)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+
+class FakePath:
+    def __init__(self, value, *, symlink=False, resolved=None, file=True):
+        self.parts = tuple(part for part in value.strip("/").split("/") if part)
+        self._symlink = symlink
+        self._resolved = resolved
+        self._file = file
+
+    @property
+    def name(self):
+        return self.parts[-1] if self.parts else ""
+
+    def relative_to(self, root):
+        if self.parts[: len(root.parts)] != root.parts:
+            raise ValueError(f"{self} is not under {root}")
+        return FakePath("/".join(self.parts[len(root.parts) :]))
+
+    def is_symlink(self):
+        return self._symlink
+
+    def resolve(self):
+        return self._resolved or self
+
+    def is_file(self):
+        return self._file
+
+    def __str__(self):
+        return "/" + "/".join(self.parts)
+
+
+root = FakePath("/src/docs")
+inside_hidden_sensitive = FakePath(
+    "/src/docs/symlink-hidden-sensitive.md",
+    symlink=True,
+    resolved=FakePath("/src/docs/.env.md"),
+)
+outside_env = FakePath(
+    "/src/docs/symlink-env.md",
+    symlink=True,
+    resolved=FakePath("/src/.env"),
+)
+outside_ssh_file = FakePath(
+    "/src/docs/symlink-ssh.md",
+    symlink=True,
+    resolved=FakePath("/src/.ssh/id_rsa"),
+)
+inside_dir = FakePath(
+    "/src/docs/symlink-ssh-dir",
+    symlink=True,
+    resolved=FakePath("/src/docs/.ssh", file=False),
+)
+
+cases = [
+    (
+        "requires --include-symlinks",
+        inside_hidden_sensitive,
+        {"include_hidden": True, "include_sensitive": True, "include_symlinks": False},
+        False,
+    ),
+    (
+        "allows in-root hidden sensitive symlink when all opt-ins are set",
+        inside_hidden_sensitive,
+        {"include_hidden": True, "include_sensitive": True, "include_symlinks": True},
+        True,
+    ),
+    (
+        "requires hidden opt-in for resolved hidden target",
+        inside_hidden_sensitive,
+        {"include_hidden": False, "include_sensitive": True, "include_symlinks": True},
+        False,
+    ),
+    (
+        "requires sensitive opt-in for resolved sensitive target",
+        inside_hidden_sensitive,
+        {"include_hidden": True, "include_sensitive": False, "include_symlinks": True},
+        False,
+    ),
+    (
+        "rejects symlink target outside selected root",
+        outside_env,
+        {"include_hidden": True, "include_sensitive": True, "include_symlinks": True},
+        False,
+    ),
+    (
+        "rejects outside ssh target",
+        outside_ssh_file,
+        {"include_hidden": True, "include_sensitive": True, "include_symlinks": True},
+        False,
+    ),
+    (
+        "rejects symlink directory target",
+        inside_dir,
+        {"include_hidden": True, "include_sensitive": True, "include_symlinks": True},
+        False,
+    ),
+]
+
+failures = []
+for name, path, kwargs, expected in cases:
+    actual = module.is_allowed_folder_file(path, root, **kwargs)
+    if actual != expected:
+        failures.append(f"{name}: expected {expected}, got {actual}")
+
+if failures:
+    print("\n".join(failures))
+    raise SystemExit(1)
+PY
+    then
+        pass "aif-distillation helper symlink boundary logic handles hidden/sensitive/root filters without native symlinks"
+    else
+        fail "aif-distillation helper symlink boundary logic should pass without native symlinks"
+        cat "$TMPDIR/distillation-symlink-boundary-unit.log"
+    fi
 fi
 
 DISTILL_EXISTING_OUT="$TMPDIR/distillation-existing-out"
@@ -554,6 +714,9 @@ AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
 AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
 AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
 AIF_IMPROVE_SKILL="$ROOT_DIR/skills/aif-improve/SKILL.md"
+AIF_IMPROVE_CHECK_REF="$ROOT_DIR/skills/aif-improve/references/CHECK-MODE.md"
+AIF_IMPROVE_EXAMPLES_REF="$ROOT_DIR/skills/aif-improve/references/EXAMPLES.md"
+AIF_IMPROVE_LIST_REF="$ROOT_DIR/skills/aif-improve/references/LIST-MODE.md"
 AIF_FIX_SKILL="$ROOT_DIR/skills/aif-fix/SKILL.md"
 AIF_RULES_SKILL="$ROOT_DIR/skills/aif-rules/SKILL.md"
 AIF_REFERENCE_SKILL="$ROOT_DIR/skills/aif-reference/SKILL.md"
@@ -751,6 +914,27 @@ if grep -Fq 'The next-step templates below define structure only. Render all hum
     pass "workflow user-facing templates use ui_language"
 else
     fail "workflow user-facing templates missing ui_language structure-only contract"
+fi
+
+AIF_IMPROVE_STEP5_SECTION="$(awk '
+    /^### Step 5: Present Improvements$/ { capture=1 }
+    capture { print }
+    /^\*\*Based on choice:\*\*$/ { exit }
+' "$AIF_IMPROVE_SKILL")"
+AIF_IMPROVE_STEP66_SECTION="$(awk '
+    /^\*\*6\.6: Confirm completion\*\*$/ { capture=1 }
+    capture { print }
+    /^### Context Cleanup$/ { exit }
+' "$AIF_IMPROVE_SKILL")"
+AIF_IMPROVE_REF_LANGUAGE_DIRECTIVE='The examples and output shapes in this reference define structure only. Render user-facing human-readable text in resolved `ui_language`.'
+if printf '%s\n' "$AIF_IMPROVE_STEP5_SECTION" | grep -Fq 'The Step 5 report template below defines structure only. Render all human-readable text in this user-facing response in `ui_language`.' \
+   && printf '%s\n' "$AIF_IMPROVE_STEP66_SECTION" | grep -Fq 'The Step 6.6 completion template below defines structure only. Render all human-readable text in this user-facing response in `ui_language`.' \
+   && grep -Fq "$AIF_IMPROVE_REF_LANGUAGE_DIRECTIVE" "$AIF_IMPROVE_CHECK_REF" \
+   && grep -Fq "$AIF_IMPROVE_REF_LANGUAGE_DIRECTIVE" "$AIF_IMPROVE_EXAMPLES_REF" \
+   && grep -Fq "$AIF_IMPROVE_REF_LANGUAGE_DIRECTIVE" "$AIF_IMPROVE_LIST_REF"; then
+    pass "/aif-improve concrete output templates use ui_language"
+else
+    fail "/aif-improve concrete output templates missing ui_language structure-only contract"
 fi
 
 if grep -Fq 'Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged.' "$AIF_PLAN_SKILL" \
