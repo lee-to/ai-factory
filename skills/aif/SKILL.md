@@ -264,6 +264,7 @@ After language resolution and config write, analyze the codebase to detect:
 - Naming conventions (camelCase, snake_case, PascalCase)
 - Module boundaries (src/core/, src/cli/, src/utils/)
 - Error handling patterns (try/catch, error codes)
+- Control flow patterns (guard clauses, early returns/continues, nested conditionals)
 - Logging patterns (console.log, winston, pino)
 - Test patterns (jest, mocha, vitest)
 
@@ -288,6 +289,10 @@ Create `.ai-factory/rules/base.md` with detected conventions. Use resolved `lang
 ## [Localized heading: Error Handling]
 
 - [detected error handling pattern]
+
+## Control Flow
+
+- Prefer flat, readable control flow over deeply nested conditionals. Use guard clauses, early `return`/`continue`, small named helper methods, or explicit classification logic when they make the code easier to follow. Handle edge cases and irrelevant branches early so the main path stays visible.
 
 ## [Localized heading: Logging]
 
