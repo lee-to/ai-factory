@@ -163,6 +163,12 @@ Generate the resolved architecture artifact (default: `.ai-factory/ARCHITECTURE.
 2. [Principle 2]
 3. [Principle 3]
 
+[If the user chose Option 2 (strict architecture) in Step 1.5, add the following section:]
+## Legacy vs New Code Policy
+- **New Features:** All new code MUST strictly follow the architecture defined in this document.
+- **Legacy Code Modification:** Do NOT automatically refactor unrelated legacy code to fit this architecture. Touch legacy code only when necessary for bug fixes, when tasked with explicit refactoring, or when adapting it to be consumed by new features.
+- **Interoperability:** When new code must call legacy code, isolate the interaction using adapters, interfaces, or facades so that legacy patterns do not pollute the new architecture.
+
 ## Code Examples
 
 ### [Example 1 title]
