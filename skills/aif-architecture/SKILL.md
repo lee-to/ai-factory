@@ -1,7 +1,7 @@
 ---
 name: aif-architecture
 description: Generate architecture guidelines for the project. Analyzes tech stack from DESCRIPTION.md, recommends an architecture pattern, and creates .ai-factory/ARCHITECTURE.md. Use when setting up project architecture, asking "which architecture", or after /aif setup.
-argument-hint: "[clean|ddd|microservices|monolith|layers|structured|structured-layers|structured-vertical|explicit|explicit-layers|explicit-vertical|vertical]"
+argument-hint: "[clean|ddd|microservices|monolith|layers|structured|structured-layers|structured-vertical|explicit|explicit-layers|explicit-vertical|explicit-flat|vertical]"
 allowed-tools: Read Write Glob Grep Bash(mkdir *) AskUserQuestion Questions
 disable-model-invocation: false
 ---
@@ -75,7 +75,7 @@ Based on project context, evaluate against the decision matrix and recommend an 
   - `monolith` -> Structured Modules
   - `vertical` -> Explicit Architecture (Vertical Slices)
 - If `structured` is specified without a suffix (`-layers` or `-vertical`), ASK the user: "Which folder structure variant do you prefer for Structured Modules? 1. By Technical Layer (simpler) or 2. Vertical Slices by Model/Entity (better for large modules)". Wait for their answer before generating the artifact.
-- If `explicit` is specified without a suffix (`-layers` or `-vertical`), ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. By Technical Layer or 2. Vertical Slices by Feature". Wait for their answer before generating the artifact.
+- If `explicit` is specified without a suffix (`-layers`, `-vertical`, or `-flat`), ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. By Technical Layer or 2. Vertical Slices by Feature or 3. Flat Vertical Slices (simplified)". Wait for their answer before generating the artifact.
 - Use the resolved architecture directly, skip to Step 2
 
 **If no specific architecture requested:**
@@ -101,6 +101,7 @@ Architecture options:
 - **Structured Modules (Vertical Slices)**
 - **Explicit Architecture (Technical Layers)**
 - **Explicit Architecture (Vertical Slices)**
+- **Explicit Architecture (Flat Vertical Slices)**
 - **Microservices**
 - **Layered Architecture**
 (See `references/architecture.md` for detailed descriptions of these patterns to formulate your recommendation).

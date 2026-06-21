@@ -66,17 +66,20 @@ Monolith (any pattern) → Microservices:
 
 **Why this architecture exists:** Traditional Layered Architecture often degrades into "Transaction Scripts" (anemic models + fat services) as projects grow. Full Explicit Architecture avoids this but has a steep learning curve. Structured Modules sits in the middle: it enforces rich models and interface-based dependency inversion within a simpler folder structure, making eventual migration to Explicit Architecture trivial.
 
-**IMPORTANT: Domain-Centric, not Service-Centric:** Unlike traditional layered patterns, Structured Modules is **not** service-centric. The `services/` layer acts only as Application Services (orchestrating use cases: fetch data → call model method → save). The actual core business rules, validations, and state mutations live strictly inside the `models/` (Rich Domain Models).
+**IMPORTANT: Domain-Centric, not Service-Centric:** Unlike traditional layered patterns, Structured Modules is **not** service-centric. The `Services/` layer acts only as Application Services (orchestrating use cases: fetch data → call model method → save). The actual core business rules, validations, and state mutations live strictly inside the `Models/` (Rich Domain Models).
 
+**Terminology:** Note the distinction between `[FeatureName]` (e.g., `Checkout`, representing a use case or process spanning multiple entities) and `[EntityName]` (e.g., `User`, `Order`, representing core data models). Application Services and Controllers usually align with features, while Repositories and Models align with entities.
+
+**Migration path to Explicit Architecture:**
 **Migration path to Explicit Architecture:**
 ```text
 Structured Modules                           Explicit Architecture
-├── [Module]/                                 ├── [BoundedContext]/
-│   ├── models/           ── enrich ──>       │   ├── Domain/          ← extract domain logic
-│   ├── services/         ── split ───>       │   ├── Application/     ← separate CQRS (optional)
-│   ├── repositories/     ── interface ──>    │   ├── Infrastructure/  ← implement ports
-│   └── controllers/      ── formalize ──>    │   └── Presentation/    ← formalize adapters
-└── shared/               ── same ───>        └── Shared/
+├── [ModuleName]/                            ├── [ContextName]/
+│   ├── Models/          ── enrich ──>       │   ├── Domain/          ← extract domain logic
+│   ├── Services/        ── split ───>       │   ├── Application/     ← separate CQRS (optional)
+│   ├── Repositories/    ── interface ──>    │   ├── Infrastructure/  ← implement ports
+│   └── Controllers/     ── formalize ──>    │   └── Presentation/    ← formalize adapters
+└── Infrastructure/      ── same ───>        └── Infrastructure/
 ```
 
 **Organization Variants:** Within a module, code can be organized in two ways:
@@ -86,56 +89,53 @@ Structured Modules                           Explicit Architecture
 ### Folder Structure — By Technical Layer
 ```text
 src/
-├── modules/
-│   ├── [Module]/                               # ── FEATURE MODULE ──
-│   │   ├── controllers/                       # HTTP handlers, request validation
-│   │   │   └── [Feature]Controller.{ext}
-│   │   ├── services/                          # Application Services (Use case orchestration, NO domain logic)
-│   │   │   └── [Feature]Service.{ext}
-│   │   ├── repositories/                      # Data access (interface + impl in same module)
-│   │   │   └── [Entity]Repository.{ext}
-│   │   └── models/                            # Domain models / DTOs
-│   │       ├── [Entity].{ext}
-│   │       └── [Feature]Dto.{ext}
-│   │
-│   └── [AnotherModule]/
-│       └── ...                                # Same internal structure
+├── [ModuleName]/                               # ── FEATURE MODULE ──
+│   ├── Controllers/                            # HTTP handlers, request validation
+│   │   └── [FeatureName]Controller.{ext}
+│   ├── Services/                               # Application Services (Use case orchestration, NO domain logic)
+│   │   └── [FeatureName]Service.{ext}
+│   ├── Repositories/                           # Data access (interface + impl in same module)
+│   │   └── [EntityName]Repository.{ext}
+│   └── Models/                                 # Domain models / DTOs
+│       ├── [EntityName].{ext}
+│       └── [FeatureName]Dto.{ext}
 │
-└── shared/                                    # ── SHARED (cross-cutting) ──
-    ├── types/                                 # Shared type definitions
-    ├── utils/                                 # Utility functions
-    ├── middleware/                            # HTTP middleware, auth, error handling
-    └── config/                                # App configuration, database setup
+├── [AnotherModuleName]/
+│   └── ...                                     # Same internal structure
+│
+└── Infrastructure/                             # ── INFRASTRUCTURE (cross-cutting) ──
+    ├── Types/                                  # Shared type definitions
+    ├── Utils/                                  # Utility functions
+    ├── Middleware/                             # HTTP middleware, auth, error handling
+    └── Config/                                 # App configuration, database setup
 ```
 
 ### Folder Structure — Vertical Slices (By Model/Entity)
 ```text
 src/
-├── modules/
-│   ├── [Module]/                               # ── FEATURE MODULE ──
+├── [ModuleName]/                               # ── FEATURE MODULE ──
+│   ├── Slices/                                 # Slices grouped by Entity
+│   │   ├── [EntityNameA]/                      # Slice for EntityNameA (e.g., User)
+│   │   │   ├── [EntityNameA]Controller.{ext}   # Handlers for EntityNameA
+│   │   │   ├── [EntityNameA]Service.{ext}      # Logic for EntityNameA
+│   │   │   ├── [EntityNameA]Repository.{ext}   # Data access for EntityNameA
+│   │   │   └── UseCases/                       # (Optional) If using separate classes per use case
+│   │   │       ├── Create[EntityNameA].{ext}
+│   │   │       └── Update[EntityNameA].{ext}
 │   │   │
-│   │   ├── [slices]/                             # Slices grouped by Entity
-│   │   │   ├── [EntityA]/                      # Slice for EntityA (e.g., User)
-│   │   │   │   ├── [EntityA]Controller.{ext}   # Handlers for EntityA
-│   │   │   │   ├── [EntityA]Service.{ext}      # Logic for EntityA
-│   │   │   │   ├── [EntityA]Repository.{ext}   # Data access for EntityA
-│   │   │   │   └── use-cases/                  # (Optional) If using separate classes per use case
-│   │   │   │       ├── Create[EntityA].{ext}
-│   │   │   │       └── Update[EntityA].{ext}
-│   │   │   │
-│   │   │   └── [EntityB]/                      # Slice for EntityB (e.g., Role)
-│   │   │       └── ...                         
-│   │   │
-│   │   ├── models/                             # Rich Domain Models stay shared within the module
-│   │   │   ├── [EntityA].{ext}                 
-│   │   │   └── [EntityB].{ext}                 
-│   │   │
-│   │   └── shared/                             # Shared utilities strictly within this module
+│   │   └── [EntityNameB]/                      # Slice for EntityNameB (e.g., Role)
+│   │       └── ...                         
 │   │
-│   └── [AnotherModule]/
-│       └── ...                                
+│   ├── Models/                                 # Rich Domain Models stay shared within the module
+│   │   ├── [EntityNameA].{ext}                 
+│   │   └── [EntityNameB].{ext}                 
+│   │
+│   └── Infrastructure/                         # Shared utilities strictly within this module
 │
-└── shared/                                    # ── SHARED (cross-cutting globally) ──
+├── [AnotherModuleName]/
+│   └── ...                                
+│
+└── Infrastructure/                             # ── INFRASTRUCTURE (cross-cutting globally) ──
     └── ...
 ```
 
@@ -181,22 +181,23 @@ src/
 
 **Dependency rule:** Dependencies point INWARD. Outer layers implement interfaces (ports) defined by inner layers. Inner layers NEVER import from outer layers.
 
-**Organization Variants:** Within each bounded context, code can be organized in two ways:
+**Organization Variants:** Within each bounded context, code can be organized in three ways:
 - **By technical layer** — Application/, Infrastructure/, Presentation/ as separate top-level folders inside the context.
 - **By vertical slice (feature)** — each feature gets its own folder containing its Application, Infrastructure, and Presentation subfolders. Domain stays shared across slices within the context.
+- **Flat vertical slice (simplified)** — same as vertical slice but all related files (controllers, DTOs, handlers) live side-by-side within the feature folder, omitting the Application/Infrastructure/Presentation subfolders. Best for smaller features or when maximum cohesion is preferred over strict layer separation.
 
 ### Folder Structure — Explicit Architecture (by technical layer)
 
 ```text
 src/
-├── [BoundedContext]/                           # ── BOUNDED CONTEXT ──
+├── [ContextName]/                              # ── BOUNDED CONTEXT ──
 │   ├── Domain/                                 # PURE DOMAIN (zero external deps)
-│   │   ├── Enum/                               
-│   │   ├── Exception/                          
-│   │   └── Port/                               # Interfaces only
+│   │   ├── Enums/                               
+│   │   ├── Exceptions/                          
+│   │   └── Ports/                              # Interfaces only
 │   │
 │   ├── Application/                            # APPLICATION SERVICES (use cases)
-│   │   └── [Feature]/                          # Feature use cases, DTOs
+│   │   └── [FeatureName]/                      # Feature use cases, DTOs
 │   │
 │   ├── Infrastructure/                         # INFRASTRUCTURE (adapters)
 │   │   ├── Persistence/                        # Implements Domain Port
@@ -206,19 +207,19 @@ src/
 │   └── Presentation/                           # PRESENTATION (delivery mechanism)
 │       ├── Api/                                # JSON endpoints
 │       │   ├── Admin/                          # Backoffice API
-│       │   │   ├── [Feature]AdminController.{ext}
-│       │   │   └── Create[Feature]Action.{ext} # OR: single-action invokable class
+│       │   │   ├── [FeatureName]Controller.{ext}
+│       │   │   └── Create[FeatureName]Action.{ext} # OR: single-action invokable class
 │       │   └── Public/                         # Public API
-│       │       └── [Feature]ApiController.{ext}
+│       │       └── [FeatureName]Controller.{ext}
 │       ├── Web/                                # HTML views & controllers
 │       │   ├── Admin/                          # Backoffice Web
-│       │   │   └── [Feature]AdminController.{ext}
+│       │   │   └── [FeatureName]Controller.{ext}
 │       │   └── Public/                         # Public Web
-│       │       └── [Feature]WebController.{ext}
+│       │       └── [FeatureName]Controller.{ext}
 │       └── Cli/                                # Console commands
-│           └── [Feature]Command.{ext}
+│           └── [FeatureName]Command.{ext}
 │
-├── [AnotherBoundedContext]/                     
+├── [AnotherContextName]/                       
 │   └── ...                                     
 │
 └── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
@@ -232,34 +233,66 @@ src/
 
 ```text
 src/
-├── [BoundedContext]/                           # ── BOUNDED CONTEXT ──
+├── [ContextName]/                              # ── BOUNDED CONTEXT ──
 │   ├── Domain/                                 # PURE DOMAIN (shared across slices)
-│   │   ├── Enum/                               
-│   │   ├── Exception/                          
-│   │   └── Port/                               
+│   │   ├── Enums/                               
+│   │   ├── Exceptions/                          
+│   │   └── Ports/                              
 │   │
 │   ├── Slices/
-│   │   └── [Feature]/                          # Feature slice — self-contained
+│   │   └── [FeatureName]/                      # Feature slice — self-contained
 │   │       ├── Application/                    # Use cases for this feature
 │   │       ├── Infrastructure/                 # Adapters for this feature
 │   │       └── Presentation/                   # Delivery mechanism for this feature
 │   │           ├── Api/                        # JSON endpoints
 │   │           │   ├── Admin/                  # Backoffice API
-│   │           │   │   ├── [Feature]AdminController.{ext}
-│   │           │   │   └── Create[Feature]Action.{ext}
+│   │           │   │   ├── [FeatureName]Controller.{ext}
+│   │           │   │   └── Create[FeatureName]Action.{ext}
 │   │           │   └── Public/                 # Public API
-│   │           │       └── [Feature]ApiController.{ext}
+│   │           │       └── [FeatureName]Controller.{ext}
 │   │           ├── Web/                        # HTML views & controllers
 │   │           │   ├── Admin/                  # Backoffice Web
-│   │           │   │   └── [Feature]AdminController.{ext}
+│   │           │   │   └── [FeatureName]Controller.{ext}
 │   │           │   └── Public/                 # Public Web
-│   │           │       └── [Feature]WebController.{ext}
+│   │           │       └── [FeatureName]Controller.{ext}
 │   │           └── Cli/                        # Console commands
-│   │               └── [Feature]Command.{ext}
+│   │               └── [FeatureName]Command.{ext}
 │   │
 │   └── Infrastructure/                         # Cross-feature adapters
 │
-├── [AnotherBoundedContext]/                     
+├── [AnotherContextName]/                       
+│   └── ...                                     
+│
+└── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
+    ├── Utils/                                  # Shared utility classes and helpers
+    ├── Adapters/                               # Cross-context infrastructure adapters
+    ├── Migrations/                             # Database migrations (schema versioning)
+    └── External/                               # External API adapters
+```
+
+### Folder Structure — Flat Vertical Slice (Simplified)
+
+For smaller features or when striving for maximum locality (cohesion), the internal `Application/`, `Infrastructure/`, and `Presentation/` folders can be omitted. A "flat slice" places all related files side-by-side.
+
+```text
+src/
+├── [ContextName]/                              # ── BOUNDED CONTEXT ──
+│   ├── Domain/                                 # PURE DOMAIN (shared across slices)
+│   │   ├── Enums/                               
+│   │   ├── Exceptions/                          
+│   │   └── Ports/                              
+│   │
+│   ├── Slices/
+│   │   └── [FeatureName]/                      # Flat feature slice — maximum cohesion
+│   │       ├── Admin[FeatureName]Controller.{ext}  # Backoffice API
+│   │       ├── Public[FeatureName]Controller.{ext} # Public API
+│   │       ├── [FeatureName]Request.{ext}          # DTO
+│   │       ├── [FeatureName]Response.{ext}         # DTO
+│   │       └── [FeatureName]Handler.{ext}          # Use case / Application logic
+│   │
+│   └── Infrastructure/                         # Cross-feature adapters
+│
+├── [AnotherContextName]/                       
 │   └── ...                                     
 │
 └── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
@@ -316,23 +349,23 @@ src/
 When a team works on a single microservice in its own repository:
 
 ```text
-[service-name]/
+[ServiceName]/
 ├── src/
-│   ├── api/                               # Inbound adapters (HTTP/gRPC/CLI handlers)
-│   │   ├── [Feature]Controller.{ext}
-│   │   └── middleware/                    # Auth, rate limiting, request validation
-│   ├── application/                       # Use cases / application services
-│   │   └── [Feature]Service.{ext}
-│   ├── domain/                            # Core business logic, entities, value objects
-│   │   ├── [Entity].{ext}
-│   │   └── ports/                         # Interfaces for outbound dependencies
-│   ├── infrastructure/                    # Outbound adapters (DB, queues, external APIs)
-│   │   ├── persistence/
-│   │   ├── messaging/
-│   │   └── external/
-│   └── config/                            # Bootstrap, DI wiring, environment config
+│   ├── Api/                                    # Inbound adapters (HTTP/gRPC/CLI handlers)
+│   │   ├── [FeatureName]Controller.{ext}
+│   │   └── Middleware/                         # Auth, rate limiting, request validation
+│   ├── Application/                            # Use cases / application services
+│   │   └── [FeatureName]Service.{ext}
+│   ├── Domain/                                 # Core business logic, entities, value objects
+│   │   ├── [EntityName].{ext}
+│   │   └── Ports/                              # Interfaces for outbound dependencies
+│   ├── Infrastructure/                         # Outbound adapters (DB, queues, external APIs)
+│   │   ├── Persistence/
+│   │   ├── Messaging/
+│   │   └── External/
+│   └── Config/                                 # Bootstrap, DI wiring, environment config
 ├── tests/
-├── migrations/                            # Database migrations
+├── migrations/                                 # Database migrations
 ├── Dockerfile
 └── README.md
 ```
@@ -343,27 +376,26 @@ When several microservices coexist in a single repository:
 
 ```text
 repo-root/
-├── services/
-│   ├── [service-a]/                       # Self-contained microservice
-│   │   ├── src/                           # Same internal structure as single service
-│   │   ├── tests/
-│   │   ├── migrations/
-│   │   └── Dockerfile
-│   │
-│   └── [service-b]/
-│       └── ...                            # Same internal structure
+├── [ServiceNameA]/                             # Self-contained microservice
+│   ├── src/                                    # Same internal structure as single service
+│   ├── tests/
+│   ├── migrations/
+│   └── Dockerfile
 │
-├── libs/                                  # ── SHARED LIBRARIES ──
-│   ├── contracts/                         # Shared API schemas, event definitions, DTOs
-│   ├── common/                            # Cross-service utilities (logging, auth helpers)
-│   └── testing/                           # Shared test utilities and fixtures
+└── [ServiceNameB]/
+│   └── ...                                     # Same internal structure
 │
-├── gateway/                               # (Optional) API Gateway / BFF service
+├── Libs/                                       # ── SHARED LIBRARIES ──
+│   ├── Contracts/                              # Shared API schemas, event definitions, DTOs
+│   ├── Common/                                 # Cross-service utilities (logging, auth helpers)
+│   └── Testing/                                # Shared test utilities and fixtures
+│
+├── Gateway/                                    # (Optional) API Gateway / BFF service
 │   └── ...
 │
-└── infra/                                 # Infrastructure-as-Code, CI/CD, docker-compose
+└── Infra/                                      # Infrastructure-as-Code, CI/CD, docker-compose
     ├── docker-compose.yml
-    └── deploy/
+    └── Deploy/
 ```
 
 **Monorepo vs Polyrepo:**
@@ -404,13 +436,18 @@ repo-root/
 
 ```text
 src/
-├── routes/                # Presentation layer (HTTP route definitions)
-├── controllers/           # Request/response handling, input validation
-├── services/              # Business logic layer
-├── models/                # Data models / entities
-├── repositories/          # Data access layer (queries, ORM calls)
-├── middleware/            # Cross-cutting: auth, error handling, logging
-└── utils/                 # Shared utilities, helpers
+├── Routes/                                     # Presentation layer (HTTP route definitions)
+│   └── [FeatureName]Routes.{ext}
+├── Controllers/                                # Request/response handling, input validation
+│   └── [FeatureName]Controller.{ext}
+├── Services/                                   # Business logic layer
+│   └── [FeatureName]Service.{ext}
+├── Models/                                     # Data models / entities
+│   └── [EntityName].{ext}
+├── Repositories/                               # Data access layer (queries, ORM calls)
+│   └── [EntityName]Repository.{ext}
+├── Middleware/                                 # Cross-cutting: auth, error handling, logging
+└── Utils/                                      # Shared utilities, helpers
 ```
 
 ### Key Principles
@@ -437,15 +474,15 @@ Routes → Controllers → Services → Repositories → Database
 
 ```text
 Layered Architecture                         Structured Modules
-src/                                         src/modules/
-├── controllers/         ── group by ──>     ├── [Module]/
-│   ├── UserController                       │   ├── controllers/UserController
-│   └── OrderController                      │   ├── services/UserService
-├── services/            ── feature ──>      │   ├── repositories/UserRepository
-│   ├── UserService                          │   └── models/User
-│   └── OrderService                         ├── [AnotherModule]/
-├── repositories/        ── area ──>         │   └── ...
-└── models/                                  └── shared/
+src/                                         src/
+├── Controllers/         ── group by ──>     ├── [ModuleName]/
+│   ├── UserController.{ext}                 │   ├── Controllers/UserController.{ext}
+│   └── OrderController.{ext}                │   ├── Services/UserService.{ext}
+├── Services/            ── feature ──>      │   ├── Repositories/UserRepository.{ext}
+│   ├── UserService.{ext}                    │   └── Models/User.{ext}
+│   └── OrderService.{ext}                   ├── [AnotherModuleName]/
+├── Repositories/        ── area ──>         │   └── ...
+└── Models/                                  └── Infrastructure/
 ```
 
 **Anti-Patterns:**
