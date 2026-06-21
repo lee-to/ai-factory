@@ -20,7 +20,7 @@ Reference material for architecture evaluation and generation. This content info
 
 ¹ Unit tests are easy per service, but integration/contract tests across services add significant complexity.
 
-> **Note on subvariants:** Structured Modules and Explicit Architecture each offer two folder organization variants — *by technical layer* and *by vertical slice*. These variants share the same Decision Matrix scores because they differ in internal folder layout, not in architectural characteristics. The matrix evaluates the architectural pattern; the organization variant is chosen separately based on module/context size and feature independence.
+**Note on subvariants:** Structured Modules offers two folder organization variants — *by technical layer* and *by vertical slice*. Explicit Architecture offers three — *by technical layer*, *by vertical slice*, and *flat vertical slice*. These variants share the same Decision Matrix scores because they differ in internal folder layout, not in architectural characteristics. The matrix evaluates the architectural pattern; the organization variant is chosen separately based on module/context size and feature independence.
 
 ## Quick Decision Guide
 
@@ -70,7 +70,6 @@ Monolith (any pattern) → Microservices:
 
 **Terminology:** Note the distinction between `[FeatureName]` (e.g., `Checkout`, representing a use case or process spanning multiple entities) and `[EntityName]` (e.g., `User`, `Order`, representing core data models). Application Services and Controllers usually align with features, while Repositories and Models align with entities.
 
-**Migration path to Explicit Architecture:**
 **Migration path to Explicit Architecture:**
 ```text
 Structured Modules                           Explicit Architecture
@@ -124,16 +123,16 @@ src/
 │   │   │       └── Update[EntityNameA].{ext}
 │   │   │
 │   │   └── [EntityNameB]/                      # Slice for EntityNameB (e.g., Role)
-│   │       └── ...                         
+│   │       └── ...
 │   │
 │   ├── Models/                                 # Rich Domain Models stay shared within the module
-│   │   ├── [EntityNameA].{ext}                 
-│   │   └── [EntityNameB].{ext}                 
+│   │   ├── [EntityNameA].{ext}
+│   │   └── [EntityNameB].{ext}
 │   │
 │   └── Infrastructure/                         # Shared utilities strictly within this module
 │
 ├── [AnotherModuleName]/
-│   └── ...                                
+│   └── ...
 │
 └── Infrastructure/                             # ── INFRASTRUCTURE (cross-cutting globally) ──
     └── ...
@@ -192,8 +191,8 @@ src/
 src/
 ├── [ContextName]/                              # ── BOUNDED CONTEXT ──
 │   ├── Domain/                                 # PURE DOMAIN (zero external deps)
-│   │   ├── Enums/                               
-│   │   ├── Exceptions/                          
+│   │   ├── Enums/
+│   │   ├── Exceptions/
 │   │   └── Ports/                              # Interfaces only
 │   │
 │   ├── Application/                            # APPLICATION SERVICES (use cases)
@@ -219,8 +218,8 @@ src/
 │       └── Cli/                                # Console commands
 │           └── [FeatureName]Command.{ext}
 │
-├── [AnotherContextName]/                       
-│   └── ...                                     
+├── [AnotherContextName]/
+│   └── ...
 │
 └── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
     ├── Utils/                                  # Shared utility classes and helpers
@@ -235,9 +234,9 @@ src/
 src/
 ├── [ContextName]/                              # ── BOUNDED CONTEXT ──
 │   ├── Domain/                                 # PURE DOMAIN (shared across slices)
-│   │   ├── Enums/                               
-│   │   ├── Exceptions/                          
-│   │   └── Ports/                              
+│   │   ├── Enums/
+│   │   ├── Exceptions/
+│   │   └── Ports/
 │   │
 │   ├── Slices/
 │   │   └── [FeatureName]/                      # Feature slice — self-contained
@@ -260,8 +259,8 @@ src/
 │   │
 │   └── Infrastructure/                         # Cross-feature adapters
 │
-├── [AnotherContextName]/                       
-│   └── ...                                     
+├── [AnotherContextName]/
+│   └── ...
 │
 └── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
     ├── Utils/                                  # Shared utility classes and helpers
@@ -278,9 +277,9 @@ For smaller features or when striving for maximum locality (cohesion), the inter
 src/
 ├── [ContextName]/                              # ── BOUNDED CONTEXT ──
 │   ├── Domain/                                 # PURE DOMAIN (shared across slices)
-│   │   ├── Enums/                               
-│   │   ├── Exceptions/                          
-│   │   └── Ports/                              
+│   │   ├── Enums/
+│   │   ├── Exceptions/
+│   │   └── Ports/
 │   │
 │   ├── Slices/
 │   │   └── [FeatureName]/                      # Flat feature slice — maximum cohesion
@@ -292,8 +291,8 @@ src/
 │   │
 │   └── Infrastructure/                         # Cross-feature adapters
 │
-├── [AnotherContextName]/                       
-│   └── ...                                     
+├── [AnotherContextName]/
+│   └── ...
 │
 └── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
     ├── Utils/                                  # Shared utility classes and helpers
