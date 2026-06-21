@@ -97,14 +97,32 @@ Which architecture pattern should we use?
 ```
 
 Architecture options:
-- **Structured Modules (Technical Layers)** — domain-aware modular architecture organized by technical layers (controllers, services, repositories). Simpler, best for small-to-medium modules.
-- **Structured Modules (Vertical Slices)** — domain-aware modular architecture organized by Vertical Slices (grouped by Model/Entity) where each entity has its own slice containing its controller, service, and repository. Best for growing projects that need structure now but may evolve into Explicit Architecture later.
-- **Explicit Architecture (Technical Layers)** — pragmatic fusion of Clean, Hexagonal, Onion architectures. Code within bounded contexts is organized by technical layer (Domain, Application, Infrastructure, Presentation). Best for complex domains where layered boundaries must be strict.
-- **Explicit Architecture (Vertical Slices)** — same Explicit Architecture principles, but code within each bounded context is organized by feature (vertical slices) containing their own Application, Infrastructure, and Presentation logic, while Domain stays shared. Best when features are independent and long-lived.
-- **Microservices** — independent deployment, good for large teams with clear domain boundaries
-- **Layered Architecture** — simple layers (presentation → business → data), good for smaller projects
+- **Structured Modules (Technical Layers)**
+- **Structured Modules (Vertical Slices)**
+- **Explicit Architecture (Technical Layers)**
+- **Explicit Architecture (Vertical Slices)**
+- **Microservices**
+- **Layered Architecture**
+(See `references/architecture.md` for detailed descriptions of these patterns to formulate your recommendation).
 
 **CRITICAL INSTRUCTION:** You MUST read `references/architecture.md` before generating the `ARCHITECTURE.md` artifact to ensure correct terminology, dependency directions.
+
+### Step 1.5: Codebase Alignment Check
+
+**CRITICAL:** Before generating the document, compare the chosen architecture's ideal folder structure (from `references/architecture.md`) against the actual existing codebase structure.
+
+- If the project is empty or mostly matches: proceed to Step 2.
+- **If there are significant discrepancies:** DO NOT silently merge the ideal architecture with the messy reality. You MUST stop and ask the user how to proceed via `AskUserQuestion`:
+
+```
+The current project structure differs significantly from the ideal [Pattern Name] architecture.
+[Briefly list 1-2 major differences]
+
+How should we generate the ARCHITECTURE.md?
+1. Adapt the guidelines to fit the existing application structure (document reality).
+2. Generate the pure, strict architecture guidelines (requires refactoring the application later to match).
+```
+Wait for their decision before proceeding to Step 2.
 
 ### Step 2: Generate the Architecture Artifact
 
@@ -166,7 +184,7 @@ Generate the resolved architecture artifact (default: `.ai-factory/ARCHITECTURE.
 - Adapt ALL examples to the project's language and framework (don't use TypeScript examples for a Go project)
 - Use the project's actual conventions (import paths, naming, etc.)
 - Keep it practical — focus on rules that affect day-to-day development
-- Folder structure should extend from what already exists in the project, not replace it
+- Base the generated folder structure on the user's decision in Step 1.5 (either adapted to reality or strict pure architecture). Do not secretly auto-merge them.
 
 ### Step 3: Update DESCRIPTION.md
 
