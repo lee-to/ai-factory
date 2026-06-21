@@ -204,16 +204,28 @@ src/
 │   │   └── Messaging/                          # Event publishers
 │   │
 │   └── Presentation/                           # PRESENTATION (delivery mechanism)
-│       └── [Interface]/                        # Web / API / CLI
-│           └── [Feature]Controller.{ext}
+│       ├── Api/                                # JSON endpoints
+│       │   ├── Admin/                          # Backoffice API
+│       │   │   ├── [Feature]AdminController.{ext}
+│       │   │   └── Create[Feature]Action.{ext} # OR: single-action invokable class
+│       │   └── Public/                         # Public API
+│       │       └── [Feature]ApiController.{ext}
+│       ├── Web/                                # HTML views & controllers
+│       │   ├── Admin/                          # Backoffice Web
+│       │   │   └── [Feature]AdminController.{ext}
+│       │   └── Public/                         # Public Web
+│       │       └── [Feature]WebController.{ext}
+│       └── Cli/                                # Console commands
+│           └── [Feature]Command.{ext}
 │
 ├── [AnotherBoundedContext]/                     
 │   └── ...                                     
 │
-└── Shared/                                     # ── SHARED (cross-cutting) ──
-    ├── Domain/                                 
-    ├── Application/                            
-    └── Infrastructure/                         
+└── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
+    ├── Utils/                                  # Shared utility classes and helpers
+    ├── Adapters/                               # Cross-context infrastructure adapters
+    ├── Migrations/                             # Database migrations (schema versioning)
+    └── External/                               # External API adapters
 ```
 
 ### Folder Structure — Vertical Slice + Explicit Architecture (by feature)
@@ -230,17 +242,31 @@ src/
 │   │   └── [Feature]/                          # Feature slice — self-contained
 │   │       ├── Application/                    # Use cases for this feature
 │   │       ├── Infrastructure/                 # Adapters for this feature
-│   │       └── Presentation/                   # Controllers for this feature
+│   │       └── Presentation/                   # Delivery mechanism for this feature
+│   │           ├── Api/                        # JSON endpoints
+│   │           │   ├── Admin/                  # Backoffice API
+│   │           │   │   ├── [Feature]AdminController.{ext}
+│   │           │   │   └── Create[Feature]Action.{ext}
+│   │           │   └── Public/                 # Public API
+│   │           │       └── [Feature]ApiController.{ext}
+│   │           ├── Web/                        # HTML views & controllers
+│   │           │   ├── Admin/                  # Backoffice Web
+│   │           │   │   └── [Feature]AdminController.{ext}
+│   │           │   └── Public/                 # Public Web
+│   │           │       └── [Feature]WebController.{ext}
+│   │           └── Cli/                        # Console commands
+│   │               └── [Feature]Command.{ext}
 │   │
 │   └── Infrastructure/                         # Cross-feature adapters
 │
 ├── [AnotherBoundedContext]/                     
 │   └── ...                                     
 │
-└── Shared/                                     
-    ├── Domain/                                 
-    ├── Application/                            
-    └── Infrastructure/                         
+└── Infrastructure/                             # ── APPLICATION-WIDE (used across all bounded contexts) ──
+    ├── Utils/                                  # Shared utility classes and helpers
+    ├── Adapters/                               # Cross-context infrastructure adapters
+    ├── Migrations/                             # Database migrations (schema versioning)
+    └── External/                               # External API adapters
 ```
 
 ### Core Principles
