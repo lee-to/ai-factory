@@ -50,7 +50,7 @@ Structured Modules → Explicit Architecture:
 - Domain logic leaks into services despite convention (business rules in orchestrators)
 - Need to swap infrastructure (DB, messaging) without touching domain
 - Multiple teams work on the same module and step on each other
-- Module "shared/" grows uncontrollably — sign of missing domain boundaries
+- Module "Infrastructure/" grows uncontrollably — sign of missing domain boundaries
 
 Monolith (any pattern) → Microservices:
 - Different parts of the system need independent scaling
@@ -143,14 +143,14 @@ src/
 **Dependency Rules (Strict Direction):**
 - **Strict Downward Flow:** Dependencies must point strictly in one direction: `Controllers → Services → Repositories`. Inner layers (e.g., Repositories, Models) MUST NEVER depend on outer layers (e.g., Controllers).
 - **No Layer Skipping:** Controllers must not bypass the Service layer to call Repositories directly.
-- **Module Isolation:** Modules depend on `shared/` but NOT on each other's internals. Cross-module dependencies must only use defined public APIs.
+- **Module Isolation:** Modules depend on root `Infrastructure/` for shared types, utilities, and middleware, but NOT on each other's internals. Cross-module dependencies must only use defined public APIs.
 
 **Key Principles:**
 1. **Module Boundaries:** Each module encapsulates a feature area. Modules have a public API. Other modules MUST use this public API and never reach into internals.
 2. **Dependency Inversion (lightweight):** Services receive dependencies through constructor injection. Repository interfaces are encouraged to prepare for a future Infrastructure layer split.
 3. **Domain Awareness:** While service classes orchestrate use cases, core domain logic and validation should be pushed into the models.
 4. **Separation from DDD:** Unlike full DDD, Structured Modules does not enforce strict Aggregate roots, isolated Domain Events, or rigid hexagonal ports. Services act as the primary orchestrators of use cases (Application Services), delegating core business rules to the rich models. This provides a pragmatic middle ground between traditional service-heavy layered architectures and complex DDD setups.
-5. **Shared is Minimal:** The shared/ folder should stay small.
+5. **Infrastructure is Minimal:** The root `Infrastructure/` folder (cross-cutting concerns: Types, Utils, Middleware, Config) should stay small.
 
 **Anti-Patterns:**
 - ❌ **Anemic Domain Models:** Creating models that are just "data bags" (only getters/setters without behavior). Models should encapsulate their own invariants and rules. This prevents logic from leaking into services and prepares the ground for Explicit Architecture.

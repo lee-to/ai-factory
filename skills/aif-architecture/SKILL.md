@@ -76,7 +76,7 @@ Based on project context, evaluate against the decision matrix and recommend an 
   - `vertical` -> Explicit Architecture (Vertical Slices)
 - If `structured` is specified without a suffix (`-layers` or `-vertical`), ASK the user: "Which folder structure variant do you prefer for Structured Modules? 1. By Technical Layer (simpler) or 2. Vertical Slices by Model/Entity (better for large modules)". Wait for their answer before generating the artifact.
 - If `explicit` is specified without a suffix (`-layers`, `-vertical`, or `-flat`), ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. By Technical Layer or 2. Vertical Slices by Feature or 3. Flat Vertical Slices (simplified)". Wait for their answer before generating the artifact.
-- Use the resolved architecture directly, skip to Step 2
+- Use the resolved architecture directly, skip the recommendation step and proceed to Step 1.5
 
 **If no specific architecture requested:**
 - Evaluate the project against the decision matrix (see `references/architecture.md`)
