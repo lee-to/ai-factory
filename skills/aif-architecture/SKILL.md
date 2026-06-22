@@ -64,18 +64,30 @@ codebase conventions, and tech-stack analysis. These rules are tailored to the c
 **Enforcement:** After generating any output artifact, verify it against all skill-context rules.
 If any rule is violated — fix the output before presenting it to the user.
 
-### Step 1: Analyze & Recommend
+### Step 1: Recommend Architecture
 
 Based on project context, evaluate against the decision matrix and recommend an architecture:
 
 **If `$ARGUMENTS` specifies an architecture** (e.g., `/aif-architecture explicit`):
-- Map legacy aliases to current patterns:
-  - `clean` -> Explicit Architecture
-  - `ddd` -> Explicit Architecture
-  - `monolith` -> Structured Modules
-  - `vertical` -> Explicit Architecture (Vertical Slices)
-- If `structured` is specified without a suffix (`-layers` or `-vertical`), ASK the user: "Which folder structure variant do you prefer for Structured Modules? 1. By Technical Layer (simpler) or 2. Vertical Slices by Model/Entity (better for large modules)". Wait for their answer before generating the artifact.
-- If `explicit` is specified without a suffix (`-layers`, `-vertical`, or `-flat`), ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. By Technical Layer or 2. Vertical Slices by Feature or 3. Flat Vertical Slices (simplified)". Wait for their answer before generating the artifact.
+- **Direct mapping** (no suffix needed):
+  - `layers` → Layered Architecture
+  - `microservices` → Microservices
+  - `structured` → Structured Modules (ask variant — see below)
+  - `explicit` → Explicit Architecture (ask variant — see below)
+- **Legacy aliases** (mapped to current patterns):
+  - `clean` → Explicit Architecture
+  - `ddd` → Explicit Architecture
+  - `monolith` → Structured Modules
+  - `vertical` → Explicit Architecture (Vertical Slices)
+- **With suffix** (variant is determined, no need to ask):
+  - `structured-layers` → Structured Modules (Technical Layers)
+  - `structured-vertical` → Structured Modules (Vertical Slices)
+  - `explicit-layers` → Explicit Architecture (Technical Layers)
+  - `explicit-vertical` → Explicit Architecture (Vertical Slices)
+  - `explicit-flat` → Explicit Architecture (Flat Vertical Slices)
+- **Without suffix** (ask user to choose variant):
+  - If `structured` is specified without a suffix: ASK the user: "Which folder structure variant do you prefer for Structured Modules? 1. By Technical Layer (simpler) or 2. Vertical Slices by Model/Entity (better for large modules)". Wait for their answer before generating the artifact.
+  - If `explicit` is specified without a suffix: ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. By Technical Layer or 2. Vertical Slices by Feature or 3. Flat Vertical Slices (simplified)". Wait for their answer before generating the artifact.
 - Use the resolved architecture directly, skip the recommendation step and proceed to Step 1.5
 
 **If no specific architecture requested:**
@@ -238,7 +250,5 @@ Present the confirmation in resolved `language.ui` and report the resolved archi
 - Respect config overrides: write to the resolved architecture path from `config.yaml` when provided.
 - Allowed companion updates: architecture pointer in the resolved DESCRIPTION path from `config.yaml`, architecture row in `AGENTS.md` context table.
 - Read-only context: roadmap, rules, research, and plan artifacts unless user explicitly requests otherwise.
-
----
 
 ---

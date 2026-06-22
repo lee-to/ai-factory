@@ -20,7 +20,7 @@ Reference material for architecture evaluation and generation. This content info
 
 ¹ Unit tests are easy per service, but integration/contract tests across services add significant complexity.
 
-**Note on subvariants:** Structured Modules offers two folder organization variants — *by technical layer* and *by vertical slice*. Explicit Architecture offers three — *by technical layer*, *by vertical slice*, and *flat vertical slice*. These variants share the same Decision Matrix scores because they differ in internal folder layout, not in architectural characteristics. The matrix evaluates the architectural pattern; the organization variant is chosen separately based on module/context size and feature independence.
+**Note on subvariants:** Each pattern offers multiple folder organization variants (e.g., *by technical layer*, *by vertical slice*). The matrix evaluates the architectural pattern — organization variants within the same pattern share the same scores because they differ in internal folder layout, not in architectural characteristics. When a variant affects feature independence (e.g., Explicit Architecture with Vertical Slices scores higher than with Technical Layers), the matrix row shows the range across variants. The organization variant is chosen separately based on module/context size and feature independence needs.
 
 ## Quick Decision Guide
 
@@ -83,7 +83,7 @@ Structured Modules                           Explicit Architecture
 
 **Organization Variants:** Within a module, code can be organized in two ways:
 - **By technical layer** — `controllers/`, `services/`, `repositories/` as separate folders.
-- **By vertical slice (use-case)** — grouping the controller, service, and DTOs for a specific action into a single folder.
+- **By vertical slice (Model/Entity)** — grouping the controller, service, and repository for a specific entity/model into a single folder. Within each entity slice, individual use cases can optionally be extracted into separate classes.
 
 ### Folder Structure — By Technical Layer
 ```text
@@ -138,7 +138,7 @@ src/
     └── ...
 ```
 
-**Note on Use Cases:** In this structure, a Use Case can either be a standard method inside the `[EntityA]Service` and `[EntityA]Controller`, or, if the logic is complex, it can be extracted into dedicated single-responsibility classes (e.g., inside an optional `use-cases/` subfolder).
+**Note on Use Cases:** In this structure, a Use Case can either be a standard method inside the `[EntityA]Service` and `[EntityA]Controller`, or, if the logic is complex, it can be extracted into dedicated single-responsibility classes (e.g., inside an optional `UseCases/` subfolder).
 
 **Dependency Rules (Strict Direction):**
 - **Strict Downward Flow:** Dependencies must point strictly in one direction: `Controllers → Services → Repositories`. Inner layers (e.g., Repositories, Models) MUST NEVER depend on outer layers (e.g., Controllers).
@@ -164,12 +164,14 @@ src/
 
 **Domain-Driven Design (DDD)** is primarily about domain modeling: defining a ubiquitous language, identifying bounded contexts, and organizing logic into aggregates, entities, and value objects. DDD is **not** a folder structure. Explicit Architecture provides a way to structure code that implements DDD concepts cleanly.
 
-**Architecture Layers** (4 concentric layers, innermost to outermost):
+**Architecture Layers** (5 concentric layers, innermost to outermost):
 ```text
 ┌─────────────────────────────────────────────────────┐
-│  4. CONFIGURATION / COMPOSITION ROOT                │  DI container, wiring, bootstrap
+│  5. CONFIGURATION / COMPOSITION ROOT                │  DI container, wiring, bootstrap
 ├─────────────────────────────────────────────────────┤
-│  3. INFRASTRUCTURE / ADAPTERS                      │  DB repos, external APIs, frameworks
+│  4. PRESENTATION / ADAPTERS (inbound)               │  HTTP handlers, CLI commands, Web views
+├─────────────────────────────────────────────────────┤
+│  3. INFRASTRUCTURE / ADAPTERS (outbound)            │  DB repos, external APIs, messaging
 ├─────────────────────────────────────────────────────┤
 │  2. APPLICATION LAYER                              │  Use cases, services, DTOs
 ├─────────────────────────────────────────────────────┤
@@ -182,7 +184,7 @@ src/
 
 **Organization Variants:** Within each bounded context, code can be organized in three ways:
 - **By technical layer** — Application/, Infrastructure/, Presentation/ as separate top-level folders inside the context.
-- **By vertical slice (feature)** — each feature gets its own folder containing its Application, Infrastructure, and Presentation subfolders. Domain stays shared across slices within the context.
+- **By vertical slice (feature)** — each feature gets its own folder containing its Application, Infrastructure, and Presentation subfolders. Domain stays shared across slices within the context. This is the Explicit Architecture equivalent of Structured Modules' "Vertical Slices by Model/Entity" — but at the feature level with full layer separation.
 - **Flat vertical slice (simplified)** — same as vertical slice but all related files (controllers, DTOs, handlers) live side-by-side within the feature folder, omitting the Application/Infrastructure/Presentation subfolders. Best for smaller features or when maximum cohesion is preferred over strict layer separation.
 
 ### Folder Structure — Explicit Architecture (by technical layer)
@@ -435,8 +437,6 @@ repo-root/
 
 ```text
 src/
-├── Routes/                                     # Presentation layer (HTTP route definitions)
-│   └── [FeatureName]Routes.{ext}
 ├── Controllers/                                # Request/response handling, input validation
 │   └── [FeatureName]Controller.{ext}
 ├── Services/                                   # Business logic layer
@@ -445,9 +445,12 @@ src/
 │   └── [EntityName].{ext}
 ├── Repositories/                               # Data access layer (queries, ORM calls)
 │   └── [EntityName]Repository.{ext}
+├── Routes/                                     # Route definitions (maps URLs to controllers)
 ├── Middleware/                                 # Cross-cutting: auth, error handling, logging
 └── Utils/                                      # Shared utilities, helpers
 ```
+
+**Note:** `Routes/`, `Middleware/`, and `Utils/` are configuration and cross-cutting directories, not core application layers. Routes define URL-to-controller mappings. Middleware and Utils provide shared infrastructure concerns (auth, logging, helpers) and are invoked by Controllers/Services but do not contain business logic.
 
 ### Key Principles
 
@@ -460,14 +463,15 @@ src/
 
 ```text
 Routes → Controllers → Services → Repositories → Database
-            ↓                ↓
-        middleware         models
+            ↓                ↓                ↓
+        middleware         models           models
 ```
 
 - Routes → Controllers → Services → Repositories → Database
 - No skipping layers (controllers should not call repositories directly)
 - Models are shared across Services and Repositories (data structures, not logic)
-- Middleware is invoked by Routes/Controllers but does not call Services directly
+- Middleware is invoked by Routes and Controllers but does not call Services directly
+- Routes, Middleware, and Utils are configuration/cross-cutting directories — they do not contain business logic
 
 ### Migration Path to Structured Modules
 
@@ -477,11 +481,18 @@ src/                                         src/
 ├── Controllers/         ── group by ──>     ├── [ModuleName]/
 │   ├── UserController.{ext}                 │   ├── Controllers/UserController.{ext}
 │   └── OrderController.{ext}                │   ├── Services/UserService.{ext}
-├── Services/            ── feature ──>      │   ├── Repositories/UserRepository.{ext}
+├── Services/            ── entity ──>       │   ├── Repositories/UserRepository.{ext}
 │   ├── UserService.{ext}                    │   └── Models/User.{ext}
 │   └── OrderService.{ext}                   ├── [AnotherModuleName]/
-├── Repositories/        ── area ──>         │   └── ...
-└── Models/                                  └── Infrastructure/
+├── Repositories/        ── entity ──>       │   └── ...
+│   ├── UserRepository.{ext}                 └── Infrastructure/
+│   └── OrderRepository.{ext}                    ├── Types/
+├── Models/              ── entity ──>           ├── Utils/
+│   ├── User.{ext}                               ├── Middleware/
+│   └── Order.{ext}                              └── Config/
+├── Routes/              ── to Controllers ──>    (Routes map to Controllers)
+├── Middleware/           ── to Infrastructure ──> (Middleware to Infrastructure/)
+└── Utils/                ── to Infrastructure ──> (Utils to Infrastructure/)
 ```
 
 **Anti-Patterns:**
