@@ -7,7 +7,7 @@
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (27 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
+2. **Built-in skills** (28 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
@@ -46,6 +46,7 @@ ai-factory/
 │   ├── aif-rules/              # Project rules and conventions
 │   ├── aif-rules-check/        # Standalone rules compliance gate
 │   ├── aif-qa/                 # QA workflow: change summary → test plan → test cases
+│   ├── aif-qa-check/           # Execute QA cases in human/browser-agent mode
 │   ├── aif-security-checklist/ # Security audit
 │   ├── aif-skill-generator/    # Generate new skills
 │   └── aif-verify/             # Verify implementation against plan
@@ -83,6 +84,7 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/qa/<branch-slug>/change-summary.md` — QA change summary (from /aif-qa)
 - `.ai-factory/qa/<branch-slug>/test-plan.md` — QA test plan (from /aif-qa)
 - `.ai-factory/qa/<branch-slug>/test-cases.md` — QA test cases (from /aif-qa)
+- `.ai-factory/qa/<branch-slug>/qa-check.md` — QA execution checklist and results (from /aif-qa-check)
 - `.ai-factory/evolution/current.json` — active loop pointer (from /aif-loop)
 - `.ai-factory/evolution/<alias>/run.json` — current loop state
 - `.ai-factory/evolution/<alias>/history.jsonl` — loop event history (append-only)
@@ -106,7 +108,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills                                                      |
 | `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor                                                      |
 | `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
-| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`              | change-summary, test-plan, test-cases artifacts; branch slug used as subdirectory                |
+| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results |
 | `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                                      | `/aif-archive`         | archived completed plans and dated roadmap snapshots                                             |
 
 Quality commands (`/aif-rules-check`, `/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
@@ -132,7 +134,7 @@ Context gate policy for quality commands:
   `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
 - Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`,
   `/aif-distillation`,
-  `/aif-security-checklist`, `/aif-qa`, `/aif-archive`
+  `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
 
 Current config-agnostic built-ins:
 
@@ -302,6 +304,18 @@ test-plan      → reads change-summary → determines scope and test types → 
 test-cases     → reads change-summary + test-plan → writes TC-NNN scenarios → saves test-cases.md
     ↓
 --all          → runs all three stages in sequence without inter-stage prompts
+
+/aif-qa-check [human|agent] [<branch>]
+    ↓
+Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + config.yaml for context
+    ↓
+Reads .ai-factory/qa/<branch-slug>/test-cases.md and resumes/creates qa-check.md
+    ↓
+human → shows one test case at a time, asks whether it works, records pass/fail and user failure comments
+    ↓
+agent → requires live browser capability; prefers in-app Browser, falls back to Playwright MCP, stops if neither exists
+    ↓
+Writes .ai-factory/qa/<branch-slug>/qa-check.md with checked passed cases and unchecked failed/blocked cases
 
 /aif-fix <bug description>
     ↓
