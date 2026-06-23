@@ -42,7 +42,7 @@ Two modes:
 
 Both modes explore your codebase for patterns, create tasks with dependencies, and include commit checkpoints for 5+ tasks.
 
-If the resolved research artifact exists, `/aif-plan` reads the `Active Summary` and includes it as `Research Context` in the plan.
+If the resolved research artifact exists, `/aif-plan` reads the `Active Summary` and includes it as `Research Context` in the plan. Any plan influenced by `RESEARCH.md` includes a `Source:` reference so downstream skills re-read the research before implementation, verification, or refinement.
 
 If the resolved roadmap artifact exists, `/aif-plan` may also capture a `Roadmap Linkage` section (milestone name + brief rationale) to make milestone alignment explicit.
 
@@ -90,6 +90,7 @@ Refine an existing plan with a second iteration:
 - Reads `.ai-factory/config.yaml` for `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - `--list` mode is read-only: shows available plan files and exits
 - Performs deeper codebase analysis than the initial `/aif-plan` planning
+- Re-reads `paths.research` when the plan has `Research Context` or a `RESEARCH.md` source/reference
 - Finds missing tasks (migrations, configs, middleware)
 - Fixes task dependencies and descriptions
 - Removes redundant tasks
@@ -140,6 +141,7 @@ Executes the plan:
 ```
 - **Reads skill-context first** (`.ai-factory/skill-context/aif-implement/SKILL.md`) and only uses limited recent patch fallback when needed
 - Finds plan file (`@plan-file` if provided; otherwise branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan` → redirects to `/aif-fix`)
+- Re-reads `paths.research` before execution when the plan has `Research Context` or a `RESEARCH.md` source/reference
 - `--list` mode is read-only: shows available plan files and exits
 - `--without-plan <description>` mode (inline):
   - Executes exactly one small task from the description — no plan file created, read, or updated
@@ -168,6 +170,7 @@ Verifies completed implementation against the plan:
 **Optional step after `/aif-implement`** — when implementation finishes, you'll be asked if you want to verify.
 
 - **Task completion audit** — goes through every task in the plan, uses `Glob`/`Grep`/`Read` to confirm the code actually implements each requirement. Reports `COMPLETE`, `PARTIAL`, or `NOT FOUND` per task
+- **Research-backed plan audit** — re-reads `paths.research` when the plan has `Research Context` or a `RESEARCH.md` source/reference, and treats the Active Summary as part of the planned requirements
 - **Build & test check** — runs the project's build command, test suite, and linters on changed files
 - **Consistency checks** — searches for leftover `TODO`/`FIXME`/`HACK`, undocumented environment variables, missing dependencies, plan-vs-code naming drift
 - **Context gates (read-only)** — checks architecture/roadmap/rules alignment before final status; missing optional roadmap/rules files are warnings
@@ -185,7 +188,7 @@ Bug fix with optional plan-first mode:
 /aif-fix TypeError: Cannot read property 'name' of undefined
 ```
 - Asks to choose mode: **Fix now** (immediate) or **Plan first** (review before fixing)
-- Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, `language.ui`, `language.artifacts`, and `language.technical_terms`
+- Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - Investigates codebase to find root cause
 - Applies fix WITH logging (`[FIX]` prefix for easy filtering)
 - Suggests test coverage for the bug
@@ -197,6 +200,7 @@ Bug fix with optional plan-first mode:
 /aif-fix Something is broken    # Choose "Plan first" when asked
 ```
 - Investigates the codebase, creates `paths.fix_plan` with analysis, fix steps, risks
+- If the fix plan is based on `RESEARCH.md`, records a `Research Context` source and re-reads that research before executing the plan
 - Stops after creating the plan — you review it at your own pace
 - When ready, run without arguments to execute the plan:
 ```

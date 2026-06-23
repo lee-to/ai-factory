@@ -166,6 +166,7 @@ If any rule is violated — fix the output before presenting it to the user.
 - Carry over constraints/decisions into tasks and plan settings
 - Prefer the summary over raw notes; use `## Sessions` only when you need deeper rationale
 - If the user omitted the feature description, use `Active Summary -> Topic:` as the default description
+- If any research content influences the plan, the generated plan MUST include `## Research Context` with a `Source:` line pointing to the resolved research artifact. Omitting this reference is a bug because downstream skills use it to decide whether they must re-read `RESEARCH.md`.
 
 ### Step 0.1: Resolve Git State
 
@@ -623,6 +624,7 @@ If the resolved roadmap artifact exists:
 If the resolved research path exists:
 
 - Include `## Research Context` by copying only the `Active Summary` (do not paste full `Sessions`)
+- Include `Source: <resolved research path> (Active Summary)` so `/aif-implement`, `/aif-verify`, `/aif-improve`, and related consumers know the plan was research-backed
 - Keep it compact; it should be readable as a one-screen requirements snapshot
 
 Use the canonical template in `references/TASK-FORMAT.md` (Plan File Template).

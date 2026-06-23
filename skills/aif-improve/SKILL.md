@@ -145,7 +145,9 @@ Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists:
 - Conventions
 - Non-functional requirements
 
-Read `.ai-factory/RESEARCH.md` (use path from config) if it exists and is relevant to the plan being refined.
+If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, read that research artifact before proposing refinements. Treat `## Active Summary (input for /aif-plan)` as part of the plan's requirements and constraints; use `## Sessions` only when deeper rationale is needed. Skipping research-backed plan context is a bug.
+
+Otherwise, read `.ai-factory/RESEARCH.md` (use path from config) if it exists and is relevant to the plan being refined.
 
 **2.3: Read patches (limited fallback)**
 

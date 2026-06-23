@@ -39,6 +39,7 @@ Rationale: [1 short sentence]
 ## Research Context (optional)
 <!-- If .ai-factory/RESEARCH.md exists, copy/paste the Active Summary here -->
 Source: .ai-factory/RESEARCH.md (Active Summary)
+<!-- Required when any RESEARCH.md content influenced this plan. Use the resolved paths.research value if it is configured differently. -->
 
 Goal:
 Constraints:

@@ -470,6 +470,7 @@ Then continue with normal execution using the selected plan file.
 - Commit checkpoints (when to commit)
 - Task dependencies
 - Task checklist format (`- [ ]` / `- [x]`) to keep progress synced
+- Research linkage: if the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, you MUST read that research artifact before executing tasks. Prefer `## Active Summary (input for /aif-plan)` for requirements and constraints; read `## Sessions` only when deeper rationale is needed. Skipping research-backed plan context is a bug.
 
 **Immediately after reading the plan file, check the first line for `<!-- handoff:task:<uuid> -->`:**
 

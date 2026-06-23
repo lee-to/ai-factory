@@ -256,7 +256,7 @@ High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROAD
 /aif-plan full --parallel Add Stripe checkout      # Parallel worktree
 ```
 
-Two modes — **fast** (no branch, saves to `paths.plan`) and **full** (asks about testing/logging/docs policy and optional roadmap milestone linkage when the roadmap artifact exists, saves to `paths.plans/<branch-or-slug>.md`, and optionally creates a git branch/worktree when `git.enabled=true` and `git.create_branches=true`). When `workflow.plan_id_format: sequential` is enabled, the full-mode filename gains a 4-digit `NNNN_` prefix (`paths.plans/<NNNN>_<branch-or-slug>.md`) — see [Plan Files](plan-files.md) for the numbering contract. Analyzes requirements, explores codebase for patterns, creates tasks with dependencies. For 5+ tasks, includes commit checkpoints. For parallel work on multiple features, use `full --parallel` to create isolated worktrees.
+Two modes — **fast** (no branch, saves to `paths.plan`) and **full** (asks about testing/logging/docs policy and optional roadmap milestone linkage when the roadmap artifact exists, saves to `paths.plans/<branch-or-slug>.md`, and optionally creates a git branch/worktree when `git.enabled=true` and `git.create_branches=true`). When `workflow.plan_id_format: sequential` is enabled, the full-mode filename gains a 4-digit `NNNN_` prefix (`paths.plans/<NNNN>_<branch-or-slug>.md`) — see [Plan Files](plan-files.md) for the numbering contract. Analyzes requirements, explores codebase for patterns, creates tasks with dependencies. If `RESEARCH.md` influences the plan, `/aif-plan` writes a `Research Context` section with a source reference. For 5+ tasks, includes commit checkpoints. For parallel work on multiple features, use `full --parallel` to create isolated worktrees.
 
 ### `/aif-improve [--list] [+check] [@plan-file] [prompt]` — refine the plan
 
@@ -268,7 +268,7 @@ Two modes — **fast** (no branch, saves to `paths.plan`) and **full** (asks abo
 /aif-improve add validation and error handling
 ```
 
-Second-pass analysis. Finds missing tasks (migrations, configs, middleware), fixes dependencies, removes redundant work, and surfaces useful-but-out-of-scope tasks in a separate "💡 Out of scope" report section so the user sees the idea without polluting the active plan (the skill does not persist them anywhere). Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan`. `--list` is a read-only discovery mode that shows available plan files and exits. Shows a diff-like report before applying changes.
+Second-pass analysis. Finds missing tasks (migrations, configs, middleware), fixes dependencies, removes redundant work, and surfaces useful-but-out-of-scope tasks in a separate "💡 Out of scope" report section so the user sees the idea without polluting the active plan (the skill does not persist them anywhere). Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan`. If the plan references `RESEARCH.md`, `/aif-improve` re-reads `paths.research` before proposing changes. `--list` is a read-only discovery mode that shows available plan files and exits. Shows a diff-like report before applying changes.
 
 Optional `+check` runs a single fresh-context `general-purpose` subagent on the refinements (`missing` / `improvements` / `removals` / `out_of_scope` groups), drops invented items, rewrites partially-correct ones, and appends `Hidden by +check` / `Adjusted by +check` counters to the Step 5 Summary block. Dependency fixes are recomputed against the filtered list after validation. Combined with `--list`, the flag is silently ignored — there is no refinement to validate.
 
@@ -297,7 +297,7 @@ For full contracts and state transition rules, see [Reflex Loop](loop.md).
 /aif-implement status # Check progress
 ```
 
-Reads skill-context rules first, then uses limited recent patch fallback when needed. Executes tasks one by one with commit checkpoints. Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan` (redirects to `/aif-fix`). `--list` is a read-only discovery mode that shows available plan files and exits. Docs policy after completion: `Docs: yes` → mandatory docs checkpoint (update docs / create feature page / skip, routed via `/aif-docs`), `Docs: no` or unset → `WARN [docs]` only.
+Reads skill-context rules first, then uses limited recent patch fallback when needed. Executes tasks one by one with commit checkpoints. Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan` (redirects to `/aif-fix`). If the plan references `RESEARCH.md`, `/aif-implement` re-reads `paths.research` before executing tasks. `--list` is a read-only discovery mode that shows available plan files and exits. Docs policy after completion: `Docs: yes` → mandatory docs checkpoint (update docs / create feature page / skip, routed via `/aif-docs`), `Docs: no` or unset → `WARN [docs]` only.
 When executing through the Claude top-level `implement-coordinator`, the quality-gate sidecars include `review-sidecar`, `security-sidecar`, and `rules-sidecar` (`aif-rules-check`) after code changes, plus `best-practices-sidecar` for maintainability checks. In Handoff automation, `HANDOFF_SKIP_REVIEW=1` intentionally skips the review-family gates: `review-sidecar`, `security-sidecar`, and `rules-sidecar`.
 
 ### `/aif-verify [--strict]` — check completeness
@@ -307,7 +307,7 @@ When executing through the Claude top-level `implement-coordinator`, the quality
 /aif-verify --strict # Strict mode — zero tolerance for gaps
 ```
 
-Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it. Checks build, tests, lint, looks for leftover TODOs, undocumented env vars, and plan-vs-code drift. If gaps are found, it first suggests `/aif-fix <issue summary>` (recommended). If verification is clean, it suggests `/aif-security-checklist` and `/aif-review`. Use `--strict` before merging to the configured base branch.
+Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it. If the plan references `RESEARCH.md`, `/aif-verify` re-reads `paths.research` and treats the Active Summary as planned requirements. Checks build, tests, lint, looks for leftover TODOs, undocumented env vars, and plan-vs-code drift. If gaps are found, it first suggests `/aif-fix <issue summary>` (recommended). If verification is clean, it suggests `/aif-security-checklist` and `/aif-review`. Use `--strict` before merging to the configured base branch.
 
 Also runs read-only context gates against the resolved architecture, roadmap, and RULES.md artifacts. In normal mode, roadmap/milestone linkage gaps are warnings; in strict mode, clear roadmap mismatch is a failure, while missing `feat`/`fix`/`perf` milestone linkage remains a warning. The final output appends an `aif-gate-result` JSON block for orchestrators.
 
@@ -339,6 +339,8 @@ When a plan exists, run without arguments to execute:
 ```
 /aif-fix    # reads the configured fix plan → applies fix → deletes plan
 ```
+
+If a fix plan references `RESEARCH.md`, `/aif-fix` re-reads `paths.research` before executing it.
 
 Every fix creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`). Patches improve future workflow runs primarily through `/aif-evolve` (which distills them into `.ai-factory/skill-context/*`).
 

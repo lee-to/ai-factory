@@ -47,7 +47,7 @@ When creating a new FIX_PLAN.md: if there is no existing annotation and no Hando
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
-- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.fix_plan`, and `paths.patches`
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, and `paths.patches`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for `FIX_PLAN.md` and patch artifacts, and `language.technical_terms` for human-readable technical terminology in artifacts
 - **Rules:** `rules.base` plus any named `rules.<area>` entries
 
@@ -57,6 +57,7 @@ If config.yaml doesn't exist, use defaults:
 - ARCHITECTURE.md: `.ai-factory/ARCHITECTURE.md`
 - RULES.md: `.ai-factory/RULES.md`
 - rules/: `.ai-factory/rules/`
+- RESEARCH.md: `.ai-factory/RESEARCH.md`
 - FIX_PLAN.md: `.ai-factory/FIX_PLAN.md`
 - patches/: `.ai-factory/patches/`
 - `ui_language`: `en`
@@ -83,6 +84,7 @@ Templates and examples define structure, not fixed English output. If `artifact_
 **If the file EXISTS:**
 
 - Read the resolved fix plan file
+- If the fix plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, read that research artifact before executing the plan. Prefer `## Active Summary (input for /aif-plan)` for requirements and constraints; read `## Sessions` only when deeper rationale is needed. Skipping research-backed fix-plan context is a bug.
 - **Immediately check the first line for `<!-- handoff:task:<uuid> -->`:**
   - If found AND `HANDOFF_MODE` is NOT `1` (manual session): extract the task ID. Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`. (Status is `"implementing"` because we are executing an existing plan, not creating one.)
   - If found AND `HANDOFF_MODE` is `1`: the Handoff coordinator handles sync — do nothing.
@@ -239,6 +241,11 @@ Step-by-step plan for implementing the fix:
 
 - What tests should be added
 - What edge cases to cover
+
+## Research Context (optional)
+
+Include only when this fix plan is based on `RESEARCH.md`.
+Source: <resolved research path> (Active Summary)
 ```
 
 **After creating the plan, output:**
