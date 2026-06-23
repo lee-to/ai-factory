@@ -1,7 +1,7 @@
 ---
 name: aif-architecture
 description: Generate architecture guidelines for the project. Analyzes tech stack from DESCRIPTION.md, recommends an architecture pattern, and creates .ai-factory/ARCHITECTURE.md. Use when setting up project architecture, asking "which architecture", or after /aif setup.
-argument-hint: "[clean|ddd|microservices|monolith|layers|structured|structured-layers|structured-vertical|explicit|explicit-layers|explicit-vertical|explicit-flat|vertical]"
+argument-hint: "[microservices|layers|structured|structured-layers|structured-vertical|explicit|explicit-layers|explicit-vertical|explicit-flat] (legacy aliases: clean, ddd, monolith, vertical → mapped to explicit or structured)"
 allowed-tools: Read Write Glob Grep Bash(mkdir *) AskUserQuestion Questions
 disable-model-invocation: false
 ---
@@ -74,20 +74,20 @@ Based on project context, evaluate against the decision matrix and recommend an 
   - `microservices` → Microservices
   - `structured` → Structured Modules (ask variant — see below)
   - `explicit` → Explicit Architecture (ask variant — see below)
-- **Legacy aliases** (mapped to current patterns):
+- **Legacy aliases** (deprecated, mapped to current patterns — may be removed in future):
   - `clean` → Explicit Architecture
   - `ddd` → Explicit Architecture
   - `monolith` → Structured Modules
-  - `vertical` → Explicit Architecture (Vertical Slices)
+  - `vertical` → Explicit Architecture (Vertical Slice By Entity)
 - **With suffix** (variant is determined, no need to ask):
-  - `structured-layers` → Structured Modules (Technical Layers)
-  - `structured-vertical` → Structured Modules (Vertical Slices)
-  - `explicit-layers` → Explicit Architecture (Technical Layers)
-  - `explicit-vertical` → Explicit Architecture (Vertical Slices)
-  - `explicit-flat` → Explicit Architecture (Flat Vertical Slices)
+  - `structured-layers` → Structured Modules (Technical Layer)
+  - `structured-vertical` → Structured Modules (Vertical Slices By Entity)
+  - `explicit-layers` → Explicit Architecture (Technical Layer)
+  - `explicit-vertical` → Explicit Architecture (Vertical Slice By Entity)
+  - `explicit-flat` → Explicit Architecture (Flat Vertical Slice - Simplified)
 - **Without suffix** (ask user to choose variant):
-  - If `structured` is specified without a suffix: ASK the user: "Which folder structure variant do you prefer for Structured Modules? 1. By Technical Layer (simpler) or 2. Vertical Slices by Entity (better for large modules)". Wait for their answer before generating the artifact.
-  - If `explicit` is specified without a suffix: ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. By Technical Layer or 2. Vertical Slices by Entity or 3. Flat Vertical Slices (simplified)". Wait for their answer before generating the artifact.
+  - If `structured` is specified without a suffix: ASK the user: "Which folder structure variant do you prefer for Structured Modules? 1. Technical Layer (simpler) or 2. Vertical Slices by Entity (better for large modules)". Wait for their answer before generating the artifact.
+  - If `explicit` is specified without a suffix: ASK the user: "Which folder structure variant do you prefer for Explicit Architecture? 1. Technical Layer or 2. Explicit Architecture (Vertical Slice By Entity) or 3. Explicit Architecture (Flat Vertical Slice - Simplified)". Wait for their answer before generating the artifact.
 - Use the resolved architecture directly, skip the recommendation step and proceed to Step 1.5
 
 **If no specific architecture requested:**
@@ -109,11 +109,11 @@ Which architecture pattern should we use?
 ```
 
 Architecture options:
-- **Structured Modules (Technical Layers)**
-- **Structured Modules (Vertical Slices)**
-- **Explicit Architecture (Technical Layers)**
-- **Explicit Architecture (Vertical Slices)**
-- **Explicit Architecture (Flat Vertical Slices)**
+- **Structured Modules (Technical Layer)**
+- **Structured Modules (Vertical Slices By Entity)**
+- **Explicit Architecture (Technical Layer)**
+- **Explicit Architecture (Vertical Slice By Entity)**
+- **Explicit Architecture (Flat Vertical Slice - Simplified)**
 - **Microservices**
 - **Layered Architecture**
 (See `references/architecture.md` for detailed descriptions of these patterns to formulate your recommendation).
@@ -181,6 +181,12 @@ Generate the resolved architecture artifact (default: `.ai-factory/ARCHITECTURE.
 - **New Features:** All new code MUST strictly follow the architecture defined in this document.
 - **Legacy Code Modification:** Do NOT automatically refactor unrelated legacy code to fit this architecture. Touch legacy code only when necessary for bug fixes, when tasked with explicit refactoring, or when adapting it to be consumed by new features.
 - **Interoperability:** When new code must call legacy code, isolate the interaction using adapters, interfaces, or facades so that legacy patterns do not pollute the new architecture.
+
+[If the user chose Option 1 (adapt to reality) in Step 1.5, add the following lighter section:]
+## Code Organization Note
+- **New Features:** All new code should follow the architecture defined in this document where practical.
+- **Existing Code:** Document the current structure as-is. When modifying existing code, prefer following the architectural conventions in this document, but do not force a rewrite of unrelated code.
+- **Interoperability:** When new code must call existing code, prefer clean interfaces but do not refactor purely for structural alignment.
 
 ## Code Examples
 

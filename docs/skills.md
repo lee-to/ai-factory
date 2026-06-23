@@ -272,12 +272,12 @@ For the workflow view of where these fit, see [Development Workflow](workflow.md
 Generates architecture guidelines tailored to your project:
 ```
 /aif-architecture           # Analyze project and recommend
-/aif-architecture explicit-layers # Use Explicit Architecture (By Technical Layer)
-/aif-architecture explicit-vertical # Use Explicit Architecture (Vertical Slices by Feature)
-/aif-architecture explicit-flat # Use Explicit Architecture (Flat Vertical Slices — simplified)
+/aif-architecture explicit-layers # Use Explicit Architecture (Technical Layer)
+/aif-architecture explicit-vertical # Use Explicit Architecture (Vertical Slices By Entity)
+/aif-architecture explicit-flat # Use Explicit Architecture (Flat Vertical Slice - Simplified)
 /aif-architecture explicit  # Asks the user which folder structure variant to use (3 options)
-/aif-architecture structured-layers # Use Structured Modules (By Technical Layer)
-/aif-architecture structured-vertical # Use Structured Modules (Vertical Slices by Entity)
+/aif-architecture structured-layers # Use Structured Modules (Technical Layer)
+/aif-architecture structured-vertical # Use Structured Modules (Vertical Slices By Entity)
 /aif-architecture structured # Asks the user which folder structure variant to use
 ```
 *Note: `clean`, `ddd`, `monolith` are supported as legacy aliases for backward compatibility.*

@@ -4,23 +4,23 @@ Reference material for architecture evaluation and generation. This content info
 
 ## Decision Matrix
 
-| Factor                 | Layered | Structured Modules | Explicit Architecture | Vertical Slice + Explicit | Microservices  |
-|------------------------|---------|--------------------|-----------------------|---------------------------|----------------|
-| Team size              | 1-5     | 3-10               | 5-30                  | 5-30                      | 20+            |
-| Domain complexity      | Low     | Medium             | High                  | High                      | High           |
-| Scale requirements     | Low     | Low-Moderate       | Moderate-High         | Moderate-High             | Very High      |
-| Feature independence   | Low     | Medium             | Medium                | High                      | Very High      |
-| Module boundaries      | None    | Soft               | Hard                  | Hard                      | Hard (network) |
-| Domain purity          | ❌       | Encouraged         | Enforced              | Enforced                  | Varies         |
-| Initial velocity       | ✅ Fast  | ✅ Fast             | Medium                | Medium                    | ❌ Slow         |
-| Operational complexity | ✅ Low   | ✅ Low              | Medium                | Medium                    | ❌ High         |
-| Testing complexity     | Medium  | Medium             | ✅ Low (ports)         | ✅ Low (ports)             | Medium-High¹   |
-| Learning curve         | ✅ Low   | Low-Medium         | Medium-High           | Medium-High               | High           |
-| Deployment model       | Single  | Single             | Single                | Single                    | Multi-service  |
+| Factor                 | Layered | Structured Modules | Explicit Architecture | Explicit Architecture (Vertical Slice) | Microservices  |
+|------------------------|---------|--------------------|-----------------------|----------------------------------------|----------------|
+| Team size              | 1-5     | 3-10               | 5-30                  | 5-30                                   | 20+            |
+| Domain complexity      | Low     | Medium             | High                  | High                                   | High           |
+| Scale requirements     | Low     | Low-Moderate       | Moderate-High         | Moderate-High                          | Very High      |
+| Feature independence   | Low     | Medium             | Medium                | High                                   | Very High      |
+| Module boundaries      | None    | Soft               | Hard                  | Hard                                   | Hard (network) |
+| Domain purity          | ❌       | Encouraged         | Enforced              | Enforced                               | Varies         |
+| Initial velocity       | ✅ Fast  | ✅ Fast             | Medium                | Medium                                 | ❌ Slow         |
+| Operational complexity | ✅ Low   | ✅ Low              | Medium                | Medium                                 | ❌ High         |
+| Testing complexity     | Medium  | Medium             | ✅ Low (ports)         | ✅ Low (ports)                          | Medium-High¹   |
+| Learning curve         | ✅ Low   | Low-Medium         | Medium-High           | Medium-High                            | High           |
+| Deployment model       | Single  | Single             | Single                | Single                                 | Multi-service  |
 
 ¹ Unit tests are easy per service, but integration/contract tests across services add significant complexity.
 
-**Note on subvariants:** Each pattern offers multiple folder organization variants (e.g., *by technical layer*, *by vertical slice*). The matrix evaluates the architectural pattern — organization variants within the same pattern share the same scores because they differ in internal folder layout, not in architectural characteristics. When a variant affects feature independence (e.g., Explicit Architecture with Vertical Slices scores higher than with Technical Layers), the matrix row shows the range across variants. The organization variant is chosen separately based on module/context size and feature independence needs.
+**Note on subvariants:** Each pattern offers multiple folder organization variants (e.g., *by technical layer*, *by vertical slice*). The matrix evaluates the architectural pattern — organization variants within the same pattern share the same scores because they differ in internal folder layout, not in architectural characteristics. When a variant affects feature independence (e.g., Explicit Architecture (Vertical Slices By Entity) scores higher than with Technical Layers), the matrix row shows the range across variants. The organization variant is chosen separately based on module/context size and feature independence needs.
 
 ## Terminology
 
@@ -49,8 +49,8 @@ Choose uniformly within a slice — don't mix unified Controllers with granular 
 New project, small team, simple domain? → Layered
 Growing project, need structure but not full formalism? → Structured Modules
 Complex business logic, many rules? → Explicit Architecture
-Many independent features, long-lived? → Vertical Slice + Explicit Architecture
-Multiple subdomains, large team? → Explicit Architecture or Vertical Slice + Explicit
+Many independent features, long-lived? → Explicit Architecture (Vertical Slice By Entity)
+Multiple subdomains, large team? → Explicit Architecture or Explicit Architecture (Vertical Slice By Entity) or Explicit Architecture (Flat Vertical Slice - Simplified)
 Independent scaling + large org? → Microservices
 Simple CRUD app? → Layered Architecture
 Unclear requirements? → Start with Structured Modules, evolve to Explicit when patterns emerge
@@ -101,10 +101,10 @@ Structured Modules                           Explicit Architecture
 ```
 
 **Organization Variants:** Within a module, code can be organized in two ways:
-- **By technical layer** — `controllers/`, `services/`, `repositories/` as separate folders.
+- **By technical layer** — `Controllers/`, `Services/`, `Repositories/` as separate folders.
 - **By vertical slice (entity)** — grouping the controller, service, and repository for a specific entity into a single folder. Within each entity slice, individual use cases can optionally be extracted into separate classes. Cross-entity processes live at the module level.
 
-### Folder Structure — By Technical Layer
+### Folder Structure — Structured Modules (Technical Layer)
 ```text
 src/
 ├── [ModuleName]/                               # ── FEATURE MODULE ──
@@ -118,10 +118,8 @@ src/
 │   └── Models/                                 # Domain models / DTOs
 │       ├── [EntityName].{ext}
 │       └── [FeatureName]Dto.{ext}
-│
 ├── [AnotherModuleName]/
 │   └── ...                                     # Same internal structure
-│
 └── Infrastructure/                             # ── INFRASTRUCTURE (cross-cutting) ──
     ├── Types/                                  # Shared type definitions
     ├── Utils/                                  # Utility functions
@@ -129,7 +127,7 @@ src/
     └── Config/                                 # App configuration, database setup
 ```
 
-### Folder Structure — Vertical Slices (By Entity)
+### Folder Structure — Structured Modules (Vertical Slices By Entity)
 ```text
 src/
 ├── [ModuleName]/                               # ── FEATURE MODULE ──
@@ -206,7 +204,7 @@ src/
 - **By vertical slice (entity)** — each entity (`[EntityName]`) gets its own folder containing its Application, Infrastructure, and Presentation subfolders. Within each entity slice, individual use cases are organized as `[FeatureName]` actions. Domain stays shared across slices within the context.
 - **Flat vertical slice (simplified)** — same as vertical slice but all related files (controllers, DTOs, services) live side-by-side within the entity folder, omitting the Application/Infrastructure/Presentation subfolders. Individual use cases are still represented as `[FeatureName]` files. Best for smaller entities or when maximum cohesion is preferred over strict layer separation.
 
-### Folder Structure — Explicit Architecture (by technical layer)
+### Folder Structure — Explicit Architecture (Technical Layer)
 
 ```text
 src/
@@ -249,7 +247,7 @@ src/
     └── External/                               # External API adapters
 ```
 
-### Folder Structure — Vertical Slice + Explicit Architecture (by entity)
+### Folder Structure — Explicit Architecture (Vertical Slice By Entity)
 
 ```text
 src/
@@ -307,7 +305,7 @@ src/
     └── External/                               # External API adapters
 ```
 
-### Folder Structure — Flat Vertical Slice (Simplified)
+### Folder Structure — Explicit Architecture (Flat Vertical Slice - Simplified)
 
 For smaller entities or when striving for maximum locality (cohesion), the internal `Application/`, `Infrastructure/`, and `Presentation/` folders can be omitted. A "flat slice" places all related files side-by-side within the slice folder.
 
@@ -423,17 +421,15 @@ repo-root/
 │   ├── migrations/
 │   └── Dockerfile
 │
-└── [ServiceNameB]/
+├── [ServiceNameB]/
 │   └── ...                                     # Same internal structure
 │
 ├── Libs/                                       # ── SHARED LIBRARIES ──
 │   ├── Contracts/                              # Shared API schemas, event definitions, DTOs
 │   ├── Common/                                 # Cross-service utilities (logging, auth helpers)
 │   └── Testing/                                # Shared test utilities and fixtures
-│
 ├── Gateway/                                    # (Optional) API Gateway / BFF service
 │   └── ...
-│
 └── Infra/                                      # Infrastructure-as-Code, CI/CD, docker-compose
     ├── docker-compose.yml
     └── Deploy/
@@ -486,7 +482,7 @@ src/
 ├── Repositories/                               # Data access layer (queries, ORM calls)
 │   └── [EntityName]Repository.{ext}
 ├── Routes/                                     # Route definitions (maps URLs to controllers)
-├── Middleware/                                 # Cross-cutting: auth, error handling, logging
+├── Middleware/                                  # Cross-cutting: auth, error handling, logging
 └── Utils/                                      # Shared utilities, helpers
 ```
 
@@ -503,15 +499,16 @@ src/
 
 ```text
 Routes → Controllers → Services → Repositories → Database
-            ↓                ↓                ↓
-        middleware         models           models
+    ↓                                           ↑
+Middleware (cross-cutting)              Models (shared data structures)
+    ↓                                           ↑
+Utils (cross-cutting)                  Config (cross-cutting)
 ```
 
 - Routes → Controllers → Services → Repositories → Database
 - No skipping layers (controllers should not call repositories directly)
-- Models are shared across Services and Repositories (data structures, not logic)
-- Middleware is invoked by Routes and Controllers but does not call Services directly
-- Routes, Middleware, and Utils are configuration/cross-cutting directories — they do not contain business logic
+- Models are shared data structures (DTOs, entities) consumed by Services and Repositories — not a separate layer
+- Middleware and Utils are cross-cutting concerns invoked alongside the main request flow, not a third column in the dependency chain
 
 ### Migration Path to Structured Modules
 
