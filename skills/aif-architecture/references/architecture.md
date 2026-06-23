@@ -22,6 +22,27 @@ Reference material for architecture evaluation and generation. This content info
 
 **Note on subvariants:** Each pattern offers multiple folder organization variants (e.g., *by technical layer*, *by vertical slice*). The matrix evaluates the architectural pattern — organization variants within the same pattern share the same scores because they differ in internal folder layout, not in architectural characteristics. When a variant affects feature independence (e.g., Explicit Architecture with Vertical Slices scores higher than with Technical Layers), the matrix row shows the range across variants. The organization variant is chosen separately based on module/context size and feature independence needs.
 
+## Terminology
+
+All folder structures in this document use consistent placeholder names:
+
+| Placeholder | Meaning | Examples | Maps to |
+|---|---|---|---|
+| `[EntityName]` | Core domain model — a data entity with identity and business rules | `User`, `Order`, `Product`, `Invoice` | Models, Repositories, Domain layer |
+| `[FeatureName]` | A use case scoped to a **single entity** | `CreateUser`, `UpdateProfile`, `DeleteProduct` | Entity slice: Controller methods, Action classes, Service classes |
+| `[ProcessName]` | An orchestration spanning **multiple entities** — cross-entity business process | `PlaceOrder`, `Checkout`, `TransferFunds`, `OnboardCustomer` | Process slice (alongside entity slices in `Slices/`) |
+| `[ModuleName]` | A feature module grouping related entities and processes (Structured Modules) | `Auth`, `Catalog`, `Payments` | Top-level module folder |
+| `[ContextName]` | A bounded context with its own ubiquitous language (Explicit Architecture) | `Identity`, `Ordering`, `Inventory` | Top-level context folder |
+| `[ServiceName]` | An independently deployable microservice | `OrderService`, `PaymentGateway` | Microservice root folder |
+
+**Slice types:** Both `[EntityName]` and `[ProcessName]` live as siblings inside `Slices/`. Entity slices group use cases for a single entity. Process slices group orchestration logic that spans multiple entities.
+
+**File organization choice — "Unified vs Granular":** For each slice type, every file category (Controllers, Services, Actions, DTOs, Repositories) can be organized in two ways:
+- **Unified (one file per entity/process):** A single `[EntityName]Controller.{ext}` contains all handler methods. A single `[EntityName]Service.{ext}` contains all entity-scoped use cases. Simpler for small slices with few use cases.
+- **Granular (one file per feature):** Separate `[FeatureName]Controller.{ext}` or `[FeatureName]Action.{ext}` files, each handling a single use case. Better for complex slices with many use cases.
+
+Choose uniformly within a slice — don't mix unified Controllers with granular Services.
+
 ## Quick Decision Guide
 
 ```text
@@ -68,8 +89,6 @@ Monolith (any pattern) → Microservices:
 
 **IMPORTANT: Domain-Centric, not Service-Centric:** Unlike traditional layered patterns, Structured Modules is **not** service-centric. The `Services/` layer acts only as Application Services (orchestrating use cases: fetch data → call model method → save). The actual core business rules, validations, and state mutations live strictly inside the `Models/` (Rich Domain Models).
 
-**Terminology:** Note the distinction between `[FeatureName]` (e.g., `Checkout`, representing a use case or process spanning multiple entities) and `[EntityName]` (e.g., `User`, `Order`, representing core data models). Application Services and Controllers usually align with features, while Repositories and Models align with entities.
-
 **Migration path to Explicit Architecture:**
 ```text
 Structured Modules                           Explicit Architecture
@@ -83,16 +102,17 @@ Structured Modules                           Explicit Architecture
 
 **Organization Variants:** Within a module, code can be organized in two ways:
 - **By technical layer** — `controllers/`, `services/`, `repositories/` as separate folders.
-- **By vertical slice (Model/Entity)** — grouping the controller, service, and repository for a specific entity/model into a single folder. Within each entity slice, individual use cases can optionally be extracted into separate classes.
+- **By vertical slice (entity)** — grouping the controller, service, and repository for a specific entity into a single folder. Within each entity slice, individual use cases can optionally be extracted into separate classes. Cross-entity processes live at the module level.
 
 ### Folder Structure — By Technical Layer
 ```text
 src/
 ├── [ModuleName]/                               # ── FEATURE MODULE ──
 │   ├── Controllers/                            # HTTP handlers, request validation
-│   │   └── [FeatureName]Controller.{ext}
-│   ├── Services/                               # Application Services (Use case orchestration, NO domain logic)
-│   │   └── [FeatureName]Service.{ext}
+│   │   └── [EntityName]Controller.{ext}
+│   ├── Services/                               # Application Services
+│   │   ├── [EntityName]Service.{ext}
+│   │   └── [ProcessName]Service.{ext}          # Cross-entity orchestration (e.g. PlaceOrderService)
 │   ├── Repositories/                           # Data access (interface + impl in same module)
 │   │   └── [EntityName]Repository.{ext}
 │   └── Models/                                 # Domain models / DTOs
@@ -109,21 +129,22 @@ src/
     └── Config/                                 # App configuration, database setup
 ```
 
-### Folder Structure — Vertical Slices (By Model/Entity)
+### Folder Structure — Vertical Slices (By Entity)
 ```text
 src/
 ├── [ModuleName]/                               # ── FEATURE MODULE ──
-│   ├── Slices/                                 # Slices grouped by Entity
-│   │   ├── [EntityNameA]/                      # Slice for EntityNameA (e.g., User)
-│   │   │   ├── [EntityNameA]Controller.{ext}   # Handlers for EntityNameA
-│   │   │   ├── [EntityNameA]Service.{ext}      # Logic for EntityNameA
-│   │   │   ├── [EntityNameA]Repository.{ext}   # Data access for EntityNameA
-│   │   │   └── UseCases/                       # (Optional) If using separate classes per use case
-│   │   │       ├── Create[EntityNameA].{ext}
-│   │   │       └── Update[EntityNameA].{ext}
+│   ├── Slices/                                 # Slices grouped by entity and process
+│   │   ├── [EntityNameA]/                      # Entity slice (e.g., User)
+│   │   │   ├── [EntityNameA]Controller.{ext}   # Unified: all actions in one controller
+│   │   │   ├── [EntityNameA]Service.{ext}      # Unified: all use cases in one service
+│   │   │   └── [EntityNameA]Repository.{ext}   # Data access for EntityNameA
 │   │   │
-│   │   └── [EntityNameB]/                      # Slice for EntityNameB (e.g., Role)
-│   │       └── ...
+│   │   ├── [EntityNameB]/                      # Entity slice (e.g., Role)
+│   │   │   └── ...
+│   │   │
+│   │   └── [ProcessName]/                      # Process slice — cross-entity orchestration
+│   │       ├── [ProcessName]Controller.{ext}   # Unified: all actions in one controller
+│   │       └── [ProcessName]Service.{ext}      # Unified: orchestration logic
 │   │
 │   ├── Models/                                 # Rich Domain Models stay shared within the module
 │   │   ├── [EntityNameA].{ext}
@@ -137,8 +158,6 @@ src/
 └── Infrastructure/                             # ── INFRASTRUCTURE (cross-cutting globally) ──
     └── ...
 ```
-
-**Note on Use Cases:** In this structure, a Use Case can either be a standard method inside the `[EntityA]Service` and `[EntityA]Controller`, or, if the logic is complex, it can be extracted into dedicated single-responsibility classes (e.g., inside an optional `UseCases/` subfolder).
 
 **Dependency Rules (Strict Direction):**
 - **Strict Downward Flow:** Dependencies must point strictly in one direction: `Controllers → Services → Repositories`. Inner layers (e.g., Repositories, Models) MUST NEVER depend on outer layers (e.g., Controllers).
@@ -184,8 +203,8 @@ src/
 
 **Organization Variants:** Within each bounded context, code can be organized in three ways:
 - **By technical layer** — Application/, Infrastructure/, Presentation/ as separate top-level folders inside the context.
-- **By vertical slice (feature)** — each feature gets its own folder containing its Application, Infrastructure, and Presentation subfolders. Domain stays shared across slices within the context. This is the Explicit Architecture equivalent of Structured Modules' "Vertical Slices by Model/Entity" — but at the feature level with full layer separation.
-- **Flat vertical slice (simplified)** — same as vertical slice but all related files (controllers, DTOs, handlers) live side-by-side within the feature folder, omitting the Application/Infrastructure/Presentation subfolders. Best for smaller features or when maximum cohesion is preferred over strict layer separation.
+- **By vertical slice (entity)** — each entity (`[EntityName]`) gets its own folder containing its Application, Infrastructure, and Presentation subfolders. Within each entity slice, individual use cases are organized as `[FeatureName]` actions. Domain stays shared across slices within the context.
+- **Flat vertical slice (simplified)** — same as vertical slice but all related files (controllers, DTOs, services) live side-by-side within the entity folder, omitting the Application/Infrastructure/Presentation subfolders. Individual use cases are still represented as `[FeatureName]` files. Best for smaller entities or when maximum cohesion is preferred over strict layer separation.
 
 ### Folder Structure — Explicit Architecture (by technical layer)
 
@@ -197,8 +216,9 @@ src/
 │   │   ├── Exceptions/
 │   │   └── Ports/                              # Interfaces only
 │   │
-│   ├── Application/                            # APPLICATION SERVICES (use cases)
-│   │   └── [FeatureName]/                      # Feature use cases, DTOs
+│   ├── Application/                            # ALL USE CASES (entity-scoped + cross-entity)
+│   │   ├── [EntityName]/                       # Entity-scoped use cases, DTOs
+│   │   └── [ProcessName]Service.{ext}          # Cross-entity orchestration (e.g. PlaceOrderService)
 │   │
 │   ├── Infrastructure/                         # INFRASTRUCTURE (adapters)
 │   │   ├── Persistence/                        # Implements Domain Port
@@ -208,17 +228,16 @@ src/
 │   └── Presentation/                           # PRESENTATION (delivery mechanism)
 │       ├── Api/                                # JSON endpoints
 │       │   ├── Admin/                          # Backoffice API
-│       │   │   ├── [FeatureName]Controller.{ext}
-│       │   │   └── Create[FeatureName]Action.{ext} # OR: single-action invokable class
+│       │   │   └── [EntityName]Controller.{ext}
 │       │   └── Public/                         # Public API
-│       │       └── [FeatureName]Controller.{ext}
+│       │       └── [EntityName]Controller.{ext}
 │       ├── Web/                                # HTML views & controllers
 │       │   ├── Admin/                          # Backoffice Web
-│       │   │   └── [FeatureName]Controller.{ext}
+│       │   │   └── [EntityName]Controller.{ext}
 │       │   └── Public/                         # Public Web
-│       │       └── [FeatureName]Controller.{ext}
+│       │       └── [EntityName]Controller.{ext}
 │       └── Cli/                                # Console commands
-│           └── [FeatureName]Command.{ext}
+│           └── [EntityName]Command.{ext}
 │
 ├── [AnotherContextName]/
 │   └── ...
@@ -230,7 +249,7 @@ src/
     └── External/                               # External API adapters
 ```
 
-### Folder Structure — Vertical Slice + Explicit Architecture (by feature)
+### Folder Structure — Vertical Slice + Explicit Architecture (by entity)
 
 ```text
 src/
@@ -241,25 +260,42 @@ src/
 │   │   └── Ports/
 │   │
 │   ├── Slices/
-│   │   └── [FeatureName]/                      # Feature slice — self-contained
-│   │       ├── Application/                    # Use cases for this feature
-│   │       ├── Infrastructure/                 # Adapters for this feature
-│   │       └── Presentation/                   # Delivery mechanism for this feature
-│   │           ├── Api/                        # JSON endpoints
-│   │           │   ├── Admin/                  # Backoffice API
-│   │           │   │   ├── [FeatureName]Controller.{ext}
-│   │           │   │   └── Create[FeatureName]Action.{ext}
-│   │           │   └── Public/                 # Public API
-│   │           │       └── [FeatureName]Controller.{ext}
-│   │           ├── Web/                        # HTML views & controllers
-│   │           │   ├── Admin/                  # Backoffice Web
-│   │           │   │   └── [FeatureName]Controller.{ext}
-│   │           │   └── Public/                 # Public Web
-│   │           │       └── [FeatureName]Controller.{ext}
-│   │           └── Cli/                        # Console commands
-│   │               └── [FeatureName]Command.{ext}
+│   │   ├── [EntityName]/                       # Entity slice — use cases for this entity only
+│   │   │   ├── Application/                    # Entity-scoped use cases
+│   │   │   │   ├── [EntityName]Service.{ext}   # Unified: all use cases in one file
+│   │   │   │   └── [FeatureName]Dto.{ext}      # e.g. CreateUserDto, UpdateProfileDto
+│   │   │   ├── Infrastructure/                 # Adapters for this entity
+│   │   │   │   └── [EntityName]Repository.{ext}
+│   │   │   └── Presentation/                   # Delivery mechanism for this entity
+│   │   │       ├── Api/
+│   │   │       │   ├── Admin/
+│   │   │       │   │   └── [EntityName]Controller.{ext}   # Unified: all actions in one controller
+│   │   │       │   └── Public/
+│   │   │       │       └── [EntityName]Controller.{ext}
+│   │   │       ├── Web/
+│   │   │       │   ├── Admin/
+│   │   │       │   │   └── [EntityName]Controller.{ext}
+│   │   │       │   └── Public/
+│   │   │       │       └── [EntityName]Controller.{ext}
+│   │   │       └── Cli/
+│   │   │           └── [EntityName]Command.{ext}
+│   │   │
+│   │   └── [ProcessName]/                      # Process slice — cross-entity orchestration
+│   │       ├── Application/                    # Orchestration logic
+│   │       │   └── [ProcessName]Service.{ext}  # e.g. PlaceOrderService
+│   │       ├── Infrastructure/                 # Adapters for this process
+│   │       └── Presentation/                   # Delivery mechanism for this process
+│   │           ├── Api/
+│   │           │   ├── Admin/
+│   │           │   │   └── [ProcessName]Controller.{ext}
+│   │           │   └── Public/
+│   │           │       └── [ProcessName]Controller.{ext}
+│   │           ├── Web/
+│   │           │   └── [ProcessName]Controller.{ext}
+│   │           └── Cli/
+│   │               └── [ProcessName]Command.{ext}
 │   │
-│   └── Infrastructure/                         # Cross-feature adapters
+│   └── Infrastructure/                         # Cross-slice adapters
 │
 ├── [AnotherContextName]/
 │   └── ...
@@ -273,7 +309,7 @@ src/
 
 ### Folder Structure — Flat Vertical Slice (Simplified)
 
-For smaller features or when striving for maximum locality (cohesion), the internal `Application/`, `Infrastructure/`, and `Presentation/` folders can be omitted. A "flat slice" places all related files side-by-side.
+For smaller entities or when striving for maximum locality (cohesion), the internal `Application/`, `Infrastructure/`, and `Presentation/` folders can be omitted. A "flat slice" places all related files side-by-side within the slice folder.
 
 ```text
 src/
@@ -284,14 +320,16 @@ src/
 │   │   └── Ports/
 │   │
 │   ├── Slices/
-│   │   └── [FeatureName]/                      # Flat feature slice — maximum cohesion
-│   │       ├── Admin[FeatureName]Controller.{ext}  # Backoffice API
-│   │       ├── Public[FeatureName]Controller.{ext} # Public API
-│   │       ├── [FeatureName]Request.{ext}          # DTO
-│   │       ├── [FeatureName]Response.{ext}         # DTO
-│   │       └── [FeatureName]Handler.{ext}          # Use case / Application logic
+│   │   ├── [EntityName]/                       # Flat entity slice — all files side-by-side
+│   │   │   ├── [EntityName]Controller.{ext}    # Unified: all actions in one controller
+│   │   │   ├── [EntityName]Service.{ext}       # Unified: all use cases in one service
+│   │   │   └── [EntityName]Repository.{ext}    # Data access
+│   │   │
+│   │   └── [ProcessName]/                      # Flat process slice — cross-entity orchestration
+│   │       ├── [ProcessName]Controller.{ext}   # Unified: all actions in one controller
+│   │       └── [ProcessName]Service.{ext}      # Unified: orchestration logic
 │   │
-│   └── Infrastructure/                         # Cross-feature adapters
+│   └── Infrastructure/                         # Cross-slice adapters
 │
 ├── [AnotherContextName]/
 │   └── ...
@@ -302,6 +340,8 @@ src/
     ├── Migrations/                             # Database migrations (schema versioning)
     └── External/                               # External API adapters
 ```
+
+**Naming convention:** If an entity is accessible via multiple interfaces, add a prefix to distinguish: `[Interface][EntityName]Controller.{ext}` (e.g. `AdminUserController`, `PublicUserController`).
 
 ### Core Principles
 
@@ -315,7 +355,7 @@ src/
 
 4. **CQRS (Command Query Responsibility Segregation) is OPTIONAL:** Separating read and write models is a powerful pattern, but should NOT be considered mandatory for Explicit Architecture or DDD. Only use it when read/write use-case complexity or scaling needs justify the overhead.
 
-5. **Vertical Slices** (when using the by-feature variant): Organize code by feature, not by technical layer. Each feature (vertical slice) contains everything it needs across Application, Infrastructure, and Presentation. Domain entities stay shared in the context's Domain/ folder.
+5. **Vertical Slices** (when using the by-entity variant): Organize code by entity, not by technical layer. Each entity slice (`[EntityName]`) contains everything it needs across Application, Infrastructure, and Presentation. Domain entities stay shared in the context's Domain/ folder. Within each slice, individual use cases (`[FeatureName]`) are represented as action classes or methods.
 
 6. **Port Abstraction for External Dependencies:**
    - All dependencies on external systems (databases, messaging systems, file systems, third-party APIs) MUST be defined as interfaces (ports) in the Domain layer.
@@ -353,10 +393,10 @@ When a team works on a single microservice in its own repository:
 [ServiceName]/
 ├── src/
 │   ├── Api/                                    # Inbound adapters (HTTP/gRPC/CLI handlers)
-│   │   ├── [FeatureName]Controller.{ext}
+│   │   ├── [EntityName]Controller.{ext}
 │   │   └── Middleware/                         # Auth, rate limiting, request validation
 │   ├── Application/                            # Use cases / application services
-│   │   └── [FeatureName]Service.{ext}
+│   │   └── [EntityName]Service.{ext}
 │   ├── Domain/                                 # Core business logic, entities, value objects
 │   │   ├── [EntityName].{ext}
 │   │   └── Ports/                              # Interfaces for outbound dependencies
@@ -438,9 +478,9 @@ repo-root/
 ```text
 src/
 ├── Controllers/                                # Request/response handling, input validation
-│   └── [FeatureName]Controller.{ext}
+│   └── [EntityName]Controller.{ext}
 ├── Services/                                   # Business logic layer
-│   └── [FeatureName]Service.{ext}
+│   └── [EntityName]Service.{ext}
 ├── Models/                                     # Data models / entities
 │   └── [EntityName].{ext}
 ├── Repositories/                               # Data access layer (queries, ORM calls)
