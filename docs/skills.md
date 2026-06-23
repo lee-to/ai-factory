@@ -280,7 +280,7 @@ Generates architecture guidelines tailored to your project:
 /aif-architecture structured-vertical # Use Structured Modules (Vertical Slices By Entity)
 /aif-architecture structured # Asks the user which folder structure variant to use
 ```
-*Note: `clean`, `ddd`, `monolith` are supported as legacy aliases for backward compatibility.*
+*Note: `clean`, `ddd`, `monolith`, and `vertical` are legacy aliases mapped to current patterns for backward compatibility.*
 - Reads the resolved description artifact for project context
 - Recommends architecture pattern based on team size, domain complexity, and tech stack
 - Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `language.ui`, and `language.artifacts`

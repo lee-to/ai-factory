@@ -20,7 +20,7 @@ Reference material for architecture evaluation and generation. This content info
 
 ¹ Unit tests are easy per service, but integration/contract tests across services add significant complexity.
 
-**Note on subvariants:** Each pattern offers multiple folder organization variants (e.g., *by technical layer*, *by vertical slice*). The matrix evaluates the architectural pattern — organization variants within the same pattern share the same scores because they differ in internal folder layout, not in architectural characteristics. When a variant affects feature independence (e.g., Explicit Architecture (Vertical Slices By Entity) scores higher than with Technical Layers), the matrix row shows the range across variants. The organization variant is chosen separately based on module/context size and feature independence needs.
+**Note on subvariants:** Each pattern offers multiple folder organization variants (e.g., *by technical layer*, *by vertical slice*). The matrix evaluates the architectural pattern — organization variants within the same pattern generally share the same scores because they differ in internal folder layout, not in architectural characteristics. When a variant affects feature independence (e.g., Explicit Architecture (Vertical Slices By Entity) scores higher than with Technical Layers), the matrix uses a separate column for that variant rather than showing ranges. The organization variant is chosen separately based on module/context size and feature independence needs.
 
 ## Terminology
 
