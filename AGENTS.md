@@ -40,7 +40,7 @@ ai-factory/
 │   ├── aif-implement/          # Execute plan tasks
 │   ├── aif-improve/            # Plan refinement (second iteration)
 │   ├── aif-loop/               # Iterative reflex loop with quality gates
-│   ├── aif-plan/               # Plan implementation (fast/full modes)
+│   ├── aif-plan/               # Plan implementation (fast/full/full-no-git-switching modes)
 │   ├── aif-review/             # Code review
 │   ├── aif-roadmap/            # Strategic project roadmap
 │   ├── aif-rules/              # Project rules and conventions
@@ -234,7 +234,7 @@ Subsequent → review progress, add/reprioritize/mark milestones done
     ↓
 ROADMAP.md = strategic checklist of high-level goals
 
-/aif-plan [fast|full] <description>
+/aif-plan [fast|full|full-no-git-switching] <description>
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
@@ -244,6 +244,9 @@ full → creates richer plan, asks: tests? logging? docs?
        saves to configured `paths.plans/<branch-or-slug>.md`
        (`<slug>.md` when git is disabled or branch creation is off;
         `<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential`)
+full-no-git-switching → same as full but never creates or switches git branches
+       always uses description slug as plan file stem
+       saves to configured `paths.plans/<slug>.md`
     ↓
 Explores codebase
     ↓
