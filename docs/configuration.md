@@ -190,7 +190,7 @@ rules:
 
 **Current config-aware skills** read `config.yaml` at Step 0. This currently includes:
 - Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
-- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-archive`
+- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
 
 Other skills are config-agnostic for now and rely on repository context, explicit arguments, or fixed non-configurable paths such as `skill-context`.
 
@@ -208,7 +208,7 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
 - `git.skip_push_after_commit: true` makes `/aif-commit` stop after local commit without showing push prompt.
 - `paths.plan` remains the default fast-plan file. If you prefer fast plans inside `paths.plans/`, change `paths.plan` manually in `config.yaml`.
 - `paths.docs` controls where `/aif-docs` writes the detailed documentation pages. `README.md` remains the landing page in the project root.
-- `paths.qa` controls where `/aif-qa` stores QA artifacts. A derived branch slug is appended automatically: `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`. The slug is a deterministic, filesystem-safe, stable derived value with a short hash suffix for collision resistance — see `skills/aif-qa/SKILL.md` for the full algorithm.
+- `paths.qa` controls where `/aif-qa` and `/aif-qa-check` store QA artifacts. A derived branch slug is appended automatically: `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`, and `qa-check.md`. The slug is a deterministic, filesystem-safe, stable derived value with mandatory 40-character safe-slug truncation and a short hash suffix for collision resistance — see `skills/aif-qa/SKILL.md` for the full algorithm. `/aif-qa-check` binds results to the tested commit plus working tree digest, or to a manual build identifier when git is unavailable, plus deterministic `test-cases.md` and per-case digests.
 
 **Current schema limits:** `config.yaml` still leaves `.ai-factory/skill-context/` fixed by command contract. `README.md` and `docs-html/` remain fixed by current documentation workflow.
 
@@ -341,7 +341,8 @@ your-project/
 │       └── <branch-slug>/
 │           ├── change-summary.md
 │           ├── test-plan.md
-│           └── test-cases.md
+│           ├── test-cases.md
+│           └── qa-check.md
 ├── .mcp.json                  # MCP servers config (Claude Code project scope)
 ├── .codex/config.toml         # Codex app MCP config when Codex app is selected
 └── .ai-factory.json           # AI Factory config

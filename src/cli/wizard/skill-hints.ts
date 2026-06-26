@@ -18,6 +18,7 @@ const SKILL_HINTS: Record<string, string> = {
     'aif-loop': 'Iterative quality refinement loop',
     'aif-plan': 'Plan tasks for feature',
     'aif-qa': 'QA change-summary, test-plan, test-cases',
+    'aif-qa-check': 'Execute QA cases with human/browser',
     'aif-reference': 'Create knowledge refs from URLs/docs',
     'aif-review': 'Review staged changes/PR',
     'aif-roadmap': 'Roadmap and milestones',

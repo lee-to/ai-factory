@@ -96,6 +96,8 @@ assert_contains "$CREATE_TARGET" '^# Language Settings' "fresh create must prese
 assert_contains "$CREATE_TARGET" '^  ui: ru$' "fresh create must set language.ui"
 assert_contains "$CREATE_TARGET" '^  docs: handbook/$' "fresh create must set overridden docs path"
 assert_contains "$CREATE_TARGET" '^  # QA artifacts root directory$' "fresh create must preserve QA path comments"
+assert_contains "$CREATE_TARGET" '^  # /aif-qa-check stores qa-check\.md here and binds execution results to$' "fresh create must document /aif-qa-check ownership in paths.qa comments"
+assert_contains "$CREATE_TARGET" '^  # digests\.$' "fresh create must document qa-check source digest binding"
 assert_contains "$CREATE_TARGET" '^  qa: \.ai-factory/qa/$' "fresh create must set paths.qa"
 assert_contains "$CREATE_TARGET" '^  archive: \.ai-factory/archive/$' "fresh create must set paths.archive"
 assert_contains "$CREATE_TARGET" '^  base_branch: 2.x$' "fresh create must set git.base_branch"
@@ -176,6 +178,7 @@ EOF
 run_helper "$BACKFILL_PAYLOAD" "$BACKFILL_TARGET"
 
 assert_contains "$BACKFILL_TARGET" '^  # QA artifacts root directory$' "merge must backfill paths.qa comments from template"
+assert_contains "$BACKFILL_TARGET" '^  # /aif-qa-check stores qa-check\.md here and binds execution results to$' "merge must backfill qa-check paths.qa comments from template"
 assert_contains "$BACKFILL_TARGET" '^  qa: \.ai-factory/qa/$' "merge must backfill missing paths.qa"
 
 NOOP_TARGET="$TMPDIR/noop/config.yaml"

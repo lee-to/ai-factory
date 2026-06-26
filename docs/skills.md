@@ -2,7 +2,7 @@
 
 # Core Skills
 
-**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, and `/aif-archive`.
+**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, and `/aif-archive`.
 
 `/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
@@ -631,6 +631,27 @@ For large branches the `change-summary` stage checks commit count (>20) and diff
 The `--all` flag runs all three stages in sequence without inter-stage prompts. If any stage fails, the pipeline stops and reports the failing stage.
 
 - Config policy: config-aware; reads `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`, `git.base_branch`
+
+### `/aif-qa-check [human | agent] [<branch>]`
+
+Executes test cases created by `/aif-qa test-cases` and records results:
+
+```
+/aif-qa-check human          # One manual test case at a time
+/aif-qa-check agent          # Agent runs live browser checks
+/aif-qa-check human feat/x   # Use QA artifacts for a specific branch
+```
+
+Modes:
+
+| Mode | Behavior |
+|------|----------|
+| `human` | Shows one `TC-NNN` case at a time, asks whether it works, checks passed cases, and records failed comments from the user after mandatory redaction of sensitive values |
+| `agent` | User-only live browser execution; prefers the in-app Browser and falls back to Playwright MCP; stops before creating or modifying `qa-check.md` if neither exists; requires explicit authorization for unknown/production targets and destructive or external-side-effect cases |
+
+Results are saved to `paths.qa/<branch-slug>/qa-check.md`. Passed cases are checked, failed or blocked cases stay unchecked with comments. The source `test-cases.md` remains read-only. Current results are bound to the tested commit SHA plus working tree digest, or to a manual build/version identifier when git is unavailable, plus the full `test-cases.md` digest and per-case digests; stale results are not counted as current after the branch, dirty working tree, or source cases change. Browser evidence and human-entered failure comments are redacted before they are persisted.
+
+- Config policy: config-aware; reads `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`
 
 ## See Also
 

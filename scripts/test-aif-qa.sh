@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKILL_DIR="$ROOT_DIR/skills/aif-qa"
+QA_CHECK_SKILL_DIR="$ROOT_DIR/skills/aif-qa-check"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -117,6 +118,26 @@ if [[ "$s1" == "$s2" ]]; then
     pass "slug is deterministic"
 else
     fail "non-deterministic slug: $s1 vs $s2"
+fi
+
+# Test 7: long branches always use the mandatory first-40-ASCII safe slug
+long_branch='feature/this-is-a-very-long-branch-name-that-must-be-truncated-consistently-between-skills'
+long_slug=$(aif_qa_slug "$long_branch")
+long_safe="${long_slug%-????????}"
+if [[ "${#long_safe}" -eq 40 && "$long_slug" =~ -[0-9a-f]{8}$ ]]; then
+    pass "long branch safe slug is exactly 40 ASCII characters: $long_slug"
+else
+    fail "long branch slug must have a 40-character safe part plus hash suffix, got: $long_slug"
+fi
+
+# Test 8: producer (/aif-qa) and consumer (/aif-qa-check) document the same mandatory truncation rule
+if grep -Fq 'MUST truncate to the first 40 ASCII characters' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'MUST truncate `safe_slug` to the first 40 ASCII characters' "$QA_CHECK_SKILL_DIR/SKILL.md" \
+    && grep -Fq 'byte length and character length are identical' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'byte length and character length are identical' "$QA_CHECK_SKILL_DIR/SKILL.md"; then
+    pass "/aif-qa and /aif-qa-check share exact long-branch slug truncation semantics"
+else
+    fail "both /aif-qa and /aif-qa-check must require identical 40-ASCII-character branch slug truncation"
 fi
 
 # ─────────────────────────────────────────────

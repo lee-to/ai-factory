@@ -1683,6 +1683,20 @@ else
     echo "$QA_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
+echo -e "\n${BOLD}=== aif-qa-check skill smoke tests ===${NC}\n"
+
+set +e
+QA_CHECK_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-aif-qa-check.sh" 2>&1)
+QA_CHECK_SMOKE_EXIT=$?
+set -e
+
+if [[ $QA_CHECK_SMOKE_EXIT -eq 0 ]]; then
+    pass "aif-qa-check smoke tests"
+else
+    fail "aif-qa-check smoke tests"
+    echo "$QA_CHECK_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
 # ─────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────

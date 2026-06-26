@@ -119,7 +119,7 @@ If git_enabled = true and the repository is a git work tree:
 Store both values for use in all reference files:
 - `resolved_branch` — the branch being analyzed (used to locate/save artifacts)
 - `artifact_dir` — `<resolved paths.qa>/<branch-slug>`, where `branch-slug` is a deterministic, filesystem-safe, collision-resistant slug derived from `resolved_branch`. Compute it in three steps:
-  1. **Safe slug.** Take `resolved_branch` and replace every character that is not in `[A-Za-z0-9._-]` with `-`, collapse runs of consecutive `-` into a single `-`, and trim leading/trailing `-`. If the result is empty, use `branch`. Optionally truncate to 40 characters. Call this `safe_slug`.
+  1. **Safe slug.** Take `resolved_branch` and replace every character that is not in `[A-Za-z0-9._-]` with `-`, collapse runs of consecutive `-` into a single `-`, and trim leading/trailing `-`. If the result is empty, use `branch`. Then MUST truncate to the first 40 ASCII characters. Because the normalized `safe_slug` alphabet is `[A-Za-z0-9._-]`, byte length and character length are identical. Call this `safe_slug`.
   2. **Hash suffix.** Run `git hash-object --stdin <<< "<resolved_branch>"` and take the **first 8 hex characters** of the output. Call this `hash8`. The hash is derived from the **original, unnormalized** branch name so branches that collapse to the same `safe_slug` still produce different derived slugs in normal use.
   3. **Combine:** `branch-slug = "<safe_slug>-<hash8>"`.
 

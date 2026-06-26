@@ -52,16 +52,16 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
-| `language.ui` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa` | UI language for prompts, questions, and summaries; `/aif` resolves it before downstream setup questions |
-| `language.artifacts` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-fix`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa` | Language for generated or persisted artifacts; `/aif` locks it before the first setup artifact so DESCRIPTION/rules base/AGENTS/ARCHITECTURE stay aligned in one run; workflow artifact writers use it for plans, research, fix plans, patches, references, rules, security ignore state, docs, evolution reports, and QA artifacts, with fallback to `language.ui` |
-| `language.technical_terms` | `keep` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-fix`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa` | Present in schema and template; `/aif` preserves an existing value when present and otherwise writes the default `keep`; artifact-writing skills use it to decide whether human-readable terminology should stay in English, be translated, or use mixed style while preserving commands, paths, identifiers, config keys, package names, API names, and raw errors where required |
+| `language.ui` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | UI language for prompts, questions, and summaries; `/aif` resolves it before downstream setup questions |
+| `language.artifacts` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-fix`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | Language for generated or persisted artifacts; `/aif` locks it before the first setup artifact so DESCRIPTION/rules base/AGENTS/ARCHITECTURE stay aligned in one run; workflow artifact writers use it for plans, research, fix plans, patches, references, rules, security ignore state, docs, evolution reports, and QA artifacts, with fallback to `language.ui` |
+| `language.technical_terms` | `keep` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-fix`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | Present in schema and template; `/aif` preserves an existing value when present and otherwise writes the default `keep`; artifact-writing skills use it to decide whether human-readable terminology should stay in English, be translated, or use mixed style while preserving commands, paths, identifiers, config keys, package names, API names, and raw errors where required |
 
 ### `paths`
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
-| `paths.description` | `.ai-factory/DESCRIPTION.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-docs`, `/aif-qa` | Core project description artifact |
-| `paths.architecture` | `.ai-factory/ARCHITECTURE.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-docs`, `/aif-loop`, `/aif-evolve`, `/aif-qa` | Architecture source of truth |
+| `paths.description` | `.ai-factory/DESCRIPTION.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-docs`, `/aif-qa`, `/aif-qa-check` | Core project description artifact |
+| `paths.architecture` | `.ai-factory/ARCHITECTURE.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-docs`, `/aif-loop`, `/aif-evolve`, `/aif-qa`, `/aif-qa-check` | Architecture source of truth |
 | `paths.docs` | `docs/` | `/aif-docs` | Detailed docs directory; `README.md` stays fixed in project root |
 | `paths.roadmap` | `.ai-factory/ROADMAP.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-loop` | Strategic roadmap artifact |
 | `paths.research` | `.ai-factory/RESEARCH.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-improve`, `/aif-loop` | Persisted exploration context |
@@ -76,7 +76,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `paths.evolution` | `.ai-factory/evolution/` | `/aif-loop` | Reflex loop state root |
 | `paths.specs` | `.ai-factory/specs/` | `/aif-plan`, `/aif-verify` | Specs / archived plan support |
 | `paths.rules` | `.ai-factory/rules/` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-rules` | Area-rules directory and relative rule resolution base |
-| `paths.qa` | `.ai-factory/qa/` | `/aif-qa` | QA artifacts root; branch slug is appended as subdirectory (`<paths.qa>/<branch-slug>/`) |
+| `paths.qa` | `.ai-factory/qa/` | `/aif-qa`, `/aif-qa-check` | QA artifacts root; branch slug is appended as subdirectory (`<paths.qa>/<branch-slug>/`). `/aif-qa` writes `change-summary.md`, `test-plan.md`, and `test-cases.md`; `/aif-qa-check` writes revision/worktree/source-bound `qa-check.md`. |
 | `paths.archive` | `.ai-factory/archive/` | `/aif-archive`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-improve` | Archive directory for completed plans and roadmap snapshots. Subdirectories: `archive/plans/` for archived plan files, `archive/roadmap/` for dated roadmap snapshots. Plans retain original filenames including sequential prefix. |
 
 ### `workflow`
@@ -93,7 +93,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
-| `git.enabled` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-qa` | Disables branch/worktree assumptions when false; `/aif-qa` switches to manual change context instead of git diffing |
+| `git.enabled` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-qa`, `/aif-qa-check` | Disables branch/worktree assumptions when false; `/aif-qa` switches to manual change context instead of git diffing |
 | `git.base_branch` | `main` with auto-detect fallback | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-qa` | Target branch for diff, merge, and verification guidance |
 | `git.create_branches` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-commit` | Full plans may still exist when false; they just skip auto branch creation |
 | `git.branch_prefix` | `feature/` | `/aif`, `/aif-plan` | Prefix for auto-created full-plan branches |
@@ -138,6 +138,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `/aif-security-checklist` | Yes | No | `paths.security`, `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-rules` | Yes | Yes, limited | `paths.rules_file`, `paths.rules`, `language.ui`, `language.artifacts`, `language.technical_terms`; writes only `rules.<area>` registrations and may bootstrap minimal config for first area rule |
 | `/aif-qa` | Yes | No | `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`, `git.base_branch` |
+| `/aif-qa-check` | Yes | No | `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled` |
 | `/aif-archive` | Yes | No | `paths.plans`, `paths.archive`, `paths.plan`, `paths.fix_plan`, `paths.roadmap`, `workflow.plan_id_format`, `language.ui` |
 
 ### Config-Agnostic Built-ins
