@@ -2,7 +2,7 @@
 name: aif-plan
 description: Plan implementation for a feature or task. Two modes — fast (single quick plan) or full (richer plan with optional git branch/worktree flow). Use when user says "plan", "new feature", "start feature", "create tasks".
 argument-hint: "[fast | full] [--parallel | --list | --cleanup <branch>] <description>"
-allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
+allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 version: 1.0.0
 ---
@@ -167,6 +167,7 @@ If any rule is violated — fix the output before presenting it to the user.
 - Prefer the summary over raw notes; use `## Sessions` only when you need deeper rationale
 - If the user omitted the feature description, use `Active Summary -> Topic:` as the default description
 - If any research content influences the plan, the generated plan MUST include `## Research Context` with a `Source:` line pointing to the resolved research artifact and a stable revision marker (`Updated:` timestamp from the research file plus `SHA256:` of the copied Active Summary). Omitting this committed snapshot is a bug because downstream skills treat the embedded Research Context as the plan's requirements and use the live research file only for drift checks.
+- Normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Write that normalized text to a temporary file under `.ai-factory/.tmp/`, then run `shasum -a 256 <tmp-file>`; if `shasum` is unavailable, run `sha256sum <tmp-file>`. Use the first output field as the `SHA256:` value.
 
 ### Step 0.1: Resolve Git State
 
@@ -625,6 +626,7 @@ If the resolved research path exists:
 
 - Include `## Research Context` by copying only the `Active Summary` (do not paste full `Sessions`)
 - Include `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)` so `/aif-implement`, `/aif-verify`, `/aif-improve`, and related consumers know the exact committed research revision
+- Compute the hash from the normalized copied Active Summary exactly as described in Step 0: exclude the `Source:` line and comments, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Run `shasum -a 256 <tmp-file>` or `sha256sum <tmp-file>` and copy the first output field.
 - Treat the copied `Research Context` as the committed requirements snapshot. A later change to `RESEARCH.md` must not override these requirements without an explicit drift warning and user-requested rebase/refinement.
 - Keep it compact; it should be readable as a one-screen requirements snapshot
 

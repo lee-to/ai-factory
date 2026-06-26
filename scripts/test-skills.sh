@@ -1005,6 +1005,21 @@ else
     fail "research-backed plan revision/drift contract missing"
 fi
 
+AIF_PLAN_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_PLAN_SKILL" || true)
+AIF_IMPROVE_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_IMPROVE_SKILL" || true)
+if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
+   && [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
+   && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
+   && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
+   && grep -Fq 'Normalize the copied Active Summary before hashing' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'normalize the copied Active Summary before hashing' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'end with exactly one final newline' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'end with exactly one final newline' "$AIF_IMPROVE_SKILL"; then
+    pass "research-backed plan producers can calculate SHA256 revisions"
+else
+    fail "research-backed plan producers lack SHA256 tools or normalization instructions"
+fi
+
 if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then
     fail "hard-coded English DESCRIPTION placeholder reintroduced in /aif"
 else
