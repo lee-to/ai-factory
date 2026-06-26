@@ -713,6 +713,8 @@ fi
 AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
 AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
 AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
+AIF_PLAN_FORMAT_REF="$ROOT_DIR/skills/aif-plan/references/TASK-FORMAT.md"
+AIF_IMPLEMENT_SKILL="$ROOT_DIR/skills/aif-implement/SKILL.md"
 AIF_IMPROVE_SKILL="$ROOT_DIR/skills/aif-improve/SKILL.md"
 AIF_IMPROVE_CHECK_REF="$ROOT_DIR/skills/aif-improve/references/CHECK-MODE.md"
 AIF_IMPROVE_EXAMPLES_REF="$ROOT_DIR/skills/aif-improve/references/EXAMPLES.md"
@@ -989,6 +991,18 @@ if grep -Fq 'Plan prompts and summaries use `language.ui`; saved plan artifacts 
     pass "docs summarize broadened workflow language policy"
 else
     fail "docs missing broadened workflow language policy"
+fi
+
+if grep -Fq 'stable revision marker (`Updated:` timestamp from the research file plus `SHA256:` of the copied Active Summary)' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Source: .ai-factory/RESEARCH.md (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq 'emit `WARN [research-drift]` and continue using the plan'\''s embedded Research Context as scope' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'emit `WARN [research-drift]` and verify against the plan'\''s embedded Research Context' "$AIF_VERIFY_SKILL" \
+   && grep -Fq 'Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'If an unlinked plan is refined using current research, add `## Research Context`' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'If the resolved research path exists, read it before creating the fix plan.' "$AIF_FIX_SKILL"; then
+    pass "research-backed plan revisions are committed and drift-checked"
+else
+    fail "research-backed plan revision/drift contract missing"
 fi
 
 if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then

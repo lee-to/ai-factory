@@ -84,7 +84,7 @@ Templates and examples define structure, not fixed English output. If `artifact_
 **If the file EXISTS:**
 
 - Read the resolved fix plan file
-- If the fix plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, read that research artifact before executing the plan. Prefer `## Active Summary (input for /aif-plan)` for requirements and constraints; read `## Sessions` only when deeper rationale is needed. Skipping research-backed fix-plan context is a bug.
+- If the fix plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the embedded Research Context as the committed fix requirements snapshot. Read the resolved research artifact before executing the plan only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and execute against the fix plan's embedded Research Context; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase the fix plan.
 - **Immediately check the first line for `<!-- handoff:task:<uuid> -->`:**
   - If found AND `HANDOFF_MODE` is NOT `1` (manual session): extract the task ID. Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`. (Status is `"implementing"` because we are executing an existing plan, not creating one.)
   - If found AND `HANDOFF_MODE` is `1`: the Handoff coordinator handles sync — do nothing.
@@ -190,6 +190,8 @@ Investigate the codebase enough to understand the problem and create a plan.
 
 **Use the same parallel exploration approach as Step 2** — launch Explore agents to investigate the problem area, related code, and past patterns simultaneously.
 
+If the resolved research path exists, read it before creating the fix plan. When the current Active Summary is relevant to the bug or influenced the planned fix, copy the relevant Active Summary into `## Research Context` and include `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`. If research is unrelated, omit the section.
+
 After agents return, synthesize findings to:
 
 1. Identify the root cause (or most likely candidates)
@@ -245,7 +247,7 @@ Step-by-step plan for implementing the fix:
 ## Research Context (optional)
 
 Include only when this fix plan is based on `RESEARCH.md`.
-Source: <resolved research path> (Active Summary)
+Source: <resolved research path> (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
 ```
 
 **After creating the plan, output:**

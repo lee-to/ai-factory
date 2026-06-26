@@ -171,6 +171,8 @@ Audit:
 
 `.ai-factory/RESEARCH.md` is a persisted exploration artifact. Use it to capture constraints, decisions, and open questions during `/aif-explore` so you can `/clear` and still feed the same context into `/aif-plan`.
 
+When research influences a plan, `/aif-plan` copies the relevant Active Summary into `## Research Context`. That embedded copy is the committed requirements snapshot for implementation and verification. The live research file may change later; downstream skills compare the source revision and warn on drift instead of silently applying newer research to an older plan.
+
 Typical structure:
 - `## Active Summary (input for /aif-plan)` — compact, up-to-date snapshot
 - `## Sessions` — append-only history (keep prior notes verbatim)
@@ -194,7 +196,7 @@ Created: 2024-01-15
 - Docs: yes          # /aif-implement shows mandatory docs checkpoint, then routes through /aif-docs
 
 ## Research Context (optional)
-Source: .ai-factory/RESEARCH.md (Active Summary)
+Source: .ai-factory/RESEARCH.md (Active Summary, Updated: 2024-01-15 10:30, SHA256: <active-summary-sha256>)
 Goal: Add OAuth + email login
 Constraints: Must support existing session middleware
 Decisions: Use JWT for API auth

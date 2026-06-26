@@ -145,7 +145,7 @@ Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists:
 - Conventions
 - Non-functional requirements
 
-If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, read that research artifact before proposing refinements. Treat `## Active Summary (input for /aif-plan)` as part of the plan's requirements and constraints; use `## Sessions` only when deeper rationale is needed. Skipping research-backed plan context is a bug.
+If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before proposing refinements only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and refine against the plan's embedded Research Context; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase the plan.
 
 Otherwise, read `.ai-factory/RESEARCH.md` (use path from config) if it exists and is relevant to the plan being refined.
 
@@ -392,6 +392,9 @@ The difference between the two is the report only. `removals` are dead-weight du
 - Remove deleted tasks
 - Update commit checkpoints if task count changed significantly
 - Preserve any `- [x]` checkboxes for already completed tasks
+- Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite, unless the user explicitly asks to rebase the plan to current research
+- If an unlinked plan is refined using current research, add `## Research Context` by copying the relevant Active Summary and write `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`
+- If a linked plan has research drift, keep the committed Research Context and source revision in the plan and include `WARN [research-drift]` in the refinement report
 
 Use `Edit` to make surgical changes to the plan file, or `Write` to regenerate it if changes are extensive.
 

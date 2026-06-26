@@ -238,7 +238,7 @@ ROADMAP.md = strategic checklist of high-level goals
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
-Reads configured `paths.research` when available; if research informs the plan, writes a `Research Context` section with a `Source:` reference to `RESEARCH.md`
+Reads configured `paths.research` when available; if research informs the plan, writes a committed `Research Context` snapshot with a `Source:` reference to `RESEARCH.md` plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
     ↓
 fast → no branch, saves to configured `paths.plan`
 full → creates richer plan, asks: tests? logging? docs?
@@ -279,7 +279,7 @@ Reads skill-context rules first; uses limited recent patch fallback when needed
     ↓
 Finds plan file (branch-named, single named full plan, or fast plan)
     ↓
-If the plan references `RESEARCH.md`, reads configured `paths.research` before executing tasks
+If the plan references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads configured `paths.research` only to detect revision drift before executing tasks
     ↓
 Executes tasks one by one
     ↓
@@ -325,7 +325,7 @@ Writes .ai-factory/qa/<branch-slug>/qa-check.md with checked passed cases and un
     ↓
 Reads .ai-factory/DESCRIPTION.md + skill-context first (+ limited recent patch fallback)
     ↓
-If an existing FIX_PLAN.md references `RESEARCH.md`, reads configured `paths.research` before executing it
+If an existing FIX_PLAN.md references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads configured `paths.research` only to detect revision drift before executing it
     ↓
 Investigates codebase (Glob, Grep, Read)
     ↓
