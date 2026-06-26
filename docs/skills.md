@@ -646,10 +646,10 @@ Modes:
 
 | Mode | Behavior |
 |------|----------|
-| `human` | Shows one `TC-NNN` case at a time, asks whether it works, checks passed cases, and records failed comments from the user |
+| `human` | Shows one `TC-NNN` case at a time, asks whether it works, checks passed cases, and records failed comments from the user after mandatory redaction of sensitive values |
 | `agent` | User-only live browser execution; prefers the in-app Browser and falls back to Playwright MCP; stops before creating or modifying `qa-check.md` if neither exists; requires explicit authorization for unknown/production targets and destructive or external-side-effect cases |
 
-Results are saved to `paths.qa/<branch-slug>/qa-check.md`. Passed cases are checked, failed or blocked cases stay unchecked with comments. The source `test-cases.md` remains read-only. Current results are bound to the tested commit SHA or manual build/version identifier, the full `test-cases.md` digest, and per-case digests; stale results are not counted as current after the branch or source cases change. Browser evidence is redacted before it is persisted.
+Results are saved to `paths.qa/<branch-slug>/qa-check.md`. Passed cases are checked, failed or blocked cases stay unchecked with comments. The source `test-cases.md` remains read-only. Current results are bound to the tested commit SHA plus working tree digest, or to a manual build/version identifier when git is unavailable, plus the full `test-cases.md` digest and per-case digests; stale results are not counted as current after the branch, dirty working tree, or source cases change. Browser evidence and human-entered failure comments are redacted before they are persisted.
 
 - Config policy: config-aware; reads `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`
 

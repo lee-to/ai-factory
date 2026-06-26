@@ -85,28 +85,59 @@ fi
 if grep -Fq 'Redact credentials, cookies, authorization values' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'sensitive URL parameters' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'token`, `access_token`, `refresh_token`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'all human-entered comments/evidence' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'before writing comments or evidence to `qa-check.md`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '[REDACTED]' "$SKILL_DIR/SKILL.md"; then
-    pass "evidence redaction covers credentials, authorization values, and sensitive URL parameters"
+    pass "comment and evidence redaction covers credentials, authorization values, and sensitive URL parameters"
 else
-    fail "agent evidence must redact credentials, authorization values, and sensitive URL parameters"
+    fail "comments and evidence must redact credentials, authorization values, and sensitive URL parameters"
 fi
 
 if grep -Fq '`source_digest`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`case_digests`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`tested_revision`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '`worktree_digest`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`manual_build_id`' "$SKILL_DIR/SKILL.md"; then
-    pass "qa-check binds results to revision/build id and source/case digests"
+    pass "qa-check binds results to revision/build id, worktree, and source/case digests"
 else
-    fail "qa-check must record tested revision or manual build id plus deterministic test-case digests"
+    fail "qa-check must record tested revision or manual build id plus worktree and deterministic test-case digests"
+fi
+
+if grep -Fq 'Normalize line endings from CRLF or CR to LF' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Remove trailing spaces and tabs from each line' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Preserve the original field order' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'BEGIN TC-NNN' "$SKILL_DIR/SKILL.md"; then
+    pass "per-case digest canonicalization is deterministic"
+else
+    fail "per-case digest canonicalization must define line endings, whitespace, field order, and block boundaries"
+fi
+
+if grep -Fq 'git status --porcelain=v1 --untracked-files=all' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'git diff --binary HEAD --' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Exclude `qa_check_path` from the status, diff, and untracked-file digest inputs' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'UNTRACKED <path> <content-digest>' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'If the filtered work tree input is clean, record the digest of the canonical string `clean\n`' "$SKILL_DIR/SKILL.md"; then
+    pass "worktree digest covers dirty working tree state"
+else
+    fail "worktree digest must cover dirty tracked and untracked working tree state"
 fi
 
 if grep -Fq 'If `tested_revision` changed, mark every prior result as `Stale`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'If `worktree_digest` changed, mark every prior result as `Stale`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'If `manual_build_id` changed, treat it the same as a tested revision change' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'If an existing case'\''s digest changed, mark that case `Stale`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'Do not count stale pass/fail/block statuses as current' "$SKILL_DIR/SKILL.md"; then
-    pass "resume marks revision/source changes stale instead of reusing old passes"
+    pass "resume marks revision/worktree/source changes stale instead of reusing old passes"
 else
-    fail "resume must stale prior results when branch revision or source cases change"
+    fail "resume must stale prior results when branch revision, worktree state, or source cases change"
+fi
+
+if grep -Fq 'preserving user wording except mandatory redaction of sensitive values' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'MUST preserve failed-user comment wording except mandatory redaction of sensitive values before writing' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'User failure reason, redacted if sensitive' "$SKILL_DIR/templates/QA-CHECK.md"; then
+    pass "human failed comments preserve wording with mandatory redaction"
+else
+    fail "human failed comments must be redacted before write while preserving user wording"
 fi
 
 if grep -Fq 'persistent writes are limited to `qa-check.md`' "$SKILL_DIR/SKILL.md" \
@@ -127,6 +158,7 @@ fi
 
 if grep -Fq -- '- [ ] TC-001:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Tested revision:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Worktree digest:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Manual build/version identifier:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Source digest:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Case digest:' "$SKILL_DIR/templates/QA-CHECK.md" \

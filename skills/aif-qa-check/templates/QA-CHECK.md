@@ -4,6 +4,7 @@ Source test cases: `[test_cases_path]`
 Branch: `[resolved_branch]`
 Mode: `[human | agent]`
 Tested revision: `[commit SHA | n/a]`
+Worktree digest: `[worktree digest | n/a]`
 Manual build/version identifier: `[manual_build_id | n/a]`
 Source digest: `[test-cases.md digest]`
 Last updated: `[YYYY-MM-DD HH:mm]`
@@ -26,15 +27,16 @@ Last updated: `[YYYY-MM-DD HH:mm]`
   - Type: [Positive / Negative / Edge / Regression]
   - Status: Pending
   - Tester: [human | agent]
-  - Comment: [User failure reason, agent observation, blocker, or blank]
+  - Comment: [User failure reason, redacted if sensitive; agent observation, blocker, or blank]
   - Evidence: [redacted URL, browser observation, screenshot reference, or blank]
 
 ## Stale / Removed Cases
 
 - [ ] TC-000: [Prior Test Case Name]
   - Previous status: [Passed / Failed / Blocked]
-  - Stale reason: [tested revision changed | manual build changed | source digest changed | case digest changed | case removed]
+  - Stale reason: [tested revision changed | worktree digest changed | manual build changed | source digest changed | case digest changed | case removed]
   - Previous tested revision: [commit SHA | n/a]
+  - Previous worktree digest: [worktree digest | n/a]
   - Previous manual build/version identifier: [manual_build_id | n/a]
   - Previous source digest: [digest]
   - Previous case digest: [digest]

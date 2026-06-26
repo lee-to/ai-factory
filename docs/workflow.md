@@ -183,7 +183,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-qa-check` | Execute QA cases manually or through live browser automation | No | `paths.qa/<branch-slug>/qa-check.md` |
 | `/aif-archive` | Archive completed plans and trim closed roadmap milestones | No | `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md` (default: `.ai-factory/archive/`) |
 
-`/aif-qa change-summary` normally derives context from git diffs. When `git.enabled=false` or the target/base refs cannot be resolved locally or through `origin/<base_branch>`, it asks for manual change context instead of failing on git commands. `/aif-qa-check` consumes the resulting `test-cases.md`; human mode asks for one result at a time, and agent mode requires a live Browser or Playwright MCP capability before it creates or modifies `qa-check.md`. QA check results are bound to the tested commit or manual build identifier plus source/case digests, so stale passes are not counted after the branch or test cases change.
+`/aif-qa change-summary` normally derives context from git diffs. When `git.enabled=false` or the target/base refs cannot be resolved locally or through `origin/<base_branch>`, it asks for manual change context instead of failing on git commands. `/aif-qa-check` consumes the resulting `test-cases.md`; human mode asks for one result at a time, and agent mode requires a live Browser or Playwright MCP capability before it creates or modifies `qa-check.md`. QA check results are bound to the tested commit plus worktree digest, or to a manual build identifier when git is unavailable, plus source/case digests, so stale passes are not counted after the branch, dirty working tree, or test cases change.
 
 ## Artifact Ownership and Context Gates
 

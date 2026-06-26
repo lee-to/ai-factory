@@ -58,7 +58,7 @@ The persisted `qa-check.md` artifact MUST be written in `artifact_language`.
 
 Templates define structure, not language. Use the canonical English template in `templates/QA-CHECK.md`. If `artifact_language` is not `en`, translate headings, labels, status text, comments you author, and explanatory text to `artifact_language` before saving. Preserve checkbox syntax, test case IDs (`TC-001`), commands, paths, config keys, URLs, selectors, package names, API names, branch names, and raw error messages.
 
-For `artifact_language = ru`, write human-readable prose, headings, statuses, summaries, and agent-authored comments in Russian. Keep user comments verbatim.
+For `artifact_language = ru`, write human-readable prose, headings, statuses, summaries, and agent-authored comments in Russian. Preserve user wording except mandatory redaction of sensitive values before writing.
 
 Apply `technical_terms_policy` while writing artifacts:
 - `keep` — keep common technical terms such as `browser`, `selector`, `viewport`, `endpoint`, `payload`, `regression`, and `fixture` when clearer
@@ -117,16 +117,35 @@ Read `test-cases.md`. Extract test cases by IDs (`TC-001`, `TC-002`, etc.), titl
 
 Compute source binding metadata before creating or modifying `qa-check.md`:
 - `source_digest` — deterministic digest of the full `test-cases.md` content using `git hash-object --no-filters <test_cases_path>` when available, or `git hash-object --stdin` over the exact file content.
-- `case_digests` — deterministic per-case digest for each extracted `TC-NNN`, computed from that case's normalized block including title, priority, type, preconditions, steps, expected result, and test data.
+- `case_digests` — deterministic per-case digest for each extracted `TC-NNN`, computed from that case's canonical block including title, priority, type, preconditions, steps, expected result, and test data.
 - `tested_revision` — when `git_enabled = true` and the repository is a git work tree, run `git rev-parse HEAD` and record the resolved commit SHA.
+- `worktree_digest` — when `git_enabled = true` and the repository is a git work tree, record a deterministic digest of the current working tree state so dirty-tree QA cannot be reused after local changes without a commit.
 - `manual_build_id` — when `git_enabled = false` or the repository is not a git work tree, ask the user for an explicit build/version identifier before creating or resuming results. Do not accept an empty identifier.
+
+Canonicalize each per-case digest input exactly:
+1. Extract the raw Markdown block from the line containing the case's `TC-NNN` identifier through the line before the next `TC-NNN` block or end of file.
+2. Normalize line endings from CRLF or CR to LF.
+3. Remove trailing spaces and tabs from each line.
+4. Trim leading and trailing blank lines from the extracted block.
+5. Preserve the original field order, bullet markers, indentation, internal blank lines, Markdown punctuation, and all remaining whitespace. Do not sort fields, collapse whitespace, or rewrite bullets.
+6. Wrap the normalized block with raw block boundaries before hashing: `BEGIN TC-NNN\n<normalized block>\nEND TC-NNN\n`.
+7. Hash the wrapped block with `git hash-object --stdin` when available, or another stable SHA-1/SHA-256 digest if git is unavailable.
+
+Compute `worktree_digest` exactly when git is enabled and a git work tree exists:
+1. Capture `git status --porcelain=v1 --untracked-files=all`.
+2. Capture `git diff --binary HEAD --`.
+3. Exclude `qa_check_path` from the status, diff, and untracked-file digest inputs so saving `qa-check.md` does not stale its own results. Do not exclude `test_cases_path`; source changes are also tracked by `source_digest`.
+4. For each untracked file listed by porcelain status except `qa_check_path`, append `UNTRACKED <path> <content-digest>` where `<content-digest>` is `git hash-object --no-filters <path>` when the file is readable.
+5. Normalize line endings in the combined input to LF and hash it with `git hash-object --stdin`.
+6. If the filtered work tree input is clean, record the digest of the canonical string `clean\n`.
 
 If `mode = agent`, perform Step 1.1 before creating or modifying `qa-check.md`. Existing `qa-check.md` may be inspected read-only during this gate.
 
 If `qa-check.md` exists, read it and resume from existing statuses only after comparing stored binding metadata to the current binding metadata:
 - If `tested_revision` changed, mark every prior result as `Stale` and unchecked, preserve prior comments/evidence as historical context, and require retest. Do not count stale pass/fail/block statuses as current.
+- If `worktree_digest` changed, mark every prior result as `Stale` and unchecked, preserve prior comments/evidence as historical context, and require retest. Do not count stale pass/fail/block statuses as current.
 - If `manual_build_id` changed, treat it the same as a tested revision change.
-- If `source_digest` changed, compare `case_digests`. Preserve current status only for cases whose per-case digest is unchanged and whose tested revision/manual build id is unchanged.
+- If `source_digest` changed, compare `case_digests`. Preserve current status only for cases whose per-case digest is unchanged and whose tested revision/manual build id and worktree digest are unchanged.
 - If an existing case's digest changed, mark that case `Stale`, unchecked, and require retest.
 - If a new case appears, add it as unchecked `Pending`.
 - If a prior case no longer exists in `test-cases.md`, keep its historical entry marked `Stale` or move it to an artifact-language "Stale / Removed Cases" section; never count it as current.
@@ -148,7 +167,7 @@ Before executing any case or writing `qa-check.md` in agent mode:
 7. Inspect each case for destructive, irreversible, payment, permission, email, notification, data export, or other external-side-effect steps. Require explicit per-case authorization before executing any such case.
 8. If authorization is denied or unclear, leave the case unchecked, set status to `Blocked`, and write the blocker without executing browser actions.
 
-Evidence redaction is mandatory for agent mode and human-entered evidence:
+Redaction is mandatory for agent comments/evidence and all human-entered comments/evidence:
 - Redact credentials, cookies, authorization values, session tokens, API keys, bearer tokens, basic auth values, one-time codes, and personal secrets.
 - Redact sensitive URL parameters such as `token`, `access_token`, `refresh_token`, `id_token`, `code`, `secret`, `password`, `passwd`, `pwd`, `auth`, `key`, `api_key`, `session`, `sid`, and `jwt`.
 - Replace redacted values with `[REDACTED]` before writing comments or evidence to `qa-check.md`.
@@ -167,7 +186,7 @@ For each case:
    - Does not work / failed
    - Stop for now
 5. If the user says it works, mark the case as checked (`[x]`) in `qa-check.md`, set status to `Passed`, and add the current mode as `human`.
-6. If the user says it failed, keep the checkbox unchecked (`[ ]`), set status to `Failed`, ask for the reason, and write the user's explanation verbatim as the comment.
+6. If the user says it failed, keep the checkbox unchecked (`[ ]`), set status to `Failed`, ask for the reason, and write the user's explanation as the comment while preserving user wording except mandatory redaction of sensitive values.
 7. Save `qa-check.md` after every case so progress survives context resets.
 
 Do not show the next test case until the current one has a result or the user stops.
@@ -218,11 +237,11 @@ If any case failed or is blocked, the next recommended action should be to fix t
 1. MUST NOT run without `test-cases.md`.
 2. MUST show only one case at a time in human mode.
 3. MUST ask the user whether the case works in human mode.
-4. MUST preserve failed-user comments verbatim.
+4. MUST preserve failed-user comment wording except mandatory redaction of sensitive values before writing.
 5. MUST NOT mark a case passed in agent mode without live browser execution.
 6. MUST stop in agent mode when neither in-app Browser nor Playwright MCP is available before creating or modifying `qa-check.md`.
-7. MUST bind current results to `tested_revision` or `manual_build_id`, `source_digest`, and `case_digests`.
-8. MUST mark stale results stale when the tested revision, manual build id, full source digest, or per-case digest changes.
+7. MUST bind current results to (`tested_revision` and `worktree_digest`) or `manual_build_id`, plus `source_digest` and `case_digests`.
+8. MUST mark stale results stale when the tested revision, worktree digest, manual build id, full source digest, or per-case digest changes.
 9. MUST require explicit authorization for production/unknown targets and destructive or external-side-effect cases.
-10. MUST redact credentials, cookies, authorization values, tokens, and sensitive URL parameters before writing evidence.
+10. MUST redact credentials, cookies, authorization values, tokens, and sensitive URL parameters before writing comments or evidence.
 11. MUST save progress after every case.

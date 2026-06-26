@@ -311,11 +311,11 @@ Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + config.yaml for context
     ↓
 Reads .ai-factory/qa/<branch-slug>/test-cases.md and resumes/creates qa-check.md
     ↓
-human → shows one test case at a time, asks whether it works, records pass/fail and user failure comments
+human → shows one test case at a time, asks whether it works, records pass/fail and redacted user failure comments
     ↓
 agent → requires live browser capability; prefers in-app Browser, falls back to Playwright MCP, stops if neither exists
     ↓
-Writes .ai-factory/qa/<branch-slug>/qa-check.md with checked passed cases and unchecked failed/blocked cases
+Writes .ai-factory/qa/<branch-slug>/qa-check.md with checked passed cases and unchecked failed/blocked cases bound to revision plus worktree digest, or manual build id, plus test-case digests
 
 /aif-fix <bug description>
     ↓
