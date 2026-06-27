@@ -200,7 +200,7 @@ Bug fix with optional plan-first mode:
 /aif-fix Something is broken    # Choose "Plan first" when asked
 ```
 - Investigates the codebase, creates `paths.fix_plan` with analysis, fix steps, risks
-- If the fix plan is based on `RESEARCH.md`, records a committed `Research Context` source revision and checks the live research file for drift before executing the plan
+- Includes `Research Context` only when research content influenced the fix plan, records a committed source revision, and checks the live research file only for drift before executing the plan
 - Stops after creating the plan — you review it at your own pace
 - When ready, run without arguments to execute the plan:
 ```

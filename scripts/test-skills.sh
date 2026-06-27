@@ -1010,20 +1010,27 @@ fi
 
 AIF_PLAN_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_PLAN_SKILL" || true)
 AIF_IMPROVE_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_IMPROVE_SKILL" || true)
+AIF_FIX_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_FIX_SKILL" || true)
 if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
    && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
+   && [[ "$AIF_FIX_ALLOWED_TOOLS_LINE" == *'Bash'* ]] \
    && grep -Fq 'Normalize the copied Active Summary before hashing' "$AIF_PLAN_SKILL" \
    && grep -Fq 'normalize the copied Active Summary before hashing' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'normalize the copied Active Summary before hashing' "$AIF_FIX_SKILL" \
    && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_PLAN_SKILL" \
    && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_FIX_SKILL" \
    && ! grep -Fq '.ai-factory/.tmp/' "$AIF_PLAN_SKILL" \
    && ! grep -Fq '.ai-factory/.tmp/' "$AIF_IMPROVE_SKILL" \
+   && ! grep -Fq '.ai-factory/.tmp/' "$AIF_FIX_SKILL" \
    && ! grep -Fq '<tmp-file>' "$AIF_PLAN_SKILL" \
    && ! grep -Fq '<tmp-file>' "$AIF_IMPROVE_SKILL" \
+   && ! grep -Fq '<tmp-file>' "$AIF_FIX_SKILL" \
    && grep -Fq 'end with exactly one final newline' "$AIF_PLAN_SKILL" \
-   && grep -Fq 'end with exactly one final newline' "$AIF_IMPROVE_SKILL"; then
+   && grep -Fq 'end with exactly one final newline' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'end with exactly one final newline' "$AIF_FIX_SKILL"; then
     pass "research-backed plan producers can calculate SHA256 revisions without temp artifacts"
 else
     fail "research-backed plan producers lack SHA256 tools, normalization instructions, or temp-artifact guard"

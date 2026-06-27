@@ -192,6 +192,8 @@ Investigate the codebase enough to understand the problem and create a plan.
 
 If the resolved research path exists, read it before creating the fix plan. When the current Active Summary is relevant to the bug or influenced the planned fix, copy the relevant Active Summary into `## Research Context` and include `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`. If research is unrelated, omit the section.
 
+When adding `## Research Context` to a fix plan, normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
+
 After agents return, synthesize findings to:
 
 1. Identify the root cause (or most likely candidates)
@@ -249,6 +251,8 @@ Step-by-step plan for implementing the fix:
 Include only when this fix plan is based on `RESEARCH.md`.
 Source: <resolved research path> (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
 ```
+
+Compute the hash from the normalized copied Active Summary: exclude the `Source:` line and comments, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
 
 **After creating the plan, output:**
 
