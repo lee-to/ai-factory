@@ -42,7 +42,7 @@ Two modes:
 
 Both modes explore your codebase for patterns, create tasks with dependencies, and include commit checkpoints for 5+ tasks.
 
-If the resolved research artifact exists, `/aif-plan` reads the `Active Summary` and includes it as `Research Context` in the plan. Any plan influenced by `RESEARCH.md` includes a `Source:` reference with revision metadata so downstream skills treat the embedded context as committed requirements and warn if live research has drifted.
+If the resolved research artifact exists, `/aif-plan` may read the `Active Summary` as optional context. It includes `Research Context` only when research content influenced the generated plan. Linked plans include a `Source:` reference with revision metadata so downstream skills treat the embedded context as committed requirements and warn if live research has drifted.
 
 If the resolved roadmap artifact exists, `/aif-plan` may also capture a `Roadmap Linkage` section (milestone name + brief rationale) to make milestone alignment explicit.
 
