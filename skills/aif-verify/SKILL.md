@@ -26,7 +26,7 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 ### 0.0 Load config.yaml
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
-- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.specs`, `paths.rules`, and `paths.archive`
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.specs`, `paths.rules`, and `paths.archive`
 - **verify_mode:** default verification strictness (`strict` | `normal` | `lenient`)
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Rules hierarchy:** the resolved RULES.md path + `rules.base` + named `rules.<area>` entries
@@ -45,6 +45,7 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 
 If config.yaml doesn't exist, use defaults:
 - Paths: `.ai-factory/` for all artifacts
+- research: `.ai-factory/RESEARCH.md`
 - verify_mode: `normal`
 - Rules: RULES.md only
 - `ui_language`: `en`
@@ -118,6 +119,7 @@ Options:
   2. **rules/base.md** — project-specific base conventions
   3. **rules.<area>** — area-specific rule entries resolved from config (for example `rules.api`, `rules.frontend`)
 - Read `.ai-factory/ROADMAP.md` (use path from config) for milestone alignment checks (if present)
+- If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before judging completeness only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and verify against the plan's embedded Research Context; do not fail or expand scope based on the newer Active Summary unless the user explicitly asks to rebase/refine the plan. Skipping this drift check is a verification bug.
 
 **Read `.ai-factory/skill-context/aif-verify/SKILL.md`** — MANDATORY if the file exists.
 

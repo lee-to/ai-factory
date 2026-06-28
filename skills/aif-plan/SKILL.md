@@ -2,7 +2,7 @@
 name: aif-plan
 description: Plan implementation for a feature or task. Two modes — fast (single quick plan) or full (richer plan with optional git branch/worktree flow). Use when user says "plan", "new feature", "start feature", "create tasks".
 argument-hint: "[fast | full] [--parallel | --list | --cleanup <branch>] <description>"
-allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
+allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 version: 1.0.0
 ---
@@ -166,6 +166,9 @@ If any rule is violated — fix the output before presenting it to the user.
 - Carry over constraints/decisions into tasks and plan settings
 - Prefer the summary over raw notes; use `## Sessions` only when you need deeper rationale
 - If the user omitted the feature description, use `Active Summary -> Topic:` as the default description
+- Track whether research content influenced this plan. Set `research_influenced_plan = true` only when the Active Summary supplies the default description or when constraints, decisions, goals, open questions, or session rationale from the research artifact shape the plan scope, tasks, settings, or tradeoffs. If the research artifact exists but is stale or unrelated to the user's requested task, leave `research_influenced_plan = false`, ignore it for plan requirements, and do not add `## Research Context`.
+- If any research content influences the plan, the generated plan MUST include `## Research Context` with a `Source:` line pointing to the resolved research artifact and a stable revision marker (`Updated:` timestamp from the research file plus `SHA256:` of the copied Active Summary). Omitting this plan-owned research copy is a bug because downstream skills treat the embedded Research Context as the plan's authoritative requirements and use the live research file only for drift checks.
+- Normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
 
 ### Step 0.1: Resolve Git State
 
@@ -611,7 +614,7 @@ mkdir -p <configured plans dir>
 - Branch and creation date
 - `Settings` section (Testing, Logging, Docs)
 - `Roadmap Linkage` section (optional, only if the resolved roadmap artifact exists)
-- `Research Context` section (optional, if the resolved research path exists)
+- `Research Context` section (optional, only if research content influenced this plan)
 - `Tasks` section grouped by phases
 - `Commit Plan` section when there are 5+ tasks
 
@@ -620,10 +623,15 @@ If the resolved roadmap artifact exists:
 - If the user linked a milestone, write `## Roadmap Linkage` with `Milestone: "..."` and `Rationale: ...`
 - If the user skipped linkage, write `## Roadmap Linkage` with `Milestone: "none"` and `Rationale: "Skipped by user"`
 
-If the resolved research path exists:
+If research content influenced this plan:
 
 - Include `## Research Context` by copying only the `Active Summary` (do not paste full `Sessions`)
+- Include `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)` so `/aif-implement`, `/aif-verify`, `/aif-improve`, and related consumers know the exact committed research revision
+- Compute the hash from the normalized copied Active Summary exactly as described in Step 0: exclude the `Source:` line and comments, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
+- Treat the copied `Research Context` as the plan-owned authoritative requirements copy. A later change to `RESEARCH.md` must not override these requirements without an explicit drift warning and user-requested rebase/refinement.
 - Keep it compact; it should be readable as a one-screen requirements snapshot
+
+If the resolved research path exists but did not influence this plan, do not include `## Research Context`. An existing `RESEARCH.md` for topic A plus an explicit `/aif-plan` request for unrelated topic B must produce an unlinked plan for topic B.
 
 Use the canonical template in `references/TASK-FORMAT.md` (Plan File Template).
 

@@ -713,6 +713,8 @@ fi
 AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
 AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
 AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
+AIF_PLAN_FORMAT_REF="$ROOT_DIR/skills/aif-plan/references/TASK-FORMAT.md"
+AIF_IMPLEMENT_SKILL="$ROOT_DIR/skills/aif-implement/SKILL.md"
 AIF_IMPROVE_SKILL="$ROOT_DIR/skills/aif-improve/SKILL.md"
 AIF_IMPROVE_CHECK_REF="$ROOT_DIR/skills/aif-improve/references/CHECK-MODE.md"
 AIF_IMPROVE_EXAMPLES_REF="$ROOT_DIR/skills/aif-improve/references/EXAMPLES.md"
@@ -989,6 +991,49 @@ if grep -Fq 'Plan prompts and summaries use `language.ui`; saved plan artifacts 
     pass "docs summarize broadened workflow language policy"
 else
     fail "docs missing broadened workflow language policy"
+fi
+
+if grep -Fq 'stable revision marker (`Updated:` timestamp from the research file plus `SHA256:` of the copied Active Summary)' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Track whether research content influenced this plan.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'If the research artifact exists but is stale or unrelated to the user'\''s requested task, leave `research_influenced_plan = false`' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'An existing `RESEARCH.md` for topic A plus an explicit `/aif-plan` request for unrelated topic B must produce an unlinked plan for topic B.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Source: .ai-factory/RESEARCH.md (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq 'emit `WARN [research-drift]` and continue using the plan'\''s embedded Research Context as scope' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'emit `WARN [research-drift]` and verify against the plan'\''s embedded Research Context' "$AIF_VERIFY_SKILL" \
+   && grep -Fq 'Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'If an unlinked plan is refined using current research, add `## Research Context`' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'If the resolved research path exists, read it before creating the fix plan.' "$AIF_FIX_SKILL"; then
+    pass "research-backed plan revisions are committed and drift-checked"
+else
+    fail "research-backed plan revision/drift contract missing"
+fi
+
+AIF_PLAN_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_PLAN_SKILL" || true)
+AIF_IMPROVE_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_IMPROVE_SKILL" || true)
+AIF_FIX_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_FIX_SKILL" || true)
+if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
+   && [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
+   && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
+   && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
+   && [[ "$AIF_FIX_ALLOWED_TOOLS_LINE" == *'Bash'* ]] \
+   && grep -Fq 'Normalize the copied Active Summary before hashing' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'normalize the copied Active Summary before hashing' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'normalize the copied Active Summary before hashing' "$AIF_FIX_SKILL" \
+   && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_FIX_SKILL" \
+   && ! grep -Fq '.ai-factory/.tmp/' "$AIF_PLAN_SKILL" \
+   && ! grep -Fq '.ai-factory/.tmp/' "$AIF_IMPROVE_SKILL" \
+   && ! grep -Fq '.ai-factory/.tmp/' "$AIF_FIX_SKILL" \
+   && ! grep -Fq '<tmp-file>' "$AIF_PLAN_SKILL" \
+   && ! grep -Fq '<tmp-file>' "$AIF_IMPROVE_SKILL" \
+   && ! grep -Fq '<tmp-file>' "$AIF_FIX_SKILL" \
+   && grep -Fq 'end with exactly one final newline' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'end with exactly one final newline' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'end with exactly one final newline' "$AIF_FIX_SKILL"; then
+    pass "research-backed plan producers can calculate SHA256 revisions without temp artifacts"
+else
+    fail "research-backed plan producers lack SHA256 tools, normalization instructions, or temp-artifact guard"
 fi
 
 if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then

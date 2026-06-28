@@ -47,7 +47,7 @@ When creating a new FIX_PLAN.md: if there is no existing annotation and no Hando
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
-- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.fix_plan`, and `paths.patches`
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, and `paths.patches`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for `FIX_PLAN.md` and patch artifacts, and `language.technical_terms` for human-readable technical terminology in artifacts
 - **Rules:** `rules.base` plus any named `rules.<area>` entries
 
@@ -57,6 +57,7 @@ If config.yaml doesn't exist, use defaults:
 - ARCHITECTURE.md: `.ai-factory/ARCHITECTURE.md`
 - RULES.md: `.ai-factory/RULES.md`
 - rules/: `.ai-factory/rules/`
+- RESEARCH.md: `.ai-factory/RESEARCH.md`
 - FIX_PLAN.md: `.ai-factory/FIX_PLAN.md`
 - patches/: `.ai-factory/patches/`
 - `ui_language`: `en`
@@ -83,6 +84,7 @@ Templates and examples define structure, not fixed English output. If `artifact_
 **If the file EXISTS:**
 
 - Read the resolved fix plan file
+- If the fix plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the embedded Research Context as the committed fix requirements snapshot. Read the resolved research artifact before executing the plan only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and execute against the fix plan's embedded Research Context; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase the fix plan.
 - **Immediately check the first line for `<!-- handoff:task:<uuid> -->`:**
   - If found AND `HANDOFF_MODE` is NOT `1` (manual session): extract the task ID. Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`. (Status is `"implementing"` because we are executing an existing plan, not creating one.)
   - If found AND `HANDOFF_MODE` is `1`: the Handoff coordinator handles sync — do nothing.
@@ -188,6 +190,10 @@ Investigate the codebase enough to understand the problem and create a plan.
 
 **Use the same parallel exploration approach as Step 2** — launch Explore agents to investigate the problem area, related code, and past patterns simultaneously.
 
+If the resolved research path exists, read it before creating the fix plan. When the current Active Summary is relevant to the bug or influenced the planned fix, copy the relevant Active Summary into `## Research Context` and include `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`. If research is unrelated, omit the section.
+
+When adding `## Research Context` to a fix plan, normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
+
 After agents return, synthesize findings to:
 
 1. Identify the root cause (or most likely candidates)
@@ -239,7 +245,14 @@ Step-by-step plan for implementing the fix:
 
 - What tests should be added
 - What edge cases to cover
+
+## Research Context (optional)
+
+Include only when this fix plan is based on `RESEARCH.md`.
+Source: <resolved research path> (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
 ```
+
+Use the normalization and stdin hashing rules from Step 1.1 when filling `SHA256:`.
 
 **After creating the plan, output:**
 

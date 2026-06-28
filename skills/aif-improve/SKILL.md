@@ -2,7 +2,7 @@
 name: aif-improve
 description: Refine an existing implementation plan with a second iteration. Re-analyzes the codebase for gaps, missing tasks, and wrong dependencies. Use after /aif-plan or to improve an /aif-fix plan. Optional +check flag validates refinements via a fresh-context subagent.
 argument-hint: "[--list] [+check] [@plan-file] [improvement prompt or empty for auto-review]"
-allowed-tools: Read Write Edit Glob Grep Bash(git *) Task Agent TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
+allowed-tools: Read Write Edit Glob Grep Bash(git *) Bash(shasum -a 256 *) Bash(sha256sum *) Task Agent TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 ---
 
@@ -145,7 +145,11 @@ Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists:
 - Conventions
 - Non-functional requirements
 
-Read `.ai-factory/RESEARCH.md` (use path from config) if it exists and is relevant to the plan being refined.
+If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before proposing refinements only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and refine against the plan's embedded Research Context; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase the plan.
+
+When adding `## Research Context` to an unlinked plan, normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
+
+Otherwise, read `.ai-factory/RESEARCH.md` (use path from config) if it exists and is relevant to the plan being refined.
 
 **2.3: Read patches (limited fallback)**
 
@@ -390,6 +394,10 @@ The difference between the two is the report only. `removals` are dead-weight du
 - Remove deleted tasks
 - Update commit checkpoints if task count changed significantly
 - Preserve any `- [x]` checkboxes for already completed tasks
+- Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite, unless the user explicitly asks to rebase the plan to current research
+- If an unlinked plan is refined using current research, add `## Research Context` by copying the relevant Active Summary and write `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`
+- Compute that hash from the normalized copied Active Summary: exclude the `Source:` line and comments, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
+- If a linked plan has research drift, keep the committed Research Context and source revision in the plan and include `WARN [research-drift]` in the refinement report
 
 Use `Edit` to make surgical changes to the plan file, or `Write` to regenerate it if changes are extensive.
 

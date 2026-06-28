@@ -37,8 +37,9 @@ Milestone: "[milestone name from ROADMAP.md]"  # or "none"
 Rationale: [1 short sentence]
 
 ## Research Context (optional)
-<!-- If .ai-factory/RESEARCH.md exists, copy/paste the Active Summary here -->
-Source: .ai-factory/RESEARCH.md (Active Summary)
+<!-- Only when .ai-factory/RESEARCH.md content influenced this plan, copy/paste the relevant Active Summary here -->
+Source: .ai-factory/RESEARCH.md (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
+<!-- Required when any RESEARCH.md content influenced this plan. Use the resolved paths.research value if it is configured differently. The copied context is the committed requirements snapshot; downstream skills use the live research file only to warn about revision drift. -->
 
 Goal:
 Constraints:

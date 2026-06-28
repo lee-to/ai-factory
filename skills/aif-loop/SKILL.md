@@ -13,7 +13,7 @@ Run a result-focused iterative loop with strict phase contracts, evaluation rule
 ## Step 0: Load Config
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
-- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, and `paths.evolution`
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.plan`, `paths.plans`, and `paths.evolution`
 - **Language:** `language.ui` for prompts, `language.artifacts` for generated content
 
 If config.yaml doesn't exist, use defaults:

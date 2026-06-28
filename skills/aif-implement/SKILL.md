@@ -470,6 +470,7 @@ Then continue with normal execution using the selected plan file.
 - Commit checkpoints (when to commit)
 - Task dependencies
 - Task checklist format (`- [ ]` / `- [x]`) to keep progress synced
+- Research linkage: if the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before executing tasks only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and continue using the plan's embedded Research Context as scope; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase/refine the plan. A linked plan without `Updated:` or `SHA256:` is a legacy unverified research link, not proof that the current `RESEARCH.md` is still authoritative. Skipping this drift check is a bug.
 
 **Immediately after reading the plan file, check the first line for `<!-- handoff:task:<uuid> -->`:**
 
