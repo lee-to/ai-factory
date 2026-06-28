@@ -252,7 +252,7 @@ Include only when this fix plan is based on `RESEARCH.md`.
 Source: <resolved research path> (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
 ```
 
-Compute the hash from the normalized copied Active Summary: exclude the `Source:` line and comments, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
+Use the normalization and stdin hashing rules from Step 1.1 when filling `SHA256:`.
 
 **After creating the plan, output:**
 

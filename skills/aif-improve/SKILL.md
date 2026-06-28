@@ -2,7 +2,7 @@
 name: aif-improve
 description: Refine an existing implementation plan with a second iteration. Re-analyzes the codebase for gaps, missing tasks, and wrong dependencies. Use after /aif-plan or to improve an /aif-fix plan. Optional +check flag validates refinements via a fresh-context subagent.
 argument-hint: "[--list] [+check] [@plan-file] [improvement prompt or empty for auto-review]"
-allowed-tools: Read Write Edit Glob Grep Bash(git *) Bash(mkdir *) Bash(shasum -a 256 *) Bash(sha256sum *) Task Agent TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
+allowed-tools: Read Write Edit Glob Grep Bash(git *) Bash(shasum -a 256 *) Bash(sha256sum *) Task Agent TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 ---
 
