@@ -522,7 +522,7 @@ AI Factory writes MCP config to `{{settings_file}}`, but the outer settings shap
 
 | Runtime | Write under | Entry shape |
 |---------|-------------|-------------|
-| Standard MCP runtimes (Claude Code, Cursor, Roo Code, Kilo Code, Qwen Code) | `mcpServers.<server>` | `{ "command": "...", "args": [...], "env": {...} }` |
+| Standard MCP runtimes (Claude Code, Cursor, Roo Code, Kilo Code, Qwen Code, Universal / Other) | `mcpServers.<server>` | `{ "command": "...", "args": [...], "env": {...} }` |
 | OpenCode | `mcp.<server>` | `{ "type": "local", "command": ["...", "..."], "environment": {...} }` |
 | GitHub Copilot | `servers.<server>` | `{ "type": "stdio", "command": "...", "args": [...], "env": {...} }` |
 | Codex app | `[mcp_servers.<server>]` in `.codex/config.toml` | `command = "..."`, optional `args = [...]`, credential placeholders as `env_vars = ["VAR"]`, literal values under `[mcp_servers.<server>.env]` |

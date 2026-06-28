@@ -38,7 +38,7 @@ When Claude Code is selected, AI Factory installs bundled Claude agent files int
 
 Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. Slash-command runtimes keep `/aif-*` examples. Because Codex app and Universal both write to `.agents/skills/` with different invocation styles, select one of those runtimes per project.
 
-MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, and Codex app. Other agents get skills installed with correct paths but without MCP auto-configuration.
+MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, Codex app, and Universal / Other. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
 
 ## Your First Project
 

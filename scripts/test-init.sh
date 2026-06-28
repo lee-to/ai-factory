@@ -426,6 +426,15 @@ mkdir -p "$UNIVERSAL_PROJECT_DIR"
 assert_exists "$UNIVERSAL_PROJECT_DIR/.agents/skills/aif/SKILL.md" "Universal must still install aif into repo skills"
 assert_contains "$UNIVERSAL_PROJECT_DIR/.agents/skills/aif/SKILL.md" '`/aif-skill-generator`' "Universal must keep slash invocation examples"
 
+UNIVERSAL_MCP_PROJECT_DIR="$TMPDIR/init-smoke-universal-mcp"
+mkdir -p "$UNIVERSAL_MCP_PROJECT_DIR"
+
+(cd "$UNIVERSAL_MCP_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents universal --skills aif --mcp filesystem,playwright > "$TMPDIR/init-universal-mcp.log" 2>&1)
+
+assert_exists "$UNIVERSAL_MCP_PROJECT_DIR/.mcp.json" "Universal MCP init must write standard .mcp.json"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(!c.mcpServers?.filesystem||!c.mcpServers?.playwright)process.exit(1);" "$UNIVERSAL_MCP_PROJECT_DIR/.mcp.json"
+node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='universal')process.exit(1);if(a.mcp.filesystem!==true||a.mcp.playwright!==true)process.exit(1);" "$UNIVERSAL_MCP_PROJECT_DIR/.ai-factory.json"
+
 CONFLICT_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-universal-conflict"
 mkdir -p "$CONFLICT_PROJECT_DIR"
 if (cd "$CONFLICT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents universal,codex-app --skills aif > "$TMPDIR/init-codex-app-conflict.log" 2>&1); then
@@ -450,6 +459,7 @@ import { pathToFileURL } from 'url';
 
 const promptQueue = [
   { selectedAgents: ['universal', 'codex-app'], selectedSkills: ['aif'] },
+  { configureMcp: false },
   { configureMcp: false },
 ];
 
