@@ -329,9 +329,11 @@ If an existing FIX_PLAN.md references `RESEARCH.md`, treats embedded `Research C
     ↓
 Investigates codebase (Glob, Grep, Read)
     ↓
+When a bug needs test/check coverage, creates or identifies a targeted regression test/check and confirms it reproduces the problem
+    ↓
 Implements fix WITH logging ([FIX] prefix)
     ↓
-Suggests test coverage for the bug
+Reruns the same regression test/check and suggests any useful extra coverage
     ↓
 Creates self-improvement patch in configured `paths.patches/`
     ↓
