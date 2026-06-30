@@ -191,6 +191,7 @@ Bug fix with optional plan-first mode:
 - Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - Investigates codebase to find root cause
 - When a bug needs test/check coverage, creates or identifies a targeted regression test/check before implementation and confirms it reproduces the problem
+- If the pre-fix check passes unexpectedly, records the mismatch; Handoff mode continues only with a safe likely root cause, while manual mode asks whether to proceed or investigate further
 - Applies fix WITH logging (`[FIX]` prefix for easy filtering)
 - Reruns the same regression test/check after the fix, then suggests any useful extra coverage
 - Creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`)

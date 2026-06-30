@@ -223,9 +223,9 @@ What was found during investigation:
 - Affected files and functions
 - Impact scope
 
-## Fix Steps
+## Fix Checklist
 
-Step-by-step plan for implementing the fix:
+Checklist entries for implementing the fix:
 
 1. [ ] Add or identify the targeted regression test/check that should fail before the fix, if a test/check is needed
 2. [ ] Run the targeted regression test/check and confirm it reproduces the reported problem
@@ -327,8 +327,14 @@ This is the default workflow when a test or executable check is needed to valida
 4. Add or update a regression test that encodes the expected behavior from the user's report, not the current implementation.
 5. If no test harness exists or the bug needs runtime/manual reproduction, create or document the narrowest reproducible check available: a script, command, fixture, API call, browser scenario, or manual reproduction command.
 6. Run only the targeted regression test/check first and confirm it fails for the reported reason. This confirms the problem before implementation.
+7. If the targeted regression test/check passes unexpectedly before any fix, treat it as a reproduction mismatch: log the exact command/check, inputs, environment assumptions, and observed result.
 
 **Anti-gaming rule:** Do not tailor the test to the implementation you plan to write. The test must describe the externally expected behavior or the reported failure condition. If the test passes before any fix, either the reproduction is wrong, the bug is stale, or the environment differs; investigate and report that before changing implementation code.
+
+**If the bug does not reproduce before the fix:**
+
+- In `HANDOFF_MODE=1`, do not ask the user. Add a note to the fix plan or working notes that the regression check did not reproduce the reported bug, then continue to Step 3 only when investigation found a plausible root cause that can be fixed safely. If no plausible root cause remains, report the mismatch as blocked/unreproducible and stop without changing implementation code.
+- In manual mode, ask the user whether to proceed with the likely fix, adjust the reproduction, or investigate further before changing implementation code.
 
 Record the targeted command/check and the pre-fix result in your working notes so Step 4 can rerun the same check after the fix.
 
