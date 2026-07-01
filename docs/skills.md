@@ -190,10 +190,9 @@ Bug fix with optional plan-first mode:
 - Asks to choose mode: **Fix now** (immediate) or **Plan first** (review before fixing)
 - Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - Investigates codebase to find root cause
-- When a bug needs test/check coverage, creates or identifies a targeted regression test/check before implementation and confirms it reproduces the problem
-- If the pre-fix check passes unexpectedly, records the mismatch; Handoff mode continues only with a safe likely root cause, while manual mode asks whether to proceed or investigate further
+- When a bug needs regression coverage, follows the Canonical Regression-First Policy before implementation: create or identify a regression check, handle no-regression-check or non-reproducible fallbacks, then preserve the same check for verification
 - Applies fix WITH logging (`[FIX]` prefix for easy filtering)
-- Reruns the same regression test/check after the fix, then suggests any useful extra coverage
+- Reruns the same regression check after the fix when available, then suggests any useful extra coverage
 - Creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`)
 - User-facing fix summaries use `language.ui`; `FIX_PLAN.md` and patch artifacts use `language.artifacts` while preserving `[FIX]`, commands, paths, identifiers, raw errors, and patch tags according to `language.technical_terms`
 
@@ -201,7 +200,7 @@ Bug fix with optional plan-first mode:
 ```
 /aif-fix Something is broken    # Choose "Plan first" when asked
 ```
-- Investigates the codebase, creates `paths.fix_plan` with analysis, fix steps, risks
+- Investigates the codebase, creates `paths.fix_plan` with analysis, fix checklist, risks
 - Includes `Research Context` only when research content influenced the fix plan, records a committed source revision, and checks the live research file only for drift before executing the plan
 - Stops after creating the plan — you review it at your own pace
 - When ready, run without arguments to execute the plan:

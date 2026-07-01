@@ -329,13 +329,11 @@ If an existing FIX_PLAN.md references `RESEARCH.md`, treats embedded `Research C
     ↓
 Investigates codebase (Glob, Grep, Read)
     ↓
-When a bug needs test/check coverage, creates or identifies a targeted regression test/check and confirms it reproduces the problem
-    ↓
-If that check passes unexpectedly before the fix, records the mismatch; Handoff mode proceeds only with a safe likely root cause, while manual mode asks whether to continue or investigate
+When a bug needs regression coverage, follows the Canonical Regression-First Policy: creates or identifies a regression check, handles no-regression-check or non-reproducible fallbacks, then preserves the same check for verification
     ↓
 Implements fix WITH logging ([FIX] prefix)
     ↓
-Reruns the same regression test/check and suggests any useful extra coverage
+Reruns the same regression check when available and suggests any useful extra coverage
     ↓
 Creates self-improvement patch in configured `paths.patches/`
     ↓

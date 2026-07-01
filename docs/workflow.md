@@ -332,8 +332,8 @@ Creates conventional commits from staged changes and runs read-only architecture
 ```
 
 Two modes — choose when you invoke:
-- **Fix now** — investigates, captures a failing regression test/check when needed, handles non-reproducible checks explicitly, fixes with logging, then reruns the same check
-- **Plan first** – creates `paths.fix_plan` with analysis and fix steps, then stops for review
+- **Fix now** — investigates, applies the Canonical Regression-First Policy when needed, fixes with logging, then reruns the same regression check when available
+- **Plan first** – creates `paths.fix_plan` with analysis and fix checklist, then stops for review
 
 When a plan exists, run without arguments to execute:
 ```

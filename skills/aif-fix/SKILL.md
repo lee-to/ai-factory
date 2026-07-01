@@ -1,6 +1,6 @@
 ---
 name: aif-fix
-description: Fix a bug or problem. Supports fix-now or plan-first; no args executes FIX_PLAN.md. When tests/checks are needed, reproduce first with a failing regression check, then implement and rerun it. Adds logging and suggests extra coverage.
+description: Fix a bug or problem. Supports fix-now or plan-first; no args executes FIX_PLAN.md. When a regression check is needed, reproduce first, then implement and rerun it. Adds logging and suggests extra coverage.
 argument-hint: <bug description or error message>
 allowed-tools: Read Write Edit Glob Grep Bash AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
@@ -8,9 +8,29 @@ disable-model-invocation: false
 
 # Fix - Bug Fix Workflow
 
-Fix a specific bug or problem in the codebase. Supports two modes: immediate fix or plan-first approach. The default workflow is regression-first whenever a test or executable check is needed: reproduce the problem with a failing regression test/check, confirm the reported behavior, implement the fix, then verify the same test/check passes.
+Fix a specific bug or problem in the codebase. Supports two modes: immediate fix or plan-first approach. The default workflow is regression-first whenever a regression check is needed: reproduce the problem, confirm the reported behavior, implement the fix, then verify the same check passes.
 
 ## Workflow
+
+### Canonical Regression-First Policy
+
+A **regression check** is the smallest useful test, command, fixture, API call, browser scenario, script, or documented manual/runtime reproduction that proves the reported bug or validates the expected behavior.
+
+When a bug needs regression coverage, every workflow path (fix-now, plan-first, and existing-plan execution) follows this policy:
+
+1. Identify the minimal regression check that should reproduce the issue or encode the expected behavior.
+2. Execute the check before implementation and confirm it fails or reproduces the reported problem.
+3. Implement the smallest fix addressing the root cause.
+4. Re-run the exact same check and confirm it passes.
+5. Only after that, run related existing checks when practical and suggest broader coverage if useful.
+
+Fallback behavior:
+
+- If no automated/executable check is available, document the narrowest manual/runtime reproduction and why no executable check exists. Treat that documented reproduction as the regression check for Step 4 when it can be rerun.
+- If no useful regression check exists at all, record the reason before implementation. In `HANDOFF_MODE=1`, continue only when investigation found a plausible root cause that can be fixed safely; otherwise report the task as blocked/unreproducible and stop without changing implementation code. In manual mode, ask whether to proceed with the likely fix, adjust reproduction, or investigate further.
+- If the pre-fix regression check passes unexpectedly, treat it as a reproduction mismatch: record the command/check, inputs, environment assumptions, and observed result. Then use the same `HANDOFF_MODE=1` or manual-mode fallback above.
+
+Do not duplicate or weaken this policy in later workflow sections. Later steps should reference this section and add only local execution details.
 
 ### Step 0 (pre): Detect Handoff Mode
 
@@ -28,7 +48,7 @@ Bash: printenv HANDOFF_SKIP_REVIEW || true
 
 The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Instead:
 
-- **No interactive questions:** Do not use `AskUserQuestion`. If `$ARGUMENTS` contains `--plan-first`, use "Plan first" mode. Otherwise default to "Fix now" mode. When a test/check is needed for the bug, include a regression-first test/check and logging.
+- **No interactive questions:** Do not use `AskUserQuestion`. If `$ARGUMENTS` contains `--plan-first`, use "Plan first" mode. Otherwise default to "Fix now" mode. When a regression check is needed for the bug, include regression-first handling and logging.
 - **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the fix plan file, before the title. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.** This applies to both Step 1.1 (creating new plan) and any plan rewrite.
 
 #### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session)
@@ -75,7 +95,7 @@ All AskUserQuestion prompts, progress updates, fix summaries, test prompts, and 
 
 Generated `FIX_PLAN.md` and self-improvement patch files under `paths.patches` MUST be written in `artifact_language`.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, analysis text, fix steps, risks, prevention notes, and patch prose before saving. Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, analysis text, fix checklist entries, risks, prevention notes, and patch prose before saving. Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 ### Step 0.1: Check for Existing Fix Plan
 
@@ -92,8 +112,8 @@ Templates and examples define structure, not fixed English output. If `artifact_
 - Inform the user: "Found existing fix plan. Executing fix based on the plan."
 - Skip **Step 1** (problem intake/mode choice), but still run **Step 0.2** to load context
 - Then continue to **Step 2: Investigate the Codebase**, using the plan as your guide
-- Run **Step 2.5: Regression Test or Check** before changing implementation code when a test/check is needed for the bug, even if the existing plan did not include that step
-- Follow the plan sequentially, but preserve the default order: confirm the problem with the targeted regression test/check first, implement the fix, then rerun the same test/check
+- Apply the **Canonical Regression-First Policy** before changing implementation code when a regression check is needed for the bug, even if the existing plan did not include that policy
+- Follow the plan sequentially, but preserve the canonical order: confirm the problem first, implement the fix, then rerun the same regression check
 - After the fix is fully applied and verified in Step 4, **delete** the resolved fix plan file:
   ```bash
   rm <resolved fix plan path>
@@ -227,10 +247,10 @@ What was found during investigation:
 
 Checklist entries for implementing the fix:
 
-1. [ ] Add or identify the targeted regression test/check that should fail before the fix, if a test/check is needed
-2. [ ] Run the targeted regression test/check and confirm it reproduces the reported problem
+1. [ ] Apply the Canonical Regression-First Policy: add or identify the minimal regression check, or record why no useful check exists
+2. [ ] Run the regression check and confirm it reproduces the reported problem, or record the fallback outcome from the policy
 3. [ ] Implement the smallest fix for the root cause
-4. [ ] Rerun the same regression test/check and confirm it passes
+4. [ ] Rerun the same regression check and confirm it passes when a rerunnable check exists
 5. [ ] Run the closest related existing checks when practical
 
 ## Files to Modify
@@ -246,9 +266,9 @@ Checklist entries for implementing the fix:
 
 ## Test Coverage
 
-- Targeted regression test/check to confirm the bug before implementation
+- Minimal regression check to confirm the bug before implementation
 - Command/check to run before and after the fix
-- Additional edge cases worth covering after the targeted regression passes
+- Additional edge cases worth covering after the regression check passes
 
 ## Research Context (optional)
 
@@ -315,28 +335,13 @@ Task(subagent_type: Explore, model: sonnet, prompt:
 - Trace the data flow
 - Check for similar patterns elsewhere
 
-### Step 2.5: Capture a Regression Test or Check
+### Step 2.5: Capture a Regression Check
 
-This is the default workflow when a test or executable check is needed to validate the bug. If the change is a non-bug cleanup, purely static correction, investigation-only request, or there is no useful automated/runtime check available, state why and continue with the normal fix workflow.
-
-**Before changing implementation code:**
-
-1. Decide whether this bug needs a targeted regression test/check to prove the fix. Prefer adding one for behavior bugs, parsing/validation bugs, API/data bugs, crashes, and regressions.
-2. Identify the smallest test or executable check that reproduces the reported problem.
-3. Prefer the project's existing test framework and test location conventions.
-4. Add or update a regression test that encodes the expected behavior from the user's report, not the current implementation.
-5. If no test harness exists or the bug needs runtime/manual reproduction, create or document the narrowest reproducible check available: a script, command, fixture, API call, browser scenario, or manual reproduction command.
-6. Run only the targeted regression test/check first and confirm it fails for the reported reason. This confirms the problem before implementation.
-7. If the targeted regression test/check passes unexpectedly before any fix, treat it as a reproduction mismatch: log the exact command/check, inputs, environment assumptions, and observed result.
+Apply the **Canonical Regression-First Policy** before changing implementation code. Prefer a regression check for behavior bugs, parsing/validation bugs, API/data bugs, crashes, and regressions. If the change is a non-bug cleanup, purely static correction, or investigation-only request, record why the policy does not apply and continue with the normal fix workflow.
 
 **Anti-gaming rule:** Do not tailor the test to the implementation you plan to write. The test must describe the externally expected behavior or the reported failure condition. If the test passes before any fix, either the reproduction is wrong, the bug is stale, or the environment differs; investigate and report that before changing implementation code.
 
-**If the bug does not reproduce before the fix:**
-
-- In `HANDOFF_MODE=1`, do not ask the user. Add a note to the fix plan or working notes that the regression check did not reproduce the reported bug, then continue to Step 3 only when investigation found a plausible root cause that can be fixed safely. If no plausible root cause remains, report the mismatch as blocked/unreproducible and stop without changing implementation code.
-- In manual mode, ask the user whether to proceed with the likely fix, adjust the reproduction, or investigate further before changing implementation code.
-
-Record the targeted command/check and the pre-fix result in your working notes so Step 4 can rerun the same check after the fix.
+Record the selected regression check, pre-fix result, and any fallback decision in your working notes so Step 4 can rerun or revisit the same check after the fix.
 
 ### Step 3: Implement the Fix
 
@@ -371,10 +376,10 @@ try {
 ### Step 4: Verify the Fix
 
 - Check the code compiles/runs
-- If Step 2.5 created or identified a targeted regression test/check, rerun the same test/check and confirm it now passes
+- If Step 2.5 created, identified, or documented a regression check, rerun or revisit the same check and confirm the fixed behavior
 - Verify the logic is correct
 - Ensure no regressions introduced
-- When practical, run the closest existing related test suite after the targeted regression passes
+- When practical, run the closest existing related test suite after the regression check passes
 
 ### Step 5: Suggest Additional Test Coverage
 
@@ -399,7 +404,7 @@ Please test and share any logs if issues persist.
 
 ### Recommended: Add More Test Coverage
 
-If the targeted regression test/check was created in Step 2.5, this bug is now covered. Consider adding broader coverage to prevent nearby regressions:
+If a regression check was created or identified in Step 2.5, this bug is now covered. Consider adding broader coverage to prevent nearby regressions:
 
 \`\`\`typescript
 describe('functionName', () => {
@@ -468,9 +473,9 @@ function fixedFunction(input) {
 
 1. Search for UserProfile component/function
 2. Find where `.name` is accessed
-3. Add a targeted regression test/check for the null user case and confirm it fails
+3. Add a regression check for the null user case and confirm it fails
 4. Add null check with logging
-5. Rerun the same regression test/check and confirm it passes
+5. Rerun the same regression check and confirm it passes
 
 ### Example 2: API Returns Wrong Data
 
@@ -481,9 +486,9 @@ function fixedFunction(input) {
 1. Find orders API endpoint
 2. Trace the query logic
 3. Find the bug (e.g., wrong filter)
-4. Add or identify an integration regression test/check for the authenticated user case and confirm it fails
+4. Add or identify an integration regression check for the authenticated user case and confirm it fails
 5. Fix with logging
-6. Rerun the same regression test/check and confirm it passes
+6. Rerun the same regression check and confirm it passes
 
 ### Example 3: Form Validation Not Working
 
@@ -505,9 +510,9 @@ function fixedFunction(input) {
 3. **Execute mode = follow the plan** - When the resolved fix plan exists, follow it step by step, then delete it
 4. **NO reports** - Don't create summary documents (patches are learning artifacts, not reports)
 5. **ALWAYS log** - Every fix must have logging for feedback
-6. **Regression-first when tests are needed** - When a bug needs test/check coverage, write or identify the failing regression test/check before changing implementation code, confirm the problem, then verify the same test/check passes after the fix
+6. **Regression-first when checks are needed** - When a bug needs regression coverage, follow the Canonical Regression-First Policy before changing implementation code, confirm the problem when reproducible, then verify the same regression check after the fix
 7. **Do not fit tests to implementation** - Regression tests encode the reported/expected behavior, not the internal implementation shape
-8. **ALWAYS suggest additional tests** - Help prevent nearby regressions beyond the required targeted regression check
+8. **ALWAYS suggest additional tests** - Help prevent nearby regressions beyond the required regression check
 9. **Root cause** - Fix the actual problem, not symptoms
 10. **Minimal changes** - Don't refactor unrelated code
 11. **One fix at a time** - Don't scope creep
@@ -525,7 +530,7 @@ function fixedFunction(input) {
 **Issue:** [what was broken]
 **Cause:** [why it was broken]
 **Fix:** [what was changed]
-**Regression check:** [targeted test/check command and result]
+**Regression check:** [command/check and result]
 
 **Files modified:**
 - path/to/file.ts (line X)
