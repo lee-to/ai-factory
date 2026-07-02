@@ -339,7 +339,7 @@ Task(subagent_type: Explore, model: sonnet, prompt:
 
 Apply the **Canonical Regression-First Policy** before changing implementation code. Prefer a regression check for behavior bugs, parsing/validation bugs, API/data bugs, crashes, and regressions. If the change is a non-bug cleanup, purely static correction, or investigation-only request, record why the policy does not apply and continue with the normal fix workflow.
 
-**Anti-gaming rule:** Do not tailor the test to the implementation you plan to write. The test must describe the externally expected behavior or the reported failure condition. If the test passes before any fix, either the reproduction is wrong, the bug is stale, or the environment differs; investigate and report that before changing implementation code.
+**Anti-gaming rule:** Do not tailor the test to the implementation you plan to write. The test must describe the externally expected behavior or the reported failure condition. If the test passes before any fix, either the reproduction is wrong, the bug is stale, or the environment differs; handle that mismatch through the fallback behavior in the Canonical Regression-First Policy before changing implementation code.
 
 Record the selected regression check, pre-fix result, and any fallback decision in your working notes so Step 4 can rerun or revisit the same check after the fix.
 
@@ -530,7 +530,7 @@ function fixedFunction(input) {
 **Issue:** [what was broken]
 **Cause:** [why it was broken]
 **Fix:** [what was changed]
-**Regression check:** [command/check and result]
+**Regression check:** [command/check and result, manual/runtime reproduction result, or "not available: <reason>"]
 
 **Files modified:**
 - path/to/file.ts (line X)

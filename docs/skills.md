@@ -191,6 +191,7 @@ Bug fix with optional plan-first mode:
 - Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - Investigates codebase to find root cause
 - When a bug needs regression coverage, follows the Canonical Regression-First Policy before implementation: create or identify a regression check, handle no-regression-check or non-reproducible fallbacks, then preserve the same check for verification
+- The Canonical Regression-First Policy is defined in `skills/aif-fix/SKILL.md`
 - Applies fix WITH logging (`[FIX]` prefix for easy filtering)
 - Reruns the same regression check after the fix when available, then suggests any useful extra coverage
 - Creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`)

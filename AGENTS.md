@@ -330,6 +330,7 @@ If an existing FIX_PLAN.md references `RESEARCH.md`, treats embedded `Research C
 Investigates codebase (Glob, Grep, Read)
     ↓
 When a bug needs regression coverage, follows the Canonical Regression-First Policy: creates or identifies a regression check, handles no-regression-check or non-reproducible fallbacks, then preserves the same check for verification
+(`Canonical Regression-First Policy` is defined in `skills/aif-fix/SKILL.md`.)
     ↓
 Implements fix WITH logging ([FIX] prefix)
     ↓
