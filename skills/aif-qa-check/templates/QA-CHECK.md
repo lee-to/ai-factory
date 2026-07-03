@@ -30,6 +30,16 @@ Last updated: `[YYYY-MM-DD HH:mm]`
   - Comment: [User failure reason, redacted if sensitive; agent observation, blocker, or blank]
   - Evidence: [redacted URL, browser observation, screenshot reference, or blank]
 
+## Supporting Automated Checks
+
+Automated checks that support one or more `TC-*` results or provide extra QA confidence. Do not count this section as additional `TC-*` execution results.
+
+- [ ] [Check name]
+  - Area: [covered behavior]
+  - Command / filter: `[command]`
+  - Status: [Pending / Passed / Failed / Blocked]
+  - Evidence: [exit code, assertion count, relevant output summary, or blocker]
+
 ## Stale / Removed Cases
 
 - [ ] TC-000: [Prior Test Case Name]

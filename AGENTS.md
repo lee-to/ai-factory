@@ -46,7 +46,7 @@ ai-factory/
 │   ├── aif-rules/              # Project rules and conventions
 │   ├── aif-rules-check/        # Standalone rules compliance gate
 │   ├── aif-qa/                 # QA workflow: change summary → test plan → test cases
-│   ├── aif-qa-check/           # Execute QA cases in human/browser-agent mode
+│   ├── aif-qa-check/           # Execute QA cases in human/automated-agent mode
 │   ├── aif-security-checklist/ # Security audit
 │   ├── aif-skill-generator/    # Generate new skills
 │   └── aif-verify/             # Verify implementation against plan
@@ -85,6 +85,8 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/qa/<branch-slug>/test-plan.md` — QA test plan (from /aif-qa)
 - `.ai-factory/qa/<branch-slug>/test-cases.md` — QA test cases (from /aif-qa)
 - `.ai-factory/qa/<branch-slug>/qa-check.md` — QA execution checklist and results (from /aif-qa-check)
+- `.ai-factory/qa/agent-context.md` — cross-QA reusable non-sensitive automated QA setup facts such as stable URLs, command patterns, login route, selectors, test account role, and seed data patterns (from /aif-qa-check agent)
+- `.ai-factory/qa/agent-history.md` — append-only cross-QA reusable learnings, recurring blockers, resolved setup questions, command patterns, selectors, and navigation notes; not a per-run log (from /aif-qa-check agent)
 - `.ai-factory/evolution/current.json` — active loop pointer (from /aif-loop)
 - `.ai-factory/evolution/<alias>/run.json` — current loop state
 - `.ai-factory/evolution/<alias>/history.jsonl` — loop event history (append-only)
@@ -108,7 +110,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills                                                      |
 | `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor                                                      |
 | `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
-| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results |
+| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results plus root-level `agent-context.md` and `agent-history.md` for automated QA |
 | `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                                      | `/aif-archive`         | archived completed plans and dated roadmap snapshots                                             |
 
 Quality commands (`/aif-rules-check`, `/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
@@ -313,11 +315,17 @@ test-cases     → reads change-summary + test-plan → writes TC-NNN scenarios 
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + config.yaml for context
     ↓
-Reads .ai-factory/qa/<branch-slug>/test-cases.md and resumes/creates qa-check.md
+Reads .ai-factory/qa/agent-context.md + agent-history.md when available, then reads .ai-factory/qa/<branch-slug>/test-cases.md and resumes/creates qa-check.md
     ↓
 human → shows one test case at a time, asks whether it works, records pass/fail and redacted user failure comments
     ↓
-agent → requires live browser capability; prefers in-app Browser, falls back to Playwright MCP, stops if neither exists
+agent → uses browser, CLI, API, automated tests, or file/document checks depending on each case; browser/UI cases require in-app Browser or Playwright MCP
+    ↓
+agent → for browser/UI login or user-state gaps, reuses known test fixtures, creates safe local/test disposable fixtures when authorized/available, or asks the user before blocking
+    ↓
+agent → when URL/login/access/setup/selectors/commands/test filters are missing, asks the user before blocking, writes reusable non-sensitive cross-QA answers to agent-context.md, and appends only recurring reusable learnings to agent-history.md
+    ↓
+agent → if human-verifiable cases remain Blocked, asks whether to continue those eligible cases in human mode before ending; automation-only blocked cases stay routed to tests/commands/context
     ↓
 Writes .ai-factory/qa/<branch-slug>/qa-check.md with checked passed cases and unchecked failed/blocked cases bound to revision plus worktree digest, or manual build id, plus test-case digests
 

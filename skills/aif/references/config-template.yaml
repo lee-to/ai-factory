@@ -111,6 +111,9 @@ paths:
   # /aif-qa-check stores qa-check.md here and binds execution results to
   # the tested revision/build identifier plus deterministic test-cases
   # digests.
+  # /aif-qa-check agent also stores root-level agent-context.md and
+  # agent-history.md with non-sensitive cross-QA setup facts and
+  # recurring learnings; per-run details stay in branch qa-check.md.
   # Both commands use the same deterministic, filesystem-safe derived
   # branch slug as a subdirectory: <qa>/<branch-slug>/
   # The slug uses mandatory 40-character safe-slug truncation plus a short

@@ -644,7 +644,7 @@ Executes test cases created by `/aif-qa test-cases` and records results:
 
 ```
 /aif-qa-check human          # One manual test case at a time
-/aif-qa-check agent          # Agent runs live browser checks
+/aif-qa-check agent          # Agent runs browser, CLI, API, test, or file checks
 /aif-qa-check human feat/x   # Use QA artifacts for a specific branch
 ```
 
@@ -653,9 +653,15 @@ Modes:
 | Mode | Behavior |
 |------|----------|
 | `human` | Shows one `TC-NNN` case at a time, asks whether it works, checks passed cases, and records failed comments from the user after mandatory redaction of sensitive values |
-| `agent` | User-only live browser execution; prefers the in-app Browser and falls back to Playwright MCP; stops before creating or modifying `qa-check.md` if neither exists; requires explicit authorization for unknown/production targets and destructive or external-side-effect cases |
+| `agent` | User-only automated execution through the appropriate surface for each case: browser, CLI, API, automated tests, or file/document checks. Browser/UI cases require live browser execution, preferring the in-app Browser and falling back to Playwright MCP; non-browser cases must not be blocked just because browser automation is unavailable. Reads reusable QA agent context/history first, asks the user for missing URL, login, access, setup, route, selector, command, test filter, or fixture information before blocking recoverable cases, offers human-mode continuation only for human-verifiable blocked cases, and requires explicit authorization for unknown/production targets and destructive or external-side-effect cases |
 
-Results are saved to `paths.qa/<branch-slug>/qa-check.md`. Passed cases are checked, failed or blocked cases stay unchecked with comments. The source `test-cases.md` remains read-only. Current results are bound to the tested commit SHA plus working tree digest, or to a manual build/version identifier when git is unavailable, plus the full `test-cases.md` digest and per-case digests; stale results are not counted as current after the branch, dirty working tree, or source cases change. Browser evidence and human-entered failure comments are redacted before they are persisted.
+Results are saved to `paths.qa/<branch-slug>/qa-check.md`. Passed cases are checked, failed or blocked cases stay unchecked with comments. The source `test-cases.md` remains read-only. Current results are bound to the tested commit SHA plus working tree digest, or to a manual build/version identifier when git is unavailable, plus the full `test-cases.md` digest and per-case digests; stale results are not counted as current after the branch, dirty working tree, or source cases change. Browser evidence, command output summaries, API observations, file checks, and human-entered failure comments are redacted before they are persisted.
+
+Agent mode also maintains `paths.qa/agent-context.md` and `paths.qa/agent-history.md` as cross-QA memory, not per-run logs. `agent-context.md` stores curated non-sensitive facts that unblock future automated QA runs, such as stable target URLs, safe command patterns, reusable test-filter conventions, login route, test account role, seed data patterns, stable selectors, and field IDs. `agent-history.md` is append-only reusable learning for recurring blockers, user answers, resolved friction, command patterns, navigation notes, and selector discoveries. Branch names, QA target paths, `TC-*` mappings, summary counts, assertion totals, one-off command transcripts, and plan-specific claims such as "browser automation is not required" stay in branch-specific `qa-check.md`. Secrets such as passwords, tokens, cookies, authorization headers, one-time codes, and token-bearing URLs must be redacted or omitted.
+
+Internal deterministic checks, such as service-method outputs, cache/materialized data behavior, formula results, raw database invariants, and CLI internals, are treated as automated checks. `/aif-qa-check agent` should find and run an existing narrow test or command for them; when that test passes, the corresponding `TC-*` is marked `Passed` with the command/test evidence. If coverage is missing, it blocks with a missing-automated-coverage note instead of asking a human to manually verify arrays or database values. Human-mode continuation is offered only for blocked cases that are actually human-verifiable.
+
+For browser/UI cases that need login or a specific user state, `/aif-qa-check agent` must resolve a browser test identity before blocking: reuse known safe test accounts, inspect local/test fixtures, create a disposable fixture when the environment is clearly local/test and tooling is available, or ask the user which test credentials/setup to use. Reusable test-only credentials may be saved to `agent-context.md` only with explicit user permission; production or personal credentials, cookies, sessions, and one-time codes are never persisted.
 
 - Config policy: config-aware; reads `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`
 
