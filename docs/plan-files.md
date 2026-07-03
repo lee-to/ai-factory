@@ -184,6 +184,8 @@ Typical structure:
 If `.ai-factory/ROADMAP.md` exists, `/aif-plan` may include a `## Roadmap Linkage` section in the plan file.
 This makes milestone alignment explicit for `/aif-implement` completion marking and `/aif-verify` roadmap gates.
 
+When the user supplies a request to `/aif-plan`, the plan includes `## Original Request` with that request preserved verbatim after command mode/flags are removed. This section is omitted only when the plan is created solely from `RESEARCH.md`; in that case `## Research Context` is the committed source.
+
 **Example plan file:**
 
 ```markdown
@@ -191,6 +193,9 @@ This makes milestone alignment explicit for `/aif-implement` completion marking 
 
 Branch: feature/user-authentication
 Created: 2024-01-15
+
+## Original Request
+Add user authentication with OAuth
 
 ## Settings
 - Testing: no

@@ -239,6 +239,7 @@ ROADMAP.md = strategic checklist of high-level goals
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
 Reads configured `paths.research` when available; if research informs the plan, writes a committed `Research Context` snapshot with a `Source:` reference to `RESEARCH.md` plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
+If the user supplied an explicit planning request, saves it verbatim in the plan file as `Original Request`; omit this only when the plan is created solely from `RESEARCH.md`
     ↓
 fast → no branch, saves to configured `paths.plan`
 full → creates richer plan, asks: tests? logging? docs?

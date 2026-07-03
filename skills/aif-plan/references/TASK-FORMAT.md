@@ -26,6 +26,10 @@ the prefix lives only on the plan file. Fast plans (`paths.plan`) and fix plans
 Branch: [current branch or "none"]
 Created: [date]
 
+## Original Request
+<!-- Required when the user explicitly supplied a planning request. Omit only when the plan was created solely from RESEARCH.md without an explicit user request. Preserve the request verbatim after command mode/flags are removed; do not translate or summarize. -->
+[exact user-provided planning request]
+
 ## Settings
 - Testing: yes/no
 - Logging: verbose/standard/minimal
