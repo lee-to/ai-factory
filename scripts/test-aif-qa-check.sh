@@ -35,7 +35,7 @@ else
 fi
 
 if grep -Fq '| `human` | Human-guided QA |' "$SKILL_DIR/SKILL.md" \
-    && grep -Fq '| `agent` | Browser-agent QA |' "$SKILL_DIR/SKILL.md"; then
+    && grep -Fq '| `agent` | Automated-agent QA |' "$SKILL_DIR/SKILL.md"; then
     pass "SKILL.md documents human and agent modes"
 else
     fail "SKILL.md must document human and agent modes"
@@ -56,26 +56,26 @@ else
     fail "human mode contract missing one-case prompt, required summary question, or incremental save"
 fi
 
-if grep -Fq 'Prefer the in-app Browser capability' "$SKILL_DIR/SKILL.md" \
+if grep -Fq 'Browser automation is REQUIRED for browser/UI-observable cases' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'prefer the in-app Browser capability' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'use Playwright MCP' "$SKILL_DIR/SKILL.md" \
-    && grep -Fq 'If neither is available, STOP' "$SKILL_DIR/SKILL.md" \
-    && grep -Fq 'STOP before creating or modifying `qa-check.md`' "$SKILL_DIR/SKILL.md" \
-    && grep -Fq 'MUST NOT mark a case passed in agent mode without live browser execution' "$SKILL_DIR/SKILL.md"; then
-    pass "agent mode requires live browser execution, fallback order, and no-browser no-write behavior"
+    && grep -Fq 'Continue with other cases that can be verified through CLI, tests, API, or file/document checks' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'MUST NOT block non-browser cases merely because live browser automation is unavailable' "$SKILL_DIR/SKILL.md"; then
+    pass "agent mode requires browser for UI cases while allowing non-browser execution surfaces"
 else
-    fail "agent mode must prefer Browser, fall back to Playwright MCP, and stop without writing when no browser tools exist"
+    fail "agent mode must preserve Browser/Playwright for UI cases and continue non-browser cases without browser tools"
 fi
 
-if grep -Fq 'Step 1.1: Agent Mode Safety Preflight' "$SKILL_DIR/SKILL.md" \
+if grep -Fq 'Step 1.1: Agent Mode Capability and Safety Preflight' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'If `mode = agent`, perform Step 1.1 before creating or modifying `qa-check.md`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'Existing `qa-check.md` may be inspected read-only during this gate' "$SKILL_DIR/SKILL.md"; then
     pass "agent-mode capability gate runs before artifact creation"
 else
-    fail "agent mode must detect browser capability before creating qa-check.md"
+    fail "agent mode must run capability/safety preflight before creating qa-check.md"
 fi
 
 if grep -Fq 'target environment' "$SKILL_DIR/SKILL.md" \
-    && grep -Fq 'Do not execute against `production` or `unknown` targets without explicit user authorization' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'against `production` or `unknown` targets without explicit user authorization' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'Require explicit per-case authorization' "$SKILL_DIR/SKILL.md"; then
     pass "agent mode blocks unknown/production targets and destructive cases without authorization"
 else
