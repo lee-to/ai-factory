@@ -114,10 +114,11 @@ Templates and examples define structure, not fixed English output. If `artifact_
 - Then continue to **Step 2: Investigate the Codebase**, using the plan as your guide
 - Apply the **Canonical Regression-First Policy** before changing implementation code when a regression check is needed for the bug, even if the existing plan did not include that policy
 - Follow the plan sequentially, but preserve the canonical order: confirm the problem first, implement the fix, then rerun the same regression check
-- After the fix is fully applied and verified in Step 4, **delete** the resolved fix plan file:
+- After the fix is fully applied and verified in Step 4, delete the resolved fix plan file **only when it is the default fix plan path** `.ai-factory/FIX_PLAN.md`:
   ```bash
-  rm <resolved fix plan path>
+  rm .ai-factory/FIX_PLAN.md
   ```
+- If the fix plan came from a custom `paths.fix_plan` value, an explicitly supplied custom plan path, or any non-default fix plan location, do **not** delete it. Leave it in place and mention in the final summary that the custom fix plan was preserved.
 - Continue to Step 5 (Additional Test Coverage) and Step 6 (Patch)
 
 **If the file DOES NOT exist AND `$ARGUMENTS` is empty:**
@@ -507,7 +508,7 @@ function fixedFunction(input) {
 
 1. **Check the fix plan first** - Always check the resolved fix plan path before anything else
 2. **Plan mode = plan only** - When user chooses "Plan first", create the plan and STOP. Do NOT fix.
-3. **Execute mode = follow the plan** - When the resolved fix plan exists, follow it step by step, then delete it
+3. **Execute mode = follow the plan** - When the resolved fix plan exists, follow it step by step. Delete it after verified execution only if it is the default `.ai-factory/FIX_PLAN.md`; preserve custom/non-default fix plan files.
 4. **NO reports** - Don't create summary documents (patches are learning artifacts, not reports)
 5. **ALWAYS log** - Every fix must have logging for feedback
 6. **Regression-first when checks are needed** - When a bug needs regression coverage, follow the Canonical Regression-First Policy before changing implementation code, confirm the problem when reproducible, then verify the same regression check after the fix
@@ -648,7 +649,8 @@ Suggest the user to free up context space if needed: `/clear` (full reset) or `/
 
 - ❌ Apply a fix when user chose "Plan first" - only create the fix plan and stop
 - ❌ Skip the fix-plan check at the start
-- ❌ Leave the fix plan after successful fix execution - always delete it
+- ❌ Leave the default `.ai-factory/FIX_PLAN.md` after successful fix execution
+- ❌ Delete custom/non-default fix plan files after execution
 - ❌ Generate reports or summaries (patches are NOT reports — they are learning artifacts)
 - ❌ Refactor unrelated code
 - ❌ Add features while fixing

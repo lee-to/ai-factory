@@ -206,8 +206,9 @@ Bug fix with optional plan-first mode:
 - Stops after creating the plan — you review it at your own pace
 - When ready, run without arguments to execute the plan:
 ```
-/aif-fix                        # Detects the configured fix plan, executes the fix, deletes the plan
+/aif-fix                        # Detects the configured fix plan, executes the fix, deletes only the default FIX_PLAN.md
 ```
+- After successful execution, `/aif-fix` deletes only the default `.ai-factory/FIX_PLAN.md`; custom/non-default fix plan files are preserved.
 
 ### `/aif-evolve [skill-name|"all"]`
 Self-improve skills based on project experience:

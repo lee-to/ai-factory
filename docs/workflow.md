@@ -339,8 +339,10 @@ The Canonical Regression-First Policy is defined in `skills/aif-fix/SKILL.md`.
 
 When a plan exists, run without arguments to execute:
 ```
-/aif-fix    # reads the configured fix plan → applies fix → deletes plan
+/aif-fix    # reads the configured fix plan → applies fix → deletes only default FIX_PLAN.md
 ```
+
+After successful execution, `/aif-fix` deletes only the default `.ai-factory/FIX_PLAN.md`; custom/non-default fix plan files are preserved.
 
 If a fix plan references `RESEARCH.md`, `/aif-fix` executes against the embedded Research Context and checks `paths.research` only for revision drift.
 
