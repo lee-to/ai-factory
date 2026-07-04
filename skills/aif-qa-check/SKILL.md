@@ -204,10 +204,10 @@ Before executing any case or writing `qa-check.md` in agent mode:
    - exact project command, test filter, service startup command, or safe API endpoint needed to continue
 9. Save reusable non-sensitive answers to `<paths.qa>/agent-context.md` immediately only when the answer is general enough to help future QA sets. Append the redacted answer summary to `<paths.qa>/agent-history.md` only when it captures a reusable lesson; otherwise keep it in the branch-specific `qa-check.md` evidence/comment.
 10. Determine and display the target environment, including URL when applicable and inferred environment class: `local`, `development`, `staging`, `test`, `production`, or `unknown`.
-11. Do not execute browser actions, API writes, CLI commands with side effects, database writes, destructive commands, payment, permission, email, notification, data export, or other external-side-effect steps against `production` or `unknown` targets without explicit user authorization immediately before execution. Record only the authorization decision and target class in `agent-history.md`; do not persist broad production authorization for future runs.
+11. Do not execute browser actions, API writes, CLI commands with side effects, database writes, destructive commands, payment, permission, email, notification, data export, or other external-side-effect steps against `production` or `unknown` targets without explicit user authorization immediately before execution. Record the authorization decision and target class in `qa-check.md`. Append it to `agent-history.md` only when it creates a reusable cross-QA policy or recurring authorization lesson; do not persist broad production authorization for future runs.
 12. Inspect each case and proposed command for destructive, irreversible, payment, permission, email, notification, data export, database mutation, service restart, deployment, filesystem deletion, or other external-side-effect risk. Require explicit per-case authorization before executing any such case.
 13. Prefer read-only and test-scoped commands. Do not run destructive shell commands such as `rm`, `git reset`, `git checkout --`, database resets, migrations against shared environments, deploy commands, or cleanup commands that delete user data unless the user explicitly authorizes the exact action.
-14. If authorization is denied or unclear, leave the case unchecked, set status to `Blocked`, and write the blocker without executing the risky action. Append the decision to `agent-history.md`.
+14. If authorization is denied or unclear, leave the case unchecked, set status to `Blocked`, and write the blocker to `qa-check.md` without executing the risky action. Append the decision to `agent-history.md` only when it is a reusable cross-QA lesson, not merely a case-specific denial.
 
 Redaction is mandatory for agent comments/evidence and all human-entered comments/evidence:
 - Redact credentials, cookies, authorization values, session tokens, API keys, bearer tokens, basic auth values, one-time codes, and personal secrets.
@@ -294,7 +294,7 @@ If `mode = agent` and one or more current cases are `Blocked`, split them into h
 - If at least one human-verifiable blocked case exists, ask the user in `ui_language` whether to run those eligible blocked cases now in human-guided mode.
 - If the user agrees, continue in the same invocation using Step 2, but only for eligible blocked cases. Preserve existing agent blocker comments as context and append the human result/comment under the same case.
 - If the user declines or stops, keep those cases unchecked and `Blocked`.
-- In `agent-history.md`, append the handoff decision and, when accepted, summarize which blocked cases were resolved by human mode.
+- Write the handoff decision and any resolved blocked cases to `qa-check.md`. Append to `agent-history.md` only when the handoff revealed a reusable cross-QA lesson.
 
 If any case failed, the next recommended action should be to fix the issue and rerun `/aif-qa-check <mode> <resolved_branch>`.
 
