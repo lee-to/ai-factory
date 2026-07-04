@@ -42,7 +42,7 @@ Two modes:
 
 Both modes explore your codebase for patterns, create tasks with dependencies, and include commit checkpoints for 5+ tasks.
 
-If the user supplied a planning request, `/aif-plan` saves it verbatim in the plan file as `Original Request`. This block is omitted only when the plan is created solely from `RESEARCH.md` without an explicit user request.
+If the user supplied a planning request, `/aif-plan` saves it verbatim in the plan file as `Original Request`. This block is raw source input, not generated artifact prose; downstream plan rewrites must preserve it exactly even when `language.artifacts` differs. It is omitted only when the plan is created solely from `RESEARCH.md` without an explicit user request.
 
 If the resolved research artifact exists, `/aif-plan` may read the `Active Summary` as optional context. It includes `Research Context` only when research content influenced the generated plan. Linked plans include a `Source:` reference with revision metadata so downstream skills treat the embedded context as committed requirements and warn if live research has drifted.
 
@@ -92,6 +92,7 @@ Refine an existing plan with a second iteration:
 - Reads `.ai-factory/config.yaml` for `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - `--list` mode is read-only: shows available plan files and exits
 - Performs deeper codebase analysis than the initial `/aif-plan` planning
+- Treats `## Original Request` as the immutable original intent / scope anchor, preserves it verbatim on every plan edit or regeneration, and does not translate it when `language.artifacts` differs
 - Preserves embedded `Research Context` as committed requirements, checks `paths.research` for revision drift, and adds a source revision when research informs a previously unlinked plan
 - Finds missing tasks (migrations, configs, middleware)
 - Fixes task dependencies and descriptions
@@ -143,6 +144,7 @@ Executes the plan:
 ```
 - **Reads skill-context first** (`.ai-factory/skill-context/aif-implement/SKILL.md`) and only uses limited recent patch fallback when needed
 - Finds plan file (`@plan-file` if provided; otherwise branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan` → redirects to `/aif-fix`)
+- Treats `## Original Request` as useful original scope context while executing the task list and committed `Research Context` as the executable plan inputs
 - Uses embedded `Research Context` as committed scope and checks `paths.research` only for revision drift when the plan has `Research Context` or a `RESEARCH.md` source/reference
 - `--list` mode is read-only: shows available plan files and exits
 - `--without-plan <description>` mode (inline):
@@ -172,6 +174,7 @@ Verifies completed implementation against the plan:
 **Optional step after `/aif-implement`** — when implementation finishes, you'll be asked if you want to verify.
 
 - **Task completion audit** — goes through every task in the plan, uses `Glob`/`Grep`/`Read` to confirm the code actually implements each requirement. Reports `COMPLETE`, `PARTIAL`, or `NOT FOUND` per task
+- **Original request context** — uses `## Original Request` as the original scope context when present, while the task list and committed `Research Context` remain the executable verification inputs
 - **Research-backed plan audit** — verifies against embedded `Research Context` when present, checks `paths.research` for revision drift, and emits `WARN [research-drift]` instead of applying newer Active Summary requirements silently
 - **Build & test check** — runs the project's build command, test suite, and linters on changed files
 - **Consistency checks** — searches for leftover `TODO`/`FIXME`/`HACK`, undocumented environment variables, missing dependencies, plan-vs-code naming drift

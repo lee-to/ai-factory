@@ -179,12 +179,20 @@ Typical structure:
 - `## Active Summary (input for /aif-plan)` — compact, up-to-date snapshot
 - `## Sessions` — append-only history (keep prior notes verbatim)
 
+## Original Request
+
+When the user supplies a request to `/aif-plan`, the plan includes `## Original Request` with the request preserved as raw source input.
+
+Command parsing removes only recognized command tokens in command positions: the leading `fast` or `full` mode token, recognized flags such as `--parallel` and `--list`, and `--cleanup <branch>` when that command path is used. Matching words inside the user's actual request are not removed.
+
+After command tokens are removed, `/aif-plan` trims only outer whitespace introduced by parsing. It preserves internal whitespace, line breaks, wording, casing, and punctuation exactly. Downstream plan rewrites, including `/aif-improve`, must preserve `## Original Request` verbatim and must not translate, summarize, normalize, or rewrite it even when generated plan artifact prose uses another `language.artifacts` value.
+
+This section is omitted only when the plan is created solely from `RESEARCH.md` without an explicit user request; in that case `## Research Context` is the committed source.
+
 ## Roadmap Linkage (Optional)
 
 If `.ai-factory/ROADMAP.md` exists, `/aif-plan` may include a `## Roadmap Linkage` section in the plan file.
 This makes milestone alignment explicit for `/aif-implement` completion marking and `/aif-verify` roadmap gates.
-
-When the user supplies a request to `/aif-plan`, the plan includes `## Original Request` with that request preserved verbatim after command mode/flags are removed. This section is omitted only when the plan is created solely from `RESEARCH.md`; in that case `## Research Context` is the committed source.
 
 **Example plan file:**
 

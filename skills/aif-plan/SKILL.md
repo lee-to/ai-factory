@@ -207,9 +207,12 @@ full        → Full mode (first word)
 
 **Parsing rules:**
 
-- Strip `--parallel`, `--list`, `--cleanup <branch>`, `fast`, `full` from `$ARGUMENTS`
+- Strip only recognized command tokens in command positions from `$ARGUMENTS`:
+  - `fast` or `full` only when used as the leading mode token
+  - recognized control flags `--parallel`, `--list`, and `--cleanup <branch>`
+  - do not remove matching words inside the user's actual request text
 - Remaining text becomes the description
-- Preserve the remaining text verbatim as `original_user_request` when it is non-empty. This is the user's original planning request and MUST be saved into the plan file later.
+- Preserve the remaining text as `original_user_request` when it is non-empty: trim only outer whitespace introduced by command parsing, but keep internal whitespace, line breaks, wording, casing, and punctuation exactly. This is the user's original planning request and MUST be saved into the plan file later.
 - `--list` and `--cleanup` execute immediately and **STOP** (do NOT continue to Step 1+)
 - If `git.enabled = false`, reject `--parallel`, `--list`, and `--cleanup` with a short explanation instead of trying git commands
 - If `--parallel` is set while `git.create_branches = false`, reject it with a short explanation because parallel mode requires branch creation
@@ -222,7 +225,7 @@ full        → Full mode (first word)
 **Original request contract:**
 
 - If the user explicitly supplied a planning request (for example `/aif-plan ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan full ТУТ ЗАПРОС НА ПЛАН`, or an answer to the description prompt), the generated plan MUST include `## Original Request`.
-- `## Original Request` contains the exact user-provided request text after command mode/flags are removed. Do not rewrite, summarize, translate, or normalize its wording, even when `artifact_language` differs.
+- `## Original Request` contains the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed. Do not rewrite, summarize, translate, or normalize its wording, even when `artifact_language` differs.
 - If the description was derived only from `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
 - If the user supplied a request and `RESEARCH.md` also influenced the plan, include both `## Original Request` and `## Research Context`.
 
@@ -630,7 +633,7 @@ mkdir -p <configured plans dir>
 If `original_user_request` is non-empty:
 
 - Write `## Original Request` before `## Settings`
-- Preserve the exact user-provided request text after mode/flag parsing
+- Preserve the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed
 - Do not translate the saved request; it is raw source input, not generated artifact prose
 
 If the resolved roadmap artifact exists:

@@ -239,7 +239,7 @@ ROADMAP.md = strategic checklist of high-level goals
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
 Reads configured `paths.research` when available; if research informs the plan, writes a committed `Research Context` snapshot with a `Source:` reference to `RESEARCH.md` plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
-If the user supplied an explicit planning request, saves it verbatim in the plan file as `Original Request`; omit this only when the plan is created solely from `RESEARCH.md`
+If the user supplied an explicit planning request, saves it in the plan file as `Original Request`; strip only recognized command tokens (`fast`/`full` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
     ↓
 fast → no branch, saves to configured `paths.plan`
 full → creates richer plan, asks: tests? logging? docs?
@@ -253,6 +253,14 @@ Explores codebase
 Creates tasks with TaskCreate
     ↓
 For 5+ tasks: includes commit checkpoints
+
+/aif-improve
+    ↓
+Reads the active plan and treats `## Original Request` as the immutable original intent / scope anchor when present
+    ↓
+Preserves `## Original Request` exactly on any plan edit or regeneration; does not translate, summarize, normalize, or rewrite it even when `language.artifacts` differs
+    ↓
+Uses `## Original Request`, the current task list, and committed `Research Context` to decide whether refinements are in scope or should be reported as out of scope
 
 /aif-loop [new|resume|status|stop|list|history|clean]
     ↓
@@ -279,6 +287,8 @@ Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
 Reads skill-context rules first; uses limited recent patch fallback when needed
     ↓
 Finds plan file (branch-named, single named full plan, or fast plan)
+    ↓
+If the plan contains `## Original Request`, treats it as useful original scope context while executing the task list and committed `Research Context` as the executable plan inputs
     ↓
 If the plan references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads configured `paths.research` only to detect revision drift before executing tasks
     ↓
