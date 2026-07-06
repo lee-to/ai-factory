@@ -8,6 +8,7 @@
   <a href="https://github.com/lee-to/ai-factory/actions/workflows/ci.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/lee-to/ai-factory/ci.yml?branch=2.x&label=tests" alt="Tests" />
   </a>
+  
 </p>
 
 ![logo](https://github.com/lee-to/ai-factory/blob/2.x/art/aif1.jpg)
@@ -108,6 +109,22 @@ Need CLI flags, update/upgrade details, or extension commands? See [Getting Star
 ```
 
 See the full [Development Workflow](docs/workflow.md) with diagram and decision table.
+
+---
+
+## Skills only via skills.sh
+
+<a href="https://www.skills.sh/lee-to/ai-factory">
+<img src="https://img.shields.io/endpoint?url=https://www.skills.sh/api/badge/lee-to/ai-factory" alt="skills.sh" />
+</a>
+
+If you only need the `aif-*` skills without full AI-Factory setup, use:
+
+```bash
+npx skills add lee-to/ai-factory --skill '*'
+```
+
+> **Disclaimer:** This installs only the skill files. CLI commands (`ai-factory init/update/upgrade`), MCP auto-configuration, agent transformers, and the interactive wizard are **not** available. For the full experience, use the [npm installation](#installation) above.
 
 ---
 
