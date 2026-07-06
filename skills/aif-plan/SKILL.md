@@ -113,6 +113,8 @@ Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in 
 
 Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
+Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
+
 **THEN:** Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists to understand:
 
 - Tech stack (language, framework, database, ORM)
@@ -207,16 +209,27 @@ full        → Full mode (first word)
 
 **Parsing rules:**
 
-- Strip `--parallel`, `--list`, `--cleanup <branch>`, `fast`, `full` from `$ARGUMENTS`
+- Strip only recognized command tokens in command positions from `$ARGUMENTS`:
+  - `fast` or `full` only when used as the leading mode token
+  - recognized control flags `--parallel`, `--list`, and `--cleanup <branch>`
+  - do not remove matching words inside the user's actual request text
 - Remaining text becomes the description
+- Preserve the remaining text as `original_user_request` when it is non-empty: trim only outer whitespace introduced by command parsing, but keep internal whitespace, line breaks, wording, casing, and punctuation exactly. This is the user's original planning request and MUST be saved into the plan file later.
 - `--list` and `--cleanup` execute immediately and **STOP** (do NOT continue to Step 1+)
 - If `git.enabled = false`, reject `--parallel`, `--list`, and `--cleanup` with a short explanation instead of trying git commands
 - If `--parallel` is set while `git.create_branches = false`, reject it with a short explanation because parallel mode requires branch creation
 
 **If the description is empty:**
 
-- If the resolved research path exists and its `Active Summary` has a non-empty `Topic:`, default the description to that topic (no extra user input required)
-- Otherwise, ask the user for a short feature description
+- If the resolved research path exists and its `Active Summary` has a non-empty `Topic:`, default the description to that topic (no extra user input required) and leave `original_user_request` empty. Plans created from `RESEARCH.md` without an explicit user request MUST NOT include an `Original Request` section.
+- Otherwise, ask the user for a short feature description. Preserve the user's answer verbatim as `original_user_request` and save it into the plan file later.
+
+**Original request contract:**
+
+- If the user explicitly supplied a planning request (for example `/aif-plan ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan full ТУТ ЗАПРОС НА ПЛАН`, or an answer to the description prompt), the generated plan MUST include `## Original Request`.
+- `## Original Request` contains the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed. Do not rewrite, summarize, translate, or normalize its wording, even when `artifact_language` differs.
+- If the description was derived only from `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
+- If the user supplied a request and `RESEARCH.md` also influenced the plan, include both `## Original Request` and `## Research Context`.
 
 **If `--list` is present**, jump to [--list Subcommand](#--list-subcommand).
 **If `--cleanup` is present**, jump to [--cleanup Subcommand](#--cleanup-subcommand).
@@ -612,11 +625,18 @@ mkdir -p <configured plans dir>
 
 - Title with feature name
 - Branch and creation date
+- `Original Request` section (required when the user explicitly supplied a planning request; omitted when the plan is created solely from `RESEARCH.md`)
 - `Settings` section (Testing, Logging, Docs)
 - `Roadmap Linkage` section (optional, only if the resolved roadmap artifact exists)
 - `Research Context` section (optional, only if research content influenced this plan)
 - `Tasks` section grouped by phases
 - `Commit Plan` section when there are 5+ tasks
+
+If `original_user_request` is non-empty:
+
+- Write `## Original Request` before `## Settings`
+- Preserve the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed
+- Do not translate the saved request; it is raw source input, not generated artifact prose
 
 If the resolved roadmap artifact exists:
 
