@@ -27,7 +27,7 @@ Branch: [current branch or "none"]
 Created: [date]
 
 ## Original Request
-<!-- Required when the user explicitly supplied a planning request. Omit only when the plan was created solely from RESEARCH.md without an explicit user request. Preserve the request verbatim after command mode/flags are removed; do not translate or summarize. -->
+<!-- Required when the user explicitly supplied a planning request. Omit only when the plan was created solely from RESEARCH.md without an explicit user request. Preserve the request after only recognized command tokens in command positions are removed and only outer whitespace is trimmed; do not translate, summarize, normalize, or rewrite it. -->
 [exact user-provided planning request]
 
 ## Settings

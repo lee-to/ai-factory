@@ -113,6 +113,8 @@ Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in 
 
 Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
+Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
+
 **THEN:** Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists to understand:
 
 - Tech stack (language, framework, database, ORM)
