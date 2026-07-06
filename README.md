@@ -8,7 +8,6 @@
   <a href="https://github.com/lee-to/ai-factory/actions/workflows/ci.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/lee-to/ai-factory/ci.yml?branch=2.x&label=tests" alt="Tests" />
   </a>
-  
 </p>
 
 ![logo](https://github.com/lee-to/ai-factory/blob/2.x/art/aif1.jpg)
