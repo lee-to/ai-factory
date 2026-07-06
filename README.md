@@ -111,6 +111,22 @@ See the full [Development Workflow](docs/workflow.md) with diagram and decision 
 
 ---
 
+## Skills only via skills.sh
+
+<a href="https://www.skills.sh/lee-to/ai-factory">
+<img src="https://img.shields.io/endpoint?url=https://www.skills.sh/api/badge/lee-to/ai-factory" alt="skills.sh" />
+</a>
+
+If you only need the `aif-*` skills without full AI-Factory setup, use:
+
+```bash
+npx skills add lee-to/ai-factory --skill '*'
+```
+
+> **Disclaimer:** This installs only the skill files. CLI commands (`ai-factory init/update/upgrade`), MCP auto-configuration, agent transformers, and the interactive wizard are **not** available. For the full experience, use the [npm installation](#installation) above.
+
+---
+
 ## Documentation
 
 | Guide | Description |
