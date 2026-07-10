@@ -165,6 +165,16 @@ codebase conventions, and tech-stack analysis. These rules are tailored to the c
 **Enforcement:** After generating any output artifact, verify it against all skill-context rules.
 If any rule is violated — fix the output before presenting it to the user.
 
+## Finding stage: coverage over filtering
+
+At the finding stage your job is **coverage, not filtering**. Report every issue you find, including ones you are uncertain about or judge low-severity — do not silently drop a finding because it feels minor or you are not fully sure. Filtering happens downstream (the `+check` validator, the human, or the gate's Critical/Suggestion split), never here.
+
+- Uncertain or low-severity findings still get surfaced — place them under **Suggestions** or **Questions** (not **Critical Issues**) and note your confidence in the text.
+- Do not self-censor to satisfy "only high-severity" / "be conservative" framing: investigate fully, then report what you found and let the downstream stage rank it.
+- Keep the Critical-vs-Suggestion split honest (the gate blocks on Criticals) — confidence belongs in the finding text, it never justifies omission.
+
+> Why: Opus 4.8 follows "report only important issues" more literally than earlier models — same investigation depth, but fewer findings converted to output. Coverage-first framing keeps recall up; ranking is a separate step.
+
 ## Review Checklist
 
 ### Correctness
@@ -262,7 +272,7 @@ When the `+check` flag is set, the `aif-gate-result` block is assembled **after*
 - Explain the "why" behind suggestions
 - Provide code examples when helpful
 - Acknowledge good code
-- Prioritize feedback by importance
+- Order feedback by importance — but never drop low-severity findings; surface them as Suggestions (see "Finding stage: coverage over filtering")
 - Ask questions instead of making assumptions
 
 ## Examples
