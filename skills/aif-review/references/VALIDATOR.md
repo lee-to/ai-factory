@@ -19,6 +19,8 @@ The exact diff under review is included verbatim in the "Reviewed diff" section 
 
 The two severity levels — **critical** (merge-blocking) and **suggestion** (non-blocking) — and the rules for moving an item between them are defined in the "Severity rules" section below. Read it before voting on items that might belong in a different section than the one they came in.
 
+Items whose text ends with a `(confidence: low|medium)` marker are the reviewer's self-declared uncertain findings — treat them as your primary verification targets. Verify the claim against the diff with extra rigor and resolve the uncertainty with your verdict: confirm it (`keep`/`modify` — dropping the marker from the corrected text, and promoting per the severity rules if the confirmed impact is merge-blocking) or refute it (`drop`). Never keep such an item merely because it is hedged; hedging is not evidence.
+
 ## Verdicts
 
 For every item in the input list you MUST choose exactly one verdict:

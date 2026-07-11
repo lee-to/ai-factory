@@ -30,6 +30,10 @@ Reclassification with no text change is allowed (text is fine, only the level wa
 
 The validator does NOT reclassify items just to balance the sections or to make the review "feel right". A move requires a concrete reason tied to the actual code or the actual cited behavior.
 
+## Confidence markers
+
+A `(confidence: low|medium)` marker on an item is not a third level and never changes severity semantics: severity reflects the impact of the cited behavior *assuming the finding is true*; confidence is resolved by the validator's verdict (keep/modify/drop), not by demotion. The finding stage parks uncertain items in "Suggestions" regardless of potential impact — so when the validator confirms a marked item whose impact matches the *critical* criteria above, the normal promotion (suggestion → critical) applies. Do not demote a confirmed item because it arrived with a marker, and do not keep an unconfirmed one because it is hedged.
+
 ## Where `aif-gate-result` is computed
 
 How `critical` / `suggestion` items project into the final `aif-gate-result` (`status`, `blockers`, `suggested_next`) is **not** defined here. The single owner of that computation is the **Machine-readable gate result** section of `SKILL.md`; `+check` reuses it via `references/CHECK-MODE.md`. This file only defines the two levels and when to move an item between them.

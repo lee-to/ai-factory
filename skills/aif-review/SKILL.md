@@ -169,11 +169,22 @@ If any rule is violated — fix the output before presenting it to the user.
 
 At the finding stage your job is **coverage, not filtering**. Report every issue you find, including ones you are uncertain about or judge low-severity — do not silently drop a finding because it feels minor or you are not fully sure. Filtering happens downstream (the `+check` validator, the human, or the gate's Critical/Suggestion split), never here.
 
-- Uncertain or low-severity findings still get surfaced — place them under **Suggestions** or **Questions** (not **Critical Issues**) and note your confidence in the text.
+- Uncertain or low-severity findings still get surfaced — as **Suggestions** with an explicit `(confidence: low|medium)` marker (see "Findings taxonomy and the validation boundary" below). Never as **Questions**: uncertainty routes a finding, it never exempts one from validation.
 - Do not self-censor to satisfy "only high-severity" / "be conservative" framing: investigate fully, then report what you found and let the downstream stage rank it.
 - Keep the Critical-vs-Suggestion split honest (the gate blocks on Criticals) — confidence belongs in the finding text, it never justifies omission.
 
 > Why: Opus 4.8 follows "report only important issues" more literally than earlier models — same investigation depth, but fewer findings converted to output. Coverage-first framing keeps recall up; ranking is a separate step.
+
+## Findings taxonomy and the validation boundary
+
+Every item in the review output is either a **finding** or a **non-finding**:
+
+- A **finding** is any claim about the code — a defect, a risk, or an improvement, normally anchored to a file:line. Findings live only in **Critical Issues** or **Suggestions**, and every finding is subject to `+check` validation when the flag is set. There are no exceptions by uncertainty: low confidence changes *where* a finding sits (Suggestions) and *how it is worded* (confidence marker), never *whether* it enters the validated path.
+- A **non-finding** carries no claim about the code: **Questions** (genuinely open questions to the author) and **Positive Notes**. Non-findings are exempt from `+check` — which is exactly why they must never contain findings.
+
+Litmus test: if an item asserts something that could be true or false about the code, it is a finding. When a draft "question" smuggles a claim ("is it intended that X leaks the connection?"), split it: the claim becomes a `(confidence: low)` Suggestion, and only the genuinely open part may stay in Questions.
+
+Uncertain findings end with an explicit marker at the end of the item text: `(confidence: low|medium)`. High confidence is the default and carries no marker. At the finding stage a low-confidence item sits in Suggestions regardless of its potential impact; if `+check` confirms it and the impact is merge-blocking, the normal promotion path (` [+check: promoted from Suggestions]`) moves it to Critical Issues.
 
 ## Review Checklist
 
@@ -236,10 +247,10 @@ Example:
 > Two clients buying the last item both get a confirmation and stock goes negative — the order creation and stock reservation run in separate transactions. `src/services/order.ts:42`. Wrap `OrderService.create` and `InventoryService.reserve` in a shared transaction so the second buyer fails fast with "out of stock".]
 
 ### Suggestions
-[Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug.]
+[Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug. Uncertain findings land here too, ending with a `(confidence: low|medium)` marker — see "Findings taxonomy and the validation boundary".]
 
 ### Questions
-[Free-form clarifications. Path optional, fix optional — these are open questions for the author, not findings.]
+[Free-form clarifications. Path optional, fix optional — these are open questions for the author, never findings (see "Findings taxonomy and the validation boundary").]
 
 ### Positive Notes
 [Free-form acknowledgements of good patterns. No path/fix required.]

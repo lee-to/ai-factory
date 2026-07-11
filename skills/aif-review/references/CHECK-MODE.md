@@ -8,7 +8,7 @@ The two severity levels — **critical** (merge-blocking) and **suggestion** (no
 
 After the full review is produced internally (all sections, including the gate result inputs) but **before** anything is rendered to the user. The validator only adjusts which items reach the user and what the final `aif-gate-result` block reports.
 
-If `+check` is not set, skip this entire procedure — render the review as-is, with no validator-related lines in the output. "Questions", "Positive Notes", and the "Context Gates" block are NOT validated even when `+check` is set; neither are commit-structure findings in commits mode (see Procedure step 1).
+If `+check` is not set, skip this entire procedure — render the review as-is, with no validator-related lines in the output. "Questions", "Positive Notes", and the "Context Gates" block are NOT validated even when `+check` is set — per the validation boundary in `SKILL.md` ("Findings taxonomy and the validation boundary") they are non-findings and carry no claims to verify, which is also why findings must never be placed there; neither are commit-structure findings in commits mode (see Procedure step 1).
 
 ## Procedure
 
