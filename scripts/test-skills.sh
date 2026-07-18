@@ -1291,12 +1291,12 @@ fi
 
 # No hardcoded agent-specific values (must use {{template_vars}})
 # skills_dir patterns
-HARDCODED_SKILLS_DIR=$(grep -rE '\.(claude|cursor|codex|github|gemini|junie|qwen|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+HARDCODED_SKILLS_DIR=$(grep -rE '\.(claude|cursor|codex|github|gemini|junie|qwen|devin|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
 if [[ "$HARDCODED_SKILLS_DIR" -eq 0 ]]; then
     pass "no hardcoded skills_dir in skills/ and subagents/"
 else
     fail "found $HARDCODED_SKILLS_DIR hardcoded skills_dir values (use {{skills_dir}} or {{home_skills_dir}})"
-    grep -rEn '\.(claude|cursor|codex|github|gemini|junie|qwen|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+    grep -rEn '\.(claude|cursor|codex|github|gemini|junie|qwen|devin|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
 fi
 
 # settings_file patterns
@@ -1375,12 +1375,12 @@ else
 fi
 
 # skills_cli_agent_flag patterns
-HARDCODED_AGENT_FLAG=$(grep -rE '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+HARDCODED_AGENT_FLAG=$(grep -rE '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|devin)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
 if [[ "$HARDCODED_AGENT_FLAG" -eq 0 ]]; then
     pass "no hardcoded skills_cli_agent_flag in skills/ and subagents/"
 else
     fail "found $HARDCODED_AGENT_FLAG hardcoded --agent flags (use {{skills_cli_agent_flag}})"
-    grep -rEn '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+    grep -rEn '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|devin)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
 fi
 
 # ─────────────────────────────────────────────
