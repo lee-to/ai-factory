@@ -50,6 +50,18 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    local file="$1"
+    local unexpected="$2"
+    local message="$3"
+
+    if [[ -f "$file" ]] && ! grep -Fq "$unexpected" "$file"; then
+        pass "$message"
+    else
+        fail "$message"
+    fi
+}
+
 extract_last_gate_result() {
     local input_file="$1"
     local output_file="$2"
@@ -204,6 +216,38 @@ done
 assert_contains "$ROOT_DIR/skills/aif-rules-check/SKILL.md" 'PASS` -> `pass`, `WARN` -> `warn`, and `FAIL` -> `fail`' "rules skill documents explicit verdict mapping"
 assert_contains "$ROOT_DIR/skills/aif-rules-check/SKILL.md" 'Do not use `/aif-review` in the JSON `suggested_next.command`' "rules skill separates disallowed review command"
 assert_contains "$ROOT_DIR/skills/aif-security-checklist/SKILL.md" 'Do not append this gate block for the `ignore <item>` writer flow' "security skill documents ignore writer-flow exception"
+
+echo -e "\n${BOLD}=== Review confidence / unverified-blocker contract ===${NC}\n"
+
+REVIEW_SKILL="$ROOT_DIR/skills/aif-review/SKILL.md"
+REVIEW_VALIDATOR="$ROOT_DIR/skills/aif-review/references/VALIDATOR.md"
+REVIEW_SEVERITY="$ROOT_DIR/skills/aif-review/references/SEVERITY.md"
+REVIEW_CHECK_MODE="$ROOT_DIR/skills/aif-review/references/CHECK-MODE.md"
+
+# Severity and confidence stay independent dimensions.
+assert_contains "$REVIEW_SKILL" 'Severity picks the section' "review skill separates severity from confidence"
+assert_contains "$REVIEW_SEVERITY" 'never changes severity semantics' "severity rules keep confidence out of severity"
+
+# An unverified marked critical is reported but does not block.
+assert_contains "$REVIEW_SKILL" 'unverified potential blocker' "review skill defines the unverified-blocker class"
+assert_contains "$REVIEW_SKILL" 'every *unmarked* "Critical Issues" item' "review skill excludes marked criticals from blockers"
+assert_contains "$REVIEW_SKILL" 'never `/aif-commit`' "review skill forbids commit as next step for unverified criticals"
+assert_contains "$DOCS_REF" 'unverified potential blockers' "docs explain the null suggested_next case"
+
+# Only the two literal markers are legal; the pipe form is not example output.
+assert_contains "$REVIEW_SKILL" 'never emit the literal string' "review skill forbids the literal pipe marker"
+assert_not_contains "$REVIEW_VALIDATOR" '(confidence: low|medium)' "validator prompt avoids the literal pipe marker"
+assert_not_contains "$REVIEW_SEVERITY" '(confidence: low|medium)' "severity rules avoid the literal pipe marker"
+
+# A confirmed marked finding must lose its marker, and `keep` cannot do that.
+assert_contains "$REVIEW_VALIDATOR" '`keep` is not valid for a marked item' "validator forbids keep for marked findings"
+assert_contains "$REVIEW_VALIDATOR" 'Not valid for an item carrying a confidence marker' "validator verdict list repeats the keep restriction"
+assert_contains "$REVIEW_CHECK_MODE" 'Do not strip the marker yourself' "check-mode defines the stray-keep fallback"
+assert_contains "$REVIEW_CHECK_MODE" 'Confirmed criticals become blockers' "check-mode promotes confirmed criticals into blockers"
+
+# Only actionable code findings enter the validator.
+assert_contains "$REVIEW_SKILL" 'actionable code finding' "review skill names the validated item class"
+assert_contains "$REVIEW_CHECK_MODE" 'exactly one class of item' "check-mode scopes the validator input"
 
 echo -e "\n${BOLD}=== Gate result docs ===${NC}\n"
 

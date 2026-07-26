@@ -133,13 +133,14 @@ This section is the single owner of `aif-gate-result` computation:
 - Append one final fenced `aif-gate-result` JSON block after the human-readable review.
 - Use `"gate": "review"`.
 - `"status": "pass|warn|fail"` — the more severe (`fail` > `warn` > `pass`) of two independent inputs:
-  - **findings input** — `fail` when any "Critical Issues" item remains (critical correctness, security, data-loss, performance, downstream regression — see `references/SEVERITY.md` for the authoritative critical/suggestion definitions); `warn` when only "Suggestions", missing optional context, or review uncertainty remain; `pass` when nothing material remains.
+  - **findings input** — `fail` when any *confirmed* "Critical Issues" item remains (critical correctness, security, data-loss, performance, downstream regression — see `references/SEVERITY.md` for the authoritative critical/suggestion definitions); `warn` when only "Suggestions", unverified critical findings (see below), missing optional context, or review uncertainty remain; `pass` when nothing material remains.
   - **context-gate input** — `fail` for a blocking (`ERROR`) gate finding; `warn` for a non-blocking (`WARN`) one; `pass` when none.
   - A failing context gate keeps `"status"` at `fail` even with zero Critical Issues — a clean findings list must never mask a failed gate.
+- **Unverified critical findings.** A "Critical Issues" item still carrying a `(confidence: low)` or `(confidence: medium)` marker is an *unverified potential blocker*: severity places it in Critical Issues by impact, but an unconfirmed claim must not block a merge by itself. Such an item does **not** enter `"blockers"` and does **not** push `"status"` to `fail`. When unverified criticals are the only material findings left, `"status"` is `warn`, and `"suggested_next.command"` is `null` with a `"reason"` that names them and points at `/aif-review +check` — never `/aif-commit`, because the change is not cleared for commit until they are resolved. Once `+check` confirms one the marker is gone and it counts as a normal blocker; a refuted one is dropped entirely.
 - `"blocking": true|false` — `true` only when `"status"` is `fail`.
-- `"blockers"` — merge-blocking findings only: every "Critical Issues" item and every blocking context-gate finding, nothing else.
+- `"blockers"` — merge-blocking findings only: every *unmarked* "Critical Issues" item and every blocking context-gate finding, nothing else.
 - `"affected_files"` — reviewed or implicated paths.
-- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`; `null` only when no command fits.
+- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`, except for the unverified-criticals case above, which uses `null`.
 
 `/aif-review` is read-only for context artifacts by default. Do not modify context files unless user explicitly asks.
 
@@ -167,24 +168,38 @@ If any rule is violated — fix the output before presenting it to the user.
 
 ## Finding stage: coverage over filtering
 
-At the finding stage your job is **coverage, not filtering**. Report every issue you find, including ones you are uncertain about or judge low-severity — do not silently drop a finding because it feels minor or you are not fully sure. Filtering happens downstream (the `+check` validator, the human, or the gate's Critical/Suggestion split), never here.
+At the finding stage your job is **coverage, not filtering**. Report every issue you find, including ones you are uncertain about or judge low-severity — do not omit a finding because it feels minor or you are not fully sure. Filtering happens downstream (the `+check` validator, the human, or the gate's Critical/Suggestion split), never here.
 
-- Uncertain or low-severity findings still get surfaced — as **Suggestions** with an explicit `(confidence: low|medium)` marker (see "Findings taxonomy and the validation boundary" below). Never as **Questions**: uncertainty routes a finding, it never exempts one from validation.
+- Uncertain findings still get surfaced — in the section their **impact** warrants, carrying an explicit confidence marker (see "Findings taxonomy and the validation boundary" below). Never in **Questions**: uncertainty marks a finding, it never exempts one from validation.
 - Do not self-censor to satisfy "only high-severity" / "be conservative" framing: investigate fully, then report what you found and let the downstream stage rank it.
-- Keep the Critical-vs-Suggestion split honest (the gate blocks on Criticals) — confidence belongs in the finding text, it never justifies omission.
+- Keep the Critical-vs-Suggestion split honest (the gate blocks on confirmed Criticals) — confidence belongs in the finding text, it never justifies omission or demotion.
 
 > Why: Opus 4.8 follows "report only important issues" more literally than earlier models — same investigation depth, but fewer findings converted to output. Coverage-first framing keeps recall up; ranking is a separate step.
 
 ## Findings taxonomy and the validation boundary
 
-Every item in the review output is either a **finding** or a **non-finding**:
+Every item in the review output belongs to exactly one class. The class decides where the item is rendered and whether `+check` validates it:
 
-- A **finding** is any claim about the code — a defect, a risk, or an improvement, normally anchored to a file:line. Findings live only in **Critical Issues** or **Suggestions**, and every finding is subject to `+check` validation when the flag is set. There are no exceptions by uncertainty: low confidence changes *where* a finding sits (Suggestions) and *how it is worded* (confidence marker), never *whether* it enters the validated path.
-- A **non-finding** carries no claim about the code: **Questions** (genuinely open questions to the author) and **Positive Notes**. Non-findings are exempt from `+check` — which is exactly why they must never contain findings.
+| Class | Rendered in | Validated by `+check` |
+|---|---|---|
+| **actionable code finding** — a claim about the reviewed change: defect, risk, or improvement, normally anchored to `file:line` | Critical Issues or Suggestions | yes |
+| **context-gate finding** — architecture / roadmap / rules drift | Context Gates | no |
+| **commit-structure finding** — commit-message accuracy or atomicity (commits mode) | inline in the review | no |
+| **non-actionable observation** — acknowledgement of a good pattern | Positive Notes | no |
+| **genuinely open clarification** — carries no claim of its own | Questions | no |
 
-Litmus test: if an item asserts something that could be true or false about the code, it is a finding. When a draft "question" smuggles a claim ("is it intended that X leaks the connection?"), split it: the claim becomes a `(confidence: low)` Suggestion, and only the genuinely open part may stay in Questions.
+The invariant that matters: **an actionable code finding is never rendered outside Critical Issues or Suggestions**, so it always enters the validated path when `+check` is set. The other classes are exempt because the validator's input cannot adjudicate them — it receives the reviewed diff, not the architecture/rules artifacts (context gates) and not per-commit boundaries (the commits-mode diff is squashed). The exemption is a limit of the validator's evidence, not an escape hatch: a claim about the changed code belongs in the validated path however it is phrased.
 
-Uncertain findings end with an explicit marker at the end of the item text: `(confidence: low|medium)`. High confidence is the default and carries no marker. At the finding stage a low-confidence item sits in Suggestions regardless of its potential impact; if `+check` confirms it and the impact is merge-blocking, the normal promotion path (` [+check: promoted from Suggestions]`) moves it to Critical Issues.
+Litmus test: if an item asserts something about the reviewed change that could be true or false, it is an actionable code finding. When a draft "question" smuggles such a claim ("is it intended that X leaks the connection?"), split it: the claim becomes a finding with a confidence marker, and only the genuinely open part may stay in Questions.
+
+### Confidence markers
+
+Confidence and severity are independent dimensions:
+
+- **Severity picks the section** — by the impact of the cited behavior *assuming the finding is true*. A potential merge-blocker sits in Critical Issues even when you are unsure it is real; a well-established nitpick sits in Suggestions.
+- **Confidence marks the text** — an uncertain finding ends with exactly one of `(confidence: low)` or `(confidence: medium)`. High confidence is the default and carries no marker; never emit the literal string `(confidence: low|medium)`.
+
+An unverified marked finding in Critical Issues does not block on its own — see "Machine-readable gate result" for how the gate treats it. `+check` resolves the marker: the validator confirms the finding (returning the corrected text without the marker) or drops it.
 
 ## Review Checklist
 
@@ -244,10 +259,13 @@ Uncertain findings end with an explicit marker at the end of the item text: `(co
 4. Suggested fix — concrete edit that addresses the behavior above.
 
 Example:
-> Two clients buying the last item both get a confirmation and stock goes negative — the order creation and stock reservation run in separate transactions. `src/services/order.ts:42`. Wrap `OrderService.create` and `InventoryService.reserve` in a shared transaction so the second buyer fails fast with "out of stock".]
+> Two clients buying the last item both get a confirmation and stock goes negative — the order creation and stock reservation run in separate transactions. `src/services/order.ts:42`. Wrap `OrderService.create` and `InventoryService.reserve` in a shared transaction so the second buyer fails fast with "out of stock".
+]
 
 ### Suggestions
-[Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug. Uncertain findings land here too, ending with a `(confidence: low|medium)` marker — see "Findings taxonomy and the validation boundary".]
+[Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug.
+
+In either findings section, an item you are not sure about ends with a `(confidence: low)` or `(confidence: medium)` marker — the section still follows impact, not certainty (see "Findings taxonomy and the validation boundary").]
 
 ### Questions
 [Free-form clarifications. Path optional, fix optional — these are open questions for the author, never findings (see "Findings taxonomy and the validation boundary").]

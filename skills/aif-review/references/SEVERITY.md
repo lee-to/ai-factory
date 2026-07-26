@@ -32,7 +32,9 @@ The validator does NOT reclassify items just to balance the sections or to make 
 
 ## Confidence markers
 
-A `(confidence: low|medium)` marker on an item is not a third level and never changes severity semantics: severity reflects the impact of the cited behavior *assuming the finding is true*; confidence is resolved by the validator's verdict (keep/modify/drop), not by demotion. The finding stage parks uncertain items in "Suggestions" regardless of potential impact — so when the validator confirms a marked item whose impact matches the *critical* criteria above, the normal promotion (suggestion → critical) applies. Do not demote a confirmed item because it arrived with a marker, and do not keep an unconfirmed one because it is hedged.
+A `(confidence: low)` / `(confidence: medium)` marker on an item is not a third level and never changes severity semantics: severity reflects the impact of the cited behavior *assuming the finding is true*, so an uncertain potential blocker is filed as **critical** and a well-established nitpick as **suggestion**. Uncertainty is resolved by the validator's verdict (`modify` to confirm, `drop` to refute), never by demotion: do not demote a confirmed item because it arrived with a marker, and do not keep an unconfirmed one because it is hedged.
+
+How an unresolved marked critical projects into `aif-gate-result` — reported in "Critical Issues", but not counted as a blocker until confirmed — is defined by the owner of that projection (see below).
 
 ## Where `aif-gate-result` is computed
 

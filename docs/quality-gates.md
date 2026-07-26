@@ -45,6 +45,7 @@ Rules:
 - `blockers[].severity` uses `error` or `warning`; security `critical`/`high` maps to `error`, while `medium`/`low` normally remains a non-blocking human warning.
 - `affected_files` is a predictable top-level array of files the gate actually evaluated or cited. It is not limited to blocker files. Use `[]` when no files apply.
 - `suggested_next.command` is selected from the global allowlist: `/aif-fix`, `/aif-rules`, `/aif-architecture`, `/aif-roadmap`, `/aif-commit`, or `null`. Individual gates may document narrower subsets.
+- `null` means no allowlisted command fits the current state — the run is not cleared to proceed, but the next step is not one of the gate commands either. `/aif-review` uses it for a `warn` carrying unverified potential blockers: findings whose impact would be merge-blocking if confirmed, still marked `(confidence: low)` / `(confidence: medium)`. They are reported in "Critical Issues" but excluded from `blockers`, and `reason` points at `/aif-review +check` to resolve them. Orchestrators must not treat a `null` command as "nothing left to do".
 
 ## Status Examples
 

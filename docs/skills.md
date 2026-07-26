@@ -526,6 +526,9 @@ Reviews staged changes or PR diffs:
 /aif-review 123 +check
 ```
 - Checks correctness, security, performance, and maintainability
+- **Coverage-first finding stage** — the review reports every issue it finds, including uncertain and low-severity ones, instead of pre-filtering to "only important" issues; ranking and filtering happen downstream
+- **Confidence markers** — an uncertain finding ends with `(confidence: low)` or `(confidence: medium)`; high confidence is the default and carries no marker. Confidence is independent of severity: the section still follows impact, so a potential merge-blocker you are unsure about is reported in "Critical Issues" with a marker
+- **Unverified criticals do not block** — a marked "Critical Issues" item is an *unverified potential blocker*: it stays out of `blockers`, keeps `status` at `warn`, and sets `suggested_next.command` to `null` with a reason pointing at `/aif-review +check`, which resolves it (confirmed → real blocker, refuted → dropped)
 - Adds read-only context-gate findings (architecture/roadmap/rules) to review output
 - Uses `WARN` for non-blocking context drift and `ERROR` only for explicitly blocking review criteria
 - Appends a final `aif-gate-result` JSON block for Handoff/AIFHub and other orchestrators
@@ -533,9 +536,11 @@ Reviews staged changes or PR diffs:
 
 **Optional validation (`+check`)**
 - After the review is drafted the skill dispatches a single fresh-context `general-purpose` subagent that re-reads cited files and judges each item from "Critical Issues" and "Suggestions"
-- Invented findings are dropped, partially-correct ones are rewritten in place, real findings stay untouched; "Questions" and "Positive Notes" are not validated
+- Invented findings are dropped, partially-correct ones are rewritten in place, real findings stay untouched — except confirmed marked findings, which come back through `modify` with the confidence marker removed
+- Only actionable code findings are validated: context-gate findings, commit-structure findings, "Questions", and "Positive Notes" are not — the validator judges items against the reviewed diff, which is not evidence for those classes
 - The subagent can also reclassify items between the two severity levels — promote a suggestion to "Critical Issues" if the underlying behavior is actually merge-blocking, or demote a critical finding to "Suggestions" if the framing was too harsh. The two levels and the promotion/demotion rules live in `references/SEVERITY.md`
 - `aif-gate-result` is recomputed after filtering — `status` is the post-filter findings merged with the unchanged context-gate result, so a failing architecture/rules/roadmap gate still forces `fail` even when no Critical Issues remain; `suggested_next` is recomputed accordingly (`/aif-commit` when there are no blockers; otherwise `/aif-fix`, or the failing gate's own command — `/aif-rules`, `/aif-architecture`, `/aif-roadmap` — when a single context gate is the sole blocker)
+- Confirming a marked critical is how a `warn` review becomes a `fail` one: the marker is gone, so the item counts as a normal blocker and `suggested_next.command` moves from `null` to `/aif-fix`
 - The rendered review gains a final line `Filtered: N hidden, M adjusted, K reclassified by +check`; if the validator call fails entirely, the unfiltered review is kept and a single `WARN [+check]` line is appended instead (always above the `aif-gate-result` block — that block stays the last thing in the output)
 
 ### `/aif-rules-check [git ref]`

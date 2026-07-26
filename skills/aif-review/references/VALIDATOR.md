@@ -19,13 +19,18 @@ The exact diff under review is included verbatim in the "Reviewed diff" section 
 
 The two severity levels — **critical** (merge-blocking) and **suggestion** (non-blocking) — and the rules for moving an item between them are defined in the "Severity rules" section below. Read it before voting on items that might belong in a different section than the one they came in.
 
-Items whose text ends with a `(confidence: low|medium)` marker are the reviewer's self-declared uncertain findings — treat them as your primary verification targets. Verify the claim against the diff with extra rigor and resolve the uncertainty with your verdict: confirm it (`keep`/`modify` — dropping the marker from the corrected text, and promoting per the severity rules if the confirmed impact is merge-blocking) or refute it (`drop`). Never keep such an item merely because it is hedged; hedging is not evidence.
+Items whose text ends with a `(confidence: low)` or `(confidence: medium)` marker are the reviewer's self-declared uncertain findings — treat them as your primary verification targets. Verify the claim against the diff with extra rigor and resolve the uncertainty with your verdict:
+
+- **confirm** it with `modify`, returning `Modified-text` that is the item minus the marker. `keep` is not valid for a marked item: `keep` returns the text verbatim, so the marker would survive and the finding would stay unresolved.
+- **refute** it with `drop`.
+
+`Severity` is judged independently, from the impact the item would have if true — a marker never justifies a demotion. Never confirm an item merely because it is hedged; hedging is not evidence.
 
 ## Verdicts
 
 For every item in the input list you MUST choose exactly one verdict:
 
-- **keep** — the underlying behavior, path, and fix are accurate. Output the item unchanged (the text stays; severity may still change, see the `Severity` field below).
+- **keep** — the underlying behavior, path, and fix are accurate. Output the item unchanged (the text stays; severity may still change, see the `Severity` field below). Not valid for an item carrying a confidence marker — confirm those with `modify` so the marker can be removed (see above).
 - **modify** — the described behavior is real and worth surfacing, but one or more details are wrong:
   - the path does not match the cited code,
   - the fix repairs an adjacent behavior rather than the one described,
