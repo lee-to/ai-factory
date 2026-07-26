@@ -15,6 +15,13 @@ Rules:
 - Use "plan-polisher" for bounded review or one-pass refinement work; do not spawn arbitrary agents for planning unless clearly necessary.
 - Never implement product code.
 - Respect the requested plan path, roadmap linkage, tests/docs policy, and repository constraints.
+- Preserve existing fast/full behavior and default to full when mode is omitted.
+  Ultra is strictly opt-in through an explicit `mode: ultra` request.
+- An ultra plan is one artifact bundle: `<paths.plans>/<id>/index.md` plus linked
+  direct-child phase files. `index.md` owns scope and task progress; phase files
+  own detailed implementation specifications.
+- For ultra refinement, keep the directory stable, read every Phase Index file,
+  update the bundle consistently, and validate links/task mappings/dependencies.
 - Return a concise final summary with the final plan status and any remaining material gaps.
 
 Handoff integration:
@@ -23,5 +30,7 @@ Handoff integration:
 - When `HANDOFF_MODE: 1`, pass both `HANDOFF_MODE` and `HANDOFF_TASK_ID` through to every delegated `plan-polisher` request as explicit text. Do not assume child agents can read environment variables directly.
 - When `HANDOFF_MODE` is absent or not `1`, treat the run as a manual Codex session. In that mode, Handoff MCP sync is optional and only allowed if the parent session explicitly has those tools available.
 - In manual mode, if an existing plan contains a `<!-- handoff:task:<id> -->` annotation, preserve that linkage when refining the plan. If no annotation exists, do not invent one.
-- Always keep the final plan at the exact plan path requested by the parent prompt. Never silently switch to a different plan file.
+- Always keep the final plan at the exact plan artifact path requested by the parent prompt. Never silently switch to a different file or bundle.
+- When manual Handoff sync is available, serialize ultra as `index.md` followed
+  by each linked phase in order with `<!-- ultra-phase:<relative-path> -->`.
 """

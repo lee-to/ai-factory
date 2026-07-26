@@ -23,9 +23,8 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
   - If `language.artifacts` is missing, use `language.ui`
   - If both are missing, use `en`
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by the optional active-plan-context lookup when explore mode references an existing plan for the current branch.
-  Active values: `slug` and `sequential`. When `sequential`, glob
-  `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and fall back to
-  `<paths.plans>/<branch_stem>.md` only if no numbered match is found.
+  Active values: `slug` and `sequential`. Active-plan context may be a root
+  full-plan file or direct child ultra `index.md`; numbered lookup covers both.
   `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
   Treat any unknown value as `slug`.
 
@@ -155,13 +154,13 @@ At the start, read these files if present:
 - the resolved RULES.md path – project conventions and rules
 - the resolved RESEARCH.md path – persisted exploration notes (so you can `/clear` and still keep context)
 - the resolved fast plan path – active fast plan (if any)
-- `<configured plans dir>/<branch_stem>.md` – active full plans (if any).
+- `<configured plans dir>/<branch_stem>.md` or
+  `<configured plans dir>/<branch_stem>/index.md` – active full/ultra plans.
   Compute `branch_stem` as `git branch --show-current` with every `/` replaced by `-`
   (for example `feature/user-auth` → `feature-user-auth`).
-  When `workflow.plan_id_format = sequential`, glob first
-  `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>.md` and pick the
-  highest-numbered match; fall back to `<configured plans dir>/<branch_stem>.md`
-  when no numbered match exists.
+  When `workflow.plan_id_format = sequential`, glob both the numbered full file
+  and numbered ultra `index.md`, pick the highest prefix, and fall back to the
+  unnumbered ultra entrypoint/full file when no numbered artifact exists.
 - the resolved ROADMAP.md path – strategic milestones (if any)
 
 This tells you:
@@ -175,7 +174,8 @@ This tells you:
 The argument after `/aif-explore` can be:
 - A vague idea: "real-time collaboration"
 - A specific problem: "the auth system is getting unwieldy"
-- A plan name: to explore in context of `.ai-factory/plans/<name>.md`
+- A plan name: to explore in context of a full `.md` plan or ultra
+  `.ai-factory/plans/<name>/index.md` bundle
 - A comparison: "postgres vs sqlite for this"
 - Nothing: just enter explore mode
 
@@ -192,12 +192,16 @@ If the user mentions a plan or you detect one is relevant:
 
 1. **Read existing plan for context**
    - the resolved fast plan path (fast mode)
-   - `<configured plans dir>/<branch_stem>.md` (full mode, default).
+   - `<configured plans dir>/<branch_stem>.md` (full) or
+     `<configured plans dir>/<branch_stem>/index.md` (ultra).
      `branch_stem` = `git branch --show-current` with every `/` replaced by `-`
      (so `feature/user-auth` resolves to `feature-user-auth`).
-     When `workflow.plan_id_format = sequential`, the filename is
-     `<configured plans dir>/<NNNN>_<branch_stem>.md`; pick the highest-numbered
-     match if more than one exists.
+     When `workflow.plan_id_format = sequential`, the file/directory identifier
+     has `<NNNN>_`; pick the highest-numbered artifact across both shapes.
+  - For ultra, read `index.md` first and only the linked phase files relevant
+    to the current exploration question; phase files are not independent plans.
+    Treat a discovered directory entrypoint as ultra only when it declares
+    `Mode: ultra`; unrelated `*/index.md` files are not plan context.
 
 2. **Reference it naturally in conversation**
    - "Your plan mentions adding Redis, but we just realized SQLite fits better..."
@@ -216,7 +220,7 @@ If the user mentions a plan or you detect one is relevant:
    | Strategic direction | `paths.research` | `paths.roadmap` |
    | Assumption invalidated | `paths.research` | Relevant file |
    | Exploration context (persisted) | `paths.research` | (keep in research) |
-   | New task/feature | Run `/aif-plan` | `paths.plan` or `paths.plans/<branch_stem-or-slug>.md` (or `paths.plans/<NNNN>_<branch_stem-or-slug>.md` under `plan_id_format: sequential`; `branch_stem` = current branch with `/` replaced by `-`) |
+   | New task/feature | Run `/aif-plan` | `paths.plan`, a full `paths.plans/<id>.md`, or an ultra `paths.plans/<id>/index.md`; `<id>` may have the sequential `NNNN_` prefix |
 
    Example offers:
    - "Want me to save this to the resolved research path so you can `/clear` and come back later?"
@@ -419,7 +423,7 @@ When it feels like things are crystallizing, you might summarize:
 **Open questions**: [if any remain]
 
 **Next steps** (if ready):
-- Create a plan: /aif-plan [fast|full] <description>
+- Create a plan: /aif-plan [fast|full|ultra] <description>
 - Keep exploring: just keep talking
 ```
 

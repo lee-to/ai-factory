@@ -55,10 +55,15 @@ git branch --show-current   # git mode only
 ```
 
 Then derive:
-- `branchPlan = <configured plans dir>/<branch-with-slashes-replaced-by-hyphens>.md`
-- `namedFullPlan = the only *.md file in <configured plans dir>/ when no branch-based full plan exists`
+- `branchPlan = <configured plans dir>/<branch-stem>.md` or `<configured plans dir>/<branch-stem>/index.md`
+- `namedPlan = the only root *.md full plan or declared-ultra direct child */index.md entrypoint in <configured plans dir>/ when no branch-based plan exists; exclude resolved fast/fix plan paths`
 - `fastPlan = <resolved fast plan path>`
 - `fixPlan = <resolved fix plan path>`
+
+For `workflow.plan_id_format: sequential`, include both
+`[0-9]{4}_<branch-stem>.md` and `[0-9]{4}_<branch-stem>/index.md`, highest
+number first. Count a directory entrypoint only when it declares `Mode: ultra`.
+Do not list phase files as independent plans.
 
 Check which files exist and print:
 
@@ -66,7 +71,7 @@ Check which files exist and print:
 ## Available Plans
 Current branch: <branch>
 - [x| ] <branchPlan>   (current-branch plan)
-- [x| ] <namedFullPlan> (full plan without branch)
+- [x| ] <namedPlan>    (full/ultra plan without branch)
 - [x| ] <fastPlan>     (fast plan)
 - [x| ] <fixPlan>      (fix plan)
 
@@ -80,6 +85,7 @@ If no plans exist, print:
 ```
 No plan files found. Create one with:
 - /aif-plan full <description>
+- /aif-plan ultra <description>
 - /aif-plan fast <description>
 - /aif-fix <bug description>
 ```
@@ -92,7 +98,7 @@ No plan files found. Create one with:
 
 ### Recovery after a break or after /clear
 
-If the user is resuming later and you don't have prior conversational context, rebuild context from git + the plan file before continuing:
+If the user is resuming later and you don't have prior conversational context, rebuild context from git + the plan artifact before continuing:
 
 ```
 git status
@@ -102,7 +108,8 @@ git diff --stat
 ```
 
 Then:
-- Re-open the active plan file (`@plan-file` override if provided; otherwise branch plan first, then a single named full plan, then `PLAN.md`, then `FIX_PLAN.md` redirect to `/aif-fix`).
+- Re-open the active plan entrypoint (`@path` override if provided; otherwise branch plan first, then a single named full/ultra plan, then `PLAN.md`, then `FIX_PLAN.md` redirect to `/aif-fix`).
+- For ultra, validate the Phase Index and read the complete phase file for the active task before editing code.
 - Use `TaskList` to find `in_progress` first, otherwise the next pending task.
 - If `TaskList` and plan checkboxes disagree, reconcile (verify code, then update `TaskUpdate` + plan checkbox).
 
@@ -133,7 +140,7 @@ Session 1:
 
 Session 2:
   /aif-implement
-  → Detects branch: feature/user-authentication (or resolves a single named full plan when no branch was created)
+  → Detects branch: feature/user-authentication (or resolves a single named full/ultra plan when no branch was created)
   → Reads plan: <configured plans dir>/feature-user-authentication.md
   → Loads state: 3/6 complete
   → Continues from task #4

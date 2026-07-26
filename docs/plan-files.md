@@ -1,8 +1,8 @@
 [← Skill Evolution](evolve.md) · [Back to README](../README.md) · [Security →](security.md)
 
-# Plan Files
+# Plan Files and Bundles
 
-AI Factory uses markdown files to track implementation plans:
+AI Factory uses markdown files and ultra plan bundles to track implementation:
 
 Paths below show the default `.ai-factory/` layout. `config.yaml` can relocate plan, fix, patch, reference, security, evolution, and loop-state artifacts while keeping the same ownership.
 
@@ -11,6 +11,43 @@ Paths below show the default `.ai-factory/` layout. `config.yaml` can relocate p
 | `/aif-plan fast` | `paths.plan` (default: `.ai-factory/PLAN.md`) | Offer to delete |
 | `/aif-plan full` | `paths.plans/<stem>.md` (default; `stem` = Handoff branch → git branch → description slug, per `/aif-plan` Step 1.2.a) | Keep (user decides) |
 | `/aif-plan full` (`workflow.plan_id_format: sequential`) | `paths.plans/<NNNN>_<stem>.md` (4-digit, capped at `9999`; `NNNN` is derived from existing numbered plans in the directory) | Keep (user decides) |
+| `/aif-plan ultra` | `paths.plans/<stem>/index.md` plus `phase-NN-*.md` | Keep (user decides) |
+| `/aif-plan ultra` (`workflow.plan_id_format: sequential`) | `paths.plans/<NNNN>_<stem>/index.md` plus phase files | Keep (user decides) |
+
+## Ultra Plan Bundle
+
+Ultra is intended for planning with a stronger model and implementation with a
+smaller model. The planner commits implementation decisions into a bundle:
+
+Ultra is additive and strictly opt-in. Updating AI Factory does not migrate
+existing plan files or change fast/full artifact shapes; only an explicit
+`/aif-plan ultra ...` creates a bundle.
+
+```text
+.ai-factory/plans/feature-billing-ledger/
+├── index.md
+├── phase-01-ledger-domain.md
+├── phase-02-persistence-migration.md
+└── phase-03-service-integration.md
+```
+
+`index.md` is the manifest and only progress ledger. It owns the original
+request, settings, research/roadmap context, phase table of contents,
+cross-phase dependencies, task checkboxes, commit plan, and definition of done.
+Each phase file specifies exact code evidence, paths and symbols, ordered edits,
+interfaces, data flow, errors and logging, test policy, risks, acceptance
+criteria, and verification commands.
+
+Task checkboxes are deliberately not duplicated in phase files.
+`/aif-implement` reads `index.md`, then the complete phase file for the active
+task, and updates progress only in `index.md`. `/aif-improve` and `/aif-verify`
+read the full linked bundle. An explicit `@<path>` may point to the directory or
+its `index.md`.
+
+`paths.plans` remains the only config path; ultra does not add a parallel path
+setting. `workflow.plan_id_format` applies to the bundle directory name.
+Sequential allocation counts both numbered full-plan files and numbered ultra
+directories.
 
 ## Archive Lifecycle
 
@@ -18,12 +55,13 @@ When plans accumulate, `/aif-archive` moves completed plans to `paths.archive/pl
 
 ```
 paths.plans/<plan>.md  →  (all tasks [x])  →  paths.archive/plans/<plan>.md
+paths.plans/<plan>/    →  (index tasks [x]) → paths.archive/plans/<plan>/
 ```
 
-- Original filenames are preserved (including sequential `NNNN_` prefix)
-- An `archived: YYYY-MM-DD` field is added to the plan's YAML frontmatter
+- Original file/directory names are preserved (including sequential `NNNN_` prefix)
+- An `archived: YYYY-MM-DD` field is added to the plan entrypoint's YAML frontmatter
 - Archived plans are excluded from plan discovery by `/aif-implement`, `/aif-verify`, `/aif-improve`
-- Sequential numbering in `/aif-plan` only counts files in `paths.plans/`, not the archive
+- Sequential numbering only counts active full files and ultra directories in `paths.plans/`, not the archive
 
 Roadmap snapshots: `/aif-archive --roadmap` trims closed milestones from `ROADMAP.md` into dated snapshots under `paths.archive/roadmap/`.
 
@@ -38,11 +76,11 @@ To avoid ownership conflicts, artifact writers are command-scoped:
 | `.ai-factory/ROADMAP.md`                                                  | `/aif-roadmap`        | `/aif-implement` may mark completed milestones with evidence                                   |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules` | top-level conventions plus area-rule files and registration                         |
 | `.ai-factory/RESEARCH.md`                                                 | `/aif-explore`        | explore-mode writable artifact                                                                 |
-| `paths.plan` and `paths.plans/<branch-or-slug>.md`                        | `/aif-plan`           | defaults shown; `/aif-improve` refines existing plans                                          |
+| `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phases | `/aif-plan`          | `/aif-improve` refines existing single-file plans and ultra bundles                             |
 | `paths.fix_plan` and `paths.patches/*.md`                                 | `/aif-fix`            | defaults shown; actual paths come from `paths.fix_plan` and `paths.patches`                    |
 | `.ai-factory/skill-context/*`                                             | `/aif-evolve`         | project-specific skill overrides derived from patches                                          |
 | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`             | `/aif-evolve`         | defaults shown; actual evolution-log path comes from `paths.evolutions`                        |
-| `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                  | `/aif-archive`        | archived plan files and dated roadmap snapshots                                                |
+| `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                     | `/aif-archive`        | archived plan files/bundles and dated roadmap snapshots                                        |
 
 Quality commands (`/aif-commit`, `/aif-review`, `/aif-verify`) treat these files as read-only context by default.
 
@@ -183,7 +221,10 @@ Typical structure:
 
 When the user supplies a request to `/aif-plan`, the plan includes `## Original Request` with the request preserved as raw source input.
 
-Command parsing removes only recognized command tokens in command positions: the leading `fast` or `full` mode token, recognized flags such as `--parallel` and `--list`, and `--cleanup <branch>` when that command path is used. Matching words inside the user's actual request are not removed.
+Command parsing removes only recognized command tokens in command positions:
+the leading `fast`, `full`, or `ultra` mode token, recognized flags such as
+`--parallel` and `--list`, and `--cleanup <branch>` when that command path is
+used. Matching words inside the user's actual request are not removed.
 
 After command tokens are removed, `/aif-plan` trims only outer whitespace introduced by parsing. It preserves internal whitespace, line breaks, wording, casing, and punctuation exactly. Downstream plan rewrites, including `/aif-improve`, must preserve `## Original Request` verbatim and must not translate, summarize, normalize, or rewrite it even when generated plan artifact prose uses another `language.artifacts` value.
 

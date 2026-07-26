@@ -53,19 +53,32 @@ If any rule is violated — fix the output before presenting it to the user.
 
 2. **Resolve Active Plan Context (Read-Only, Optional)**
    - Resolve active plan using this read-only priority:
-     1. `@<plan-file>` argument, when the argument starts with `@`
-     2. branch-based full plan in `paths.plans`
-     3. single full plan in `paths.plans`
+     1. `@<plan-file-or-directory>` argument, when the argument starts with `@`
+     2. branch-based full plan or ultra bundle in `paths.plans`
+     3. single full plan in `paths.plans`, or a single ultra bundle there
      4. fast plan at `paths.plan`
    - If the argument does not start with `@`, keep treating it as commit scope/context.
+   - Legacy `@<plan-file>` syntax remains valid; the broader form additionally
+     accepts an ultra directory or its `index.md`.
    - For branch-based full plan lookup:
      - get current branch with `git branch --show-current` when `git.enabled = true`
      - replace every `/` with `-` to get `<branch-stem>`
-     - when `workflow.plan_id_format = sequential`, use `Glob` for `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>.md` first
-     - if multiple sequential matches exist, use the highest-numbered match and emit `WARN [aif-commit] multiple sequential plans for <branch>: <list>; using <chosen>`
-     - if no sequential match exists, fall back to `paths.plans/<branch-stem>.md`
-   - If git mode is off, branch lookup cannot resolve, or no branch-based plan exists, check whether `paths.plans` contains exactly one full-plan markdown file.
-   - If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.
+     - when `workflow.plan_id_format = sequential`, use `Glob` for both
+       `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>.md` and
+       `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>/index.md`
+     - if multiple sequential matches exist, use the highest-numbered artifact and emit `WARN [aif-commit] multiple sequential plans for <branch>: <list>; using <chosen>`
+     - if no sequential match exists, check
+       `paths.plans/<branch-stem>/index.md` then
+       `paths.plans/<branch-stem>.md`; warn and prefer ultra if both exist
+   - If git mode is off, branch lookup cannot resolve, or no branch-based plan
+     exists, count root `*.md` full plans plus direct child `*/index.md`
+     entrypoints that declare `Mode: ultra`; exclude the resolved fast-plan
+     path and do not count phase files.
+   - An explicit ultra directory normalizes to its `index.md`. Read only the
+     entrypoint for `## Commit Plan`; phase files are unnecessary for commit grouping.
+   - An automatically discovered directory entrypoint counts only when it
+     declares `Mode: ultra`; ignore unrelated `*/index.md` files.
+   - If no active plan resolves or the active plan entrypoint has no `## Commit Plan`, keep current staged-diff behavior unchanged.
    - Never modify the active plan from this command.
 
 3. **Use Commit Plan Grouping When Available**

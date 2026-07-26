@@ -67,8 +67,9 @@ paths:
   # Default: .ai-factory/PLAN.md
   plan: .ai-factory/PLAN.md
 
-  # Full-mode plans directory
+  # Named plan artifacts directory
   # /aif-plan full stores named plan files here.
+  # /aif-plan ultra stores named directories with index.md + phase files here.
   # In git-aware mode this is typically branch-scoped.
   # In no-git mode it stores slug-based plan files.
   # Default: .ai-factory/plans/
@@ -123,9 +124,9 @@ paths:
   qa: .ai-factory/qa/
 
   # Archive directory for completed plans and roadmap snapshots.
-  # /aif-archive moves finished plans here (retaining original filenames,
-  # including any sequential NNNN_ prefix). Subdirectories:
-  #   archive/plans/   — archived plan files
+  # /aif-archive moves finished plans here (retaining original file/directory
+  # names, including any sequential NNNN_ prefix). Subdirectories:
+  #   archive/plans/   — archived plan files and ultra bundle directories
   #   archive/roadmap/ — dated roadmap snapshots
   # Referenced by /aif-archive (owner), /aif-plan, /aif-implement,
   # /aif-verify, /aif-improve.
@@ -152,8 +153,8 @@ workflow:
   # branch-based consumers (`/aif-implement`, `/aif-improve`, `/aif-verify`,
   # `/aif-rules-check`) will know how to discover.
   #
-  # `sequential` writes full-mode plan files as `<NNNN>_<stem>.md` under
-  # `paths.plans/`, where:
+  # `sequential` writes full plans as `<NNNN>_<stem>.md` and ultra bundles as
+  # `<NNNN>_<stem>/index.md` under `paths.plans/`, where:
   #   - `stem` is the canonical filename stem chosen by `/aif-plan`:
   #       1. `HANDOFF_BRANCH_NAME` with `/` replaced by `-`  (Handoff mode)
   #       2. the generated git branch name with `/` replaced by `-`
@@ -161,14 +162,14 @@ workflow:
   #     Branch-based consumers reproduce the same stem at lookup time.
   #   - NNNN = max(existing 4-digit prefix) + 1, zero-padded to 4 digits;
   #     an empty plans directory starts from `0001`.
-  # Numbering is derived from currently existing numbered plans in the
-  # directory — if the highest-numbered file is deleted or moved elsewhere,
+  # Numbering is derived from existing numbered plan files and ultra directories
+  # — if the highest-numbered artifact is deleted or moved elsewhere,
   # that number can be reused on the next run; keep plans in place if you
   # rely on stable cross-references. The format is bounded: 0001..9999.
   # `/aif-plan` errors out instead of writing `10000_…` so consumer globs
-  # stay aligned. Branch names stay un-numbered (the prefix lives only on the
-  # file). Force-disabled when Handoff owns the branch
-  # (HANDOFF_BRANCH_PREPARED=1) — Handoff requires the plan filename to equal
+  # stay aligned. Branch names stay un-numbered (the prefix lives on the full
+  # filename or ultra directory). Force-disabled when Handoff owns the branch
+  # (HANDOFF_BRANCH_PREPARED=1) — Handoff requires the plan identifier to equal
   # the branch name. Fast plans (`paths.plan`) and fix plans
   # (`paths.fix_plan`) are single files and ignore this setting.
   plan_id_format: slug
@@ -193,7 +194,7 @@ workflow:
 git:
   # Whether this project uses git-aware workflows
   # If false:
-  #   - /aif-plan full does not create branches
+  #   - /aif-plan full and /aif-plan ultra do not create branches
   #   - /aif-review and /aif-verify do not assume a base branch exists
   #   - merge/push guidance is skipped
   # Default: auto-detected from the repository (.git presence)
@@ -206,8 +207,8 @@ git:
 
   # Automatically create feature branches for plans
   # Applies only when git.enabled = true
-  # If false, /aif-plan full still creates a full plan but stays on the
-  # current branch (or uses a slug-named full plan in no-git mode)
+  # If false, /aif-plan full and /aif-plan ultra still create plan artifacts
+  # but stay on the current branch (using slug-named artifacts in no-git mode)
   # Default: true when git is enabled
   create_branches: true
 

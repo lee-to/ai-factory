@@ -1,0 +1,55 @@
+scenario: archive-completed-ultra-bundle
+description: |
+  /aif-archive must move the complete declared ultra directory, preserve phase
+  files, and add archive metadata to the moved index.md.
+skill: aif-archive
+argument: "0005_feature-auth"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plans: .ai-factory/plans/
+          archive: .ai-factory/archive/
+          plan: .ai-factory/PLAN.md
+          fix_plan: .ai-factory/FIX_PLAN.md
+    - path: .ai-factory/plans/0005_feature-auth/index.md
+      content: |
+        # Ultra Implementation Plan: Auth
+        Mode: ultra
+        ## Phase Index
+        1. [Phase 1](phase-01-auth.md) — Task 1
+        ## Tasks
+        - [x] Task 1: Implement auth
+    - path: .ai-factory/plans/0005_feature-auth/phase-01-auth.md
+      content: |
+        # Phase 1: Auth
+        ## Task 1: Implement auth
+
+user_responses:
+  - match_question: "(?i)(confirm|proceed|archive|sure)"
+    choose: "Yes"
+
+assertions:
+  - id: moves-whole-directory
+    type: tool_called
+    tool: Bash
+    args_match:
+      command: "mv.*0005_feature-auth.*archive/plans"
+    weight: 4
+  - id: edits-moved-index
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/archive/plans/0005_feature-auth/index\\.md$"
+      new_string: "archived:"
+    weight: 2
+  - id: stay-in-sandbox
+    type: no_path_escape

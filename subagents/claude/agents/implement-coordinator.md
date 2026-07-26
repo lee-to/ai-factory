@@ -45,12 +45,12 @@ The Handoff coordinator already manages status transitions and DB writes directl
 
 **When `HANDOFF_MODE` is NOT `1`** (manual Claude Code session):
 
-After reading the plan file, extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line (if present). If no annotation exists, skip all MCP sync — there is no linked Handoff task.
+After reading the plan entrypoint, extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line (if present). For ultra, the entrypoint is `index.md`. If no annotation exists, skip all MCP sync — there is no linked Handoff task.
 
 If a task ID IS found in the plan annotation, sync with Handoff via MCP tools:
 
 - **On start (before first task dispatch):** Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
-- **After each layer completes:** Read the updated plan file and call `handoff_push_plan` with `{ taskId: <extracted-id>, planContent: <full plan text> }` to sync checklist progress.
+- **After each layer completes:** Read the updated plan artifact and call `handoff_push_plan` to sync checklist progress. Fast/full send the single file. Ultra sends `index.md` followed by every linked phase file in Phase Index order, each prefixed with `<!-- ultra-phase:<relative-path> -->`.
 - **On completion (all tasks done):** Call `handoff_push_plan` with the final plan, then:
     - If `HANDOFF_SKIP_REVIEW` is `1`: call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "done", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: false }`.
     - Otherwise: call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "review", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
@@ -68,18 +68,29 @@ At the very start of your first turn, before doing anything else:
 ## Input
 
 The user may provide:
-- `@<path>` — explicit plan file (e.g. `@.ai-factory/plans/feature-auth.md`). Highest priority.
+- `@<path>` — explicit plan file, ultra directory, or ultra `index.md` (e.g. `@.ai-factory/plans/feature-auth.md` or `@.ai-factory/plans/feature-billing`). Highest priority.
 - A description of what to implement — used only if no plan exists yet (stop and ask user to create one first).
 - Nothing — auto-detect plan from branch or fallback.
 
 ## Plan parsing
 
-1. Locate the active plan (same priority as `/aif-implement`):
-   a. If the user provided an explicit `@<path>` argument, use that file.
-   b. Check current git branch (`git branch --show-current`), convert to filename (replace `/` with `-`, add `.md`), look for `.ai-factory/plans/<branch-name>.md`.
-   c. Fall back to `.ai-factory/PLAN.md`.
-   d. If none of the above exist but `.ai-factory/FIX_PLAN.md` exists — stop and tell the user to run `/aif-fix` instead (fix plans have their own workflow).
-   e. If no plan file found at all — stop and report.
+1. Read `.ai-factory/config.yaml` when present and resolve `paths.plan`,
+   `paths.plans`, `paths.fix_plan`, `workflow.plan_id_format`, and git settings.
+   Locate the active plan using the exact `/aif-implement` priority:
+   a. If the user provided `@<path>`, accept a markdown file, ultra directory,
+      or ultra `index.md`; normalize a directory to `index.md`.
+   b. Derive the current branch stem by replacing `/` with `-`. Under
+      `sequential`, glob both `[0-9]{4}_<stem>.md` and
+      `[0-9]{4}_<stem>/index.md`, choosing the highest prefix. Otherwise check
+      `<stem>/index.md` and `<stem>.md`, preferring declared ultra if both exist.
+   c. If no branch artifact exists, count named root full files and direct child
+      `*/index.md` files that declare `Mode: ultra`; exclude resolved fast/fix
+      paths and never count phase files. Use it only when exactly one exists.
+   d. Fall back to resolved `paths.plan`.
+   e. If only resolved `paths.fix_plan` exists — stop and tell the user to run
+      `/aif-fix` instead. If no plan artifact is found — stop and report.
+   An unrelated directory `index.md` is not a plan; malformed declared-ultra
+   bundles are blocking integrity errors.
 2. Parse all tasks from the plan. Each task has:
     - number (e.g. `Task 1`)
     - description
@@ -89,10 +100,17 @@ The user may provide:
 3. Build a dependency graph from `(depends on ...)` annotations.
 4. Tasks without explicit dependencies within the same phase are assumed independent.
 5. Tasks in a later phase implicitly depend on ALL tasks in preceding phases unless explicit dependencies say otherwise.
+6. If the entrypoint declares `Mode: ultra`, validate every Phase Index link,
+   reject escaping/broken/orphan files, and map every task to exactly one
+   `## Task N` section. Read a task's complete phase file before dispatching it.
+   `index.md` remains the only task-status source.
 
 ## Plan annotation
 
-After building the dependency graph, annotate the plan file with parallelism information and keep it updated throughout execution.
+After building the dependency graph, annotate the plan entrypoint with
+parallelism information and keep it updated throughout execution. For ultra,
+edit only `index.md`; never add status checkboxes or parallel markers to phase
+files.
 
 ### Before execution: add parallelism markers
 
@@ -124,8 +142,8 @@ When dispatching a task to a worker, change its checkbox from `[ ]` to `[~]` and
 ### Timing
 
 - Write parallelism markers once after plan parsing, before the first dispatch.
-- Update task status in the plan file immediately before dispatching each layer and immediately after collecting results.
-- This ensures the plan file always reflects the current state — if the session crashes, the user sees exactly which tasks were in flight.
+- Update task status in the plan entrypoint immediately before dispatching each layer and immediately after collecting results.
+- This ensures the progress source (`index.md` for ultra) always reflects the current state — if the session crashes, the user sees exactly which tasks were in flight.
 
 ## Execution algorithm
 
@@ -182,7 +200,8 @@ Workflow for single-task execution:
 - For parallel dispatch, ALWAYS use `implement-worker` (worktree isolation prevents file conflicts).
 - Pass each worker exactly ONE task. Include:
     - the task number and description
-    - the plan file path
+    - the normalized plan entrypoint path
+    - for ultra, the matching phase file path and complete Task N specification
     - `docs_policy: skip` and `commit_policy: skip` (coordinator handles these centrally)
 - When launching parallel workers, make ALL Agent calls in a single message to ensure true concurrency.
 

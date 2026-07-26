@@ -714,6 +714,7 @@ AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
 AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
 AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
 AIF_PLAN_FORMAT_REF="$ROOT_DIR/skills/aif-plan/references/TASK-FORMAT.md"
+AIF_PLAN_ULTRA_REF="$ROOT_DIR/skills/aif-plan/references/ULTRA-FORMAT.md"
 AIF_IMPLEMENT_SKILL="$ROOT_DIR/skills/aif-implement/SKILL.md"
 AIF_IMPROVE_SKILL="$ROOT_DIR/skills/aif-improve/SKILL.md"
 AIF_IMPROVE_CHECK_REF="$ROOT_DIR/skills/aif-improve/references/CHECK-MODE.md"
@@ -1482,6 +1483,29 @@ else
     fail "planner defaults stay on the richer full contract"
 fi
 
+if grep -qF 'Ultra is strictly opt-in' "$AIF_PLAN_SKILL" \
+    && grep -qF '1. Full (Recommended) — richer plan, asks preferences, optional branch/worktree flow when git settings allow it' "$AIF_PLAN_SKILL" \
+    && grep -qF '2. Fast – quick plan, no branch, saves to the resolved fast plan path' "$AIF_PLAN_SKILL" \
+    && grep -qF 'How should full plans behave in git?' "$AIF_SKILL" \
+    && grep -qF 'Do not add an ultra-specific setup question' "$AIF_SKILL"; then
+    pass "ultra stays explicit opt-in without changing legacy setup/mode prompts"
+else
+    fail "ultra must stay explicit opt-in and preserve legacy setup/mode prompts"
+fi
+
+if [[ -f "$AIF_PLAN_ULTRA_REF" ]] \
+    && grep -qF '`index.md` is the manifest, scope anchor, and only progress source.' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF 'Every task has a stable `Task N` identifier' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF '<!-- ultra-phase:<relative-path> -->' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF 'mode: `fast`, `full`, or explicit opt-in `ultra`' "$CLAUDE_SUBAGENTS_DIR/plan-coordinator.md" \
+    && grep -qF 'mode: fast`, `mode: full`, or `mode: ultra`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF 'declares `Mode: ultra`' "$CLAUDE_SUBAGENTS_DIR/implement-coordinator.md" \
+    && grep -qF 'matching phase file path and complete Task N specification' "$CLAUDE_SUBAGENTS_DIR/implement-coordinator.md"; then
+    pass "ultra producer and Claude coordinator contracts stay synchronized"
+else
+    fail "ultra producer/Claude coordinator contract synchronization missing"
+fi
+
 if grep -qF '`paths.plan`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
     && grep -qF '`paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
     && grep -qF '`git.base_branch`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
@@ -1495,7 +1519,7 @@ fi
 
 if grep -qF 'Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`:' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
     && grep -qF 'the configured `paths.plan`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
-    && grep -qF 'files under the configured `paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
+    && grep -qF 'files or ultra bundle directories under the configured `paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     pass "plan-polisher write scope follows resolved config paths"
 else
     fail "plan-polisher write scope must follow resolved config paths"

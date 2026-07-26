@@ -1,7 +1,7 @@
 ---
 name: aif-plan
-description: Plan implementation for a feature or task. Two modes — fast (single quick plan) or full (richer plan with optional git branch/worktree flow). Use when user says "plan", "new feature", "start feature", "create tasks".
-argument-hint: "[fast | full] [--parallel | --list | --cleanup <branch>] <description>"
+description: Plan a feature or task in fast, full, or ultra mode. Ultra creates an indexed multi-file bundle with deeply specified phases for execution by a smaller model. Use for "plan", "new feature", "start feature", "create tasks", or exhaustive implementation planning.
+argument-hint: "[fast | full | ultra] [--parallel | --list | --cleanup <branch>] <description>"
 allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 version: 1.0.0
@@ -9,10 +9,14 @@ version: 1.0.0
 
 # Plan - Implementation Planning
 
-Create an implementation plan for a feature or task. Two modes:
+Create an implementation plan for a feature or task. Three modes:
 
 - **Fast** – quick plan, no git branch, saves to the configured fast plan path (default: `.ai-factory/PLAN.md`)
 - **Full** — richer plan, asks preferences, saves to the configured full-plan directory, and optionally creates a git branch/worktree when git is enabled and branch creation is allowed
+- **Ultra** — exhaustive multi-file plan bundle under the configured full-plan directory: `index.md` is the manifest/progress ledger and every implementation phase is a separate, deeply specified markdown file. Use it when planning with a stronger model for later execution by a smaller model.
+
+For ultra layout, detail requirements, integrity checks, and consumer behavior,
+read `references/ULTRA-FORMAT.md` before creating or modifying the bundle.
 
 ## Workflow
 
@@ -42,7 +46,7 @@ The Handoff coordinator already manages status transitions and DB writes directl
 
 - **No interactive questions:** Do not use `AskUserQuestion` — use sensible defaults (verbose logging, yes to tests, yes to docs, skip roadmap linkage).
 - **Mode default:** If mode is not specified, default to `fast`.
-- **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan file, before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.**
+- **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan entrypoint (`index.md` for ultra; the plan file otherwise), before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.**
 
 ##### Branch ownership under Handoff (CRITICAL)
 
@@ -62,7 +66,7 @@ Handoff owns branch creation at the agent-code level. The skill must NOT create 
 - If the current branch does **not** match `HANDOFF_BRANCH_NAME`, STOP. Report a blocker in the plan summary:
   > `Branch drift: expected <HANDOFF_BRANCH_NAME>, actual <current>.`
   Do **NOT** "fix" drift by switching or creating a branch — Handoff classifies that as `BranchIsolationError` / `blocked_external`.
-- Use `HANDOFF_BRANCH_NAME` (with `/` replaced by `-`) as the full-mode plan filename stem: `<configured plans dir>/<HANDOFF_BRANCH_NAME-with-slashes-replaced>.md`. Skip the slug derivation in Step 1.2.
+- Use `HANDOFF_BRANCH_NAME` (with `/` replaced by `-`) as the full/ultra plan identifier stem. Full writes `<configured plans dir>/<stem>.md`; ultra writes `<configured plans dir>/<stem>/index.md`. Skip the slug derivation in Step 1.2.
 
 **If `HANDOFF_MODE` is `1` but `HANDOFF_BRANCH_PREPARED` is unset or `0`:**
 
@@ -71,16 +75,16 @@ Handoff owns branch creation at the agent-code level. The skill must NOT create 
 
 #### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session)
 
-If polishing an existing plan, extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line (if present). If creating a new plan and no annotation context exists, skip all MCP sync — there is no linked Handoff task.
+If polishing an existing plan, extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line of the plan entrypoint (if present). If creating a new plan and no annotation context exists, skip all MCP sync — there is no linked Handoff task.
 
 If a task ID IS found in the plan annotation, sync with Handoff via MCP tools:
 
 - **On start:** Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "planning", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
-- **On completion:** Call `handoff_push_plan` with `{ taskId: <extracted-id>, planContent: <full plan text> }`. Then call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "plan_ready", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
+- **On completion:** Call `handoff_push_plan` with `{ taskId: <extracted-id>, planContent: <full plan text> }`. For ultra, serialize the bundle as `index.md` followed by every Phase Index file in order, each prefixed with `<!-- ultra-phase:<relative-path> -->`. Then call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "plan_ready", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
 
 **CRITICAL:** Always pass `paused: true` with every `handoff_sync_status` call except `done`. This prevents the autonomous Handoff agent from picking up the task while you work manually. Only `done` passes `paused: false`.
 
-Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewriting the plan file.
+Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewriting the plan entrypoint.
 
 ### Step 0: Load Project Context
 
@@ -89,7 +93,7 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 - **Paths:** `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.research`, `paths.rules_file`, `paths.plan`, `paths.plans`, `paths.patches`, `paths.evolutions`, `paths.specs`, `paths.rules`, and `paths.archive`
 - **Language:** `language.ui` for AskUserQuestion prompts, `language.artifacts` for generated plan files, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`, and `git.branch_prefix`
-- **Workflow:** `workflow.plan_id_format` — controls full-mode plan filename shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. Only `slug` and `sequential` are active; `timestamp` and `uuid` are **reserved** and currently behave like `slug` (with an `INFO` log). The `sequential` value writes plan files as `<NNNN>_<plan_file_stem>.md` (see Step 1.2 for the canonical stem and the algorithm). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
+- **Workflow:** `workflow.plan_id_format` — controls the full/ultra plan identifier shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. Only `slug` and `sequential` are active; `timestamp` and `uuid` are **reserved** and currently behave like `slug` (with an `INFO` log). The `sequential` value writes a full plan as `<NNNN>_<plan_file_stem>.md` and an ultra bundle as `<NNNN>_<plan_file_stem>/index.md` (see Step 1.2 for the canonical stem and algorithm). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
 
 If config.yaml doesn't exist, use defaults:
 
@@ -110,6 +114,7 @@ If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat
 All AskUserQuestion prompts, progress updates, summaries, and next-step guidance MUST be written in `ui_language`.
 
 Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
+For ultra this applies to `index.md` and every linked phase file.
 
 Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
@@ -150,7 +155,8 @@ codebase conventions, and tech-stack analysis. These rules are tailored to the c
 - Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
   they exist because the project's experience proved the default insufficient
 - **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including the PLAN.md
-  template and task format. The plan template from TASK-FORMAT.md is a **base structure**. If a
+  template, ultra bundle, and task format. The templates from TASK-FORMAT.md and
+  ULTRA-FORMAT.md are a **base structure**. If a
   skill-context rule says "tasks MUST include X" or "plan MUST have section Y" — you MUST augment
   the template accordingly. Generating a plan that violates skill-context rules is a bug.
 
@@ -181,13 +187,13 @@ Resolve the current git mode from config first:
 - `git.enabled: true` → git-aware workflow is allowed
 - `git.enabled: false` → no-git workflow only
 - `git.base_branch` → target branch for diffs/merge guidance (default: detected branch or `main`)
-- `git.create_branches: true` → full mode may create a branch/worktree
-- `git.create_branches: false` → full mode still creates a rich plan, but stays on the current branch / repository state
+- `git.create_branches: true` → full/ultra mode may create a branch/worktree
+- `git.create_branches: false` → full/ultra mode still creates its plan artifact, but stays on the current branch / repository state
 
 If `git.enabled = false`:
 
 - Skip all branch/worktree commands
-- Save full-mode plans under `paths.plans/<slug>.md`
+- Save full plans under `paths.plans/<slug>.md` and ultra bundles under `paths.plans/<slug>/index.md`
 - Treat `--parallel`, `--list`, and `--cleanup` as unavailable
 
 If `git.enabled = true` but the repository is not actually inside a git work tree:
@@ -200,21 +206,22 @@ If `git.enabled = true` but the repository is not actually inside a git work tre
 Extract flags and mode from `$ARGUMENTS`:
 
 ```
---parallel  → Enable parallel worktree mode (full mode only; requires `git.enabled=true` and `git.create_branches=true`)
+--parallel  → Enable parallel worktree mode (full/ultra only; requires `git.enabled=true` and `git.create_branches=true`)
 --list      → Show all active worktrees, then STOP (git-only)
 --cleanup <branch> → Remove worktree and optionally delete branch, then STOP (git-only)
 fast        → Fast mode (first word)
 full        → Full mode (first word)
+ultra       → Ultra mode (first word)
 ```
 
 **Parsing rules:**
 
 - Strip only recognized command tokens in command positions from `$ARGUMENTS`:
-  - `fast` or `full` only when used as the leading mode token
+  - `fast`, `full`, or `ultra` only when used as the leading mode token
   - recognized control flags `--parallel`, `--list`, and `--cleanup <branch>`
   - do not remove matching words inside the user's actual request text
 - Remaining text becomes the description
-- Preserve the remaining text as `original_user_request` when it is non-empty: trim only outer whitespace introduced by command parsing, but keep internal whitespace, line breaks, wording, casing, and punctuation exactly. This is the user's original planning request and MUST be saved into the plan file later.
+- Preserve the remaining text as `original_user_request` when it is non-empty: trim only outer whitespace introduced by command parsing, but keep internal whitespace, line breaks, wording, casing, and punctuation exactly. This is the user's original planning request and MUST be saved into the plan entrypoint later.
 - `--list` and `--cleanup` execute immediately and **STOP** (do NOT continue to Step 1+)
 - If `git.enabled = false`, reject `--parallel`, `--list`, and `--cleanup` with a short explanation instead of trying git commands
 - If `--parallel` is set while `git.create_branches = false`, reject it with a short explanation because parallel mode requires branch creation
@@ -222,11 +229,11 @@ full        → Full mode (first word)
 **If the description is empty:**
 
 - If the resolved research path exists and its `Active Summary` has a non-empty `Topic:`, default the description to that topic (no extra user input required) and leave `original_user_request` empty. Plans created from `RESEARCH.md` without an explicit user request MUST NOT include an `Original Request` section.
-- Otherwise, ask the user for a short feature description. Preserve the user's answer verbatim as `original_user_request` and save it into the plan file later.
+- Otherwise, ask the user for a short feature description. Preserve the user's answer verbatim as `original_user_request` and save it into the plan entrypoint later.
 
 **Original request contract:**
 
-- If the user explicitly supplied a planning request (for example `/aif-plan ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan full ТУТ ЗАПРОС НА ПЛАН`, or an answer to the description prompt), the generated plan MUST include `## Original Request`.
+- If the user explicitly supplied a planning request (for example `/aif-plan ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan full ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan ultra ТУТ ЗАПРОС НА ПЛАН`, or an answer to the description prompt), the generated plan entrypoint MUST include `## Original Request`.
 - `## Original Request` contains the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed. Do not rewrite, summarize, translate, or normalize its wording, even when `artifact_language` differs.
 - If the description was derived only from `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
 - If the user supplied a request and `RESEARCH.md` also influenced the plan, include both `## Original Request` and `## Research Context`.
@@ -238,7 +245,10 @@ full        → Full mode (first word)
 
 - `fast` keyword → fast mode
 - `full` keyword → full mode
-- Neither → ask interactively:
+- `ultra` keyword → ultra mode
+- Neither → preserve the pre-ultra interactive contract and ask only between
+  full and fast. Ultra is strictly opt-in and is selected only by the explicit
+  leading `ultra` mode token:
 
 ```
 AskUserQuestion: Which planning mode?
@@ -252,14 +262,16 @@ If the user did not provide a description and the resolved research path exists:
 
 - Mention that you will default the description to the `Active Summary` topic
 - Only ask for `full` vs `fast` (no description prompt needed)
+- Do not mention, recommend, or auto-select ultra unless the caller used the
+  explicit leading `ultra` token
 
 For concrete parsing examples and expected behavior per command shape, read `references/EXAMPLES.md` (Argument Parsing).
 
 ---
 
-## Full Mode
+## Full and Ultra Modes
 
-### Step 1: Parse Description & Quick Reconnaissance
+### Step 1: Parse Description & Reconnaissance
 
 From the description, extract:
 
@@ -267,7 +279,7 @@ From the description, extract:
 - Key domain terms
 - Type (feature, enhancement, fix, refactor)
 
-**Use `Task` tool with `subagent_type: Explore` to quickly understand the relevant parts of the codebase.** This runs as a subagent and keeps the main context clean.
+**Use `Task` tool with `subagent_type: Explore` to understand the relevant parts of the codebase.** This runs as a subagent and keeps the main context clean.
 
 Based on the parsed description, launch 1-2 Explore agents in parallel:
 
@@ -280,18 +292,20 @@ Task(subagent_type: Explore, model: sonnet, prompt:
 
 **Rules:**
 
-- 1-2 agents max, "quick" thoroughness — this is reconnaissance, not deep analysis
+- Full: 1-2 agents max, "quick" thoroughness — this is reconnaissance, not deep analysis
+- Ultra: 2-3 focused agents when available; cover architecture, existing patterns, integration/side effects, and test/operations surfaces. This reconnaissance feeds the deeper evidence required by `ULTRA-FORMAT.md`.
 - Deep exploration happens later in Step 3
 - If `.ai-factory/DESCRIPTION.md` already provides sufficient context, this step can be skipped
 
-### Step 1.2: Generate Full-Mode Plan Identifier
+### Step 1.2: Generate Full/Ultra Plan Identifier
 
 This step produces two distinct values:
 
 - `branch_name` — the git branch (only when `git.enabled = true` and `git.create_branches = true`)
-- `plan_file_stem` — the filename stem under `<configured plans dir>/` (with or without a `NNNN_` prefix)
+- `plan_file_stem` — the canonical unprefixed plan stem under `<configured plans dir>/`
+- `plan_identifier` — `plan_file_stem` with an optional `NNNN_` prefix; it becomes the full-plan filename stem or ultra directory name
 
-Both are derived in a fixed order so the producer here and the branch-based consumers in `/aif-implement` / `/aif-improve` / `/aif-verify` / `/aif-rules-check` always agree on the filename.
+These are derived in a fixed order so the producer here and the branch-based consumers in `/aif-implement` / `/aif-improve` / `/aif-verify` / `/aif-rules-check` always agree on either the full-plan file or ultra entrypoint.
 
 #### 1.2.a — Resolve the canonical `plan_file_stem`
 
@@ -314,30 +328,39 @@ Branch examples (case 2):
 - `refactor/api-error-handling`
 - `chore/upgrade-dependencies`
 
-**Invariant:** branch-based consumer skills compute their lookup stem as `current-branch-with-slashes-replaced`. Cases 1 and 2 above already match that. Case 3 never has a branch, so consumers fall back to the lone full-mode plan in `<configured plans dir>/` (see `aif-implement` Step 0.2). Producing a `plan_file_stem` outside these rules breaks discovery.
+**Invariant:** branch-based consumer skills compute their lookup stem as `current-branch-with-slashes-replaced`. Cases 1 and 2 above already match that. Case 3 never has a branch, so consumers fall back to the lone full/ultra plan artifact in `<configured plans dir>/` (see `aif-implement` Step 0.2). Producing a `plan_file_stem` outside these rules breaks discovery.
 
 #### 1.2.b — Apply the `workflow.plan_id_format` prefix
 
-Default: no prefix. The plan filename is `<configured plans dir>/<plan_file_stem>.md`.
+Default: no prefix. Set `plan_identifier = plan_file_stem`. Full writes
+`<configured plans dir>/<plan_identifier>.md`; ultra writes
+`<configured plans dir>/<plan_identifier>/index.md`.
 
 Format-specific handling:
 
 - `slug` (default) → no prefix.
 - `timestamp` / `uuid` → **reserved values; treat as `slug` for now.** Emit `INFO [aif-plan] workflow.plan_id_format=<value> is reserved and behaves like slug; numbering is not applied`. Do NOT invent a stem shape — branch-based consumers do not know how to discover non-`sequential` prefixes.
 - Unknown values → already handled in Step 0: emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`. Behaves like `slug` here.
-- `sequential` → apply the algorithm in 1.2.c.
+- `sequential` → apply the algorithm in 1.2.c to `plan_identifier`.
 
 Sequential is **force-disabled** when `HANDOFF_BRANCH_PREPARED = 1`. In that case keep the bare `plan_file_stem` and emit `INFO [aif-plan] sequential numbering disabled under HANDOFF_BRANCH_PREPARED=1`.
 
 #### 1.2.c — Sequential numbering algorithm
 
-Prepend a 4-digit numeric prefix to `plan_file_stem`. The prefix is computed from existing numbered plans in `<configured plans dir>`. The branch name (when one exists) stays unchanged so existing git tooling, CI, and PR conventions are unaffected.
+Prepend a 4-digit numeric prefix to `plan_file_stem` to produce
+`plan_identifier`. Compute the prefix from both existing numbered full-plan files
+and numbered ultra bundle directories in `<configured plans dir>`. The branch
+name (when one exists) stays unchanged so existing git tooling, CI, and PR
+conventions are unaffected.
 
 ```
 1. Find existing numbered plans in <configured plans dir>:
-     Glob: <configured plans dir>/[0-9][0-9][0-9][0-9]_*.md
-2. Parse the leading 4 digits from each match into an integer.
-   Filter out names that do not match ^[0-9]{4}_.+\.md$.
+     Glob A: <configured plans dir>/[0-9][0-9][0-9][0-9]_*.md
+     Glob B: <configured plans dir>/[0-9][0-9][0-9][0-9]_*/index.md
+2. Parse the leading 4 digits from each full-plan filename or ultra directory
+   basename into an integer. Deduplicate equal prefixes.
+   Filter out entries whose relevant basename does not match
+   ^[0-9]{4}_.+(\.md)?$.
 3. If any matches exist:
      max_existing = max(prefixes)
      If max_existing >= 9999:
@@ -348,20 +371,23 @@ Prepend a 4-digit numeric prefix to `plan_file_stem`. The prefix is computed fro
    Else:
      next = 1
 4. prefix = zero-padded 4-digit string of next   (e.g. 1 → "0001", 42 → "0042")
-5. Final plan file path:
-     <configured plans dir>/<prefix>_<plan_file_stem>.md
+5. Set plan_identifier = <prefix>_<plan_file_stem>
+6. Final artifact:
+     full  → <configured plans dir>/<plan_identifier>.md
+     ultra → <configured plans dir>/<plan_identifier>/index.md
 ```
 
 Implementation notes:
 
-- **Use `Glob` only** to enumerate existing numbered plans. Do NOT shell out to `ls` — `aif-plan`'s frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
+- **Use `Glob` only** to enumerate existing numbered plans and ultra entrypoints. Do NOT shell out to `ls` — `aif-plan`'s frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
 - The 4-digit `[0-9][0-9][0-9][0-9]` glob is **strict by contract**: the format supports `0001`..`9999` only. The error in step 3 enforces this.
 - **`--parallel` scope (TL;DR — source-worktree scoped):**
   - **Where the prefix is computed:** the source worktree's `<configured plans dir>`
     (the repo where `/aif-plan` was invoked) — i.e. exactly here, in Step 1.2.c.
   - **When it is computed:** **before** the optional `cd <WORKTREE>` in Step 1.4.
-  - **Where the plan file is written:** the same relative `<configured plans dir>/<NNNN>_<plan_file_stem>.md`
-    path inside the target worktree, so the prefix and destination directory stay consistent.
+  - **Where the plan artifact is written:** the same relative full file or ultra
+    directory path inside the target worktree, so the prefix and destination
+    directory stay consistent.
   - **What you must NOT do:** never recompute the prefix from the target worktree's
     plans dir after `cd <WORKTREE>`. The target dir is typically empty and would
     re-allocate `0001` on every parallel run, breaking the cross-worktree numbering
@@ -369,13 +395,13 @@ Implementation notes:
 
 Rules:
 
-- Numbering is **derived from existing files** in `<configured plans dir>`. Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run — keep plans in place if you rely on stable cross-references.
+- Numbering is **derived from existing full-plan files and ultra directories** in `<configured plans dir>`. Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run — keep plans in place if you rely on stable cross-references.
 - **Archived plans are excluded from numbering.** Plans moved to `paths.archive/plans/` by `/aif-archive` are not in `<configured plans dir>` and therefore not counted. Archiving the highest-numbered plan frees that number for reuse.
 - Numbering is **bounded** — 9999 is a hard cap; the algorithm errors instead of writing `10000_…` so consumer globs (also 4-digit) cannot drift out of contract.
-- The prefix lives only on the plan file. The git branch (when present) stays `<branch_prefix><slug>` without a number.
+- The prefix lives only on the full-plan filename or ultra directory. The git branch (when present) stays `<branch_prefix><slug>` without a number.
 - This setting is ignored for fast plans (`paths.plan` is a single file) and fix plans (`paths.fix_plan` is a single file).
 
-Logging: `INFO [aif-plan] resolved plan file: <path> (format=<value>)`.
+Logging: `INFO [aif-plan] resolved plan artifact: <path> (mode=<mode>, format=<value>)`.
 
 ### Step 1.3: Ask About Preferences
 
@@ -410,7 +436,7 @@ AskUserQuestion: Before we start, a few questions:
 - Users can always remove logs later
 - Missing logs during development wastes debugging time
 
-Store all preferences — they will be used in the plan file and passed to `/aif-implement`.
+Store all preferences — they will be used in the plan entrypoint and passed to `/aif-implement`.
 
 Docs policy semantics:
 
@@ -421,21 +447,21 @@ Docs policy semantics:
 
 - Read the resolved roadmap artifact and list candidate milestones (prefer unchecked items)
 - Ask the user to pick one milestone (or type a custom one)
-- Store the selected milestone name and a 1-sentence rationale for inclusion in the plan file
+- Store the selected milestone name and a 1-sentence rationale for inclusion in the plan entrypoint
 
 ### Step 1.4: Optional Branch / Worktree Setup
 
 **If `HANDOFF_BRANCH_PREPARED = 1` (Handoff owns the branch):**
 
 - Skip this entire step. Branch validation already happened in Step 0.
-- The plan file path uses `HANDOFF_BRANCH_NAME` (slashes replaced by `-`) as the stem.
+- The plan artifact path uses `HANDOFF_BRANCH_NAME` (slashes replaced by `-`) as the stem.
 - Do **NOT** run `git checkout`, `git pull`, `git checkout -b`, or `git worktree add`.
 - Treat `--parallel` as disabled: do not create a worktree and do not auto-invoke `/aif-implement`.
 
 **If `git.enabled = false` or `git.create_branches = false`:**
 
 - Skip all branch/worktree creation
-- Continue with the generated full plan file path under `paths.plans/<slug>.md`
+- Continue with the generated full file or ultra directory under `paths.plans`
 
 **If `--parallel` flag is set → create worktree:**
 
@@ -508,6 +534,33 @@ If branch already exists, ask user:
 
 ---
 
+## Ultra Mode Detail Contract
+
+Ultra uses the full-mode preferences and optional branch/worktree setup above,
+then applies a stricter planning gate:
+
+1. Read `references/ULTRA-FORMAT.md` completely.
+2. Resolve all cross-cutting decisions that an implementer would otherwise have
+   to infer: file placement, public interfaces, data/control flow, compatibility,
+   migrations, failure behavior, observability, tests, docs, and rollout where
+   applicable.
+3. Partition the work into dependency-ordered phases. A phase must be a coherent
+   implementation checkpoint, not merely a category heading.
+4. Create one phase markdown file per phase. Every task section must satisfy the
+   Required Detail Gate in `ULTRA-FORMAT.md`.
+5. Create `index.md` last, after phase contents are stable, so its Phase Index,
+   task links, dependencies, and commit groups exactly match the phase files.
+6. Run the bundle-integrity checks from `ULTRA-FORMAT.md` before presenting the
+   plan. Fix broken links, missing/duplicate task IDs, orphan phase files, and
+   inconsistent dependencies.
+
+Ultra must not defer material implementation decisions to the smaller model.
+If evidence is insufficient for a safe decision, record a blocking open question
+in `index.md` and stop the plan as not implementation-ready instead of hiding the
+gap behind vague instructions.
+
+---
+
 ## Fast Mode
 
 ### Step 1: Ask About Preferences
@@ -532,7 +585,7 @@ AskUserQuestion: Before we start:
 
 ---
 
-## Shared Steps (both modes)
+## Shared Steps (all modes)
 
 ### Step 2: Analyze Requirements
 
@@ -577,7 +630,17 @@ Task(subagent_type: Explore, model: sonnet, prompt:
    and potential side effects of changes. Thoroughness: medium.")
 ```
 
-**If full mode passed codebase reconnaissance** from Step 1 — use it as a starting point. Focus Explore agents on areas that need deeper understanding.
+**If full/ultra mode passed codebase reconnaissance** from Step 1 — use it as a starting point. Focus Explore agents on areas that need deeper understanding.
+
+For ultra, continue until the plan has code-level evidence for every phase:
+
+- relevant existing paths and symbols
+- callers/consumers and side effects
+- exact integration and configuration points
+- existing tests, fixtures, commands, logging, migration, and documentation patterns
+
+Do not paste entire source files into phase plans; cite only the evidence needed
+to make implementation steps deterministic.
 
 **After agents return, synthesize:**
 
@@ -598,22 +661,34 @@ Create tasks using `TaskCreate` with clear, actionable items.
 - Tasks should be ordered by dependency (do X before Y)
 - Include file paths where changes will be made
 - Be specific about what to implement, not vague
+- In ultra, keep TaskCreate descriptions concise but include the matching phase
+  file link; the bundle remains the durable detailed source after context resets
 
 Use `TaskUpdate` to set `blockedBy` relationships:
 
 - Task 2 blocked by Task 1 if it depends on Task 1's output
 - Keep dependency chains logical
 
-### Step 5: Save Plan to File
+### Step 5: Save Plan Artifact
 
-**Determine plan file path:** the values were already resolved in Step 1.2.
+**Determine plan artifact path:** the values were already resolved in Step 1.2.
 
 - **Fast mode** → the resolved `paths.plan`.
-- **Full mode (`plan_id_format: slug`, default)** → `<configured plans dir>/<plan_file_stem>.md`.
-- **Full mode (`plan_id_format: timestamp` / `uuid`)** → reserved values, treated as `slug`: `<configured plans dir>/<plan_file_stem>.md` (no numeric or other prefix is applied; Step 1.2 already logged this).
-- **Full mode (`plan_id_format: sequential`)** → `<configured plans dir>/<NNNN>_<plan_file_stem>.md`. Force-disabled when `HANDOFF_BRANCH_PREPARED = 1`; in that case the bare `<plan_file_stem>.md` is used.
+- **Full mode** → `<configured plans dir>/<plan_identifier>.md`.
+- **Ultra mode** → `<configured plans dir>/<plan_identifier>/index.md` plus
+  `phase-NN-<slug>.md` files in the same directory.
+- For `slug`, reserved `timestamp` / `uuid`, or the Handoff sequential override,
+  `plan_identifier = plan_file_stem`.
+- For active `sequential`, `plan_identifier = <NNNN>_<plan_file_stem>`.
 
 The `plan_file_stem` is **always** the canonical stem from Step 1.2.a (Handoff branch / git branch / description slug — in that order). Branch-based consumers reproduce the same stem at lookup time, so the producer must not deviate.
+
+Before writing any unprefixed full/ultra target (default/reserved slug behavior
+or the Handoff sequential override), check for the sibling representation
+with the same stem: `<plan_identifier>.md` versus `<plan_identifier>/index.md`.
+If either already exists, do not silently create a second active representation
+or overwrite it. Ask the user to refine the existing plan, choose another
+identifier, or explicitly replace it.
 
 **Before saving, ensure directory exists:**
 
@@ -621,7 +696,9 @@ The `plan_file_stem` is **always** the canonical stem from Step 1.2.a (Handoff b
 mkdir -p <configured plans dir>
 ```
 
-**Plan file must include:**
+For ultra also create the resolved bundle directory before writing its files.
+
+**Full/fast plan file or ultra `index.md` must include:**
 
 - Title with feature name
 - Branch and creation date
@@ -629,7 +706,7 @@ mkdir -p <configured plans dir>
 - `Settings` section (Testing, Logging, Docs)
 - `Roadmap Linkage` section (optional, only if the resolved roadmap artifact exists)
 - `Research Context` section (optional, only if research content influenced this plan)
-- `Tasks` section grouped by phases
+- `Tasks` section grouped by phases; in ultra this is the only task-checkbox source
 - `Commit Plan` section when there are 5+ tasks
 
 If `original_user_request` is non-empty:
@@ -653,7 +730,9 @@ If research content influenced this plan:
 
 If the resolved research path exists but did not influence this plan, do not include `## Research Context`. An existing `RESEARCH.md` for topic A plus an explicit `/aif-plan` request for unrelated topic B must produce an unlinked plan for topic B.
 
-Use the canonical template in `references/TASK-FORMAT.md` (Plan File Template).
+Use the canonical template in `references/TASK-FORMAT.md` for fast/full.
+Use `references/ULTRA-FORMAT.md` for ultra and verify every Phase Index link,
+task mapping, dependency, and phase file before completion.
 
 The canonical template defines the required sections and ordering only. Render all human-readable plan content in `artifact_language` before writing the file, applying `technical_terms_policy` and preserving stable tokens as described in Step 0.
 
@@ -666,25 +745,25 @@ The canonical template defines the required sections and ordering only. Render a
 
 ### Step 6: Next Steps
 
-**Full mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` — the whole point of parallel is autonomous end-to-end execution in an isolated worktree. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
+**Full/ultra mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` — the whole point of parallel is autonomous end-to-end execution in an isolated worktree. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
 
 ```
 /aif-implement
 
 CONTEXT FROM /aif-plan:
-- Plan file: <configured plans dir>/<resolved-plan-file>      # see Step 1.2 / Step 5 for the exact stem
+- Plan artifact: <resolved plan file or ultra directory>      # see Step 1.2 / Step 5
 - Testing: yes/no
 - Logging: verbose/standard/minimal
 - Docs: yes/no  # yes => mandatory docs checkpoint, no => warn-only
 ```
 
-**Full mode normal:** STOP after planning. The user reviews the plan and decides when to implement.
+**Full/ultra mode normal:** STOP after planning. The user reviews the plan and decides when to implement.
 
 The next-step templates below define structure only. Render all human-readable text in these user-facing responses in `ui_language`. Preserve command names, configured paths, task counts, and TaskList references unchanged.
 
 ```
 Plan created with [N] tasks.
-Plan file: <configured plans dir>/<resolved-plan-file>      # see Step 1.2 / Step 5 for the exact stem
+Plan artifact: <resolved plan file or ultra directory>
 
 To start implementation, run:
 /aif-implement
@@ -722,7 +801,7 @@ git worktree list
 
 For each worktree path:
 
-1. Check whether the resolved plans directory exists under that worktree (`<worktree>/<resolved paths.plans>`, default: `<worktree>/.ai-factory/plans/`) and contains any plan files
+1. Check whether the resolved plans directory exists under that worktree (`<worktree>/<resolved paths.plans>`, default: `<worktree>/.ai-factory/plans/`) and contains any root `*.md` plans or direct child `*/index.md` entrypoints that declare `Mode: ultra`
 2. Show name and whether it looks complete (has tasks) or is still in progress
 
 **Output format:**
@@ -732,13 +811,14 @@ Active worktrees:
 
   /path/to/my-project          (<configured-base-branch>)        <- you are here
   /path/to/my-project-feature-user-auth  (feature/user-auth)  -> Plan: feature-user-auth.md
+  /path/to/my-project-feature-billing    (feature/billing)    -> Ultra: feature-billing/index.md
   /path/to/my-project-fix-cart-bug       (fix/cart-bug)        -> No plan yet
 ```
 
-When `workflow.plan_id_format = sequential`, the displayed plan filename
-includes the numeric prefix, e.g. `Plan: 0042_feature-user-auth.md`.
-Pick the highest-numbered match for the worktree's branch stem when
-multiple `[0-9][0-9][0-9][0-9]_<branch-stem>.md` files are present.
+When `workflow.plan_id_format = sequential`, the displayed file or directory
+includes the numeric prefix, e.g. `Plan: 0042_feature-user-auth.md` or
+`Ultra: 0042_feature-user-auth/index.md`. Pick the highest-numbered match across
+both representations for the worktree's branch stem.
 
 ## --cleanup Subcommand
 
@@ -790,8 +870,12 @@ Use canonical examples in `references/TASK-FORMAT.md`:
 5. **Dependencies matter** — Order tasks so they can be done sequentially
 6. **Include file paths** — Help implementer know where to work
 7. **Commit checkpoints for large plans** — 5+ tasks need commit plan with checkpoints every 3-5 tasks
-8. **Plan file location** – Fast mode: `paths.plan`. Full mode: `paths.plans/<plan_file_stem>.md` by default (`plan_file_stem` = handoff/branch/slug per Step 1.2.a), or `paths.plans/<NNNN>_<plan_file_stem>.md` when `workflow.plan_id_format = sequential` (see Step 1.2.c for the numbering rule and Handoff override). `timestamp` and `uuid` are reserved values and currently fall back to `slug`.
-9. **Ownership boundary** – This command owns plan files only (the resolved fast plan path and files under `paths.plans`). Use owner commands (`/aif-roadmap`, `/aif-rules`, `/aif-explore`) for their artifacts.
+8. **Plan artifact location** – Fast: `paths.plan`. Full:
+   `paths.plans/<plan_identifier>.md`. Ultra:
+   `paths.plans/<plan_identifier>/index.md` plus phase files.
+   `plan_identifier` uses the canonical handoff/branch/slug stem and optional
+   sequential prefix from Step 1.2; `timestamp` and `uuid` fall back to `slug`.
+9. **Ownership boundary** – This command owns plan artifacts only (the resolved fast plan path and full/ultra artifacts under `paths.plans`). Use owner commands (`/aif-roadmap`, `/aif-rules`, `/aif-explore`) for their artifacts.
 10. **Roadmap linkage (when available)** — If the resolved roadmap artifact exists, include a `## Roadmap Linkage` section in the plan (or explicitly state it was skipped).
 
 ## Plan File Handling
@@ -801,7 +885,7 @@ Use canonical examples in `references/TASK-FORMAT.md`:
 - Temporary plan for quick work
 - `/aif-implement` may offer deletion after completion
 
-**Full mode (`paths.plans/<plan_file_stem>.md` — default)**
+**Full mode (`paths.plans/<plan_identifier>.md` — default)**
 
 - Long-lived plan for feature delivery
 - The canonical `plan_file_stem` comes from Step 1.2.a: Handoff branch name (slashes replaced) → git branch name (slashes replaced) → description slug, in that order
@@ -815,4 +899,14 @@ Use canonical examples in `references/TASK-FORMAT.md`:
 - `timestamp` and `uuid` are reserved values; both currently behave like
   `slug` (no prefix is applied)
 
-For concrete end-to-end flows (fast/full/full+parallel/interactive), read `references/EXAMPLES.md` (Flow Scenarios).
+**Ultra mode (`paths.plans/<plan_identifier>/index.md`)**
+
+- Long-lived plan bundle for high-fidelity delegation
+- Uses the same canonical stem, branch/worktree behavior, and optional
+  sequential prefix as full mode; the prefix is on the directory
+- `index.md` is the manifest and progress source; direct child phase files are
+  implementation specifications
+- Consumers must read the bundle using `references/ULTRA-FORMAT.md`; do not
+  flatten it into a local single-file plan
+
+For concrete end-to-end flows (fast/full/ultra/parallel/interactive), read `references/EXAMPLES.md` (Flow Scenarios).

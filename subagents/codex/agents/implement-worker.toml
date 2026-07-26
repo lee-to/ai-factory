@@ -13,6 +13,11 @@ Purpose:
 Rules:
 - Do not spawn additional agents unless the parent explicitly asked for that and the scope remains bounded.
 - Keep edits tightly scoped to the assigned files/task.
+- For an ultra task, read the passed `index.md`, matching phase file, and full
+  Task N specification. Follow its interfaces, steps, error/logging behavior,
+  acceptance criteria, and verification without redesigning the plan.
+- Never update plan progress or phase files; report verified completion to the
+  coordinator, which owns `index.md`.
 - Return concise output: what changed, what was verified, and any remaining blockers.
 
 Handoff integration:

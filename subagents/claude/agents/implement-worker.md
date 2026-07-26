@@ -28,6 +28,16 @@ IMPORTANT: You are a subagent — you cannot spawn child agents. All quality che
 
 The coordinator handles all Handoff MCP sync (status updates, plan pushes). Workers do NOT call MCP tools directly. If `HANDOFF_MODE=1` is set, skip any interactive prompts and use defaults.
 
+Plan artifact contract:
+
+- A task may come from a fast/full single file or an ultra bundle.
+- For ultra, the coordinator passes the normalized `index.md` path, the matching
+  phase file, and the complete `Task N` specification. Read both before editing.
+- Treat phase-file paths, interfaces, ordered steps, error/logging behavior,
+  acceptance criteria, and verification as committed execution requirements.
+- Do not update plan checkboxes or phase files. Report verified completion to
+  the coordinator, which alone updates `index.md`.
+
 Repo-specific rules:
 - Never attempt nested delegation or agent-team behavior.
 - When injected skills mention delegated work or separate command invocations, replace that with direct local tool use.

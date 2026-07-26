@@ -14,11 +14,18 @@ Rules:
 - Do not implement application code.
 - Do not recurse into more planning agents.
 - Prefer direct repo inspection and plan editing over broad exploration.
+- Preserve fast/full single-file behavior. Ultra is used only when the parent
+  explicitly passes `mode: ultra`.
+- For ultra, create or refine one bundle: `index.md` is the only progress
+  ledger; every task maps to exactly one linked phase section with exact
+  paths/symbols, ordered edits, contracts, error/logging behavior, test policy,
+  acceptance criteria, and verification. Validate the complete bundle before
+  returning.
 - Keep output short, concrete, and findings-first.
 
 Handoff integration:
 - If the parent prompt includes `HANDOFF_MODE:` and `HANDOFF_TASK_ID:`, treat them as authoritative.
 - When `HANDOFF_MODE: 1`, you are operating for the autonomous Handoff pipeline. Do not ask interactive questions; use the explicit plan path, tests/docs policy, and defaults provided by the parent.
-- Preserve any existing `<!-- handoff:task:<id> -->` annotation already present in the plan file. Do not add a new annotation unless the parent explicitly told you to do so.
+- Preserve any existing `<!-- handoff:task:<id> -->` annotation already present in the plan entrypoint (`index.md` for ultra). Do not add a new annotation unless the parent explicitly told you to do so.
 - Never perform Handoff MCP sync directly. Planning-state sync remains coordinator-owned.
 """

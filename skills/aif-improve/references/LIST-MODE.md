@@ -20,9 +20,16 @@ The examples and output shapes in this reference define structure only. Render u
 
 3. **Check existence of every plan location below.** Use the path values resolved from `.ai-factory/config.yaml` (see Step 0 of `SKILL.md` for the defaults applied when the config file is missing):
 
-   - `<configured plans dir>/<branch-slug>.md` (default `workflow.plan_id_format = slug`).
-   - When `workflow.plan_id_format = sequential`, additionally glob `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md` and report all matches with the highest-numbered match first.
-   - If git mode is off or branch creation is disabled (`git.enabled = false` or `git.create_branches = false`), list every `*.md` file in `<configured plans dir>/` that looks like a full-mode plan. A leading 4-digit prefix counts as a match.
+   - `<configured plans dir>/<branch-slug>.md` and
+     `<configured plans dir>/<branch-slug>/index.md`.
+   - When `workflow.plan_id_format = sequential`, additionally glob both
+     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md` and
+     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>/index.md`;
+     report all matches with the highest-numbered match first.
+   - If git mode is off or branch creation is disabled, list every root `*.md`
+     full plan and every direct child `*/index.md` entrypoint that declares
+     `Mode: ultra`. Exclude the resolved fast/fix plan paths and do not list
+     ultra phase files independently.
    - The resolved fast plan path (`paths.plan`).
    - The resolved fix plan path (`paths.fix_plan`).
 
@@ -49,11 +56,15 @@ The examples and output shapes in this reference define structure only. Render u
    ```
    No plans found. Create one first:
    - /aif-plan full <description>
+   - /aif-plan ultra <description>
    - /aif-plan fast <description>
    - /aif-fix <bug description>
    ```
 
-6. **Archived plans.** If `paths.archive/plans/` exists and contains `*.md` files, display a separate count line after the main list: `Archived plans: N (in <paths.archive>/plans/)`. Do not list individual archived plans — use `/aif-archive list` for that.
+6. **Archived plans.** If `paths.archive/plans/` exists and contains root `*.md`
+   files or direct child `*/index.md` ultra bundles, display a separate count
+   line after the main list. Do not list individual archived plans — use
+   `/aif-archive list` for that.
 
 7. **STOP.** Do not proceed to any refinement step.
 

@@ -73,8 +73,8 @@ When those agents are used from `aif-handoff`, the bundle is also **handoff-awar
 
 | Agent | Purpose | Model | Tools |
 |---|---|---|---|
-| `plan-coordinator` | iteratively launch `plan-polisher` in a critique→improve loop until the plan passes or the iteration budget is exhausted. Defaults to `full` planning when the caller did not choose a mode. **Top-level agent only** | `inherit` | `Agent(plan-polisher), Read, Glob, Grep, Bash` |
-| `implement-coordinator` | parse plan dependency graph, implement single tasks directly with quality sidecars, dispatch `implement-worker` workers for parallel tasks, merge results. **Top-level agent only** | `inherit` | `Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar, rules-sidecar), Read, Write, Edit, Glob, Grep, Bash` |
+| `plan-coordinator` | iteratively launch `plan-polisher` in a critique→improve loop until the plan passes or the iteration budget is exhausted. Defaults to the existing `full` contract; `ultra` is explicit opt-in. **Top-level agent only** | `inherit` | `Agent(plan-polisher), Read, Glob, Grep, Bash` |
+| `implement-coordinator` | parse a single-file or ultra-bundle dependency graph, implement single tasks directly with quality sidecars, dispatch `implement-worker` workers for parallel tasks, merge results. **Top-level agent only** | `inherit` | `Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar, rules-sidecar), Read, Write, Edit, Glob, Grep, Bash` |
 | `implement-worker` | isolated worktree worker for parallel task execution — implements one task, runs local quality checks, returns results to coordinator | `inherit` | `Read, Write, Edit, Glob, Grep, Bash` |
 | `best-practices-sidecar` | background read-only best-practices sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
 | `plan-polisher` | create or refresh an `/aif-plan` artifact, run one local critique+refine cycle, and return whether another iteration is needed | `inherit` | `Read, Write, Edit, Glob, Grep, Bash` |
@@ -130,6 +130,15 @@ Explicit values from the caller always take priority over inference.
 
 This gives the user a fire-and-forget planning experience: start `claude --agent plan-coordinator "implement user auth with JWT"` and get back a polished, implementation-ready plan without manual re-runs.
 
+Planning mode compatibility:
+
+- omitted mode still means `full`
+- `fast` and `full` keep their existing single-file paths and behavior
+- `ultra` is selected only by an explicit `mode: ultra`
+- an ultra artifact is a directory whose `index.md` owns the checklist and
+  whose linked phase files contain the implementation specification
+- each refinement iteration reads and validates the complete linked bundle
+
 ### Repro And Acceptance
 
 Issue [#78](https://github.com/lee-to/ai-factory/issues/78) is tracked as a planning-quality parity bug, not as a request for a brand-new discovery stage.
@@ -174,7 +183,7 @@ This agent is useful when the plan has clearly independent tasks. For simple lin
 
 ### Plan annotation
 
-The coordinator treats the plan file as a live status document and keeps it updated throughout execution:
+The coordinator treats the plan entrypoint as a live status document and keeps it updated throughout execution. For an ultra bundle, the entrypoint is `index.md`; phase files are read-only execution specifications:
 
 1. **Before work starts** — after parsing the dependency graph, the coordinator adds `<!-- parallel: tasks N, M -->` comments above groups of independent tasks. This makes the dispatch plan visible before any code is written.
 2. **When dispatching** — each task's checkbox changes from `[ ]` to `[~]` with an `<!-- in-progress -->` marker, so it is clear which tasks are currently in flight.
@@ -194,6 +203,12 @@ Example plan during execution:
 ```
 
 This gives crash recovery — if the session dies mid-run, the plan file shows exactly which tasks completed, which were in flight, and which are still pending.
+
+For ultra, workers receive the normalized `index.md` path, the matching phase
+file, and the complete `Task N` section. They do not redesign the task or edit
+plan progress. The coordinator alone updates `index.md`. When a linked Handoff
+task is synchronized manually, the bundle is serialized as `index.md` followed
+by each Phase Index file with an `<!-- ultra-phase:<relative-path> -->` separator.
 
 ### Which One To Use
 
@@ -353,8 +368,14 @@ claude --agent plan-coordinator "implement user authentication with JWT"
 # Force tests and docs inclusion
 claude --agent plan-coordinator "implement user authentication with JWT, tests: yes, docs: yes"
 
+# Explicitly opt into an ultra bundle
+claude --agent plan-coordinator "rebuild billing around an immutable ledger, mode: ultra"
+
 # Polish an existing plan
 claude --agent plan-coordinator "@.ai-factory/plans/feature-auth.md"
+
+# Polish an existing ultra bundle
+claude --agent plan-coordinator "@.ai-factory/plans/feature-billing"
 ```
 
 **Implement only (plan already exists):**
@@ -363,8 +384,9 @@ claude --agent plan-coordinator "@.ai-factory/plans/feature-auth.md"
 # Reads the active plan, builds dependency graph, dispatches workers
 claude --agent implement-coordinator
 
-# Implement a specific plan file
+# Implement a specific plan file or ultra directory
 claude --agent implement-coordinator "@.ai-factory/plans/feature-auth.md"
+claude --agent implement-coordinator "@.ai-factory/plans/feature-billing"
 ```
 
 Manual verification for coordinator changes should be done in an environment where the Claude CLI is installed: run `claude --agent implement-coordinator` on a small single-task plan and confirm the single-task quality-gate flow launches the expected sidecars, including `rules-sidecar` unless `HANDOFF_SKIP_REVIEW=1` is set.

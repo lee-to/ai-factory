@@ -12,7 +12,8 @@ metadata:
 
 # Archive — Move completed plans and roadmap snapshots
 
-Archive completed plans from `paths.plans/` into `paths.archive/plans/` and
+Archive completed single-file plans and ultra bundle directories from
+`paths.plans/` into `paths.archive/plans/` and
 optionally trim closed milestones from `ROADMAP.md` into dated snapshots
 under `paths.archive/roadmap/`.
 
@@ -55,6 +56,7 @@ Parsing rules:
 - If multiple conflicting modes are given, emit error and STOP
 - `<plan-name>` can be:
   - full filename: `0005_feature-auth.md`
+  - ultra directory/entrypoint: `0005_feature-auth` or `0005_feature-auth/index.md`
   - stem without extension: `0005_feature-auth`
   - partial match: `feature-auth` (must match exactly one plan)
 
@@ -64,8 +66,11 @@ Parsing rules:
 
 #### Mode: Interactive (no arguments)
 
-1. Scan `paths.plans/` for all `*.md` files using `Glob`.
-2. For each plan file, read the `## Tasks` section.
+1. Scan `paths.plans/` for root `*.md` files and direct child `*/index.md`
+   candidates using `Glob`. Exclude the resolved `paths.plan` and
+   `paths.fix_plan`; count a directory only when its entrypoint declares
+   `Mode: ultra`. Do not treat phase files or unrelated directories as plans.
+2. For each artifact, read the entrypoint's `## Tasks` section.
 3. Determine completion: a plan is **completed** when ALL task checkboxes
    are `- [x]`. Plans with any `- [ ]` are incomplete.
 4. If no completed plans found:
@@ -100,8 +105,9 @@ Parsing rules:
 
 1. Check if `<paths.archive>/plans/` exists.
 2. If not: `Archive is empty. No plans have been archived yet.` → STOP.
-3. Glob `<paths.archive>/plans/*.md`.
-4. For each archived plan, read the YAML frontmatter to extract `archived` date.
+3. Glob root `<paths.archive>/plans/*.md` files and direct child
+   `<paths.archive>/plans/*/index.md` entrypoints that declare `Mode: ultra`.
+4. For each archived artifact, read entrypoint YAML frontmatter to extract `archived` date.
 5. Display:
    ```
    Archived plans (<paths.archive>/plans/):
@@ -123,20 +129,22 @@ Parsing rules:
 
 #### Mode: `<plan-name>`
 
-1. Resolve `<plan-name>` to a file in `paths.plans/`:
-   - Try exact filename match first
+1. Resolve `<plan-name>` to one artifact in `paths.plans/`:
+   - Try exact root filename, exact ultra directory, or exact `*/index.md` match
    - Then try with `.md` extension appended
-   - Then try partial stem match (grep for `<plan-name>` in filenames)
+   - Then try partial match against root filenames and ultra directory names
 2. If no match: `Plan not found: <plan-name>` with suggestions → STOP.
 3. If multiple matches: list them and ask user to be more specific → STOP.
-4. Read the matched plan file and check completion status.
-5. If incomplete:
+4. For a directory match, read the entrypoint and require `Mode: ultra`;
+   otherwise it is not an archivable AI Factory plan.
+5. Read the matched entrypoint and check completion status.
+6. If incomplete:
    ```
    Plan <filename> is not completed (5/8 tasks done).
    Only completed plans can be archived.
    ```
    → STOP.
-6. Execute archive operation (see **Archive Operation**).
+7. Execute archive operation (see **Archive Operation**).
 
 ---
 
@@ -208,13 +216,14 @@ Parsing rules:
 
 ### Archive Operation (plans)
 
-For each plan to archive:
+For each plan artifact to archive:
 
 1. `mkdir -p <paths.archive>/plans/`
 
 2. **Collision check.** Before moving, verify the destination does not already exist:
    ```
-   Read <paths.archive>/plans/<original-filename>
+   Read <paths.archive>/plans/<original-name>          # full plan
+   Read <paths.archive>/plans/<original-name>/index.md # ultra bundle
    ```
    If the file exists:
    - **Single plan** (interactive or `<plan-name>`): STOP with an error:
@@ -231,13 +240,15 @@ For each plan to archive:
      ```
    Do NOT overwrite in either case.
 
-3. **Move the source file** into the archive path first:
+3. **Move the complete source artifact** into the archive path first:
    ```bash
-   mv <paths.plans>/<filename> <paths.archive>/plans/<filename>
+   mv <paths.plans>/<name> <paths.archive>/plans/<name>
    ```
-   This atomically removes the plan from the active directory.
+   For ultra, `<name>` is the whole directory, so all linked phase files move
+   together. This atomically removes the plan from active discovery.
 
-4. **Add archive metadata** to the moved file using `Edit`:
+4. **Add archive metadata** to the moved entrypoint using `Edit` (`index.md` for
+   ultra, the moved plan file otherwise):
 
    If the file already has YAML frontmatter (between `---` markers at the top):
    - Use `Edit` to add `archived: YYYY-MM-DD` field inside the existing frontmatter block.
@@ -250,7 +261,8 @@ For each plan to archive:
      ---
      ```
 
-   The original filename is preserved exactly, including any sequential `NNNN_` prefix.
+   The original filename or directory name is preserved exactly, including any
+   sequential `NNNN_` prefix.
 
 5. Logging: `INFO [aif-archive] archived: <filename> -> <paths.archive>/plans/<filename>`
 
@@ -273,7 +285,7 @@ For each plan to archive:
 
 A plan is **completed** when:
 
-1. The file contains a `## Tasks` section (case-insensitive header match).
+1. The plan entrypoint contains a `## Tasks` section (case-insensitive header match).
 2. ALL lines matching the pattern `- [x]` or `- [ ]` within the Tasks section
    (and its subsections) are checked: every checkbox is `- [x]`.
 3. If the Tasks section contains zero checkboxes, the plan is considered
@@ -284,8 +296,8 @@ Edge cases:
 - Checkboxes outside `## Tasks` (e.g., in `## Settings` or `## Commit Plan`)
   are NOT counted for completion.
 - Nested checkboxes (indented `  - [x]`) ARE counted.
-- Plans without a `## Tasks` section are not archivable — emit
-  `WARN [aif-archive] <filename> has no ## Tasks section; skipping`.
+- Plans whose entrypoint lacks `## Tasks` are not archivable — emit
+  `WARN [aif-archive] <name> has no ## Tasks section; skipping`.
 
 ### Completion Date Inference
 
@@ -294,13 +306,13 @@ When displaying "completed" dates in interactive mode:
 1. Check YAML frontmatter for a `completed` field — use if present.
 2. Fall back to git: `git log -1 --format=%ai -- <plan-file>` to get last
    modification date.
-3. Fall back to filesystem: file modification time.
+3. Fall back to filesystem: entrypoint modification time.
 
 ## Important Rules
 
 1. **Never archive incomplete plans** — all tasks must be `- [x]`
 2. **Always ask confirmation** before `--all` and `--roadmap` operations
-3. **Preserve original filenames** — including sequential `NNNN_` prefix
+3. **Preserve original file/directory names** — including sequential `NNNN_` prefix
 4. **Add archive metadata** — `archived: YYYY-MM-DD` in YAML frontmatter
 5. **Do not modify fast plans** (`paths.plan`) or fix plans (`paths.fix_plan`) —
    those are single-file artifacts managed by `/aif-implement` and `/aif-fix`
@@ -310,8 +322,8 @@ When displaying "completed" dates in interactive mode:
 
 ## Artifact Ownership
 
-- **Owns:** `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`
-- **Reads:** `paths.plans/*.md`, `paths.roadmap`
+- **Owns:** `paths.archive/plans/*.md`, archived ultra bundle directories, and `paths.archive/roadmap/*.md`
+- **Reads:** root `paths.plans/*.md`, direct child ultra `*/index.md` + linked phases, and `paths.roadmap`
 - **Modifies:** `paths.roadmap` (only with `--roadmap`, only after confirmation)
 - **Does NOT touch:** `paths.plan`, `paths.fix_plan`, `paths.description`,
   `paths.architecture`, `paths.rules_file`

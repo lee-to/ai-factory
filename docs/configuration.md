@@ -166,7 +166,7 @@ paths:
 # Workflow Settings
 workflow:
   auto_create_dirs: true           # Create .ai-factory/ directories when missing
-  plan_id_format: slug             # slug | sequential (timestamp, uuid — reserved, fall back to slug)
+  plan_id_format: slug             # full filename / ultra directory ID: slug | sequential
   analyze_updates_architecture: true
   architecture_updates_roadmap: true
   verify_mode: normal              # strict | normal | lenient
@@ -175,7 +175,7 @@ workflow:
 git:
   enabled: true                    # Set false for non-git repositories
   base_branch: main                # Diff / review / merge target when git is enabled
-  create_branches: true            # Full plans may create branches when enabled
+  create_branches: true            # Full/ultra plans may create branches
   branch_prefix: feature/          # Prefix for auto-created plan branches
   skip_push_after_commit: false    # If true, /aif-commit skips push prompt after commit
 
@@ -202,10 +202,15 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
 - `language.technical_terms` controls whether human-readable terminology is kept, translated, or mixed while commands, paths, identifiers, branch names, config keys, package names, API names, machine-readable enum values, and raw errors stay unchanged where required.
 
 **Git workflow semantics:**
-- `git.enabled: false` disables branch/worktree assumptions entirely. `/aif-plan full` still creates a rich full plan, but it stores it in `paths.plans/<slug>.md` without running git commands.
+- `git.enabled: false` disables branch/worktree assumptions entirely.
+  `/aif-plan full` still writes `paths.plans/<slug>.md`; `/aif-plan ultra`
+  writes `paths.plans/<slug>/index.md` plus phase files.
 - `git.base_branch` is the branch used for diff, review, verify, rules-check, and merge guidance. Skills must not hardcode `main`.
-- `git.create_branches: false` keeps git awareness enabled but disables automatic branch creation. This lets teams keep full plans without forcing branch-per-feature flow.
+- `git.create_branches: false` keeps git awareness enabled but disables
+  automatic branch creation for both full and ultra plans.
 - `git.skip_push_after_commit: true` makes `/aif-commit` stop after local commit without showing push prompt.
+- Ultra is strictly opt-in through `/aif-plan ultra`; no new config key is
+  required, and existing fast/full prompts and artifact shapes remain unchanged.
 - `paths.plan` remains the default fast-plan file. If you prefer fast plans inside `paths.plans/`, change `paths.plan` manually in `config.yaml`.
 - `paths.docs` controls where `/aif-docs` writes the detailed documentation pages. `README.md` remains the landing page in the project root.
 - `paths.qa` controls where `/aif-qa` and `/aif-qa-check` store QA artifacts. A derived branch slug is appended automatically: `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`, and `qa-check.md`. Agent-mode `/aif-qa-check` also uses root-level `<paths.qa>/agent-context.md` and `<paths.qa>/agent-history.md` to reuse non-sensitive cross-QA setup facts and recurring learnings, including stable browser routes/selectors and safe command/test-filter patterns. Run-specific details such as branch names, QA target paths, summary counts, assertion totals, and one-off command transcripts stay in `<paths.qa>/<branch-slug>/qa-check.md`. The slug is a deterministic, filesystem-safe, stable derived value with mandatory 40-character safe-slug truncation and a short hash suffix for collision resistance — see `skills/aif-qa/SKILL.md` for the full algorithm. `/aif-qa-check` binds results to the tested commit plus working tree digest, or to a manual build identifier when git is unavailable, plus deterministic `test-cases.md` and per-case digests.
@@ -319,8 +324,11 @@ your-project/
 │   │       └── extension.json
 │   ├── references/            # Knowledge references from external sources (from /aif-reference)
 │   │   └── <topic>.md
-│   ├── plans/                 # Plans from /aif-plan full
-│   │   └── <branch-name>.md
+│   ├── plans/                 # Full .md plans and ultra plan directories
+│   │   ├── <branch-name>.md
+│   │   └── <ultra-id>/
+│   │       ├── index.md
+│   │       └── phase-01-<slug>.md
 │   ├── skill-context/         # Project-specific rules for built-in skills (from /aif-evolve)
 │   │   ├── aif-fix/
 │   │   │   └── SKILL.md

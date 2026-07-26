@@ -38,7 +38,7 @@ The Handoff coordinator already manages status transitions and DB writes directl
 
 **When `HANDOFF_MODE` is NOT `1`** (manual Claude Code session):
 
-After reading an existing plan file (if polishing), extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line (if present). Pass the extracted ID to every plan-polisher invocation as explicit text:
+After reading an existing plan entrypoint (if polishing), extract the Handoff task ID from the `<!-- handoff:task:<id> -->` annotation on the first line (if present). For ultra, normalize a directory path to `index.md`. Pass the extracted ID to every plan-polisher invocation as explicit text:
 
 ```
 HANDOFF_TASK_ID: <value from plan annotation>
@@ -49,7 +49,7 @@ Do this even though `HANDOFF_MODE` stays unset or non-`1` in manual sessions. Th
 If a task ID IS found in the plan annotation, sync with Handoff via MCP tools:
 
 - **On start (before first plan-polisher):** Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "planning", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
-- **On completion (after final iteration):** Read the final plan file, then call `handoff_push_plan` with `{ taskId: <extracted-id>, planContent: <full plan text> }`. Then call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "plan_ready", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
+- **On completion (after final iteration):** Read the final plan artifact, then call `handoff_push_plan`. For fast/full, `planContent` is the file text. For ultra, serialize `index.md` followed by every Phase Index file in order, each prefixed with `<!-- ultra-phase:<relative-path> -->`. Then call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "plan_ready", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
 
 **CRITICAL:** Always pass `paused: true` with every `handoff_sync_status` call except `done`. This prevents the autonomous Handoff agent from picking up the task while you work manually. Only `done` passes `paused: false`.
 
@@ -59,13 +59,15 @@ The user provides a planning request — the same input they would give to `/aif
 - `"implement user authentication with JWT"`
 - `"refactor the payment module to use Stripe v3 API"`
 - `"@.ai-factory/plans/feature-auth.md"` (polish an existing plan)
+- `"mode: ultra, rebuild billing around an immutable ledger"`
+- `"@.ai-factory/plans/feature-billing"` (polish an existing ultra bundle)
 
 ## Configuration
 
 | Parameter      | Default | Description                                                          |
 |----------------|---------|----------------------------------------------------------------------|
 | max_iterations | 3       | Maximum critique→improve cycles                                      |
-| mode           | full    | Planning mode: `fast` or `full`                                      |
+| mode           | full    | Planning mode: `fast`, `full`, or explicit opt-in `ultra`             |
 | tests          | infer   | Include test tasks: `yes`, `no`, or `infer` (auto-detect from project) |
 | docs           | infer   | Include docs tasks: `yes`, `no`, or `infer` (auto-detect from project) |
 
@@ -81,7 +83,7 @@ iteration = 0
 # First pass: create the plan
 launch plan-polisher with the user's original request
 collect result → extract plan_path, needs_further_refinement, issues list
-verify plan file exists on disk (Read plan_path) — if missing, stop with error
+verify plan artifact exists on disk (normalize a directory to index.md) — if missing, stop with error
 
 # Refinement loop
 while needs_further_refinement == yes AND iteration < max_iterations:
@@ -93,7 +95,7 @@ while needs_further_refinement == yes AND iteration < max_iterations:
     collect result → extract needs_further_refinement, issues list
 
 # Done
-read final plan file
+read final plan artifact (all linked files for ultra)
 report summary
 ```
 
@@ -102,9 +104,9 @@ report summary
 - Launch exactly ONE plan-polisher per iteration (planning is sequential, not parallel).
 - Pass the full context to each plan-polisher invocation:
   - iteration number and max
-  - plan file path (after first pass)
+  - plan artifact path (after first pass)
   - remaining issues from previous critique
-  - `mode: fast` or `mode: full` (from user config or default `full`)
+  - `mode: fast`, `mode: full`, or explicit `mode: ultra` (default `full`)
   - `tests: yes/no/infer` (from user config or default `infer`)
   - `docs: yes/no/infer` (from user config or default `infer`)
   - `HANDOFF_MODE` and `HANDOFF_TASK_ID` values when `HANDOFF_MODE=1`
@@ -126,7 +128,9 @@ After each iteration, compare the current issues list with the previous one. If 
 
 ## Plan file tracking
 
-After the first plan-polisher run, read the plan file to confirm it exists and note the path. Track the plan path throughout — all subsequent plan-polisher calls reference this same file.
+After the first plan-polisher run, confirm the plan artifact exists and note its
+stable path. An ultra path may be its directory or `index.md`; normalize it once
+and track the same bundle throughout all subsequent iterations.
 
 ## Output
 

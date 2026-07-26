@@ -171,7 +171,8 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-rules` | Capture project conventions or add area-specific rules before planning and implementation | No | No (`paths.rules_file` or `paths.rules/<area>.md`) |
 | `/aif-plan fast` | Small tasks, quick fixes, experiments | No | `paths.plan` (default: `.ai-factory/PLAN.md`) |
 | `/aif-plan full` | Full features, stories, epics | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see [Plan Files](plan-files.md)) |
-| `/aif-plan full --parallel` | Concurrent features via worktrees | Yes + worktree (`git.enabled` + `git.create_branches`) | Autonomous end-to-end |
+| `/aif-plan ultra` | Large/cross-cutting work delegated from a strong planner to a smaller implementer | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<id>/index.md` + one detailed file per phase |
+| `/aif-plan full|ultra --parallel` | Concurrent features via worktrees | Yes + worktree (`git.enabled` + `git.create_branches`) | Autonomous end-to-end |
 | `/aif-improve` | Refine plan before implementation | No | No (improves existing) |
 | `/aif-loop` | Iterative generation with quality gates and phase-based cycles | No | No (uses `paths.evolution`, default `.ai-factory/evolution/`) |
 | `/aif-reference` | Create knowledge refs from URLs/docs for AI agents | No | No (`paths.references`, default `.ai-factory/references/`) |
@@ -181,7 +182,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-verify` | Post-implementation quality check | No | No (reads existing) |
 | `/aif-qa` | Manual QA for a feature/fix: change summary → test plan → test cases | No | `paths.qa/<branch-slug>/*.md` (default: `.ai-factory/qa/<branch-slug>/`) |
 | `/aif-qa-check` | Execute QA cases manually or through automated agent checks | No | `paths.qa/<branch-slug>/qa-check.md`; agent mode also maintains `paths.qa/agent-context.md` and `paths.qa/agent-history.md` |
-| `/aif-archive` | Archive completed plans and trim closed roadmap milestones | No | `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md` (default: `.ai-factory/archive/`) |
+| `/aif-archive` | Archive completed plans and trim closed roadmap milestones | No | `paths.archive/plans/*`, `paths.archive/roadmap/*.md` (default: `.ai-factory/archive/`) |
 
 `/aif-qa change-summary` normally derives context from git diffs. When `git.enabled=false` or the target/base refs cannot be resolved locally or through `origin/<base_branch>`, it asks for manual change context instead of failing on git commands. `/aif-qa-check` consumes the resulting `test-cases.md`; human mode asks for one result at a time, and agent mode uses the appropriate execution surface for each case: browser, CLI, API, automated tests, or file/document checks. Browser/UI cases still require live browser execution, preferring the in-app Browser and falling back to Playwright MCP; non-browser cases are not blocked merely because browser automation is unavailable. Agent mode reads `agent-context.md` and `agent-history.md` first, asks the user for missing recoverable execution context before blocking, records only reusable non-sensitive cross-QA facts in those root-level files, and offers human-mode continuation only for human-verifiable blocked cases. Run-specific details stay in branch-specific `qa-check.md`. QA check results are bound to the tested commit plus worktree digest, or to a manual build identifier when git is unavailable, plus source/case digests, so stale passes are not counted after the branch, dirty working tree, or test cases change.
 
@@ -195,7 +196,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-architecture`                       | `paths.architecture` (default: `.ai-factory/ARCHITECTURE.md`)                                 | may update architecture pointer in DESCRIPTION/AGENTS     |
 | `/aif-roadmap`                            | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-implement` may mark completed milestones            |
 | `/aif-rules`                              | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | top-level axioms plus area-rule files and registration    |
-| `/aif-plan`                               | `paths.plan`, `paths.plans/<branch-or-slug>.md`                                               | `/aif-improve` refines existing plans                     |
+| `/aif-plan`                               | `paths.plan`, full `paths.plans/<id>.md`, ultra `paths.plans/<id>/`                            | `/aif-improve` refines existing plans/bundles             |
 | `/aif-explore`                            | `paths.research` (default: `.ai-factory/RESEARCH.md`)                                         | all other artifacts are read-only in explore mode         |
 | `/aif-reference`                          | `paths.references/*`, `paths.references/INDEX.md`                                             | knowledge references from external sources                |
 | `/aif-distillation`                       | current agent skills directory by default, or `--path <directory>` as an output root (`<root>/<skill-name>/`, or prefixed child dirs in `--split` mode) | distilled skills from explicit source material            |
@@ -203,7 +204,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-evolve`                             | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`, `.ai-factory/skill-context/*`  | skill-context overrides + evolution logs + cursor state   |
 | `/aif-qa`                                 | `paths.qa/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`                   | derived branch slug as subdirectory (see aif-qa SKILL.md) |
 | `/aif-qa-check`                           | `paths.qa/<branch-slug>/qa-check.md`, `paths.qa/agent-context.md`, `paths.qa/agent-history.md` | executes `/aif-qa` test cases; source QA artifacts stay read-only; agent context/history are reusable automated-QA memory |
-| `/aif-archive`                            | `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                                      | moves completed plans from `paths.plans/`; trims closed milestones from `paths.roadmap` |
+| `/aif-archive`                            | `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                                         | moves completed plan files/bundles from `paths.plans/`; trims closed milestones from `paths.roadmap` |
 | `/aif-rules-check`                        | read-only context by default                                                                  | standalone rules gate; no default context-file writes     |
 | `/aif-commit` `/aif-review` `/aif-verify` | read-only context by default                                                                  | gate and report, no default context-file writes           |
 
@@ -226,7 +227,10 @@ These skills form the development pipeline. Each one feeds into the next.
 /aif-explore add-auth-system
 ```
 
-Thinking-partner mode for exploring ideas, constraints, and trade-offs without implementing code. Reads the resolved description, architecture, rules, and research artifacts plus active plan files for context. If you want the context to persist across sessions (or after `/clear`), save it to `paths.research`. When direction is clear, transition to `/aif-plan fast` or `/aif-plan full`.
+Thinking-partner mode for exploring ideas, constraints, and trade-offs without
+implementing code. Reads resolved context plus relevant active plan artifacts.
+If you want the context to persist after `/clear`, save it to `paths.research`.
+When direction is clear, transition to `/aif-plan fast`, `full`, or `ultra`.
 
 ### `/aif-grounded [question or task]` — certainty before action
 
@@ -247,28 +251,48 @@ Reliability-gate mode for evidence-backed answers. Use it when the task is alrea
 
 High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROADMAP.md`) — a strategic checklist of major milestones (not granular tasks). Use `check` to automatically scan the codebase and mark milestones that appear done. `/aif-implement` also checks the roadmap after completing all tasks.
 
-### `/aif-plan [fast|full] <description>` — plan the work
+### `/aif-plan [fast|full|ultra] <description>` — plan the work
 
 ```
 /aif-plan Add user authentication with OAuth       # Asks which mode
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
+/aif-plan ultra Rebuild billing around a ledger    # Multi-file, implementation-complete plan
 /aif-plan full --parallel Add Stripe checkout      # Parallel worktree
 ```
 
-Two modes — **fast** (no branch, saves to `paths.plan`) and **full** (asks about testing/logging/docs policy and optional roadmap milestone linkage when the roadmap artifact exists, saves to `paths.plans/<branch-or-slug>.md`, and optionally creates a git branch/worktree when `git.enabled=true` and `git.create_branches=true`). When `workflow.plan_id_format: sequential` is enabled, the full-mode filename gains a 4-digit `NNNN_` prefix (`paths.plans/<NNNN>_<branch-or-slug>.md`) — see [Plan Files](plan-files.md) for the numbering contract. Analyzes requirements, explores codebase for patterns, creates tasks with dependencies. If the user supplied a planning request, `/aif-plan` saves it verbatim in `Original Request`; this raw-source section is omitted only when the plan is created solely from `RESEARCH.md` and downstream rewrites must preserve it exactly. If `RESEARCH.md` influences the plan, `/aif-plan` writes a `Research Context` section with a source revision so the copied context is the committed requirements snapshot. For 5+ tasks, includes commit checkpoints. For parallel work on multiple features, use `full --parallel` to create isolated worktrees.
+Three modes — **fast** (quick single file), **full** (rich single file), and
+**ultra** (a directory whose `index.md` owns scope/progress and whose phase files
+specify implementation in code-level detail). Full and ultra share testing,
+logging, docs, roadmap, branch, and worktree preferences. Sequential IDs put
+`NNNN_` on the full filename or ultra directory and count both active shapes.
+Ultra is strictly opt-in through the explicit leading `ultra` token. Omitting
+the mode preserves the existing interactive choice between full and fast.
+All modes preserve an explicit `Original Request`; research-backed plans commit
+a revisioned `Research Context`. Ultra additionally requires exact paths and
+symbols, ordered edits, contracts, errors/logging, test policy, acceptance
+criteria, verification, and bundle-integrity checks so a smaller model does not
+have to reconstruct architecture. See [Plan Files](plan-files.md).
 
-### `/aif-improve [--list] [+check] [@plan-file] [prompt]` — refine the plan
+### `/aif-improve [--list] [+check] [@plan-file-or-directory] [prompt]` — refine the plan
 
 ```
 /aif-improve
 /aif-improve --list
 /aif-improve +check
 /aif-improve @my-custom-plan.md
+/aif-improve @.ai-factory/plans/feature-billing
 /aif-improve add validation and error handling
 ```
 
-Second-pass analysis. Finds missing tasks (migrations, configs, middleware), fixes dependencies, removes redundant work, and surfaces useful-but-out-of-scope tasks in a separate "💡 Out of scope" report section so the user sees the idea without polluting the active plan (the skill does not persist them anywhere). Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan`. If the plan contains `Original Request`, `/aif-improve` treats it as the immutable original intent / scope anchor and preserves it verbatim on every plan edit or regeneration, even when `language.artifacts` differs. If the plan references `RESEARCH.md`, `/aif-improve` preserves the embedded Research Context, checks `paths.research` for revision drift, and emits `WARN [research-drift]` instead of applying newer research silently. `--list` is a read-only discovery mode that shows available plan files and exits. Shows a diff-like report before applying changes.
+Second-pass analysis. Finds missing tasks, fixes dependencies, removes redundant
+work, and reports useful-but-out-of-scope ideas. Discovery priority is explicit
+file/ultra directory, branch-based full/ultra artifact, single named artifact,
+fast plan, then fix plan. Ultra refinement reads and updates `index.md` plus all
+linked phase files as one bundle, preserves task progress in the index, and
+reruns link/task/dependency integrity checks. `Original Request` stays verbatim;
+revisioned Research Context remains committed scope and drift produces
+`WARN [research-drift]`. `--list` is read-only.
 
 Optional `+check` runs a single fresh-context `general-purpose` subagent on the refinements (`missing` / `improvements` / `removals` / `out_of_scope` groups), drops invented items, rewrites partially-correct ones, and appends `Hidden by +check` / `Adjusted by +check` counters to the Step 5 Summary block. Dependency fixes are recomputed against the filtered list after validation. Combined with `--list`, the flag is silently ignored — there is no refinement to validate.
 
@@ -293,11 +317,19 @@ For full contracts and state transition rules, see [Reflex Loop](loop.md).
 /aif-implement        # Continue from where you left off
 /aif-implement --list # Show available plans only (no execution)
 /aif-implement @my-custom-plan.md # Execute using an explicit plan file
+/aif-implement @.ai-factory/plans/feature-billing # Execute an ultra bundle
 /aif-implement 5      # Start from task #5
 /aif-implement status # Check progress
 ```
 
-Reads skill-context rules first, then uses limited recent patch fallback when needed. Executes tasks one by one with commit checkpoints. Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan` (redirects to `/aif-fix`). If the plan contains `Original Request`, `/aif-implement` uses it as original scope context while executing the task list and committed Research Context as the plan inputs. If the plan references `RESEARCH.md`, `/aif-implement` uses the embedded Research Context as committed scope and checks `paths.research` only for drift. `--list` is a read-only discovery mode that shows available plan files and exits. Docs policy after completion: `Docs: yes` → mandatory docs checkpoint (update docs / create feature page / skip, routed via `/aif-docs`), `Docs: no` or unset → `WARN [docs]` only.
+Reads skill-context rules first, then uses limited recent patch fallback when
+needed. Executes tasks one by one with commit checkpoints. Discovery supports an
+explicit plan file or ultra directory, branch/single named full or ultra
+artifact, fast plan, then fix-plan redirect. For ultra, it reads the complete
+phase file before executing a task and updates progress only in `index.md`.
+`Original Request` supplies original scope; committed Research Context supplies
+revisioned requirements. `--list` is read-only. Docs policy remains
+`Docs: yes` → mandatory `/aif-docs` checkpoint; `no`/unset → `WARN [docs]`.
 When executing through the Claude top-level `implement-coordinator`, the quality-gate sidecars include `review-sidecar`, `security-sidecar`, and `rules-sidecar` (`aif-rules-check`) after code changes, plus `best-practices-sidecar` for maintainability checks. In Handoff automation, `HANDOFF_SKIP_REVIEW=1` intentionally skips the review-family gates: `review-sidecar`, `security-sidecar`, and `rules-sidecar`.
 
 ### `/aif-verify [--strict]` — check completeness

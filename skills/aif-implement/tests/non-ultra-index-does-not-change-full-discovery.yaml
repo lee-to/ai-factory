@@ -1,0 +1,53 @@
+scenario: non-ultra-index-does-not-change-full-discovery
+description: |
+  Backward compatibility: an unrelated directory with index.md under
+  paths.plans must not become a plan. With one legacy full .md plan,
+  /aif-implement must select and execute that full plan exactly as before.
+skill: aif-implement
+argument: ""
+max_turns: 40
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+
+fixtures:
+  git_init: false
+  files:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+          fix_plan: .ai-factory/FIX_PLAN.md
+        git:
+          enabled: false
+          create_branches: false
+    - path: .ai-factory/plans/legacy-full.md
+      content: |
+        # Legacy Full Plan
+        ## Tasks
+        - [ ] Task 1: Use Write to create LEGACY_FULL_RAN.txt containing legacy.
+    - path: .ai-factory/plans/notes/index.md
+      content: |
+        # Team planning notes
+        This is not an ultra plan and has no Mode: ultra declaration.
+
+assertions:
+  - id: reads-legacy-full
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/legacy-full\\.md$"
+    weight: 3
+  - id: executes-legacy-full
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)LEGACY_FULL_RAN\\.txt$"
+    weight: 4
+  - id: does-not-report-ambiguity
+    type: output_not_contains
+    pattern: "(?i)multiple.*plan|ambiguous"
+  - id: stay-in-sandbox
+    type: no_path_escape
