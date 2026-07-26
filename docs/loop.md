@@ -84,6 +84,9 @@ Single source of truth for current state:
   "status": "running",
   "iteration": 1,
   "max_iterations": 4,
+  "max_active_seconds": null,
+  "active_seconds": 0,
+  "phase_started_at": null,
   "phase": "A",
   "current_step": "PLAN",
   "task": {
@@ -218,8 +221,21 @@ Loop stops when any of the following is true:
 3. iteration limit reached (`iteration_limit`)
 4. user requested stop (`user_stop`)
 5. stagnation detected (`stagnation`)
+6. active-time budget exhausted (`budget_exceeded`) — only when `max_active_seconds` is set
 
-Default iteration limit is `4` (`run.json.max_iterations` is the single source of truth).
+Default iteration limit is `4` (`run.json.max_iterations` is the single source of truth). The active-time budget has no default: `run.json.max_active_seconds` is optional, and `null` or a missing field means no limit — run files created before the field existed behave unchanged.
+
+### Active-Time Budget
+
+`max_active_seconds` caps **active** working time, measured at phase boundaries with `date +%s` — there are no background timers:
+
+- before a phase starts: if `active_seconds >= max_active_seconds`, the loop stops with `budget_exceeded` instead of starting it; otherwise `phase_started_at` is set to the current epoch and persisted
+- after a phase completes: `active_seconds += now - phase_started_at`, `phase_started_at` resets to `null`, and the cap is re-checked
+- the parallel `PRODUCE||PREPARE` pair counts as one wall-clock segment, not a per-task sum
+
+The limit is **soft**: it is only evaluated at phase boundaries and never interrupts a running phase or its `Task` subagents. A run may overshoot the cap by up to the duration of the in-flight phase — expected behavior, not an error.
+
+Idle time never counts. `active_seconds` grows only by completed working segments, and resume discards a stale `phase_started_at` (re-set when the interrupted phase actually re-runs), so time a loop spends interrupted on disk costs nothing.
 
 ### Stop Reason → Status Mapping
 
@@ -230,6 +246,7 @@ Default iteration limit is `4` (`run.json.max_iterations` is the single source o
 | `user_stop` | `stopped` |
 | `iteration_limit` | `stopped` |
 | `stagnation` | `stopped` |
+| `budget_exceeded` | `stopped` |
 | `phase_error` | `failed` |
 
 ## Final Summary Contract
@@ -241,7 +258,7 @@ After loop termination, always show final summary with:
 3. `final_score`
 4. `stop_reason`
 
-If stop reason is `iteration_limit` and latest evaluation is `passed=false`, summary must also include **distance to success**:
+If stop reason is `iteration_limit` or `budget_exceeded` and latest evaluation is `passed=false`, summary must also include **distance to success**:
 
 1. active threshold vs final score
 2. numeric gap to threshold (`threshold - score`, floor `0`)
@@ -319,7 +336,7 @@ The loop uses a phase model with targeted parallelism:
 1. Keep architecture simple — phases run in a single agent context, parallelism only where inputs are independent (PRODUCE||PREPARE, check groups in EVALUATE).
 2. Evaluation is grounded in explicit rules with measurable scores.
 3. Each phase has strict I/O contracts to prevent drift.
-4. Hard stop guards prevent infinite loops (threshold, stagnation, max iterations, manual stop).
+4. Hard stop guards prevent infinite loops (threshold, stagnation, max iterations, optional active-time budget, manual stop).
 5. Artifact is always on disk — resumable across sessions.
 
 ## See Also

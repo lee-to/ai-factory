@@ -168,6 +168,9 @@ Generate:
   "status": "running",
   "iteration": 1,
   "max_iterations": 4,
+  "max_active_seconds": null,
+  "active_seconds": 0,
+  "phase_started_at": null,
   "phase": "A",
   "current_step": "PLAN",
   "task": {
@@ -205,6 +208,7 @@ When resuming a loop:
    - Re-execute from that phase (do not skip)
    - `PRODUCE_PREPARE`: always re-run both PRODUCE and PREPARE (idempotent — artifact overwrites, checks regenerate)
 4. If `run.json.status` is `stopped`, `completed`, or `failed`, inform user and suggest `new` (for `failed` runs, also show the last `phase_error` event from `history.jsonl` so user understands what went wrong)
+5. Discard a stale `phase_started_at`: set it to the current `date +%s` when the interrupted phase actually re-starts. Idle time between sessions is never active time — only `active_seconds` already accumulated at phase boundaries carries over (see "Active-time budget" in Step 5).
 
 ## Step 2: Interactive Setup (new loop)
 
@@ -214,7 +218,7 @@ If the task prompt contains enough context to infer task type and ideal result:
 
 1. Auto-detect task type from prompt (API spec, code, docs, config)
 2. Load matching template from `references/CRITERIA-TEMPLATES.md`
-3. Draft inferred rules, phase thresholds (fallback: A=0.8, B=0.9), and max iterations (default: `4`)
+3. Draft inferred rules, phase thresholds (fallback: A=0.8, B=0.9), max iterations (default: `4`), and — only when the task text names a time limit — an active-time budget in seconds (default: none)
 4. Show inferred settings as a draft summary
 5. **Always ask explicit confirmation of success criteria** (rules/thresholds) via `AskUserQuestion`, even if criteria were already present in the task text
 6. **Always ask explicit confirmation of max iterations** via `AskUserQuestion`, even if iteration count was already present in the task text
@@ -252,6 +256,7 @@ Never treat criteria or iteration limits parsed from task text as final until th
 Normalization rules before persisting:
 
 - `run.json.max_iterations` is the single source of truth for iteration limit
+- `run.json.max_active_seconds` is the single source of truth for the active-time budget; it is optional — persist `null` (no limit) unless the user asked for one. Run files without the field behave as `null`
 - every rule must be expanded to full RULE-SCHEMA format (`id`, `description`, `severity`, `weight`, `phase`, `check`)
 - if template shorthand omitted `weight`, derive from severity (`fail`=2, `warn`=1, `info`=0)
 
@@ -323,6 +328,21 @@ Stop when any condition is met:
 3. `iteration >= run.max_iterations` (`reason=iteration_limit`)
 4. explicit user stop (`reason=user_stop`)
 5. stagnation detected (`reason=stagnation`)
+6. `max_active_seconds` is set and `active_seconds >= max_active_seconds` (`reason=budget_exceeded`)
+
+### Active-time budget
+
+`run.json.max_active_seconds` is an optional cap on **active** working time. `null` or absent = no limit; every rule below is skipped and the fields stay untouched, so run files created before this field exist behave unchanged.
+
+Time is measured at **phase boundaries** with `date +%s` — no background timers:
+
+- **Before starting a phase**: if `active_seconds >= max_active_seconds`, stop with `budget_exceeded` instead of starting. Otherwise persist `phase_started_at = <now>` and run the phase.
+- **After the phase completes**: add `<now> - phase_started_at` to `active_seconds`, reset `phase_started_at` to `null`, persist, and re-check the cap — if exceeded, stop with `budget_exceeded` before the next phase begins.
+- The parallel `PRODUCE_PREPARE` pair is one segment: wall-clock from launching both to both completing. Active time is elapsed session time, not a per-`Task` sum.
+
+This is a **soft limit**: the check runs only at phase boundaries and never interrupts a phase (or its `Task` subagents) mid-flight. A run may overshoot the cap by up to the duration of the phase that was in flight when the budget ran out — that overshoot is expected and is not an error.
+
+Idle time never counts: `active_seconds` only ever grows by completed working segments, and resume discards a stale `phase_started_at` (Step 1.5) — the hours a loop sat interrupted on disk cost nothing.
 
 ### Stagnation rule
 
@@ -341,6 +361,7 @@ After each phase output:
 3. Update `current.json.updated_at`
 4. Write `artifact.md` to disk after PRODUCE and REFINE phases
 5. Before REFINE overwrites `artifact.md`, save a SHA-256 hash of the previous artifact in the `refinement_done` event payload as `"previous_artifact_hash"` (enables integrity verification without bloating history)
+6. When `max_active_seconds` is set: update `active_seconds` / `phase_started_at` at every phase boundary per "Active-time budget" (Step 5), in the same `run.json` write — never as a separate timer
 
 Event names:
 
@@ -368,7 +389,7 @@ Event names:
 After the loop stops (any reason):
 
 1. Display final state summary (`iteration`, `max_iterations`, `phase`, `final score`, `stop reason`)
-2. If `stop reason = iteration_limit` and latest evaluation has `passed=false`, include mandatory **distance-to-success** details:
+2. If `stop reason` is `iteration_limit` or `budget_exceeded` and latest evaluation has `passed=false`, include mandatory **distance-to-success** details:
    - active phase threshold and final score
    - numeric gap to threshold (`threshold - score`, floor at `0`)
    - remaining failed `fail`-severity rule count + blocking rule IDs
@@ -388,6 +409,7 @@ After the loop stops (any reason):
 | `user_stop` | `stopped` |
 | `iteration_limit` | `stopped` |
 | `stagnation` | `stopped` |
+| `budget_exceeded` | `stopped` |
 | `phase_error` | `failed` |
 
 ## Step 8: Response Format to User

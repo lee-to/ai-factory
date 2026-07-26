@@ -28,8 +28,9 @@ Rules:
 - Never call other subagents yourself. Parent orchestrator invokes next agent.
 - Use stop order:
   1. `phase=B` and `evaluation.passed=true` -> `FINISH` (`threshold_reached`)
-  2. `iteration >= max_iterations` -> `FINISH` (`iteration_limit`)
-  3. `stagnation_count >= 2` and no severity fail blockers -> `FINISH` (`no_major_issues`)
+  2. `max_active_seconds` set (not null) and `active_seconds >= max_active_seconds` -> `FINISH` (`budget_exceeded`) — judge only by these persisted fields; the parent accounts time at phase boundaries, you never measure it
+  3. `iteration >= max_iterations` -> `FINISH` (`iteration_limit`)
+  4. `stagnation_count >= 2` and no severity fail blockers -> `FINISH` (`no_major_issues`)
 - Normal routing:
   - No plan -> `planner`
   - Plan present, artifact empty -> `producer`
