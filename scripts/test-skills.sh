@@ -940,7 +940,7 @@ else
     fail "/aif-improve concrete output templates missing ui_language structure-only contract"
 fi
 
-if grep -Fq 'Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged.' "$AIF_PLAN_SKILL" \
+if grep -Fq 'Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged.' "$AIF_PLAN_SKILL" \
    && grep -Fq 'Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged.' "$AIF_FIX_SKILL" \
    && grep -Fq 'Preserve source quotations, source titles, URLs, local paths, code examples, API signatures, command names, config keys, package names, version strings, raw errors, and link targets unchanged.' "$AIF_REFERENCE_SKILL" \
    && grep -Fq 'Preserve item IDs, dates, author handles, commands, paths, config keys, package names, API names, security category IDs, severity/status enum values, raw errors, and the final `aif-gate-result` JSON schema unchanged.' "$AIF_SECURITY_SKILL"; then
@@ -1281,9 +1281,11 @@ else
 fi
 
 if grep -Fq 'active plan contains `## Commit Plan`' "$WORKFLOW_DOC" \
-   && grep -Fq 'unmapped staged files' "$WORKFLOW_DOC" \
+   && grep -Fiq 'unmapped staged files' "$WORKFLOW_DOC" \
    && grep -Fq 'staged-diff behavior unchanged' "$WORKFLOW_DOC" \
+   && grep -Fq 'reads the relevant phase files' "$WORKFLOW_DOC" \
    && grep -Fq 'active plan `## Commit Plan`' "$SKILLS_DOC" \
+   && grep -Fq '`Files to Change` table and task specification' "$SKILLS_DOC" \
    && grep -Fq 'Follow Commit Plan' "$SKILLS_DOC"; then
     pass "/aif-commit docs describe plan-aware grouping and fallback"
 else
@@ -1497,9 +1499,10 @@ if [[ -f "$AIF_PLAN_ULTRA_REF" ]] \
     && grep -qF '`index.md` is the manifest, scope anchor, and only progress source.' "$AIF_PLAN_ULTRA_REF" \
     && grep -qF 'Every task has a stable `Task N` identifier' "$AIF_PLAN_ULTRA_REF" \
     && grep -qF '<!-- ultra-phase:<relative-path> -->' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF '<!-- aif:plan-mode:ultra -->' "$AIF_PLAN_ULTRA_REF" \
     && grep -qF 'mode: `fast`, `full`, or explicit opt-in `ultra`' "$CLAUDE_SUBAGENTS_DIR/plan-coordinator.md" \
     && grep -qF 'mode: fast`, `mode: full`, or `mode: ultra`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
-    && grep -qF 'declares `Mode: ultra`' "$CLAUDE_SUBAGENTS_DIR/implement-coordinator.md" \
+    && grep -qF '<!-- aif:plan-mode:ultra -->' "$CLAUDE_SUBAGENTS_DIR/implement-coordinator.md" \
     && grep -qF 'matching phase file path and complete Task N specification' "$CLAUDE_SUBAGENTS_DIR/implement-coordinator.md"; then
     pass "ultra producer and Claude coordinator contracts stay synchronized"
 else
@@ -1564,6 +1567,18 @@ if grep -qF 'bounded helper workers' "$ROOT_DIR/docs/configuration.md" \
     pass "extension runtime helper docs stay synchronized"
 else
     fail "extension runtime helper docs stay synchronized"
+fi
+
+# Deterministic ultra contract regressions: localized discovery, canonical
+# bundle integrity, phase-backed commit mapping, and sequential filtering.
+echo ""
+echo -e "${BOLD}=== Ultra plan contract regression tests ===${NC}"
+echo ""
+
+if node "$ROOT_DIR/scripts/test-ultra-plan-contract.mjs"; then
+    pass "ultra plan deterministic contract regressions"
+else
+    fail "ultra plan deterministic contract regressions"
 fi
 
 # ─────────────────────────────────────────────

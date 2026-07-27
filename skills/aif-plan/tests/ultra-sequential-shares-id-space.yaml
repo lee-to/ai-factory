@@ -35,6 +35,7 @@ fixtures:
         - [x] Task 1: done
     - path: .ai-factory/plans/0004_other/index.md
       content: |
+        <!-- aif:plan-mode:ultra -->
         # Ultra Implementation Plan: Other
         Mode: ultra
         ## Phase Index

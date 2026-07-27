@@ -148,15 +148,16 @@ Plan resolution order:
    - otherwise/fallback check `paths.plans/<branch_stem>/index.md` and
      `paths.plans/<branch_stem>.md`; warn and prefer ultra if both exist.
 3. A single named artifact in `paths.plans`: count root `*.md` full plans and
-   direct child `*/index.md` entrypoints that declare `Mode: ultra`; exclude
+   direct child `*/index.md` entrypoints containing
+   `<!-- aif:plan-mode:ultra -->`; exclude
    the resolved fast-plan path and never count phase files.
 4. The fast plan at `paths.plan`.
 
 For ultra, read `index.md` first and only the linked phase files relevant to the
 changed area when extra scope detail is needed. Do not fail the rules check
 because a plan artifact is missing or ambiguous.
-An automatically discovered directory entrypoint counts only when it declares
-`Mode: ultra`; ignore unrelated `*/index.md` files.
+An automatically discovered directory entrypoint counts only when it contains
+`<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
 
 ## Step 3: Evaluate Rules
 

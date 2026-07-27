@@ -20,6 +20,8 @@ Rules:
 - An ultra plan is one artifact bundle: `<paths.plans>/<id>/index.md` plus linked
   direct-child phase files. `index.md` owns scope and task progress; phase files
   own detailed implementation specifications.
+- Require the exact untranslated marker `<!-- aif:plan-mode:ultra -->` once in
+  every ultra `index.md`; never infer bundle type from a localized `Mode` label.
 - For ultra refinement, keep the directory stable, read every Phase Index file,
   update the bundle consistently, and validate links/task mappings/dependencies.
 - Return a concise final summary with the final plan status and any remaining material gaps.

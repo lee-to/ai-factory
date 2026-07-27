@@ -255,10 +255,12 @@ ultra → uses full-mode preferences and optional branch/worktree flow
         → is strictly opt-in via the leading `ultra` token; omitted mode keeps
           the existing full/fast interactive choice
         → saves `paths.plans/<id>/index.md` plus one `phase-NN-*.md` per phase
+        → `index.md` contains the exact untranslated `<!-- aif:plan-mode:ultra -->` discovery marker
         → `index.md` owns scope/settings/context/TOC/task checkboxes/dependencies/commits
         → phase files own exact code evidence, files/symbols, ordered edits, contracts,
           errors/logging, test policy, acceptance criteria, and verification
-        → sequential format prefixes the directory; allocation counts full files + ultra dirs
+        → sequential format prefixes the directory; allocation counts full files + marked ultra dirs
+          and ignores numbered directories whose `index.md` lacks the ultra marker
     ↓
 Explores codebase
     ↓

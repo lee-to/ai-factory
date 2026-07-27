@@ -84,7 +84,7 @@ The user may provide:
       `[0-9]{4}_<stem>/index.md`, choosing the highest prefix. Otherwise check
       `<stem>/index.md` and `<stem>.md`, preferring declared ultra if both exist.
    c. If no branch artifact exists, count named root full files and direct child
-      `*/index.md` files that declare `Mode: ultra`; exclude resolved fast/fix
+      `*/index.md` files containing `<!-- aif:plan-mode:ultra -->`; exclude resolved fast/fix
       paths and never count phase files. Use it only when exactly one exists.
    d. Fall back to resolved `paths.plan`.
    e. If only resolved `paths.fix_plan` exists — stop and tell the user to run
@@ -100,7 +100,7 @@ The user may provide:
 3. Build a dependency graph from `(depends on ...)` annotations.
 4. Tasks without explicit dependencies within the same phase are assumed independent.
 5. Tasks in a later phase implicitly depend on ALL tasks in preceding phases unless explicit dependencies say otherwise.
-6. If the entrypoint declares `Mode: ultra`, validate every Phase Index link,
+6. If the entrypoint contains `<!-- aif:plan-mode:ultra -->`, validate every Phase Index link,
    reject escaping/broken/orphan files, and map every task to exactly one
    `## Task N` section. Read a task's complete phase file before dispatching it.
    `index.md` remains the only task-status source.

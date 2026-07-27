@@ -31,7 +31,7 @@ fixtures:
     - path: .ai-factory/plans/notes/index.md
       content: |
         # Team planning notes
-        This is not an ultra plan and has no Mode: ultra declaration.
+        This is not an ultra plan and has no aif:plan-mode:ultra marker.
 
 assertions:
   - id: reads-legacy-full

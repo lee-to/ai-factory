@@ -9,7 +9,7 @@
 | `slug`       | `paths.plans/<stem>.md` / `paths.plans/<stem>/index.md`     | Default. Derived from branch name (or description slug in no-git mode).|
 | `timestamp`  | (reserved; behaves like `slug`)                             | Reserved value. Currently falls back to `slug` with an `INFO` log.    |
 | `uuid`       | (reserved; behaves like `slug`)                             | Reserved value. Currently falls back to `slug` with an `INFO` log.    |
-| `sequential` | `paths.plans/<NNNN>_<stem>.md` / `paths.plans/<NNNN>_<stem>/index.md` | `NNNN = max(existing 4-digit prefix across full files and ultra directories) + 1`; empty dir starts at `0001`; capped at `9999`. Deleting the highest-numbered plan can free that number for reuse. Force-disabled under `HANDOFF_BRANCH_PREPARED=1`. |
+| `sequential` | `paths.plans/<NNNN>_<stem>.md` / `paths.plans/<NNNN>_<stem>/index.md` | `NNNN = max(existing 4-digit prefix across full files and directories whose `index.md` has the exact ultra marker) + 1`; other numbered directories are ignored; empty plans start at `0001`; capped at `9999`. Deleting the highest-numbered plan can free that number for reuse. Force-disabled under `HANDOFF_BRANCH_PREPARED=1`. |
 
 Branch names always remain `<branch_prefix><slug>` regardless of the format —
 the prefix lives only on the full-plan filename or ultra directory. Fast plans

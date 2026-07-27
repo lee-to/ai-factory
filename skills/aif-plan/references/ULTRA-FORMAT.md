@@ -29,6 +29,9 @@ and execution order agree.
 ## Sources of Truth
 
 - `index.md` is the manifest, scope anchor, and only progress source.
+- `index.md` contains the exact machine-readable marker
+  `<!-- aif:plan-mode:ultra -->`. Consumers use this marker rather than the
+  localized `Mode` label. The marker is never translated or rewritten.
 - Task checkboxes exist only in `index.md`.
 - Phase files contain implementation detail and must not duplicate task
   checkboxes.
@@ -44,8 +47,7 @@ implementation after `/clear` or handoff to a smaller model.
 
 ```markdown
 <!-- handoff:task:<HANDOFF_TASK_ID> -->
-<!-- First line only when HANDOFF_MODE=1 and HANDOFF_TASK_ID is non-empty -->
-
+<!-- aif:plan-mode:ultra -->
 # Ultra Implementation Plan: [Feature Name]
 
 Mode: ultra
@@ -72,11 +74,11 @@ Source: .ai-factory/RESEARCH.md (Active Summary, Updated: ..., SHA256: ...)
 - [Cross-phase boundary, contract, or implementation decision]
 
 ## Phase Index
-1. [Phase 1: Foundation](phase-01-foundation.md) — Tasks 1-3
-2. [Phase 2: Integration](phase-02-integration.md) — Tasks 4-6
+1. [Phase 1: Foundation](phase-01-foundation.md) — Tasks 1-2
+2. [Phase 2: Integration](phase-02-integration.md) — Task 3
 
 ## Cross-Phase Dependencies
-- Task 4 depends on Tasks 1 and 2 because ...
+- Task 3 depends on Tasks 1 and 2 because ...
 
 ## Tasks
 
@@ -89,10 +91,15 @@ Source: .ai-factory/RESEARCH.md (Active Summary, Updated: ..., SHA256: ...)
 
 ## Commit Plan
 - **Commit 1** (after tasks 1-2): "feat: ..."
+- **Commit 2** (after task 3): "feat: ..."
 
 ## Definition of Done
 - [Non-task, non-checkbox completion criteria]
 ```
+
+Omit the first Handoff line unless `HANDOFF_MODE=1` and `HANDOFF_TASK_ID` is
+non-empty. The ultra marker is therefore always the first line or immediately
+follows the optional Handoff annotation.
 
 Apply the standard `Original Request`, `Research Context`, roadmap, settings,
 language, Handoff annotation, and commit-plan contracts from `SKILL.md`. Keep
@@ -102,10 +109,10 @@ to the detailed execution procedure.
 ## Phase File Template
 
 ```markdown
-# Phase 1: [Name]
+# Phase [N]: [Name]
 
 Plan: [index.md](index.md)
-Tasks: 1-3
+Tasks: [N-M]
 Depends on: none | Phase N / Task N
 
 ## Objective
@@ -184,6 +191,7 @@ Before saving an ultra bundle, verify every task has all of the following:
 Also verify bundle integrity:
 
 - Every Phase Index link exists and is relative to the bundle directory.
+- The exact marker `<!-- aif:plan-mode:ultra -->` exists once in `index.md`.
 - Every indexed task maps to exactly one phase task section.
 - Every phase task appears exactly once in the index checklist.
 - Dependency references point to existing task IDs.

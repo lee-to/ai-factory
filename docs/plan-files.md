@@ -34,6 +34,9 @@ existing plan files or change fast/full artifact shapes; only an explicit
 `index.md` is the manifest and only progress ledger. It owns the original
 request, settings, research/roadmap context, phase table of contents,
 cross-phase dependencies, task checkboxes, commit plan, and definition of done.
+It also contains the exact machine-readable marker
+`<!-- aif:plan-mode:ultra -->`. The marker is never localized; consumers use it
+instead of the human-readable `Mode` label when discovering bundle directories.
 Each phase file specifies exact code evidence, paths and symbols, ordered edits,
 interfaces, data flow, errors and logging, test policy, risks, acceptance
 criteria, and verification commands.
@@ -47,7 +50,8 @@ its `index.md`.
 `paths.plans` remains the only config path; ultra does not add a parallel path
 setting. `workflow.plan_id_format` applies to the bundle directory name.
 Sequential allocation counts both numbered full-plan files and numbered ultra
-directories.
+directories whose `index.md` contains the stable marker. Numbered directories
+without the marker do not consume plan IDs.
 
 ## Archive Lifecycle
 
@@ -61,7 +65,7 @@ paths.plans/<plan>/    →  (index tasks [x]) → paths.archive/plans/<plan>/
 - Original file/directory names are preserved (including sequential `NNNN_` prefix)
 - An `archived: YYYY-MM-DD` field is added to the plan entrypoint's YAML frontmatter
 - Archived plans are excluded from plan discovery by `/aif-implement`, `/aif-verify`, `/aif-improve`
-- Sequential numbering only counts active full files and ultra directories in `paths.plans/`, not the archive
+- Sequential numbering counts active full files and marked ultra directories in `paths.plans/`, not unrelated numbered directories or the archive
 
 Roadmap snapshots: `/aif-archive --roadmap` trims closed milestones from `ROADMAP.md` into dated snapshots under `paths.archive/roadmap/`.
 

@@ -69,7 +69,7 @@ Parsing rules:
 1. Scan `paths.plans/` for root `*.md` files and direct child `*/index.md`
    candidates using `Glob`. Exclude the resolved `paths.plan` and
    `paths.fix_plan`; count a directory only when its entrypoint declares
-   `Mode: ultra`. Do not treat phase files or unrelated directories as plans.
+   `<!-- aif:plan-mode:ultra -->`. Do not treat phase files or unrelated directories as plans.
 2. For each artifact, read the entrypoint's `## Tasks` section.
 3. Determine completion: a plan is **completed** when ALL task checkboxes
    are `- [x]`. Plans with any `- [ ]` are incomplete.
@@ -106,7 +106,8 @@ Parsing rules:
 1. Check if `<paths.archive>/plans/` exists.
 2. If not: `Archive is empty. No plans have been archived yet.` → STOP.
 3. Glob root `<paths.archive>/plans/*.md` files and direct child
-   `<paths.archive>/plans/*/index.md` entrypoints that declare `Mode: ultra`.
+   `<paths.archive>/plans/*/index.md` entrypoints containing
+   `<!-- aif:plan-mode:ultra -->`.
 4. For each archived artifact, read entrypoint YAML frontmatter to extract `archived` date.
 5. Display:
    ```
@@ -135,7 +136,8 @@ Parsing rules:
    - Then try partial match against root filenames and ultra directory names
 2. If no match: `Plan not found: <plan-name>` with suggestions → STOP.
 3. If multiple matches: list them and ask user to be more specific → STOP.
-4. For a directory match, read the entrypoint and require `Mode: ultra`;
+4. For a directory match, read the entrypoint and require
+   `<!-- aif:plan-mode:ultra -->`;
    otherwise it is not an archivable AI Factory plan.
 5. Read the matched entrypoint and check completion status.
 6. If incomplete:

@@ -116,7 +116,7 @@ All AskUserQuestion prompts, progress updates, summaries, and next-step guidance
 Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
 For ultra this applies to `index.md` and every linked phase file.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Apply `technical_terms_policy` to other human-readable terminology.
 
 Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
 
@@ -348,20 +348,25 @@ Sequential is **force-disabled** when `HANDOFF_BRANCH_PREPARED = 1`. In that cas
 #### 1.2.c — Sequential numbering algorithm
 
 Prepend a 4-digit numeric prefix to `plan_file_stem` to produce
-`plan_identifier`. Compute the prefix from both existing numbered full-plan files
-and numbered ultra bundle directories in `<configured plans dir>`. The branch
-name (when one exists) stays unchanged so existing git tooling, CI, and PR
-conventions are unaffected.
+`plan_identifier`. Compute the prefix from existing numbered full-plan files and
+numbered directories whose `index.md` contains the exact ultra marker in
+`<configured plans dir>`. The branch name (when one exists) stays unchanged so
+existing git tooling, CI, and PR conventions are unaffected.
 
 ```
 1. Find existing numbered plans in <configured plans dir>:
      Glob A: <configured plans dir>/[0-9][0-9][0-9][0-9]_*.md
      Glob B: <configured plans dir>/[0-9][0-9][0-9][0-9]_*/index.md
-2. Parse the leading 4 digits from each full-plan filename or ultra directory
+2. Every Glob A match is a numbered full-plan candidate.
+   For every Glob B match, Read index.md and keep it only when it contains the
+   exact marker <!-- aif:plan-mode:ultra -->. Ignore numbered directories whose
+   index.md lacks the marker; they are not plans and cannot consume an ID.
+3. Parse the leading 4 digits from each retained full-plan filename or marked
+   ultra directory
    basename into an integer. Deduplicate equal prefixes.
    Filter out entries whose relevant basename does not match
    ^[0-9]{4}_.+(\.md)?$.
-3. If any matches exist:
+4. If any matches exist:
      max_existing = max(prefixes)
      If max_existing >= 9999:
        ABORT with error:
@@ -370,16 +375,18 @@ conventions are unaffected.
      next = max_existing + 1
    Else:
      next = 1
-4. prefix = zero-padded 4-digit string of next   (e.g. 1 → "0001", 42 → "0042")
-5. Set plan_identifier = <prefix>_<plan_file_stem>
-6. Final artifact:
+5. prefix = zero-padded 4-digit string of next   (e.g. 1 → "0001", 42 → "0042")
+6. Set plan_identifier = <prefix>_<plan_file_stem>
+7. Final artifact:
      full  → <configured plans dir>/<plan_identifier>.md
      ultra → <configured plans dir>/<plan_identifier>/index.md
 ```
 
 Implementation notes:
 
-- **Use `Glob` only** to enumerate existing numbered plans and ultra entrypoints. Do NOT shell out to `ls` — `aif-plan`'s frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
+- **Use `Glob` to enumerate candidates and `Read` to validate every numbered
+  ultra candidate's marker.** Do NOT shell out to `ls` — `aif-plan`'s
+  frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
 - The 4-digit `[0-9][0-9][0-9][0-9]` glob is **strict by contract**: the format supports `0001`..`9999` only. The error in step 3 enforces this.
 - **`--parallel` scope (TL;DR — source-worktree scoped):**
   - **Where the prefix is computed:** the source worktree's `<configured plans dir>`
@@ -395,7 +402,7 @@ Implementation notes:
 
 Rules:
 
-- Numbering is **derived from existing full-plan files and ultra directories** in `<configured plans dir>`. Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run — keep plans in place if you rely on stable cross-references.
+- Numbering is **derived from existing full-plan files and marked ultra directories** in `<configured plans dir>`. Unmarked numbered directories are ignored. Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run — keep plans in place if you rely on stable cross-references.
 - **Archived plans are excluded from numbering.** Plans moved to `paths.archive/plans/` by `/aif-archive` are not in `<configured plans dir>` and therefore not counted. Archiving the highest-numbered plan frees that number for reuse.
 - Numbering is **bounded** — 9999 is a hard cap; the algorithm errors instead of writing `10000_…` so consumer globs (also 4-digit) cannot drift out of contract.
 - The prefix lives only on the full-plan filename or ultra directory. The git branch (when present) stays `<branch_prefix><slug>` without a number.
@@ -700,6 +707,11 @@ For ultra also create the resolved bundle directory before writing its files.
 
 **Full/fast plan file or ultra `index.md` must include:**
 
+- For ultra only, the exact machine-readable marker
+  `<!-- aif:plan-mode:ultra -->` exactly once near the top of `index.md`
+  (immediately after the optional first-line Handoff annotation). Never
+  translate, rewrite, or omit it. Consumers identify bundles by this marker,
+  not by localized human-readable labels such as `Mode`.
 - Title with feature name
 - Branch and creation date
 - `Original Request` section (required when the user explicitly supplied a planning request; omitted when the plan is created solely from `RESEARCH.md`)
@@ -801,7 +813,7 @@ git worktree list
 
 For each worktree path:
 
-1. Check whether the resolved plans directory exists under that worktree (`<worktree>/<resolved paths.plans>`, default: `<worktree>/.ai-factory/plans/`) and contains any root `*.md` plans or direct child `*/index.md` entrypoints that declare `Mode: ultra`
+1. Check whether the resolved plans directory exists under that worktree (`<worktree>/<resolved paths.plans>`, default: `<worktree>/.ai-factory/plans/`) and contains any root `*.md` plans or direct child `*/index.md` entrypoints containing `<!-- aif:plan-mode:ultra -->`
 2. Show name and whether it looks complete (has tasks) or is still in progress
 
 **Output format:**

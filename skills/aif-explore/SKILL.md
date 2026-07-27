@@ -200,8 +200,8 @@ If the user mentions a plan or you detect one is relevant:
      has `<NNNN>_`; pick the highest-numbered artifact across both shapes.
   - For ultra, read `index.md` first and only the linked phase files relevant
     to the current exploration question; phase files are not independent plans.
-    Treat a discovered directory entrypoint as ultra only when it declares
-    `Mode: ultra`; unrelated `*/index.md` files are not plan context.
+    Treat a discovered directory entrypoint as ultra only when it contains
+    `<!-- aif:plan-mode:ultra -->`; unrelated `*/index.md` files are not plan context.
 
 2. **Reference it naturally in conversation**
    - "Your plan mentions adding Redis, but we just realized SQLite fits better..."

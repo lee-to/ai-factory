@@ -72,12 +72,11 @@ If any rule is violated — fix the output before presenting it to the user.
        `paths.plans/<branch-stem>.md`; warn and prefer ultra if both exist
    - If git mode is off, branch lookup cannot resolve, or no branch-based plan
      exists, count root `*.md` full plans plus direct child `*/index.md`
-     entrypoints that declare `Mode: ultra`; exclude the resolved fast-plan
+     entrypoints containing `<!-- aif:plan-mode:ultra -->`; exclude the resolved fast-plan
      path and do not count phase files.
-   - An explicit ultra directory normalizes to its `index.md`. Read only the
-     entrypoint for `## Commit Plan`; phase files are unnecessary for commit grouping.
+   - An explicit ultra directory normalizes to its `index.md`.
    - An automatically discovered directory entrypoint counts only when it
-     declares `Mode: ultra`; ignore unrelated `*/index.md` files.
+     contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
    - If no active plan resolves or the active plan entrypoint has no `## Commit Plan`, keep current staged-diff behavior unchanged.
    - Never modify the active plan from this command.
 
@@ -87,6 +86,13 @@ If any rule is violated — fix the output before presenting it to the user.
      - task range, such as `after tasks 1-3` or `tasks 4-6`
      - suggested conventional commit message
    - Read the plan's `## Tasks` or `## Implementation Tasks` section to map task ranges to task descriptions and any `Files:` hints.
+   - For an ultra plan, resolve every task in the current commit group to its
+     Phase Index/details link, read each corresponding phase file, and build the
+     staged-path mapping from its `## Files to Change` table plus the complete
+     `## Task N` specifications. Reading only `index.md` is insufficient.
+   - If one phase contains tasks from multiple commit groups, use the individual
+     `## Task N` sections to distinguish file/hunk ownership; do not assign the
+     phase's entire file table to every group without task-level evidence.
    - Compare staged files/hunks with planned groups before changing staging:
      - use staged file paths from `git diff --cached --name-only`
      - use staged hunk evidence from `git diff --cached` when a file may span multiple groups

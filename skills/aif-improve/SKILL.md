@@ -31,7 +31,8 @@ enhanced plan with better tasks, correct dependencies, more detail
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
   Active values: `slug` and `sequential`. A root `*.md` is a named full plan
   unless it is the resolved fast/fix path; a direct child `*/index.md` is an
-  ultra bundle entrypoint only when it declares `Mode: ultra`. When `sequential`,
+  ultra bundle entrypoint only when it contains
+  `<!-- aif:plan-mode:ultra -->`. When `sequential`,
   search both `[0-9]{4}_<branch-slug>.md` and
   `[0-9]{4}_<branch-slug>/index.md`, then choose the highest prefix.
   `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
@@ -117,7 +118,7 @@ This step runs in the default (non-`--list`) mode and picks **one** plan artifac
 
 **Note:** Plan discovery scans `paths.plans/` only. Plans archived to `paths.archive/plans/` by `/aif-archive` are excluded from discovery.
 Any automatically discovered `*/index.md` candidate must be read before
-selection and ignored unless it declares `Mode: ultra`. A declared ultra bundle
+selection and ignored unless it contains `<!-- aif:plan-mode:ultra -->`. A marked ultra bundle
 with broken links is a blocking integrity error, not a fallback opportunity.
 
 **If NO plan file found at any location:**

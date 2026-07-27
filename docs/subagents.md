@@ -137,6 +137,9 @@ Planning mode compatibility:
 - `ultra` is selected only by an explicit `mode: ultra`
 - an ultra artifact is a directory whose `index.md` owns the checklist and
   whose linked phase files contain the implementation specification
+- planners preserve the exact untranslated `<!-- aif:plan-mode:ultra -->`
+  marker once in `index.md`; coordinators use it instead of a localized
+  human-readable mode label when recognizing bundles
 - each refinement iteration reads and validates the complete linked bundle
 
 ### Repro And Acceptance

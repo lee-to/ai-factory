@@ -27,6 +27,7 @@ fixtures:
           create_branches: true
     - path: .ai-factory/plans/feature-user-auth/index.md
       content: |
+        <!-- aif:plan-mode:ultra -->
         # Ultra Implementation Plan: Auth
         Mode: ultra
         ## Phase Index

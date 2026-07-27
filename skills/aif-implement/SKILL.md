@@ -56,7 +56,7 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
      Active values: `slug` and `sequential`. Discovery treats a root `*.md` as
      a full plan unless it is the resolved `paths.plan` or `paths.fix_plan`.
      Treat a direct child `*/index.md` as an ultra bundle only after reading it
-     and confirming that the entrypoint declares `Mode: ultra`; ignore unrelated
+     and confirming that it contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated
      directories and never count phase files independently.
      When `sequential`, resolve both
      `<paths.plans>/[0-9]{4}_<branch-slug>.md` and
@@ -454,7 +454,7 @@ Normalize every selected artifact to:
       If both exist, emit WARN and prefer the ultra entrypoint.
 2. If no branch artifact resolves, count active named artifacts as:
      - each root <paths.plans>/*.md file except resolved paths.plan and paths.fix_plan
-     - each direct child <paths.plans>/*/index.md whose entrypoint declares Mode: ultra
+     - each direct child <paths.plans>/*/index.md containing <!-- aif:plan-mode:ultra -->
    Exactly one total → use it. More than one → ask the user to choose or use
    @<path>; do not count phase files as independent plans.
 3. No named artifact → paths.plan.
@@ -468,12 +468,12 @@ excluded.
 
 **Read the selected artifact:**
 
-- If an automatically discovered directory entrypoint does not declare
-  `Mode: ultra`, it is not an AI Factory plan. Ignore it and continue discovery.
-  If it declares ultra but its Phase Index is malformed, STOP with a
+- If an automatically discovered directory entrypoint does not contain
+  `<!-- aif:plan-mode:ultra -->`, it is not an AI Factory plan. Ignore it and
+  continue discovery. If it contains the marker but its Phase Index is malformed, STOP with a
   plan-integrity error instead of falling back to another plan.
 - Always read `plan_entrypoint` completely.
-- If it is ultra (`Mode: ultra`),
+- If it is ultra (contains `<!-- aif:plan-mode:ultra -->`),
   validate every relative Phase Index link, reject paths escaping the bundle,
   record the ordered phase files, and ensure every indexed task maps to exactly
   one `## Task N` section. Warn and STOP on a broken bundle rather than guessing.

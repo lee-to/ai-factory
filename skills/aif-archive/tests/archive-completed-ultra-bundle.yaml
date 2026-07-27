@@ -22,6 +22,7 @@ fixtures:
           fix_plan: .ai-factory/FIX_PLAN.md
     - path: .ai-factory/plans/0005_feature-auth/index.md
       content: |
+        <!-- aif:plan-mode:ultra -->
         # Ultra Implementation Plan: Auth
         Mode: ultra
         ## Phase Index

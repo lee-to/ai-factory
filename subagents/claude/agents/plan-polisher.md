@@ -128,11 +128,19 @@ Branch creation (full/ultra modes only):
 Plan artifact location (CRITICAL — do not deviate):
 - If the caller provided an explicit `@<path>` → use that exact markdown file, ultra directory, or ultra `index.md`; normalize a directory to `index.md`. This overrides mode-based rules.
 - Derive the canonical stem exactly as `/aif-plan`: Handoff branch (slashes replaced) → created/current feature branch (slashes replaced) → description slug.
-- When `workflow.plan_id_format=sequential`, allocate the next four-digit prefix from both root numbered full files and numbered ultra directories. Do not prefix Handoff-prepared artifacts.
+- When `workflow.plan_id_format=sequential`, allocate the next four-digit prefix from root numbered full files and numbered directories whose `index.md` contains the exact ultra marker. Do not prefix Handoff-prepared artifacts.
 - **Handoff-prepared branch** (`HANDOFF_BRANCH_PREPARED = 1`) → full: `<resolved plans dir>/<stem>.md`; ultra: `<resolved plans dir>/<stem>/index.md`. Take the stem from `HANDOFF_BRANCH_NAME`, not from `git rev-parse`.
 - **Fast mode** → always the resolved `paths.plan` (default: `.ai-factory/PLAN.md`). No other filename.
 - **Full mode** → `<resolved plans dir>/<plan-identifier>.md`.
 - **Ultra mode** → `<resolved plans dir>/<plan-identifier>/index.md` plus direct child `phase-NN-<slug>.md` files.
+- Every ultra `index.md` must contain the exact untranslated marker
+  `<!-- aif:plan-mode:ultra -->` once, immediately after the optional first-line
+  Handoff annotation. Consumers identify the bundle by this marker, not a
+  localized `Mode` label.
+- Under sequential allocation, Glob numbered full files and numbered
+  `*/index.md` candidates, but count a directory prefix only after reading its
+  entrypoint and confirming the exact ultra marker. Ignore numbered notes or
+  other non-ultra directories.
 - Never invent a filename outside these fast/full/ultra naming rules.
 - Never create arbitrarily-named files in `.ai-factory/plans/`.
 - Before writing an unprefixed full/ultra target, reject an existing sibling representation with the same stem. Never overwrite or create simultaneous `<stem>.md` and `<stem>/index.md`.
@@ -163,7 +171,7 @@ Workflow:
 3. Determine the target plan artifact using the "Plan artifact location" rules above.
 4. Explore the codebase using the "Local exploration protocol" (Read, Glob, Grep, Bash) to gather context for the plan.
 5. Generate the plan content following the `/aif-plan` skill template and rules.
-6. **Write the plan artifact to disk.** Fast/full write one file. Ultra writes every detailed phase file, validates links/task mappings/dependencies, then writes `index.md` last. In ultra, `index.md` is the only checkbox/progress source and every task links to exactly one detailed phase section. Ensure directories exist first (`mkdir -p`).
+6. **Write the plan artifact to disk.** Fast/full write one file. Ultra writes every detailed phase file, validates links/task mappings/dependencies, then writes `index.md` last with the exact `<!-- aif:plan-mode:ultra -->` marker. In ultra, `index.md` is the only checkbox/progress source and every task links to exactly one detailed phase section. Ensure directories exist first (`mkdir -p`).
 7. Critique the saved plan with this rubric:
    - scope matches the user request
    - tasks are concrete and executable

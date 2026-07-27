@@ -27,8 +27,8 @@ The examples and output shapes in this reference define structure only. Render u
      `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>/index.md`;
      report all matches with the highest-numbered match first.
    - If git mode is off or branch creation is disabled, list every root `*.md`
-     full plan and every direct child `*/index.md` entrypoint that declares
-     `Mode: ultra`. Exclude the resolved fast/fix plan paths and do not list
+     full plan and every direct child `*/index.md` entrypoint containing
+     `<!-- aif:plan-mode:ultra -->`. Exclude the resolved fast/fix plan paths and do not list
      ultra phase files independently.
    - The resolved fast plan path (`paths.plan`).
    - The resolved fix plan path (`paths.fix_plan`).

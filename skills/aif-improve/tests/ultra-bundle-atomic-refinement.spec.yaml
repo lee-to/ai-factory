@@ -14,6 +14,7 @@ fixtures:
   files:
     - path: .ai-factory/plans/feature-billing/index.md
       content: |
+        <!-- aif:plan-mode:ultra -->
         # Ultra Implementation Plan: Billing
         Mode: ultra
         ## Original Request

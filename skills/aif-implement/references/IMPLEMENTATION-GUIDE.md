@@ -62,7 +62,8 @@ Then derive:
 
 For `workflow.plan_id_format: sequential`, include both
 `[0-9]{4}_<branch-stem>.md` and `[0-9]{4}_<branch-stem>/index.md`, highest
-number first. Count a directory entrypoint only when it declares `Mode: ultra`.
+number first. Count a directory entrypoint only when it contains
+`<!-- aif:plan-mode:ultra -->`.
 Do not list phase files as independent plans.
 
 Check which files exist and print:

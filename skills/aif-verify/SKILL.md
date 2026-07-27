@@ -34,7 +34,8 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery in Step 0.2.
   Active values: `slug` and `sequential`. Discovery treats root `*.md` files as
   full plans except the resolved fast/fix paths, and direct child `*/index.md`
-  files as ultra entrypoints only when they declare `Mode: ultra`. When
+  files as ultra entrypoints only when they contain
+  `<!-- aif:plan-mode:ultra -->`. When
   `sequential`, search both numbered shapes and choose the highest prefix.
   `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
   Treat any unknown value as `slug`.
@@ -114,7 +115,7 @@ Options:
 
 - Read the selected plan entrypoint to understand what was supposed to be implemented
 - An automatically discovered directory entrypoint is a plan only when it
-  declares `Mode: ultra`; ignore unrelated `*/index.md` files.
+  contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
 - For ultra, validate all Phase Index links and read every linked phase file
   before verification. Verify implementation against the detailed per-task
   interfaces, edge cases, logging, acceptance criteria, and commands—not only

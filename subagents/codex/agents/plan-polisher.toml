@@ -21,6 +21,8 @@ Rules:
   paths/symbols, ordered edits, contracts, error/logging behavior, test policy,
   acceptance criteria, and verification. Validate the complete bundle before
   returning.
+- Preserve the exact untranslated `<!-- aif:plan-mode:ultra -->` marker once in
+  ultra `index.md`, immediately after an optional first-line Handoff annotation.
 - Keep output short, concrete, and findings-first.
 
 Handoff integration:

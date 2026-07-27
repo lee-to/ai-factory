@@ -44,6 +44,8 @@ Three modes:
   but writes `paths.plans/<id>/index.md` plus one deeply specified
   `phase-NN-*.md` file per phase. It is designed for a stronger planning model
   to remove implementation ambiguity before a smaller model writes code.
+  Its entrypoint contains the stable untranslated
+  `<!-- aif:plan-mode:ultra -->` discovery marker.
 
 Ultra is strictly opt-in: it is selected only by the explicit leading `ultra`
 token. A call without a mode keeps the pre-ultra full/fast question and defaults.
@@ -473,6 +475,7 @@ Adds project-specific rules and conventions:
 Creates conventional commits:
 - Analyzes staged changes
 - Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping
+- For ultra plans, reads the relevant phase files and maps each commit-group task through its `Files to Change` table and task specification
 - Stops for user input when staged files or hunks cannot be mapped to planned commit groups
 - Uses hunk-level staging for planned groups that share a file, or stops before changing staging when hunks cannot be applied confidently
 - Avoids whole-file staging when there is unstaged worktree overlap with grouped files

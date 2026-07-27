@@ -162,8 +162,10 @@ workflow:
   #     Branch-based consumers reproduce the same stem at lookup time.
   #   - NNNN = max(existing 4-digit prefix) + 1, zero-padded to 4 digits;
   #     an empty plans directory starts from `0001`.
-  # Numbering is derived from existing numbered plan files and ultra directories
-  # — if the highest-numbered artifact is deleted or moved elsewhere,
+  # Numbering is derived from existing numbered plan files and numbered
+  # directories whose index.md contains the exact ultra discovery marker.
+  # Other numbered directories do not consume IDs. If the highest-numbered
+  # plan artifact is deleted or moved elsewhere,
   # that number can be reused on the next run; keep plans in place if you
   # rely on stable cross-references. The format is bounded: 0001..9999.
   # `/aif-plan` errors out instead of writing `10000_…` so consumer globs

@@ -265,9 +265,13 @@ Three modes — **fast** (quick single file), **full** (rich single file), and
 **ultra** (a directory whose `index.md` owns scope/progress and whose phase files
 specify implementation in code-level detail). Full and ultra share testing,
 logging, docs, roadmap, branch, and worktree preferences. Sequential IDs put
-`NNNN_` on the full filename or ultra directory and count both active shapes.
+`NNNN_` on the full filename or ultra directory and count active full files plus
+directories whose `index.md` contains the stable ultra marker.
 Ultra is strictly opt-in through the explicit leading `ultra` token. Omitting
 the mode preserves the existing interactive choice between full and fast.
+Ultra discovery uses the exact untranslated
+`<!-- aif:plan-mode:ultra -->` entrypoint marker, so artifact localization cannot
+change bundle recognition.
 All modes preserve an explicit `Original Request`; research-backed plans commit
 a revisioned `Research Context`. Ultra additionally requires exact paths and
 symbols, ordered edits, contracts, errors/logging, test policy, acceptance
@@ -355,7 +359,7 @@ Optional `+check` runs a single fresh-context `general-purpose` subagent on the 
 
 ### `/aif-commit` — conventional commit with read-only context gates
 
-Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; unmapped staged files trigger a question before staging or committing, and no commit plan leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
+Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; for ultra plans it reads the relevant phase files and maps group tasks through `Files to Change` plus the task specifications. Unmapped staged files trigger a question before staging or committing, and no commit plan leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
 
 ### `/aif-fix [bug description]` — fix and learn
 
