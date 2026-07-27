@@ -17,6 +17,7 @@
     "test:extension-schema": "node scripts/test-extension-schema.mjs",
     "test:extensions": "node scripts/run-bash-test.mjs scripts/test-extensions.sh",
     "test:cleanup-helper": "node scripts/run-bash-test.mjs scripts/test-cleanup-helper.sh",
+    "test:ultra-contract": "node scripts/test-ultra-plan-contract.mjs",
     "lint:unused": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "lint:dead": "knip --reporter compact",
     "lint": "npm run lint:unused && npm run lint:dead",

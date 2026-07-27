@@ -1575,7 +1575,7 @@ echo ""
 echo -e "${BOLD}=== Ultra plan contract regression tests ===${NC}"
 echo ""
 
-if node "$ROOT_DIR/scripts/test-ultra-plan-contract.mjs"; then
+if npm run --silent test:ultra-contract; then
     pass "ultra plan deterministic contract regressions"
 else
     fail "ultra plan deterministic contract regressions"
