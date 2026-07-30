@@ -133,6 +133,7 @@ npx skills add lee-to/ai-factory --skill '*'
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | What is AI Factory, supported agents, CLI commands |
 | [Development Workflow](docs/workflow.md) | Workflow diagram, when to use `explore` vs `grounded`, spec-driven approach |
+| [Research and System Analysis](docs/research.md) | Adaptive ultra research bundles with C4, ADR, dependency, and traceability views |
 | [Reflex Loop](docs/loop.md) | Iterative generate → evaluate → critique → refine workflow |
 | [Subagents](docs/subagents.md) | Bundled Claude subagents and the baseline Codex native agent-file bundle, including managed Codex config |
 | [Core Skills](docs/skills.md) | All slash commands — explore, grounded, plan, fix, implement, evolve, docs, and more |

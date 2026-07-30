@@ -1,14 +1,14 @@
 ---
 name: aif-explore
-description: Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements. Use when the user wants to think through something before or during a change.
-argument-hint: "[topic or plan name]"
+description: Enter explore mode to investigate ideas, systems, problems, and requirements before planning. Use explicit ultra mode when the user wants a durable adaptive research bundle with an index and only the justified C4, ADR, or dependency artifacts.
+argument-hint: "[ultra] [topic or plan name]"
 allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
-**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER implement features or modify project code. If the user asks to implement something, remind them to exit explore mode first (e.g., start with `/aif-plan`). If the user asks to persist exploration context, write/edit **only** the resolved research path (default: `.ai-factory/RESEARCH.md`) - this is capturing thinking, not implementing.
+**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER implement features or modify project code. If the user asks to implement something, remind them to exit explore mode first (e.g., start with `/aif-plan`). Regular mode may write only the resolved research file after the user chooses to save. Explicit ultra mode may write only its selected research bundle; the leading `ultra` token is the user's request to persist that bundle.
 
 ---
 
@@ -16,6 +16,7 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, and `paths.rules`
+  - Derive `research_bundles_dir = <parent directory of paths.research>/research/`. This keeps ultra research colocated with a relocated legacy research file without adding a second config key.
 - **Language:**
   - `language.ui` for all user-facing responses: prompts, progress updates, explanations, exploration summaries, and next-step guidance
   - `language.artifacts` for generated or persisted exploration artifacts, including the resolved `paths.research`
@@ -46,20 +47,37 @@ All user-facing responses from `/aif-explore` MUST be written in `ui_language`.
 
 Persisted exploration artifacts under `paths.research` MUST be written in `artifact_language`.
 
+Ultra bundle artifacts under `research_bundles_dir` MUST also be written in `artifact_language`. Preserve filenames, relative links, Mermaid syntax, evidence paths, traceability IDs, the compatibility headings `## Artifact Index`, `## Active Summary (input for /aif-plan)`, and `## Sessions`, metadata keys `Topic:`, `Slug:`, `Updated:`, `Status:`, status values `active`, `paused`, `superseded`, `proposed`, and `accepted`, research markers, and the exact marker `<!-- aif:research-mode:ultra -->` unchanged. The topic and other human-readable values still use `artifact_language`; the English slug is a stable path identifier.
+
 Apply `technical_terms_policy` while writing summaries and persisted artifacts:
 - `keep` - keep commands, paths, identifiers, config keys, API names, package names, branch names, code terms, and raw error messages unchanged
 - `translate` - translate human-readable technical terms where a natural target-language term exists
 - `mixed` - translate ordinary prose terms while keeping code, infrastructure, and ecosystem terms unchanged
 
-**This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
+**This is a stance, not a scripted interview.** Regular mode has no mandatory output. Ultra adds a persistence contract after the investigation has enough evidence; it does not turn the conversation into a fixed questionnaire.
 
 ---
 
 ## Artifact Ownership
 
-- Primary ownership in explore mode: the resolved research path (default: `.ai-factory/RESEARCH.md`) only.
+- Primary ownership in regular explore mode: the resolved research path (default: `.ai-factory/RESEARCH.md`) only.
+- Primary ownership in explicit ultra mode: one marked direct child bundle under `research_bundles_dir` only. Do not also update the legacy research file.
 - All other context artifacts (`paths.description`, `paths.architecture`, `paths.roadmap`, `paths.rules_file`, plan files) are read-only in this mode.
-- If a discovery should affect another artifact, capture it in RESEARCH now and route follow-up to the owner command later.
+- If a discovery should affect another artifact, capture it in the selected `RESEARCH.md` now and route follow-up to the owner command later.
+
+---
+
+## Mode Selection
+
+Parse only a leading `ultra` token as mode syntax:
+
+- `/aif-explore ultra <topic>` -> ultra mode; strip the token and preserve the remaining topic text.
+- `/aif-explore <topic>` or no arguments -> regular mode; behavior and save prompt remain unchanged.
+- The word `ultra` elsewhere in a topic is ordinary content.
+
+Ultra is strictly opt-in. Never recommend, infer, or auto-select it because a topic looks complex. In ultra mode, read `references/ULTRA-RESEARCH-FORMAT.md` completely before choosing a slug or writing files.
+
+The explicit ultra invocation is permission to persist the selected bundle, so do not ask the regular "save research?" question. Explore and gather enough evidence first, then create or update the bundle. If no meaningful topic is available, ask for one before writing; never create `research/analysis/`, `research/research/`, or a date-only directory.
 
 ---
 
@@ -138,7 +156,7 @@ codebase conventions, and tech-stack analysis. These rules are tailored to the c
 - Do NOT ignore skill-context rules even if they seem to contradict this skill's defaults —
   they exist because the project's experience proved the default insufficient
 - **CRITICAL:** skill-context rules apply to ALL outputs of this skill — including exploration
-  summaries, diagrams, and any file updates (DESCRIPTION.md, ARCHITECTURE.md). If a skill-context
+  summaries, diagrams, and permitted research file/bundle updates. If a skill-context
   rule says "exploration MUST cover X" or "summary MUST include Y" — you MUST comply. Producing
   output that ignores skill-context rules is a bug.
 
@@ -153,6 +171,7 @@ At the start, read these files if present:
 - `.ai-factory/ARCHITECTURE.md` — architecture decisions, folder structure
 - the resolved RULES.md path – project conventions and rules
 - the resolved RESEARCH.md path – persisted exploration notes (so you can `/clear` and still keep context)
+- direct child `research_bundles_dir/*/INDEX.md` files containing `<!-- aif:research-mode:ultra -->` – ultra research manifests. Read only their index metadata at startup; read the linked `RESEARCH.md` and optional artifacts only when the bundle is explicitly referenced or clearly relevant to the current topic. Ignore unmarked directories.
 - the resolved fast plan path – active fast plan (if any)
 - `<configured plans dir>/<branch_stem>.md` or
   `<configured plans dir>/<branch_stem>/index.md` – active full/ultra plans.
@@ -172,6 +191,7 @@ This tells you:
 ### Input handling
 
 The argument after `/aif-explore` can be:
+- An explicit ultra research request: `ultra partner order synchronization`
 - A vague idea: "real-time collaboration"
 - A specific problem: "the auth system is getting unwieldy"
 - A plan name: to explore in context of a full `.md` plan or ultra
@@ -209,32 +229,49 @@ If the user mentions a plan or you detect one is relevant:
 
 3. **Offer to capture when decisions are made**
 
-   Default in explore mode: capture everything in the resolved research path so it survives `/clear`.
+   In regular mode, capture everything in the resolved research path so it survives `/clear`. In ultra mode, capture it in the selected bundle's `RESEARCH.md` and place only justified supporting analysis beside it.
    Later (during planning), you can migrate stabilized decisions into the appropriate context file.
 
    | Insight Type | Capture Now (Explore) | Later (Optional) |
    |--------------|------------------------|------------------|
-   | New requirement | `paths.research` | `paths.description` |
-   | Architecture decision | `paths.research` | `paths.architecture` |
-   | Project convention | `paths.research` | `paths.rules_file` |
-   | Strategic direction | `paths.research` | `paths.roadmap` |
-   | Assumption invalidated | `paths.research` | Relevant file |
-   | Exploration context (persisted) | `paths.research` | (keep in research) |
+   | New requirement | selected `RESEARCH.md` | `paths.description` |
+   | Architecture decision | selected `RESEARCH.md`; ADR only when the ultra inclusion gate is met | `paths.architecture` |
+   | Project convention | selected `RESEARCH.md` | `paths.rules_file` |
+   | Strategic direction | selected `RESEARCH.md` | `paths.roadmap` |
+   | Assumption invalidated | selected `RESEARCH.md` | Relevant file |
+   | Exploration context (persisted) | selected research artifact | (keep in research) |
    | New task/feature | Run `/aif-plan` | `paths.plan`, a full `paths.plans/<id>.md`, or an ultra `paths.plans/<id>/index.md`; `<id>` may have the sequential `NNNN_` prefix |
 
    Example offers:
    - "Want me to save this to the resolved research path so you can `/clear` and come back later?"
    - "That's an architecture decision — save it to RESEARCH now and we can migrate it to ARCHITECTURE during planning."
 
-4. **The user decides** - Offer and move on. Don't pressure. Don't auto-capture.
+4. **The user decides in regular mode** - Offer and move on. Don't pressure. In ultra, the explicit mode token already requests capture.
 
-### Optional: Persist exploration context (`paths.research`)
+### Persist exploration context
+
+#### Ultra mode: adaptive bundle
+
+For explicit ultra mode, follow `references/ULTRA-RESEARCH-FORMAT.md`:
+
+1. Convert the meaningful topic to a concise English lowercase-kebab slug and resolve `<research_bundles_dir>/<slug>/`.
+2. If that directory exists, treat it as an existing ultra bundle only when `INDEX.md` has the exact marker. Reuse a semantically matching marked bundle; never overwrite an unmarked collision.
+3. Assess the actual evidence against the artifact inclusion matrix before writing. `INDEX.md` and `RESEARCH.md` are mandatory. C4, ADR, and dependency graph files are conditional; a simple topic stays a two-file bundle.
+4. Create the bundle directory, write/update `RESEARCH.md` with the legacy Active Summary/Sessions markers, then write/update only the justified supporting artifacts.
+5. Write `INDEX.md` last so its Artifact Index and reading order match the files that actually belong to the bundle. Record the concrete reason each optional artifact exists.
+6. Run the Bundle Integrity Gate. Do not generate placeholders, orphan files, speculative diagrams, or implementation task checklists.
+
+Any C4/ADR/dependency conclusion that affects plan requirements MUST be summarized in the bundle `RESEARCH.md` Active Summary. `/aif-plan` commits and hashes that summary; it does not silently promote every diagram note into scope.
+
+When ultra research is ready, report the bundle path, list only the artifacts actually created, and suggest `/aif-plan [fast|full|ultra] <same topic>`.
+
+#### Regular mode: optional single-file snapshot (`paths.research`)
 
 If the conversation is crystallizing (you're about to plan, you want to `/clear`, or you want to continue later), offer to save a compact, durable research snapshot.
 
-**Hard rule in explore mode:** If the user chooses to save, you may write/edit **only** the resolved research path (and create its parent directory if missing). Do not write or modify any other project files.
+**Hard rule in regular explore mode:** If the user chooses to save, you may write/edit **only** the resolved research path (and create its parent directory if missing). Do not write or modify any other project files.
 
-Write the saved research content in `artifact_language`. The skeleton below defines structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, notes, and prose before saving. Preserve markdown markers, paths, commands, config keys, issue URLs, branch names, code identifiers, package names, and raw error messages unchanged.
+Write the saved research content in `artifact_language`. The skeleton below defines structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, notes, and prose before saving, except for the compatibility headings `## Active Summary (input for /aif-plan)` and `## Sessions` and metadata keys `Topic:`, `Updated:`, and `Status:`. Preserve those tokens, the `active` status value, research markers, paths, commands, config keys, issue URLs, branch names, code identifiers, package names, and raw error messages unchanged. Values after human-readable fields such as `Topic:` still use `artifact_language`.
 
 Ask:
 
@@ -407,7 +444,7 @@ You: That changes everything.
 There's no required ending. Discovery might:
 
 - **Flow into action**: "Ready to plan? Run `/aif-plan`"
-- **Result in context updates**: "Updated ARCHITECTURE.md with these decisions"
+- **Result in research capture**: "Updated the selected RESEARCH.md with these decisions"
 - **Just provide clarity**: User has what they need, moves on
 - **Continue later**: "We can pick this up anytime"
 
@@ -437,7 +474,7 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Don't fake understanding** - If something is unclear, dig deeper
 - **Don't rush** - Discovery is thinking time, not task time
 - **Don't force structure** - Let patterns emerge naturally
-- **Don't auto-capture** - Offer to save insights, don't just do it
+- **Don't auto-capture in regular mode** - Offer to save insights, don't just do it. The explicit `ultra` token already requests bundle persistence.
 - **Do visualize** - A good diagram is worth many paragraphs
 - **Do explore the codebase** - Ground discussions in reality
 - **Do question assumptions** - Including the user's and your own

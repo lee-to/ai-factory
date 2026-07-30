@@ -79,6 +79,8 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/PLAN.md` — task plan (from /aif-plan fast)
 - `.ai-factory/plans/<branch-or-slug>.md` — plans (from /aif-plan full; or `.ai-factory/plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see `docs/plan-files.md`)
 - `.ai-factory/plans/<branch-or-slug>/index.md` — ultra plan entrypoint with sibling `phase-NN-*.md` files (or `.ai-factory/plans/<NNNN>_<branch-or-slug>/index.md` under sequential IDs)
+- `.ai-factory/RESEARCH.md` — regular persisted exploration context (from /aif-explore)
+- `.ai-factory/research/<english-topic-slug>/INDEX.md` — ultra research manifest with compatible `RESEARCH.md` and only justified C4/ADR/dependency files; the root is derived from the parent of `paths.research`
 - `.ai-factory/skill-context/<skill>/SKILL.md` — project-specific overrides for skills (from /aif-evolve)
 - `.ai-factory/evolutions/*.md` — evolution logs (from /aif-evolve)
 - `.ai-factory/evolutions/patch-cursor.json` — incremental evolve cursor (latest processed patch)
@@ -104,7 +106,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `paths.architecture` (default: `.ai-factory/ARCHITECTURE.md`)                                 | `/aif-architecture`    | `/aif-implement` may update structure notes when structure changes                               |
 | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-roadmap`         | `/aif-implement` may mark completed milestones with evidence                                     |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules`           | top-level conventions plus area-rule files and registration                                      |
-| `paths.research` (default: `.ai-factory/RESEARCH.md`)                                         | `/aif-explore`         | explore-mode writable artifact                                                                   |
+| `paths.research` or derived `<parent>/research/<english-slug>/` bundle                        | `/aif-explore`         | regular single file; explicit ultra always owns `INDEX.md` + `RESEARCH.md`, supporting files are conditional |
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phase files                | `/aif-plan`            | fast/full/ultra artifacts; `/aif-improve` refines existing plans and bundles                     |
 | `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
 | `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
@@ -228,6 +230,20 @@ Reports standalone verdict:
     ↓
 Suggests `/aif-rules` when rules need to be added or clarified
 
+/aif-explore [ultra] [topic or plan name]
+    ↓
+Regular → thinking partner; optional save to configured `paths.research`
+    ↓
+Explicit ultra → derives `<parent(paths.research)>/research/<logical-english-slug>/`
+    ↓
+Always writes `INDEX.md` + compatible `RESEARCH.md`
+    ↓
+Adds C4 Context/Container/Component, ADR, and dependency graph files only when evidence meets their inclusion signals; never creates placeholders or C4 Level 4 by default
+    ↓
+Material supporting-artifact conclusions are promoted into the `RESEARCH.md` Active Summary before planning
+    ↓
+All application code and non-research context artifacts remain read-only
+
 /aif-roadmap [vision or requirements]
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
@@ -241,7 +257,7 @@ ROADMAP.md = strategic checklist of high-level goals
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
-Reads configured `paths.research` when available; if research informs the plan, writes a committed `Research Context` snapshot with a `Source:` reference to `RESEARCH.md` plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
+Selects at most one relevant research source: explicit path → clearly matching marked ultra bundle → configured `paths.research`; if it informs the plan, writes a committed `Research Context` snapshot with the exact `RESEARCH.md` source plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
 If the user supplied an explicit planning request, saves it in the plan entrypoint as `Original Request`; strip only recognized command tokens (`fast`/`full`/`ultra` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
     ↓
 fast → no branch, saves to configured `paths.plan`
@@ -306,7 +322,7 @@ If the plan contains `## Original Request`, treats it as useful original scope c
     ↓
 For ultra, reads `index.md` then the complete phase file for the active task; updates progress only in `index.md`
     ↓
-If the plan references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads configured `paths.research` only to detect revision drift before executing tasks
+If the plan references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads the exact source path (legacy or bundled) only to detect revision drift before executing tasks
     ↓
 Executes tasks one by one
     ↓
@@ -358,7 +374,7 @@ Writes .ai-factory/qa/<branch-slug>/qa-check.md with checked passed cases and un
     ↓
 Reads .ai-factory/DESCRIPTION.md + skill-context first (+ limited recent patch fallback)
     ↓
-If an existing FIX_PLAN.md references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads configured `paths.research` only to detect revision drift before executing it
+If an existing FIX_PLAN.md references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads the exact source path (legacy or bundled) only to detect revision drift before executing it
     ↓
 Investigates codebase (Glob, Grep, Read)
     ↓
@@ -475,6 +491,7 @@ README.md                    # Landing page — first impression, install, examp
 docs/
 ├── getting-started.md       # What is AI Factory, supported agents table, first project walkthrough, CLI
 ├── workflow.md              # Workflow diagram, "When to Use What" table, workflow skills overview
+├── research.md              # Regular and ultra research, adaptive C4/ADR/dependency bundles
 ├── loop.md                  # Reflex loop protocol: phases, rules, state, stop conditions
 ├── subagents.md             # Claude-only bundled subagents and runtime-local agent-file boundaries
 ├── skills.md                # Full reference: Workflow Skills + Utility Skills
@@ -492,7 +509,7 @@ docs/
 2. **Details go to `docs/`.** Each file is self-contained — one topic, one page. A user should be able to read a single doc file and get the full picture on that topic.
 3. **No duplication.** If information lives in `docs/`, README links to it — does not repeat it. The only exception: installation command appears in both README and `docs/getting-started.md` (users expect it in README).
 4. **Navigation.** Every docs/ file starts with prev/back/next navigation that follows the README Documentation table order and ends with a "See Also" section linking to 2-3 related pages. `getting-started.md` may use a simpler first-page header and ends with "Next Steps" instead.
-5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/loop.md` is the source of truth for Reflex Loop contracts and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
+5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/research.md` is the source of truth for regular/ultra research artifact shapes. `docs/loop.md` is the source of truth for Reflex Loop contracts and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
 6. **Cross-links use relative paths.** From README: `docs/workflow.md`. Between docs: `workflow.md` (same directory).
 
 ### When to Update What
@@ -502,6 +519,7 @@ docs/
 | New skill added | `docs/skills.md` (add to appropriate section), `docs/workflow.md` (if it's a workflow skill), README Documentation table description (if skill count text changes) |
 | New agent added | `docs/getting-started.md` (agents table), README (agent name in "Multi-agent support" bullet) |
 | Workflow logic changed | `docs/workflow.md` (diagram + skill descriptions), `docs/skills.md` (detailed reference) |
+| Research artifact format changed | `docs/research.md`, `docs/plan-files.md`, `docs/workflow.md`, `docs/skills.md` |
 | Subagent or runtime-local agent-file behavior changed | `docs/subagents.md`, `docs/configuration.md`, README Documentation table description if navigation text changes |
 | Skill evolution / patch learning changed | `docs/evolve.md`, `docs/plan-files.md` when patch lifecycle or skill-context flow changes |
 | Extension lifecycle or runtime-extension behavior changed | `docs/extensions.md`, `docs/configuration.md` |

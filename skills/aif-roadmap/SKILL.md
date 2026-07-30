@@ -15,7 +15,7 @@ Create and maintain a high-level project roadmap with major milestones.
 ### Step 0: Load Project Context
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
-- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, and `paths.rules`
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, and `paths.rules`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **Language:** `language.ui` for prompts, `language.artifacts` for generated content
 
 If config.yaml doesn't exist, use defaults:
@@ -30,6 +30,12 @@ If config.yaml doesn't exist, use defaults:
 **Read the resolved architecture artifact** if it exists (`paths.architecture`, default: `.ai-factory/ARCHITECTURE.md`) to understand:
 - Chosen architecture pattern and folder structure
 - Module boundaries and communication patterns
+
+**Optionally read one relevant research source:** the configured `paths.research`
+file or a clearly topic-matching marked active `research_bundles_dir/*/INDEX.md` bundle
+and its linked `RESEARCH.md`. Use its Active Summary for strategic context; read
+optional C4/ADR/dependency artifacts only for rationale. Do not merge unrelated
+research topics or treat a bundle's implementation-level notes as milestones.
 
 **Read `.ai-factory/skill-context/aif-roadmap/SKILL.md`** — MANDATORY if the file exists.
 

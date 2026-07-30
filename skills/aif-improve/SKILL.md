@@ -25,7 +25,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 ### Step 0: Load Config & Parse Arguments
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
-- **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, and `paths.archive`
+- **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, and `paths.archive`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for plan artifact updates, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
@@ -63,7 +63,7 @@ Any generated or updated plan artifact content under `paths.plan`, `paths.plans`
 
 Exception: an existing `## Original Request` section is raw source input, not generated artifact prose. Preserve its heading and body exactly as read from the plan file on every edit or regeneration, even when `artifact_language` differs. Do not translate, summarize, normalize, trim, or rewrite it.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, improvement notes, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, numeric prefixes, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, improvement notes, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, numeric prefixes, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Apply `technical_terms_policy` to other human-readable terminology.
 
 **First parse arguments:**
 
@@ -161,11 +161,11 @@ Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists:
 - Conventions
 - Non-functional requirements
 
-If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before proposing refinements only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and refine against the plan's embedded Research Context; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase the plan.
+If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Extract and read the exact `RESEARCH.md` source path from the source line; fall back to the configured `paths.research` only for a legacy link without a usable path. For an ultra research source, sibling `INDEX.md`, C4, ADR, and dependency files are rationale only and must not silently expand scope. Read the source only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker, the source is missing, or the current Active Summary differs, emit `WARN [research-drift]` and refine against the plan's embedded Research Context; do not apply newer research requirements unless the user explicitly asks to rebase the plan.
 
 When adding `## Research Context` to an unlinked plan, normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
 
-Otherwise, read `.ai-factory/RESEARCH.md` (use path from config) if it exists and is relevant to the plan being refined.
+Otherwise, select at most one relevant research source using the same conservative order as `/aif-plan`: an explicit source, one clearly matching marked active `research_bundles_dir/*/INDEX.md` bundle and its linked `RESEARCH.md`, then the configured legacy file. Do not merge multiple sources or choose by recency alone.
 
 **2.3: Read patches (limited fallback)**
 
@@ -412,7 +412,7 @@ The difference between the two is the report only. `removals` are dead-weight du
 - Preserve any `- [x]` checkboxes for already completed tasks
 - Preserve existing `## Original Request` exactly, including heading, body text, whitespace, and line breaks. Do not translate, summarize, normalize, trim, or rewrite it; this section is raw source input and is exempt from `artifact_language` rewriting.
 - Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite, unless the user explicitly asks to rebase the plan to current research
-- If an unlinked plan is refined using current research, add `## Research Context` by copying the relevant Active Summary and write `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`
+- If an unlinked plan is refined using current research, add `## Research Context` by copying the relevant Active Summary and write `Source: <selected research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`
 - Compute that hash from the normalized copied Active Summary: exclude the `Source:` line and comments, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
 - If a linked plan has research drift, keep the committed Research Context and source revision in the plan and include `WARN [research-drift]` in the refinement report
 - For ultra, update `index.md` and the affected phase files atomically:
@@ -463,7 +463,7 @@ Suggest the user to free up context space if needed: `/clear` (full reset) or `/
 ## Artifact Ownership
 
 - Primary ownership: the plan artifact being refined (resolved branch-plan path, named full-plan path, resolved fast plan path, or resolved fix plan path when explicitly targeted).
-- Config use: resolve full-plan directory via `paths.plans`, fast/fix plans via `paths.plan` and `paths.fix_plan`, git behavior via `git.enabled` and `git.create_branches`, optional research context via `paths.research`, and patch fallback via `paths.patches`.
+- Config use: resolve full-plan directory via `paths.plans`, fast/fix plans via `paths.plan` and `paths.fix_plan`, git behavior via `git.enabled` and `git.create_branches`, optional legacy/bundled research context from `paths.research` and its derived sibling `research/` directory, and patch fallback via `paths.patches`.
 - Read-only context: description, architecture, roadmap, rules, and research artifacts except where the active plan file itself is being updated.
 
 ## Important Rules

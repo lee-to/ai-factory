@@ -67,7 +67,7 @@ When creating a new FIX_PLAN.md: if there is no existing annotation and no Hando
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
-- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, and `paths.patches`
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, and `paths.patches`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for `FIX_PLAN.md` and patch artifacts, and `language.technical_terms` for human-readable technical terminology in artifacts
 - **Rules:** `rules.base` plus any named `rules.<area>` entries
 
@@ -95,7 +95,7 @@ All AskUserQuestion prompts, progress updates, fix summaries, test prompts, and 
 
 Generated `FIX_PLAN.md` and self-improvement patch files under `paths.patches` MUST be written in `artifact_language`.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, analysis text, fix checklist entries, risks, prevention notes, and patch prose before saving. Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, analysis text, fix checklist entries, risks, prevention notes, and patch prose before saving. Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged. Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Apply `technical_terms_policy` to other human-readable terminology.
 
 ### Step 0.1: Check for Existing Fix Plan
 
@@ -104,7 +104,7 @@ Templates and examples define structure, not fixed English output. If `artifact_
 **If the file EXISTS:**
 
 - Read the resolved fix plan file
-- If the fix plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the embedded Research Context as the committed fix requirements snapshot. Read the resolved research artifact before executing the plan only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and execute against the fix plan's embedded Research Context; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase the fix plan.
+- If the fix plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the embedded Research Context as the committed fix requirements snapshot. Extract and read the exact `RESEARCH.md` source path from the source line; fall back to configured `paths.research` only for a legacy link without a usable path. Ultra bundle sibling artifacts are rationale only. Read the source only to verify the committed revision marker (`Updated:` and/or `SHA256:`) and to consult `## Sessions` when needed. If the source line lacks a revision marker, the source is missing, or the current Active Summary differs, emit `WARN [research-drift]` and execute against the fix plan's embedded Research Context; do not apply newer live research unless the user explicitly asks to rebase the fix plan.
 - **Immediately check the first line for `<!-- handoff:task:<uuid> -->`:**
   - If found AND `HANDOFF_MODE` is NOT `1` (manual session): extract the task ID. Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`. (Status is `"implementing"` because we are executing an existing plan, not creating one.)
   - If found AND `HANDOFF_MODE` is `1`: the Handoff coordinator handles sync — do nothing.
@@ -212,7 +212,7 @@ Investigate the codebase enough to understand the problem and create a plan.
 
 **Use the same parallel exploration approach as Step 2** — launch Explore agents to investigate the problem area, related code, and past patterns simultaneously.
 
-If the resolved research path exists, read it before creating the fix plan. When the current Active Summary is relevant to the bug or influenced the planned fix, copy the relevant Active Summary into `## Research Context` and include `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`. If research is unrelated, omit the section.
+If the resolved research path exists, read it before creating the fix plan. Also check marked active direct child bundles under `research_bundles_dir` and select at most one clearly bug-relevant `RESEARCH.md`; prefer an explicit source, then a topic match, then the relevant legacy file, never recency alone. When the selected Active Summary influences the planned fix, copy it into `## Research Context` and include `Source: <selected research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`. If research is unrelated, omit the section.
 
 When adding `## Research Context` to a fix plan, normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
 
@@ -274,7 +274,7 @@ Checklist entries for implementing the fix:
 ## Research Context (optional)
 
 Include only when this fix plan is based on `RESEARCH.md`.
-Source: <resolved research path> (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
+Source: <selected research path> (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
 ```
 
 Use the normalization and stdin hashing rules from Step 1.1 when filling `SHA256:`.

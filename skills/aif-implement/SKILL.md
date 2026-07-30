@@ -485,7 +485,12 @@ excluded.
   remain settings, dependencies, the task checklist, committed Research Context,
   and (for ultra) linked phase specifications.
 - Apply the existing research-drift contract to Research Context in the entrypoint:
-  compare the source revision with `paths.research`, emit
+  extract the `RESEARCH.md` path from the entrypoint `Source:` / `Reference:` line
+  and compare against that exact file; fall back to `paths.research` only for a
+  legacy link that does not identify a path. This supports both the configured
+  single research file and marked ultra bundle `<bundle>/RESEARCH.md` sources.
+  If the source is an ultra bundle, its sibling `INDEX.md` and optional artifacts
+  are rationale only; they do not expand the committed plan scope. Emit
   `WARN [research-drift]` on mismatch, and continue using committed plan context.
   In the single-file wording of this contract: emit `WARN [research-drift]` and continue using the plan's embedded Research Context as scope.
 
@@ -999,7 +1004,7 @@ Shows progress without executing.
 
 - Primary ownership in this command: task execution state and plan progress checkboxes.
 - Allowed context artifact updates: the resolved description artifact, the resolved architecture artifact, and roadmap milestone completion in the resolved roadmap artifact when implementation evidence justifies it.
-- Read-only context in this command by default: the resolved `paths.rules_file` and `paths.research` artifacts.
+- Read-only context in this command by default: the resolved `paths.rules_file`, configured `paths.research`, and any exact research source linked from the plan entrypoint.
 - Context-gate findings should be communicated as `WARN`/`ERROR` outputs only; this does not replace the required verbose implementation logging rules below.
 
 For progress display format, blocker handling, session continuity examples, and full flow examples → see `references/IMPLEMENTATION-GUIDE.md`

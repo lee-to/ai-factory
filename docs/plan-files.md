@@ -209,11 +209,18 @@ Audit:
 - ai-factory audit-artifacts: pass
 ```
 
-## Research File (Optional)
+## Research Artifacts (Optional)
 
 `.ai-factory/RESEARCH.md` is a persisted exploration artifact. Use it to capture constraints, decisions, and open questions during `/aif-explore` so you can `/clear` and still feed the same context into `/aif-plan`.
 
-When research influences a plan, `/aif-plan` copies the relevant Active Summary into `## Research Context`. That embedded copy is the committed requirements snapshot for implementation and verification. The live research file may change later; downstream skills compare the source revision and warn on drift instead of silently applying newer research to an older plan.
+Explicit `/aif-explore ultra <topic>` instead uses
+`.ai-factory/research/<english-topic-slug>/INDEX.md` plus a compatible
+`RESEARCH.md`. C4, ADR, and dependency graph files are conditional. The root is
+derived from the parent of configured `paths.research`, so relocating that file
+also relocates ultra bundles without a second config key. See
+[Research and System Analysis](research.md).
+
+When research influences a plan, `/aif-plan` copies the relevant Active Summary from the selected legacy or bundled `RESEARCH.md` into `## Research Context`. That embedded copy is the committed requirements snapshot for implementation and verification. The exact source path may change later; downstream skills compare its revision and warn on drift instead of silently applying newer research or sibling bundle artifacts to an older plan.
 
 Plans created before revision markers were introduced may contain a `Source:` or `Reference:` line to `RESEARCH.md` without `Updated:` or `SHA256:` metadata. Downstream skills intentionally treat that as an unverified research link and emit a legacy compatibility `WARN [research-drift]`; they still execute against the embedded plan context instead of silently applying the current Active Summary.
 
@@ -348,5 +355,5 @@ For each recommended skill:
 ## See Also
 
 - [Development Workflow](workflow.md) — how plan files fit into the development loop
+- [Research and System Analysis](research.md) — ultra research bundle structure and selection
 - [Core Skills](skills.md) — full reference for `/aif-fix`, `/aif-evolve`, and other skills
-- [Security](security.md) — how external skills are scanned before use

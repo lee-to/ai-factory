@@ -199,7 +199,8 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
 **Language semantics:**
 - `language.ui` controls prompts, questions, progress updates, summaries, and next-step guidance.
 - `language.artifacts` controls generated or persisted artifacts, including plans, fix plans, patches, rules, references, security ignore state, documentation, QA outputs, and `/aif-explore` research snapshots in `paths.research`.
-- `language.technical_terms` controls whether human-readable terminology is kept, translated, or mixed while commands, paths, identifiers, branch names, config keys, package names, API names, machine-readable enum values, and raw errors stay unchanged where required.
+- Explicit `/aif-explore ultra` uses the same language policy and derives named bundles at `<parent(paths.research)>/research/<english-topic-slug>/`; no additional path key is needed.
+- `language.technical_terms` controls whether human-readable terminology is kept, translated, or mixed while commands, paths, identifiers, branch names, config keys, package names, API names, machine-readable metadata keys and enum values, and raw errors stay unchanged where required.
 
 **Git workflow semantics:**
 - `git.enabled: false` disables branch/worktree assumptions entirely.

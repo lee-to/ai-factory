@@ -52,7 +52,9 @@ paths:
   # Default: .ai-factory/ROADMAP.md
   roadmap: .ai-factory/ROADMAP.md
 
-  # Research notes file
+  # Research notes file.
+  # Explicit /aif-explore ultra derives named bundles at
+  # <parent directory>/research/<english-topic-slug>/; no second path key is needed.
   # Default: .ai-factory/RESEARCH.md
   research: .ai-factory/RESEARCH.md
 

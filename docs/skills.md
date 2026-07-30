@@ -14,18 +14,21 @@ Other skills are intentionally config-agnostic for now and rely on repository co
 
 These skills form the core development loop. See [Development Workflow](workflow.md) for the full diagram and how they connect.
 
-### `/aif-explore [topic or plan name]`
+### `/aif-explore [ultra] [topic or plan name]`
 Explore ideas, constraints, and trade-offs before planning:
 ```
 /aif-explore real-time collaboration
 /aif-explore the auth system is getting unwieldy
 /aif-explore add-auth-system
+/aif-explore ultra partner order synchronization
 ```
 - Uses a thinking-partner mode: open questions, option mapping, and ASCII visualization
 - Reads project context from the resolved description, architecture, rules, and research artifacts plus active plan files when present
-- Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots, and `language.technical_terms` to preserve commands, paths, identifiers, and config keys where appropriate
+- Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots and derived ultra bundles, and `language.technical_terms` to preserve commands, paths, identifiers, config keys, and machine-readable research metadata where required
 - Does **not** implement code in this mode; when direction is clear, move to `/aif-plan`
 - Can optionally persist exploration context to `paths.research` (default: `.ai-factory/RESEARCH.md`) so you can `/clear` and still feed results into `/aif-plan`
+- Explicit `ultra` is opt-in and persists `<parent(paths.research)>/research/<english-topic-slug>/`. Every bundle has `INDEX.md` + compatible `RESEARCH.md`; C4 Context/Container/Component, ADR, and dependency graph files are added only when evidence meets their complexity signals.
+- Keeps `RESEARCH.md` Active Summary as the sole planning input. Supporting diagrams and decisions must promote material conclusions into that summary instead of silently expanding plan scope.
 - Best when the problem is still fuzzy: requirements unclear, trade-offs unresolved, or you want to inspect the codebase before choosing a direction
 
 ### `/aif-plan [fast|full|ultra] <description>`
@@ -60,7 +63,7 @@ generated artifact prose; downstream plan rewrites must preserve it exactly
 even when `language.artifacts` differs. It is omitted only when the plan is
 created solely from `RESEARCH.md` without an explicit user request.
 
-If the resolved research artifact exists, `/aif-plan` may read the `Active Summary` as optional context. It includes `Research Context` only when research content influenced the generated plan. Linked plans include a `Source:` reference with revision metadata so downstream skills treat the embedded context as committed requirements and warn if live research has drifted.
+If a relevant configured or marked ultra-bundle `RESEARCH.md` exists, `/aif-plan` may read its `Active Summary` as optional context. It selects at most one source, never by recency alone. It includes `Research Context` only when research content influenced the generated plan. Linked plans include the exact `Source:` path with revision metadata so downstream skills treat the embedded context as committed requirements and warn if live research has drifted.
 
 If the resolved roadmap artifact exists, `/aif-plan` may also capture a `Roadmap Linkage` section (milestone name + brief rationale) to make milestone alignment explicit.
 
@@ -112,7 +115,7 @@ Refine an existing plan with a second iteration:
 - `--list` mode is read-only: shows available plan files and exits
 - Performs deeper codebase analysis than the initial `/aif-plan` planning
 - Treats `## Original Request` as the immutable original intent / scope anchor, preserves it verbatim on every plan edit or regeneration, and does not translate it when `language.artifacts` differs
-- Preserves embedded `Research Context` as committed requirements, checks `paths.research` for revision drift, and adds a source revision when research informs a previously unlinked plan
+- Preserves embedded `Research Context` as committed requirements, checks its exact legacy or bundled `RESEARCH.md` source for revision drift, and adds a source revision when research informs a previously unlinked plan
 - Finds missing tasks (migrations, configs, middleware)
 - Fixes task dependencies and descriptions
 - Removes redundant tasks
@@ -169,7 +172,7 @@ Executes the plan:
 - For ultra, reads `index.md` and the complete phase file for the active task;
   updates task progress only in `index.md`
 - Treats `## Original Request` as useful original scope context while executing the task list and committed `Research Context` as the executable plan inputs
-- Uses embedded `Research Context` as committed scope and checks `paths.research` only for revision drift when the plan has `Research Context` or a `RESEARCH.md` source/reference
+- Uses embedded `Research Context` as committed scope and checks the exact legacy or bundled `RESEARCH.md` source only for revision drift
 - `--list` mode is read-only: shows available plan files and exits
 - `--without-plan <description>` mode (inline):
   - Executes exactly one small task from the description — no plan file created, read, or updated
@@ -199,7 +202,7 @@ Verifies completed implementation against the plan:
 
 - **Task completion audit** — goes through every task in the plan, uses `Glob`/`Grep`/`Read` to confirm the code actually implements each requirement. Reports `COMPLETE`, `PARTIAL`, or `NOT FOUND` per task
 - **Original request context** — uses `## Original Request` as the original scope context when present, while the task list and committed `Research Context` remain the executable verification inputs
-- **Research-backed plan audit** — verifies against embedded `Research Context` when present, checks `paths.research` for revision drift, and emits `WARN [research-drift]` instead of applying newer Active Summary requirements silently
+- **Research-backed plan audit** — verifies against embedded `Research Context` when present, checks its exact legacy or bundled source for revision drift, and emits `WARN [research-drift]` instead of applying newer Active Summary requirements silently
 - **Build & test check** — runs the project's build command, test suite, and linters on changed files
 - **Consistency checks** — searches for leftover `TODO`/`FIXME`/`HACK`, undocumented environment variables, missing dependencies, plan-vs-code naming drift
 - **Context gates (read-only)** — checks architecture/roadmap/rules alignment before final status; missing optional roadmap/rules files are warnings
@@ -231,7 +234,7 @@ Bug fix with optional plan-first mode:
 /aif-fix Something is broken    # Choose "Plan first" when asked
 ```
 - Investigates the codebase, creates `paths.fix_plan` with analysis, fix checklist, risks
-- Includes `Research Context` only when research content influenced the fix plan, records a committed source revision, and checks the live research file only for drift before executing the plan
+- Includes `Research Context` only when research content influenced the fix plan, records the exact legacy or bundled source revision, and checks that source only for drift before executing the plan
 - Stops after creating the plan — you review it at your own pace
 - When ready, run without arguments to execute the plan:
 ```

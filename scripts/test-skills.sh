@@ -712,6 +712,7 @@ fi
 # /aif localization contract regression checks
 AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
 AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
+AIF_EXPLORE_ULTRA_REF="$ROOT_DIR/skills/aif-explore/references/ULTRA-RESEARCH-FORMAT.md"
 AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
 AIF_PLAN_FORMAT_REF="$ROOT_DIR/skills/aif-plan/references/TASK-FORMAT.md"
 AIF_PLAN_ULTRA_REF="$ROOT_DIR/skills/aif-plan/references/ULTRA-FORMAT.md"
@@ -854,6 +855,25 @@ else
     fail "/aif-explore technical terms policy missing"
 fi
 
+if [[ -f "$AIF_EXPLORE_ULTRA_REF" ]] \
+   && grep -Fq 'Ultra is strictly opt-in.' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'research_bundles_dir = <parent directory of paths.research>/research/' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq '<!-- aif:research-mode:ultra -->' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq '## Language and Compatibility Tokens' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq 'metadata keys `Topic:`, `Slug:`, `Updated:`, and `Status:`' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq 'Every bundle has the same minimum shape:' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq 'Do not create empty placeholders.' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq 'Source priority: an explicitly referenced bundle/file; then one clearly topic-matching marked `Status: active` bundle; then the relevant legacy file.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact' "$AIF_FIX_SKILL" \
+   && grep -Fq 'extract the `RESEARCH.md` path from the entrypoint `Source:` / `Reference:` line' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq '## Language and Compatibility' "$ROOT_DIR/docs/research.md"; then
+    pass "ultra research stays opt-in, adaptive, discoverable, and drift-compatible"
+else
+    fail "ultra research producer/consumer contract missing"
+fi
+
 CONFIG_LANGUAGE_ARTIFACTS_ROW="$(grep -F '| `language.artifacts` |' "$CONFIG_REFERENCE_DOC" || true)"
 CONFIG_LANGUAGE_TECH_TERMS_ROW="$(grep -F '| `language.technical_terms` |' "$CONFIG_REFERENCE_DOC" || true)"
 CONFIG_AIF_EXPLORE_ROW="$(grep -F '| `/aif-explore` |' "$CONFIG_REFERENCE_DOC" || true)"
@@ -868,7 +888,7 @@ else
     fail "config reference missing /aif-explore language keys"
 fi
 
-if grep -Fq 'Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots, and `language.technical_terms`' "$SKILLS_DOC" \
+if grep -Fq 'Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots and derived ultra bundles, and `language.technical_terms`' "$SKILLS_DOC" \
    && grep -Fq '`language.artifacts` controls generated or persisted artifacts, including plans, fix plans, patches, rules, references, security ignore state, documentation, QA outputs, and `/aif-explore` research snapshots in `paths.research`.' "$CONFIGURATION_DOC" \
    && grep -Fq '`language.ui` / `language.artifacts` / `language.technical_terms`' "$ROOT_DIR/AGENTS.md"; then
     pass "docs summarize /aif-explore language policy"
