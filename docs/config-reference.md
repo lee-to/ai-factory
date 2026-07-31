@@ -67,7 +67,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `paths.research` | `.ai-factory/RESEARCH.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-improve`, `/aif-fix` | Persisted exploration context |
 | `paths.rules_file` | `.ai-factory/RULES.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-rules`, `/aif-reference`, `/aif-loop` | Top-level rules artifact |
 | `paths.plan` | `.ai-factory/PLAN.md` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-loop` | Fast-plan path |
-| `paths.plans` | `.ai-factory/plans/` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-loop` | Full-plan directory |
+| `paths.plans` | `.ai-factory/plans/` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-loop`, `/aif-archive` | Named plans directory: full plans are root `.md` files; ultra plans are direct child directories whose `index.md` contains the stable `<!-- aif:plan-mode:ultra -->` marker plus linked phase files |
 | `paths.fix_plan` | `.ai-factory/FIX_PLAN.md` | `/aif-fix`, `/aif-improve`, `/aif-implement`, `/aif-verify` | Fix-plan path |
 | `paths.security` | `.ai-factory/SECURITY.md` | `/aif-security-checklist` | Security ignore-state artifact |
 | `paths.references` | `.ai-factory/references/` | `/aif-reference` | Knowledge reference storage |
@@ -77,14 +77,14 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `paths.specs` | `.ai-factory/specs/` | `/aif-plan`, `/aif-verify` | Specs / archived plan support |
 | `paths.rules` | `.ai-factory/rules/` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-rules` | Area-rules directory and relative rule resolution base |
 | `paths.qa` | `.ai-factory/qa/` | `/aif-qa`, `/aif-qa-check` | QA artifacts root; branch slug is appended as subdirectory (`<paths.qa>/<branch-slug>/`). `/aif-qa` writes `change-summary.md`, `test-plan.md`, and `test-cases.md`; `/aif-qa-check` writes revision/worktree/source-bound `qa-check.md` plus root-level `agent-context.md` and `agent-history.md` for reusable non-sensitive automated QA memory. |
-| `paths.archive` | `.ai-factory/archive/` | `/aif-archive`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-improve` | Archive directory for completed plans and roadmap snapshots. Subdirectories: `archive/plans/` for archived plan files, `archive/roadmap/` for dated roadmap snapshots. Plans retain original filenames including sequential prefix. |
+| `paths.archive` | `.ai-factory/archive/` | `/aif-archive`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-improve` | Archive directory for completed plans and roadmap snapshots. `archive/plans/` stores full `.md` plans and ultra bundle directories; `archive/roadmap/` stores dated snapshots. Plan identifiers retain any sequential prefix. |
 
 ### `workflow`
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
 | `workflow.auto_create_dirs` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for directory-management behavior |
-| `workflow.plan_id_format` | `slug` | `/aif-plan`, `/aif-implement`, `/aif-improve`, `/aif-explore`, `/aif-verify`, `/aif-rules-check`, `/aif-commit` | Active values: `slug` (default), `sequential`. Reserved values (currently fall back to `slug` with an `INFO` log): `timestamp`, `uuid`. `sequential` writes `paths.plans/<NNNN>_<stem>.md` where `stem` is the canonical Handoff/branch/slug stem from `/aif-plan` Step 1.2.a. `NNNN` is derived from existing numbered plans in the directory (next = max(existing) + 1; empty dir starts at `0001`), zero-padded to 4 digits, bounded at `9999` (the producer errors before writing `10000_…`). Deleting or moving a numbered plan out of the directory can free that number for reuse on the next run. Force-disabled when `HANDOFF_BRANCH_PREPARED=1`. |
+| `workflow.plan_id_format` | `slug` | `/aif-plan`, `/aif-implement`, `/aif-improve`, `/aif-explore`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-archive` | Active values: `slug` (default), `sequential`; `timestamp` and `uuid` are reserved and fall back to `slug`. Sequential writes a full plan as `paths.plans/<NNNN>_<stem>.md` or an ultra bundle as `paths.plans/<NNNN>_<stem>/index.md`. Allocation counts numbered full files and only directories whose `index.md` has the exact ultra marker, uses max + 1, starts at `0001`, caps at `9999`, ignores unrelated numbered directories, and excludes the archive. Moving/deleting the highest active artifact can free its number. Force-disabled when `HANDOFF_BRANCH_PREPARED=1`. |
 | `workflow.analyze_updates_architecture` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for setup/update workflow control |
 | `workflow.architecture_updates_roadmap` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for architecture-to-roadmap automation |
 | `workflow.verify_mode` | `normal` | `/aif-verify` | Default strictness for verification runs |
@@ -95,7 +95,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 |-----|---------|----------------|-------|
 | `git.enabled` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-qa`, `/aif-qa-check` | Disables branch/worktree assumptions when false; `/aif-qa` switches to manual change context instead of git diffing |
 | `git.base_branch` | `main` with auto-detect fallback | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-qa` | Target branch for diff, merge, and verification guidance |
-| `git.create_branches` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-commit` | Full plans may still exist when false; they just skip auto branch creation |
+| `git.create_branches` | `true` | `/aif`, `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-commit` | Full and ultra plans still exist when false; they skip automatic branch creation |
 | `git.branch_prefix` | `feature/` | `/aif`, `/aif-plan` | Prefix for auto-created full-plan branches |
 | `git.skip_push_after_commit` | `false` | `/aif-commit` | When true, `/aif-commit` skips push prompt and ends after local commit |
 

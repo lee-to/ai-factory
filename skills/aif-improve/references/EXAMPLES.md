@@ -59,6 +59,7 @@ User: /aif-improve
 
 "No active plan found. Create one first:
 - /aif-plan full <description>
+- /aif-plan ultra <description>
 - /aif-plan fast <description>
 - /aif-fix <bug description>"
 ```

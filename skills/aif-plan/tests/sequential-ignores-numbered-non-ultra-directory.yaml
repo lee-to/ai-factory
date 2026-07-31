@@ -1,0 +1,59 @@
+scenario: sequential-ignores-numbered-non-ultra-directory
+description: |
+  A numbered directory with index.md but without the ultra marker must not
+  consume a sequential plan ID or trigger the 9999 cap.
+skill: aif-plan
+argument: "full add product search"
+max_turns: 50
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+
+fixtures:
+  git_init: false
+  files:
+    - path: package.json
+      content: '{"name":"demo","version":"0.1.0"}'
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        workflow:
+          plan_id_format: sequential
+        git:
+          enabled: false
+          create_branches: false
+    - path: .ai-factory/plans/0002_existing.md
+      content: |
+        # Existing plan
+        ## Tasks
+        - [x] Task 1: done
+    - path: .ai-factory/plans/9999_notes/index.md
+      content: |
+        # Numbered notes
+        This directory is not an ultra plan.
+
+user_responses:
+  - match_question: "(?i)test"
+    choose: "Yes"
+  - match_question: "(?i)log"
+    choose: "Verbose"
+  - match_question: "(?i)doc"
+    choose: "Yes"
+  - match_question: "(?i)(roadmap|milestone)"
+    choose: "Skip"
+
+assertions:
+  - id: writes-next-id-after-real-plan
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/0003_add-product-search\\.md$"
+    weight: 4
+  - id: does-not-report-sequential-cap
+    type: output_not_contains
+    pattern: "(?i)sequential cap reached"
+  - id: stay-in-sandbox
+    type: no_path_escape

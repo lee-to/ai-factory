@@ -53,19 +53,39 @@ If any rule is violated — fix the output before presenting it to the user.
 
 2. **Resolve Active Plan Context (Read-Only, Optional)**
    - Resolve active plan using this read-only priority:
-     1. `@<plan-file>` argument, when the argument starts with `@`
-     2. branch-based full plan in `paths.plans`
-     3. single full plan in `paths.plans`
+     1. `@<plan-file-or-directory>` argument, when the argument starts with `@`
+     2. branch-based full plan or ultra bundle in `paths.plans`
+     3. single full plan in `paths.plans`, or a single ultra bundle there
      4. fast plan at `paths.plan`
    - If the argument does not start with `@`, keep treating it as commit scope/context.
+   - Legacy `@<plan-file>` syntax remains valid; the broader form additionally
+     accepts an ultra directory or its `index.md`.
    - For branch-based full plan lookup:
      - get current branch with `git branch --show-current` when `git.enabled = true`
      - replace every `/` with `-` to get `<branch-stem>`
-     - when `workflow.plan_id_format = sequential`, use `Glob` for `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>.md` first
-     - if multiple sequential matches exist, use the highest-numbered match and emit `WARN [aif-commit] multiple sequential plans for <branch>: <list>; using <chosen>`
-     - if no sequential match exists, fall back to `paths.plans/<branch-stem>.md`
-   - If git mode is off, branch lookup cannot resolve, or no branch-based plan exists, check whether `paths.plans` contains exactly one full-plan markdown file.
-   - If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.
+     - when `workflow.plan_id_format = sequential`, use `Glob` for both
+       `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>.md` and
+       `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>/index.md`
+     - Read every directory candidate and retain it only when `index.md`
+       contains exactly one `<!-- aif:plan-mode:ultra -->`
+     - use the highest-numbered valid artifact and emit `WARN [aif-commit]` when
+       multiple valid candidates exist; if both shapes share the highest prefix,
+       prefer ultra
+     - if no valid sequential match exists, check
+       `paths.plans/<branch-stem>/index.md` then
+       `paths.plans/<branch-stem>.md`; Read the directory entrypoint before
+       selection, ignore it unless it contains exactly one ultra marker, and
+       warn and prefer ultra if both valid shapes exist
+   - If git mode is off, branch lookup cannot resolve, or no branch-based plan
+     exists, count root `*.md` full plans plus direct child `*/index.md`
+     entrypoints containing `<!-- aif:plan-mode:ultra -->`; exclude the resolved fast-plan
+     path and do not count phase files.
+   - Before normalizing an explicit ultra directory or treating an explicit
+     `index.md` as ultra, Read it and require exactly one
+     `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
+   - An automatically discovered directory entrypoint counts only when it
+     contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
+   - If no active plan resolves or the active plan entrypoint has no `## Commit Plan`, keep current staged-diff behavior unchanged.
    - Never modify the active plan from this command.
 
 3. **Use Commit Plan Grouping When Available**
@@ -74,6 +94,13 @@ If any rule is violated — fix the output before presenting it to the user.
      - task range, such as `after tasks 1-3` or `tasks 4-6`
      - suggested conventional commit message
    - Read the plan's `## Tasks` or `## Implementation Tasks` section to map task ranges to task descriptions and any `Files:` hints.
+   - For an ultra plan, resolve every task in the current commit group to its
+     Phase Index/details link, read each corresponding phase file, and build the
+     staged-path mapping from its `## Files to Change` table plus the complete
+     `## Task N` specifications. Reading only `index.md` is insufficient.
+   - If one phase contains tasks from multiple commit groups, use the individual
+     `## Task N` sections to distinguish file/hunk ownership; do not assign the
+     phase's entire file table to every group without task-level evidence.
    - Compare staged files/hunks with planned groups before changing staging:
      - use staged file paths from `git diff --cached --name-only`
      - use staged hunk evidence from `git diff --cached` when a file may span multiple groups

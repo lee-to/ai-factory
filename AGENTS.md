@@ -40,7 +40,7 @@ ai-factory/
 │   ├── aif-implement/          # Execute plan tasks
 │   ├── aif-improve/            # Plan refinement (second iteration)
 │   ├── aif-loop/               # Iterative reflex loop with quality gates
-│   ├── aif-plan/               # Plan implementation (fast/full modes)
+│   ├── aif-plan/               # Plan implementation (fast/full/ultra modes)
 │   ├── aif-review/             # Code review
 │   ├── aif-roadmap/            # Strategic project roadmap
 │   ├── aif-rules/              # Project rules and conventions
@@ -78,6 +78,7 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/ARCHITECTURE.md` — architecture decisions and guidelines
 - `.ai-factory/PLAN.md` — task plan (from /aif-plan fast)
 - `.ai-factory/plans/<branch-or-slug>.md` — plans (from /aif-plan full; or `.ai-factory/plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see `docs/plan-files.md`)
+- `.ai-factory/plans/<branch-or-slug>/index.md` — ultra plan entrypoint with sibling `phase-NN-*.md` files (or `.ai-factory/plans/<NNNN>_<branch-or-slug>/index.md` under sequential IDs)
 - `.ai-factory/skill-context/<skill>/SKILL.md` — project-specific overrides for skills (from /aif-evolve)
 - `.ai-factory/evolutions/*.md` — evolution logs (from /aif-evolve)
 - `.ai-factory/evolutions/patch-cursor.json` — incremental evolve cursor (latest processed patch)
@@ -104,14 +105,14 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-roadmap`         | `/aif-implement` may mark completed milestones with evidence                                     |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules`           | top-level conventions plus area-rule files and registration                                      |
 | `paths.research` (default: `.ai-factory/RESEARCH.md`)                                         | `/aif-explore`         | explore-mode writable artifact                                                                   |
-| `paths.plan` / `paths.plans/<branch-or-slug>.md`                                              | `/aif-plan`            | defaults shown; `/aif-improve` refines existing plans                                            |
+| `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phase files                | `/aif-plan`            | fast/full/ultra artifacts; `/aif-improve` refines existing plans and bundles                     |
 | `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
 | `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
 | `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills                                                      |
 | `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor                                                      |
 | `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
 | `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results plus root-level `agent-context.md` and `agent-history.md` for automated QA |
-| `paths.archive/plans/*.md`, `paths.archive/roadmap/*.md`                                      | `/aif-archive`         | archived completed plans and dated roadmap snapshots                                             |
+| `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                                         | `/aif-archive`         | archived completed plan files/bundles and dated roadmap snapshots                                |
 
 Quality commands (`/aif-rules-check`, `/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
 
@@ -236,12 +237,12 @@ Subsequent → review progress, add/reprioritize/mark milestones done
     ↓
 ROADMAP.md = strategic checklist of high-level goals
 
-/aif-plan [fast|full] <description>
+/aif-plan [fast|full|ultra] <description>
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
 Reads configured `paths.research` when available; if research informs the plan, writes a committed `Research Context` snapshot with a `Source:` reference to `RESEARCH.md` plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
-If the user supplied an explicit planning request, saves it in the plan file as `Original Request`; strip only recognized command tokens (`fast`/`full` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
+If the user supplied an explicit planning request, saves it in the plan entrypoint as `Original Request`; strip only recognized command tokens (`fast`/`full`/`ultra` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
     ↓
 fast → no branch, saves to configured `paths.plan`
 full → creates richer plan, asks: tests? logging? docs?
@@ -249,6 +250,17 @@ full → creates richer plan, asks: tests? logging? docs?
        saves to configured `paths.plans/<branch-or-slug>.md`
        (`<slug>.md` when git is disabled or branch creation is off;
         `<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential`)
+    ↓
+ultra → uses full-mode preferences and optional branch/worktree flow
+        → is strictly opt-in via the leading `ultra` token; omitted mode keeps
+          the existing full/fast interactive choice
+        → saves `paths.plans/<id>/index.md` plus one `phase-NN-*.md` per phase
+        → `index.md` contains the exact untranslated `<!-- aif:plan-mode:ultra -->` discovery marker
+        → `index.md` owns scope/settings/context/TOC/task checkboxes/dependencies/commits
+        → phase files own exact code evidence, files/symbols, ordered edits, contracts,
+          errors/logging, test policy, acceptance criteria, and verification
+        → sequential format prefixes the directory; allocation counts full files + marked ultra dirs
+          and ignores numbered directories whose `index.md` lacks the ultra marker
     ↓
 Explores codebase
     ↓
@@ -288,9 +300,11 @@ Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
 Reads skill-context rules first; uses limited recent patch fallback when needed
     ↓
-Finds plan file (branch-named, single named full plan, or fast plan)
+Finds plan artifact (explicit file/ultra directory, branch-named full/ultra, single named artifact, or fast plan)
     ↓
 If the plan contains `## Original Request`, treats it as useful original scope context while executing the task list and committed `Research Context` as the executable plan inputs
+    ↓
+For ultra, reads `index.md` then the complete phase file for the active task; updates progress only in `index.md`
     ↓
 If the plan references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads configured `paths.research` only to detect revision drift before executing tasks
     ↓
@@ -306,7 +320,7 @@ Docs policy:
     - Docs: yes → mandatory docs checkpoint (update/create/skip) routed via /aif-docs
     - Docs: no or unset → WARN [docs] only (no mandatory prompt)
     ↓
-Offers to delete PLAN.md when done (keeps feature-*.md)
+Offers to delete PLAN.md when done (keeps named full files and ultra bundles)
 
 /aif-qa [--all] [change-summary | test-plan | test-cases] [<branch>]
     ↓
@@ -585,6 +599,6 @@ After changes, verify:
 - [ ] `ai-factory update` updates existing skills
 - [ ] `ai-factory upgrade` migrates v1 → v2 correctly
 - [ ] `/aif` in Claude Code shows interactive stack selection
-- [ ] `/aif-plan` creates the expected plan file and optional branch/worktree flow
+- [ ] `/aif-plan` creates the expected fast/full file or valid ultra bundle and optional branch/worktree flow
 - [ ] `/aif-implement` finds and executes plan
 - [ ] Skills read `.ai-factory/DESCRIPTION.md`

@@ -1,0 +1,57 @@
+scenario: ultra-localized-stable-marker
+description: |
+  Ultra artifacts written in a non-English artifact language must retain the
+  exact machine-readable discovery marker. Human-readable headings and labels
+  may be localized, but consumers must not depend on them.
+skill: aif-plan
+argument: "ultra добавить поиск товаров"
+max_turns: 60
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+
+fixtures:
+  git_init: false
+  files:
+    - path: package.json
+      content: '{"name":"demo","version":"0.1.0"}'
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        language:
+          ui: ru
+          artifacts: ru
+          technical_terms: keep
+        git:
+          enabled: false
+          create_branches: false
+
+user_responses:
+  - match_question: "(?i)(тест|test)"
+    choose: "Да"
+  - match_question: "(?i)(лог|log)"
+    choose: "Подробное"
+  - match_question: "(?i)(документ|doc)"
+    choose: "Да"
+  - match_question: "(?i)(roadmap|milestone|этап)"
+    choose: "Пропустить"
+
+assertions:
+  - id: writes-stable-marker
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/.+/index\\.md$"
+      content: "<!-- aif:plan-mode:ultra -->"
+    weight: 4
+  - id: does-not-translate-marker
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/.+/index\\.md$"
+      content: "<!-- аиф:"
+  - id: stay-in-sandbox
+    type: no_path_escape

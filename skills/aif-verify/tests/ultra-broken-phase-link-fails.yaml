@@ -1,0 +1,42 @@
+scenario: ultra-broken-phase-link-fails
+description: |
+  A declared ultra bundle with a broken Phase Index link is not a partial plan.
+  /aif-verify must report a blocking plan-integrity failure instead of verifying
+  only the short index checklist.
+skill: aif-verify
+argument: ""
+max_turns: 30
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+
+fixtures:
+  git_init: true
+  git_branch: feature/user-auth
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+        git:
+          enabled: true
+          create_branches: true
+    - path: .ai-factory/plans/feature-user-auth/index.md
+      content: |
+        <!-- aif:plan-mode:ultra -->
+        # Ultra Implementation Plan: Auth
+        Mode: ultra
+        ## Phase Index
+        1. [Phase 1](phase-01-missing.md) — Task 1
+        ## Tasks
+        - [x] Task 1: Implement auth
+
+assertions:
+  - id: reports-plan-integrity-failure
+    type: output_contains
+    pattern: "(?i)(plan.integrity|broken.*phase|missing.*phase)"
+    weight: 4
+  - id: stay-in-sandbox
+    type: no_path_escape

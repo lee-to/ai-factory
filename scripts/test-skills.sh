@@ -714,6 +714,7 @@ AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
 AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
 AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
 AIF_PLAN_FORMAT_REF="$ROOT_DIR/skills/aif-plan/references/TASK-FORMAT.md"
+AIF_PLAN_ULTRA_REF="$ROOT_DIR/skills/aif-plan/references/ULTRA-FORMAT.md"
 AIF_IMPLEMENT_SKILL="$ROOT_DIR/skills/aif-implement/SKILL.md"
 AIF_IMPROVE_SKILL="$ROOT_DIR/skills/aif-improve/SKILL.md"
 AIF_IMPROVE_CHECK_REF="$ROOT_DIR/skills/aif-improve/references/CHECK-MODE.md"
@@ -939,7 +940,7 @@ else
     fail "/aif-improve concrete output templates missing ui_language structure-only contract"
 fi
 
-if grep -Fq 'Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged.' "$AIF_PLAN_SKILL" \
+if grep -Fq 'Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged.' "$AIF_PLAN_SKILL" \
    && grep -Fq 'Preserve Handoff annotations, markdown structure, checkbox syntax, paths, commands, config keys, code identifiers, package names, API names, raw error messages, code snippets, log prefixes such as `[FIX]`, and patch tags unchanged.' "$AIF_FIX_SKILL" \
    && grep -Fq 'Preserve source quotations, source titles, URLs, local paths, code examples, API signatures, command names, config keys, package names, version strings, raw errors, and link targets unchanged.' "$AIF_REFERENCE_SKILL" \
    && grep -Fq 'Preserve item IDs, dates, author handles, commands, paths, config keys, package names, API names, security category IDs, severity/status enum values, raw errors, and the final `aif-gate-result` JSON schema unchanged.' "$AIF_SECURITY_SKILL"; then
@@ -1280,9 +1281,11 @@ else
 fi
 
 if grep -Fq 'active plan contains `## Commit Plan`' "$WORKFLOW_DOC" \
-   && grep -Fq 'unmapped staged files' "$WORKFLOW_DOC" \
+   && grep -Fq 'Unmapped staged files' "$WORKFLOW_DOC" \
    && grep -Fq 'staged-diff behavior unchanged' "$WORKFLOW_DOC" \
+   && grep -Fq 'reads the relevant phase files' "$WORKFLOW_DOC" \
    && grep -Fq 'active plan `## Commit Plan`' "$SKILLS_DOC" \
+   && grep -Fq '`Files to Change` table and task specification' "$SKILLS_DOC" \
    && grep -Fq 'Follow Commit Plan' "$SKILLS_DOC"; then
     pass "/aif-commit docs describe plan-aware grouping and fallback"
 else
@@ -1482,6 +1485,30 @@ else
     fail "planner defaults stay on the richer full contract"
 fi
 
+if grep -qF 'Ultra is strictly opt-in' "$AIF_PLAN_SKILL" \
+    && grep -qF '1. Full (Recommended) — richer plan, asks preferences, optional branch/worktree flow when git settings allow it' "$AIF_PLAN_SKILL" \
+    && grep -qF '2. Fast – quick plan, no branch, saves to the resolved fast plan path' "$AIF_PLAN_SKILL" \
+    && grep -qF 'How should full plans behave in git?' "$AIF_SKILL" \
+    && grep -qF 'Do not add an ultra-specific setup question' "$AIF_SKILL"; then
+    pass "ultra stays explicit opt-in without changing legacy setup/mode prompts"
+else
+    fail "ultra must stay explicit opt-in and preserve legacy setup/mode prompts"
+fi
+
+if [[ -f "$AIF_PLAN_ULTRA_REF" ]] \
+    && grep -qF '`index.md` is the manifest, scope anchor, and only progress source.' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF 'Every task has a stable `Task N` identifier' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF '<!-- ultra-phase:<relative-path> -->' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF '<!-- aif:plan-mode:ultra -->' "$AIF_PLAN_ULTRA_REF" \
+    && grep -qF 'mode: `fast`, `full`, or explicit opt-in `ultra`' "$CLAUDE_SUBAGENTS_DIR/plan-coordinator.md" \
+    && grep -qF 'mode: fast`, `mode: full`, or `mode: ultra`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
+    && grep -qF '<!-- aif:plan-mode:ultra -->' "$CLAUDE_SUBAGENTS_DIR/implement-coordinator.md" \
+    && grep -qF 'matching phase file path and complete Task N specification' "$CLAUDE_SUBAGENTS_DIR/implement-coordinator.md"; then
+    pass "ultra producer and Claude coordinator contracts stay synchronized"
+else
+    fail "ultra producer/Claude coordinator contract synchronization missing"
+fi
+
 if grep -qF '`paths.plan`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
     && grep -qF '`paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
     && grep -qF '`git.base_branch`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
@@ -1495,7 +1522,7 @@ fi
 
 if grep -qF 'Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`:' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
     && grep -qF 'the configured `paths.plan`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md" \
-    && grep -qF 'files under the configured `paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
+    && grep -qF 'files or ultra bundle directories under the configured `paths.plans`' "$CLAUDE_SUBAGENTS_DIR/plan-polisher.md"; then
     pass "plan-polisher write scope follows resolved config paths"
 else
     fail "plan-polisher write scope must follow resolved config paths"
@@ -1540,6 +1567,18 @@ if grep -qF 'bounded helper workers' "$ROOT_DIR/docs/configuration.md" \
     pass "extension runtime helper docs stay synchronized"
 else
     fail "extension runtime helper docs stay synchronized"
+fi
+
+# Deterministic ultra contract regressions: localized discovery, canonical
+# bundle integrity, phase-backed commit mapping, and sequential filtering.
+echo ""
+echo -e "${BOLD}=== Ultra plan contract regression tests ===${NC}"
+echo ""
+
+if npm run --silent test:ultra-contract; then
+    pass "ultra plan deterministic contract regressions"
+else
+    fail "ultra plan deterministic contract regressions"
 fi
 
 # ─────────────────────────────────────────────
@@ -1666,6 +1705,9 @@ else
     echo "$CONFIG_HELPER_OUTPUT" | sed 's/^/      /'
 fi
 
+# ───────────────────────────────────────────
+# Part 7: Update command smoke tests
+# ───────────────────────────────────────────
 echo -e "\n${BOLD}=== Update command smoke tests ===${NC}\n"
 
 set +e
@@ -1698,7 +1740,7 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Part 8: aif-qa skill smoke tests
+# Part 9: Extension and QA smoke tests
 # ─────────────────────────────────────────────
 echo -e "\n${BOLD}=== Extension resolver unit tests ===${NC}\n"
 

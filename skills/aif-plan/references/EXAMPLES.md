@@ -16,6 +16,13 @@
 -> mode=full, description="Add user authentication with OAuth"
 ```
 
+### Ultra mode explicit
+
+```text
+/aif-plan ultra Rebuild billing around an immutable ledger
+-> mode=ultra, description="Rebuild billing around an immutable ledger"
+```
+
 ### Full mode with description omitted (defaults from RESEARCH.md)
 
 ```text
@@ -49,7 +56,8 @@
 
 ```text
 /aif-plan Add user authentication
--> ask mode interactively, description="Add user authentication"
+-> ask full/fast interactively, description="Add user authentication"
+-> ultra is not shown or inferred; it requires the explicit leading token
 ```
 
 ### No mode + no description (defaults from RESEARCH.md)
@@ -148,4 +156,30 @@
 # if you rely on stable cross-references.
 # When HANDOFF_BRANCH_PREPARED=1, sequential numbering is force-disabled and
 # the filename equals the branch name (Handoff contract).
+```
+
+### Scenario 6: Ultra mode
+
+```text
+/aif-plan ultra Rebuild billing around an immutable ledger
+
+-> mode=ultra
+-> Performs full preferences and optional branch setup
+-> Deeply maps current billing models, callers, persistence, tests, and operations
+-> Resolves plan identifier: feature-rebuild-billing
+-> Creates:
+   paths.plans/feature-rebuild-billing/
+     index.md
+     phase-01-ledger-domain.md
+     phase-02-persistence-migration.md
+     phase-03-service-integration.md
+     phase-04-rollout-and-observability.md
+-> index.md owns Original Request, settings, research/roadmap context,
+   phase table of contents, task checkboxes, dependencies, and commit plan
+-> Every phase file contains exact paths/symbols, ordered edits, contracts,
+   error/logging behavior, test policy, acceptance criteria, and verification
+-> STOP - user can clear context and run /aif-implement with the bundle
+
+# With workflow.plan_id_format=sequential, the directory would be:
+# paths.plans/0007_feature-rebuild-billing/
 ```

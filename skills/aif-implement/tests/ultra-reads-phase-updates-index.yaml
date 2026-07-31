@@ -1,0 +1,83 @@
+scenario: ultra-reads-phase-updates-index
+description: |
+  /aif-implement must resolve the branch ultra bundle, read the active task's
+  complete phase file before editing code, and update progress only in index.md.
+skill: aif-implement
+argument: ""
+max_turns: 50
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+
+fixtures:
+  git_init: true
+  git_branch: feature/user-auth
+  files_committed:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          plan: .ai-factory/PLAN.md
+          plans: .ai-factory/plans/
+          fix_plan: .ai-factory/FIX_PLAN.md
+        workflow:
+          plan_id_format: slug
+        git:
+          enabled: true
+          create_branches: true
+    - path: .ai-factory/plans/feature-user-auth/index.md
+      content: |
+        <!-- aif:plan-mode:ultra -->
+        # Ultra Implementation Plan: Auth
+        Mode: ultra
+        ## Phase Index
+        1. [Phase 1](phase-01-auth.md) — Task 1
+        ## Tasks
+        - [ ] Task 1: Create marker ([details](phase-01-auth.md#task-1-create-marker))
+    - path: .ai-factory/plans/feature-user-auth/phase-01-auth.md
+      content: |
+        # Phase 1: Auth
+        ## Task 1: Create marker
+        ### Implementation Steps
+        1. Use Write to create ULTRA_TASK_RAN.txt containing exactly ultra.
+        ### Verification
+        - Confirm the file contains exactly ultra.
+
+user_responses:
+  - match_question: "(?i)(delete|remove).*(plan|bundle)"
+    choose: "No"
+  - match_question: "(?i)(proceed|confirm|ready|start)"
+    choose: "Yes"
+
+assertions:
+  - id: reads-index
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/feature-user-auth/index\\.md$"
+  - id: reads-phase
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/feature-user-auth/phase-01-auth\\.md$"
+    weight: 3
+  - id: executes-phase-detail
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "(^|/)ULTRA_TASK_RAN\\.txt$"
+      content: "ultra"
+    weight: 4
+  - id: updates-index-progress
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/plans/feature-user-auth/index\\.md$"
+      new_string: "- \\[x\\]"
+  - id: does-not-edit-phase-progress
+    type: no_tool_called
+    tool: Edit
+    args_match:
+      file_path: "phase-01-auth\\.md$"
+  - id: stay-in-sandbox
+    type: no_path_escape

@@ -33,9 +33,8 @@ Run a standalone read-only rules gate for project rules. This command checks rul
 - `rules.base`
 - named `rules.<area>` entries
 - `workflow.plan_id_format` (default: `slug`) — used by the optional branch-based plan-context lookup in Step 2.3.
-  Active values: `slug` and `sequential`. When `sequential`, the resolver globs
-  `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and falls back to
-  `<paths.plans>/<branch_stem>.md` only if no numbered match is found.
+  Active values: `slug` and `sequential`. Plan context may be a root full-plan
+  file or direct child ultra `index.md`; numbered lookup covers both shapes.
   `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
   Treat any unknown value as `slug`.
 
@@ -142,16 +141,28 @@ Plan resolution order:
    - `branch_stem` = current branch with every `/` replaced by `-`
      (for example `feature/user-auth` → `feature-user-auth`).
 2. Branch-based lookup using `<branch_stem>`:
-   - when `workflow.plan_id_format = sequential`, glob first
-     `paths.plans/[0-9][0-9][0-9][0-9]_<branch_stem>.md` and pick the
-     highest-numbered match; emit a `WARN [aif-rules-check] multiple sequential
-     plans for <branch>: <list>; using <chosen>` if more than one matches;
-   - otherwise (or no numbered match), fall back to `paths.plans/<branch_stem>.md`.
-3. A single named full plan in `paths.plans` (the leading `NNNN_` prefix
-   counts as a match) when no branch-based plan resolves.
+   - when `workflow.plan_id_format = sequential`, glob both
+     `paths.plans/[0-9][0-9][0-9][0-9]_<branch_stem>.md` and
+     `paths.plans/[0-9][0-9][0-9][0-9]_<branch_stem>/index.md`; Read every
+     directory candidate and retain it only when it contains exactly one
+     `<!-- aif:plan-mode:ultra -->`, then pick the highest-numbered valid
+     artifact and warn when multiple valid candidates exist; prefer ultra if
+     both shapes share the highest prefix;
+   - otherwise/fallback check `paths.plans/<branch_stem>/index.md` and
+     `paths.plans/<branch_stem>.md`; Read the directory entrypoint first, ignore
+     it unless it contains exactly one ultra marker, and warn/prefer ultra if
+     both valid shapes exist.
+3. A single named artifact in `paths.plans`: count root `*.md` full plans and
+   direct child `*/index.md` entrypoints containing
+   `<!-- aif:plan-mode:ultra -->`; exclude
+   the resolved fast-plan path and never count phase files.
 4. The fast plan at `paths.plan`.
 
-Do not fail the rules check because a plan file is missing or ambiguous.
+For ultra, read `index.md` first and only the linked phase files relevant to the
+changed area when extra scope detail is needed. Do not fail the rules check
+because a plan artifact is missing or ambiguous.
+An automatically discovered directory entrypoint counts only when it contains
+exactly one `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
 
 ## Step 3: Evaluate Rules
 

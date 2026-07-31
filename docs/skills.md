@@ -1,4 +1,4 @@
-[← Development Workflow](workflow.md) · [Back to README](../README.md) · [Skill Evolution →](evolve.md)
+[← Subagents](subagents.md) · [Back to README](../README.md) · [Quality Gates →](quality-gates.md)
 
 # Core Skills
 
@@ -28,21 +28,37 @@ Explore ideas, constraints, and trade-offs before planning:
 - Can optionally persist exploration context to `paths.research` (default: `.ai-factory/RESEARCH.md`) so you can `/clear` and still feed results into `/aif-plan`
 - Best when the problem is still fuzzy: requirements unclear, trade-offs unresolved, or you want to inspect the codebase before choosing a direction
 
-### `/aif-plan [fast|full] <description>`
+### `/aif-plan [fast|full|ultra] <description>`
 Plans implementation for a feature or task:
 ```
 /aif-plan Add user authentication with OAuth       # Asks which mode
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
+/aif-plan ultra Rebuild billing around a ledger    # Exhaustive multi-file plan bundle
 ```
 
-Two modes:
+Three modes:
 - **Fast** — no git branch, saves plan to `paths.plan` (default: `.ai-factory/PLAN.md`), asks fewer questions
 - **Full** — asks about testing/logging/docs policy, saves plan to `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` is enabled — see [Plan Files](plan-files.md)), and creates a git branch only when `git.enabled=true` and `git.create_branches=true`
+- **Ultra** — uses the full-mode preferences and optional branch/worktree flow,
+  but writes `paths.plans/<id>/index.md` plus one deeply specified
+  `phase-NN-*.md` file per phase. It is designed for a stronger planning model
+  to remove implementation ambiguity before a smaller model writes code.
+  Its entrypoint contains the stable untranslated
+  `<!-- aif:plan-mode:ultra -->` discovery marker.
 
-Both modes explore your codebase for patterns, create tasks with dependencies, and include commit checkpoints for 5+ tasks.
+Ultra is strictly opt-in: it is selected only by the explicit leading `ultra`
+token. A call without a mode keeps the pre-ultra full/fast question and defaults.
 
-If the user supplied a planning request, `/aif-plan` saves it verbatim in the plan file as `Original Request`. This block is raw source input, not generated artifact prose; downstream plan rewrites must preserve it exactly even when `language.artifacts` differs. It is omitted only when the plan is created solely from `RESEARCH.md` without an explicit user request.
+All modes explore your codebase for patterns, create tasks with dependencies,
+and include commit checkpoints for 5+ tasks. In ultra, `index.md` is the only
+task-progress source; phase files own implementation detail, not checkboxes.
+
+If the user supplied a planning request, `/aif-plan` saves it verbatim in the
+plan entrypoint as `Original Request`. This block is raw source input, not
+generated artifact prose; downstream plan rewrites must preserve it exactly
+even when `language.artifacts` differs. It is omitted only when the plan is
+created solely from `RESEARCH.md` without an explicit user request.
 
 If the resolved research artifact exists, `/aif-plan` may read the `Active Summary` as optional context. It includes `Research Context` only when research content influenced the generated plan. Linked plans include a `Source:` reference with revision metadata so downstream skills treat the embedded context as committed requirements and warn if live research has drifted.
 
@@ -79,16 +95,19 @@ Creates or updates a strategic project roadmap:
 - Milestones are high-level goals (not granular tasks — that's `/aif-plan`)
 - `/aif-implement` automatically marks roadmap milestones done when work completes
 
-### `/aif-improve [--list] [+check] [@plan-file] [prompt]`
+### `/aif-improve [--list] [+check] [@plan-file-or-directory] [prompt]`
 Refine an existing plan with a second iteration:
 ```
 /aif-improve                                    # Auto-review: find gaps, missing tasks, wrong deps
 /aif-improve --list                             # Show available plans only (no refinement)
 /aif-improve +check                             # Validate refinements via fresh-context subagent
 /aif-improve @my-custom-plan.md                 # Improve an explicit plan file
+/aif-improve @.ai-factory/plans/feature-billing # Improve an ultra bundle
 /aif-improve добавь валидацию и обработку ошибок # Improve based on specific feedback
 ```
-- Plan source priority: `@plan-file` argument, then branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan`
+- Plan source priority: explicit `@plan-file-or-directory`, branch-based full
+  file or ultra bundle, a single named full/ultra artifact, `paths.plan`, then
+  `paths.fix_plan`
 - Reads `.ai-factory/config.yaml` for `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - `--list` mode is read-only: shows available plan files and exits
 - Performs deeper codebase analysis than the initial `/aif-plan` planning
@@ -138,12 +157,17 @@ Executes the plan:
 /aif-implement        # Continue from where you left off
 /aif-implement --list # Show available plans only (no execution)
 /aif-implement @my-custom-plan.md # Execute using an explicit plan file
+/aif-implement @.ai-factory/plans/feature-billing # Execute an ultra bundle
 /aif-implement 5      # Start from task #5
 /aif-implement status # Check progress
 /aif-implement --without-plan add GET /healthz returning {"status":"ok"} # Inline one-shot task, no plan file
 ```
 - **Reads skill-context first** (`.ai-factory/skill-context/aif-implement/SKILL.md`) and only uses limited recent patch fallback when needed
-- Finds plan file (`@plan-file` if provided; otherwise branch-based `paths.plans/<branch>.md`, then a single named full plan in `paths.plans`, then `paths.plan`, then `paths.fix_plan` → redirects to `/aif-fix`)
+- Finds a plan artifact (`@path` may name a file, ultra directory, or its
+  `index.md`; otherwise branch-based full/ultra, then a single named artifact,
+  then `paths.plan`, then `paths.fix_plan` → redirects to `/aif-fix`)
+- For ultra, reads `index.md` and the complete phase file for the active task;
+  updates task progress only in `index.md`
 - Treats `## Original Request` as useful original scope context while executing the task list and committed `Research Context` as the executable plan inputs
 - Uses embedded `Research Context` as committed scope and checks `paths.research` only for revision drift when the plan has `Research Context` or a `RESEARCH.md` source/reference
 - `--list` mode is read-only: shows available plan files and exits
@@ -315,7 +339,11 @@ Generates and maintains project documentation:
 
 **Scattered .md cleanup** — finds loose markdown files in your project root (CONTRIBUTING.md, ARCHITECTURE.md, SETUP.md, DEPLOYMENT.md, etc.) and proposes consolidating them into the resolved `paths.docs` directory. No more documentation scattered across 10 root-level files.
 
-**Stays in sync with your code** — when `/aif-plan full` asks for docs policy and you choose `Docs: yes`, `/aif-implement` shows a mandatory docs checkpoint and routes changes through `/aif-docs`. If `Docs: no` (or unset), `/aif-implement` emits `WARN [docs]` so potential drift is visible without blocking the flow.
+**Stays in sync with your code** — when `/aif-plan full` or `/aif-plan ultra`
+asks for docs policy and you choose `Docs: yes`, `/aif-implement` shows a
+mandatory docs checkpoint and routes changes through `/aif-docs`. If `Docs: no`
+(or unset), `/aif-implement` emits `WARN [docs]` so potential drift is visible
+without blocking the flow.
 
 **Documentation website** — `--web` flag generates a complete static HTML site in `docs-html/` with navigation bar, dark mode support, and clean typography. Ready to host on GitHub Pages or any static hosting.
 
@@ -447,6 +475,7 @@ Adds project-specific rules and conventions:
 Creates conventional commits:
 - Analyzes staged changes
 - Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping
+- For ultra plans, reads the relevant phase files and maps each commit-group task through its `Files to Change` table and task specification
 - Stops for user input when staged files or hunks cannot be mapped to planned commit groups
 - Uses hunk-level staging for planned groups that share a file, or stops before changing staging when hunks cannot be applied confidently
 - Avoids whole-file staging when there is unstaged worktree overlap with grouped files
@@ -504,9 +533,10 @@ Archives completed plans and trims closed roadmap milestones:
 /aif-archive 0005_feature-auth  # Archive a specific plan by name or partial stem
 ```
 - Reads `.ai-factory/config.yaml` for `paths.plans`, `paths.archive`, `paths.plan`, `paths.fix_plan`, `paths.roadmap`, `workflow.plan_id_format`, and `language.ui`
-- A plan is "completed" when all checkboxes in its `## Tasks` section are `- [x]`
-- Preserves original filenames (including sequential `NNNN_` prefix) when moving to archive
-- Adds `archived: YYYY-MM-DD` to the plan's YAML frontmatter
+- A plan is "completed" when all checkboxes in its entrypoint `## Tasks` section are `- [x]`
+- Preserves original full filenames or ultra directory names when moving to archive
+- Adds `archived: YYYY-MM-DD` to full-plan YAML frontmatter or
+  `<!-- aif:archived:YYYY-MM-DD -->` after the stable marker in ultra `index.md`
 - Archived plans are excluded from plan discovery by `/aif-implement`, `/aif-verify`, `/aif-improve`
 - Does not touch fast plans (`paths.plan`) or fix plans (`paths.fix_plan`)
 - `--roadmap` creates a dated snapshot under `paths.archive/roadmap/` and removes closed milestones from the source roadmap (with confirmation)

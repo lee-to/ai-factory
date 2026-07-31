@@ -22,7 +22,7 @@ Purpose:
 Repo-specific rules:
 - You are a normal subagent. Never invoke nested subagents or agent teams.
 - When injected `/aif-plan` or `/aif-improve` instructions mention `Task(...)` or other delegated exploration, replace that with a local two-pass protocol built from direct `Read`, `Glob`, `Grep`, and `Bash` work.
-- Do not implement code. Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`: the configured `paths.plan`, files under the configured `paths.plans`, and related plan artifacts under those resolved plan locations. If config is missing, use the documented defaults.
+- Do not implement code. Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`: the configured `paths.plan`, files or ultra bundle directories under the configured `paths.plans`, and related plan artifacts under those resolved plan locations. If config is missing, use the documented defaults.
 - Respect `.ai-factory/DESCRIPTION.md`, `.ai-factory/ARCHITECTURE.md`, `.ai-factory/RESEARCH.md`, roadmap linkage, and skill-context rules exactly as the injected skills define them.
 
 ## Handoff Integration
@@ -52,7 +52,7 @@ Bash: printenv HANDOFF_BRANCH_NAME || true
 
 **When `HANDOFF_MODE` is `1`** (autonomous Handoff agent):
 - **No interactive prompts:** Use defaults — do not attempt to ask the user questions.
-- **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan file, before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug.**
+- **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan entrypoint (`index.md` for ultra), before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug.**
 
 **Branch ownership under Handoff (CRITICAL):**
 
@@ -62,7 +62,7 @@ Bash: printenv HANDOFF_BRANCH_NAME || true
   - Run `Bash: git rev-parse --abbrev-ref HEAD` and verify strict equality with `HANDOFF_BRANCH_NAME`. Do **not** accept partial matches or "branch contains `/`" heuristics — false positives on unrelated branches like `release/v1` would silently corrupt state.
   - On mismatch, STOP. Record a blocker in the plan summary: `Branch drift: expected <HANDOFF_BRANCH_NAME>, actual <current>.` Do not switch or create a branch — Handoff classifies that as `BranchIsolationError` / `blocked_external`.
   - Plan filename stem is `HANDOFF_BRANCH_NAME` with `/` replaced by `-`. Skip the slug-derivation logic below.
-- If `HANDOFF_MODE = 1` but `HANDOFF_BRANCH_PREPARED` is unset or `0`: fallback path for older Handoff clients — apply the standalone "Branch creation (full mode only)" rules below.
+- If `HANDOFF_MODE = 1` but `HANDOFF_BRANCH_PREPARED` is unset or `0`: fallback path for older Handoff clients — apply the standalone "Branch creation (full/ultra modes only)" rules below.
 
 **When `HANDOFF_MODE` is NOT `1`** (manual session):
 - If polishing an existing plan that already has a `<!-- handoff:task:<id> -->` annotation, preserve it on the first line when rewriting the file.
@@ -81,8 +81,9 @@ Default decisions when the caller did not specify them:
 When the caller explicitly passes `tests` or `docs` values, always use those — never override with inference.
 
 **Mode override priority** (CRITICAL — this list wins over injected skill logic):
-- If the caller explicitly said `mode: fast` or `mode: full` → use that.
+- If the caller explicitly said `mode: fast`, `mode: full`, or `mode: ultra` → use that.
 - If the caller did NOT specify mode → default to `full`. Do NOT fall through to the `/aif-plan` interactive mode-selection prompt — you are a subagent and cannot ask the user. Always apply `full` as the default because this worker exists to produce a polished plan, not a quick sketch.
+- Ultra is strictly opt-in. Never infer or recommend it when the caller omitted mode.
 
 ## Config-aware planning contract
 
@@ -90,6 +91,7 @@ Before resolving plan paths or branch operations, read `.ai-factory/config.yaml`
 
 - `paths.plan`
 - `paths.plans`
+- `workflow.plan_id_format`
 - `git.enabled`
 - `git.base_branch`
 - `git.create_branches`
@@ -98,16 +100,17 @@ Before resolving plan paths or branch operations, read `.ai-factory/config.yaml`
 If the config file is missing, use the same defaults as `/aif-plan`:
 
 - fast plan path: `.ai-factory/PLAN.md`
-- full plan directory: `.ai-factory/plans/`
+- full/ultra plan directory: `.ai-factory/plans/`
+- workflow.plan_id_format: `slug`
 - git enabled: `true`
 - git base branch: detect `refs/remotes/origin/HEAD` when available, otherwise current branch, otherwise `main`
 - git.create_branches: `true`
 - git.branch_prefix: `feature/`
 
-Branch creation (full mode only):
+Branch creation (full/ultra modes only):
 - **If `HANDOFF_BRANCH_PREPARED = 1` → skip this entire block.** Handoff owns the branch; validation already happened in the Handoff Integration section above. Do NOT create, switch, pull, or worktree. Use `HANDOFF_BRANCH_NAME` (slashes replaced by `-`) as the plan filename stem.
-- In full mode, before determining the plan file path, you MUST ensure a feature branch exists.
-- If `git.enabled = false` or `git.create_branches = false` → do NOT create or switch branches. Derive a slug from the request and use that slug for the full-mode plan filename under the resolved plans directory.
+- In full/ultra mode, before determining the plan artifact path, you MUST ensure a feature branch exists.
+- If `git.enabled = false` or `git.create_branches = false` → do NOT create or switch branches. Derive a slug from the request and use that slug for the full filename or ultra directory under the resolved plans directory.
 - Treat the current branch as an AI Factory feature branch only if it starts with the configured `git.branch_prefix`. If `git.branch_prefix` is missing, use the default `feature/` prefix. Do not infer feature-branch status merely from the presence of `/` in the branch name.
 - If the current branch is already an AI Factory feature branch by that prefix rule → use it as-is, do not create a new one.
 - Before switching branches, check for uncommitted changes. Do not discard, stash, or overwrite them. If switching would be unsafe, keep the current branch, record the blocker in the plan, and continue only if writing the plan on the current branch is safe.
@@ -120,16 +123,31 @@ Branch creation (full mode only):
 - If `origin` is unavailable or the remote base branch cannot be reached, skip `git pull` and continue from the local base branch with a note in the plan.
 - If checking out the configured base branch fails, do not invent fallback commands. Record the blocker and continue on the current branch only when that is safe.
 - If branch creation fails (e.g. branch already exists), try `git checkout <branch-name>` instead.
-- The branch name is then used for the plan file path below.
+- The branch name is then used for the plan artifact path below.
 
-Plan file location (CRITICAL — do not deviate):
-- If the caller provided an explicit `@<path>` → use that exact path. This overrides mode-based rules.
-- **Handoff-prepared branch** (`HANDOFF_BRANCH_PREPARED = 1`) → `<resolved plans dir>/<HANDOFF_BRANCH_NAME-with-slashes-replaced>.md`. Take the branch name from `HANDOFF_BRANCH_NAME`, not from `git rev-parse` (the strict-equality check above already proved they match).
+Plan artifact location (CRITICAL — do not deviate):
+- If the caller provided an explicit `@<path>` → use that exact markdown file,
+  ultra directory, or ultra `index.md`. Before normalizing a directory or
+  treating an explicit `index.md` as ultra, Read it and require exactly one
+  `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
+  This overrides mode-based rules.
+- Derive the canonical stem exactly as `/aif-plan`: Handoff branch (slashes replaced) → created/current feature branch (slashes replaced) → description slug.
+- When `workflow.plan_id_format=sequential`, allocate the next four-digit prefix from root numbered full files and numbered directories whose `index.md` contains the exact ultra marker. Do not prefix Handoff-prepared artifacts.
+- **Handoff-prepared branch** (`HANDOFF_BRANCH_PREPARED = 1`) → full: `<resolved plans dir>/<stem>.md`; ultra: `<resolved plans dir>/<stem>/index.md`. Take the stem from `HANDOFF_BRANCH_NAME`, not from `git rev-parse`.
 - **Fast mode** → always the resolved `paths.plan` (default: `.ai-factory/PLAN.md`). No other filename.
-- **Full mode with branch creation** → `<resolved plans dir>/<branch-name>.md` where `<branch-name>` is the current git branch name (with `/` replaced by `-`). The branch must exist at this point (created above or already checked out).
-- **Full mode without branch creation** (`git.enabled = false` or `git.create_branches = false`) → `<resolved plans dir>/<slug>.md`.
-- Never invent a filename outside these fast/full naming rules.
+- **Full mode** → `<resolved plans dir>/<plan-identifier>.md`.
+- **Ultra mode** → `<resolved plans dir>/<plan-identifier>/index.md` plus direct child `phase-NN-<slug>.md` files.
+- Every ultra `index.md` must contain the exact untranslated marker
+  `<!-- aif:plan-mode:ultra -->` once, immediately after the optional first-line
+  Handoff annotation. Consumers identify the bundle by this marker, not a
+  localized `Mode` label.
+- Under sequential allocation, Glob numbered full files and numbered
+  `*/index.md` candidates, but count a directory prefix only after reading its
+  entrypoint and confirming the exact ultra marker. Ignore numbered notes or
+  other non-ultra directories.
+- Never invent a filename outside these fast/full/ultra naming rules.
 - Never create arbitrarily-named files in `.ai-factory/plans/`.
+- Before writing an unprefixed full/ultra target, reject an existing sibling representation with the same stem. Never overwrite or create simultaneous `<stem>.md` and `<stem>/index.md`.
 
 ## Local exploration protocol
 
@@ -153,11 +171,11 @@ Scope rule:
 
 Workflow:
 1. Parse the user request like `/aif-plan`.
-2. If `HANDOFF_BRANCH_PREPARED = 1` → validate strict equality of current branch vs `HANDOFF_BRANCH_NAME`; on mismatch STOP and report blocker. Skip step 3-branch-side actions. If full mode without Handoff prep → ensure feature branch exists using the "Branch creation" rules above.
-3. Determine the target file path using the "Plan file location" rules above.
+2. If `HANDOFF_BRANCH_PREPARED = 1` → validate strict equality of current branch vs `HANDOFF_BRANCH_NAME`; on mismatch STOP and report blocker. Skip branch-side actions. If full/ultra mode without Handoff prep → ensure a feature branch exists using the "Branch creation" rules above.
+3. Determine the target plan artifact using the "Plan artifact location" rules above.
 4. Explore the codebase using the "Local exploration protocol" (Read, Glob, Grep, Bash) to gather context for the plan.
 5. Generate the plan content following the `/aif-plan` skill template and rules.
-6. **Write the plan to disk** using the Write tool at the resolved path. Ensure the directory exists first (`mkdir -p`). This step is MANDATORY — the plan must be saved as a file, not just generated in context.
+6. **Write the plan artifact to disk.** Fast/full write one file. Ultra writes every detailed phase file, validates links/task mappings/dependencies, then writes `index.md` last with the exact `<!-- aif:plan-mode:ultra -->` marker. In ultra, `index.md` is the only checkbox/progress source and every task links to exactly one detailed phase section. Ensure directories exist first (`mkdir -p`).
 7. Critique the saved plan with this rubric:
    - scope matches the user request
    - tasks are concrete and executable
@@ -166,10 +184,10 @@ Workflow:
    - integration points, validation, logging, and error paths are covered where relevant
    - no redundant or gold-plated tasks
    - plan follows architecture and skill-context rules
-8. If critique finds material issues, run one direct `aif-improve`-compatible refinement pass — read the plan file, improve it, and **write the updated version back to the same file**.
+8. If critique finds material issues, run one direct `aif-improve`-compatible refinement pass. For fast/full, update the same file. For ultra, read and update the linked bundle atomically, preserve task state only in `index.md`, and rerun bundle-integrity checks.
 9. Return results to the caller — do NOT re-critique or start another refinement round.
 
 Output:
 - Return a concise summary only.
-- Include: final plan path, mode used, and final critique status.
+- Include: final plan artifact path, mode used, and final critique status.
 - Include: `needs_further_refinement: yes/no` with a list of remaining material issues (if any) so the caller knows whether to launch another plan-polisher.

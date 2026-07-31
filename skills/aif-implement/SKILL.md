@@ -1,7 +1,7 @@
 ---
 name: aif-implement
 description: Execute implementation tasks from the current plan. Works through tasks sequentially, marks completion, and preserves progress for continuation across sessions. Use when user says "implement", "start coding", "execute plan", or "continue implementation".
-argument-hint: '[--list] [--without-plan <description>] [@plan-file] [task-id or "status"]'
+argument-hint: '[--list] [--without-plan <description>] [@plan-file-or-directory] [task-id or "status"]'
 allowed-tools: Read Write Edit Glob Grep Bash TaskList TaskGet TaskUpdate AskUserQuestion Questions mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 ---
@@ -53,16 +53,23 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
    - `language.ui`, `language.artifacts`
    - `git.enabled`, `git.base_branch`, `git.create_branches`
    - `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
-     Active values: `slug` and `sequential`. When `sequential`, the resolver
-     globs `<paths.plans>/[0-9]{4}_<branch-slug>.md` first and falls back to
-     `<paths.plans>/<branch-slug>.md` only if no numbered match is found.
+     Active values: `slug` and `sequential`. Discovery treats a root `*.md` as
+     a full plan unless it is the resolved `paths.plan` or `paths.fix_plan`.
+     Treat a direct child `*/index.md` as an ultra bundle only after reading it
+     and confirming that it contains exactly one
+     `<!-- aif:plan-mode:ultra -->`; ignore unrelated directories and never count
+     phase files independently.
+     When `sequential`, resolve both
+     `<paths.plans>/[0-9]{4}_<branch-slug>.md` and
+     `<paths.plans>/[0-9]{4}_<branch-slug>/index.md`, then choose the
+     highest-numbered matching artifact.
      `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
      Treat any unknown value as `slug`.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)
    - --without-plan <description> → inline implementation mode; skip plan discovery and jump to Step 0.inline
-   - @<path> → explicit plan file override (highest priority)
+   - @<path> → explicit plan file, ultra directory, or ultra `index.md` override (highest priority)
    - <number> → start from specific task
    - status → status-only mode
    - Optional inline-mode flag: --docs=yes|no|warn (only valid with --without-plan; default: warn)
@@ -77,13 +84,20 @@ If `$ARGUMENTS` contains `--list`, run read-only plan discovery and stop.
 ```
 1. Get current branch:
    git branch --show-current (git mode only)
-2. Convert branch to filename: replace "/" with "-", add ".md" (git mode only)
+2. Convert branch to canonical stem: replace "/" with "-" (git mode only)
 3. Check existence of:
-   - <configured plans dir>/<branch-name>.md (git mode only, default `plan_id_format`)
+   - <configured plans dir>/<branch-stem>.md and
+     <configured plans dir>/<branch-stem>/index.md (git mode only); Read the
+     directory entrypoint and report it only when it contains exactly one
+     `<!-- aif:plan-mode:ultra -->`
    - when `workflow.plan_id_format = sequential`: also glob
-     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-name-without-.md>.md`;
-     report all matches (highest-numbered first)
-   - if git mode is off or branch creation is disabled: any `*.md` full-mode plan in `<configured plans dir>/`
+     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-stem>.md` and
+     `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-stem>/index.md`;
+     Read every directory entrypoint, discard those without exactly one marker,
+     and report all valid matches (highest-numbered first)
+   - if git mode is off or branch creation is disabled: any root `*.md` full
+     plan or declared-ultra direct child `*/index.md` entrypoint in
+     `<configured plans dir>/`; exclude the resolved fast/fix plan paths
    - <resolved fast plan path>
    - <resolved fix plan path>
 4. Print plan availability summary and usage hints
@@ -138,8 +152,9 @@ Small, focused descriptions (e.g. "add GET /healthz returning 200 with {status:\
 
 Inline mode ignores plan files by design. If any of these exist on disk, emit a `WARN [inline]` line so the user notices the intentional skip (do NOT read them, do NOT redirect):
 
-- `<configured plans dir>/<branch>.md` (git mode only) — or
-  `<configured plans dir>/[0-9]{4}_<branch>.md` when `workflow.plan_id_format = sequential`
+- `<configured plans dir>/<branch>.md` or
+  `<configured plans dir>/<branch>/index.md` (git mode only) — or their
+  `[0-9]{4}_<branch>` sequential forms
 - resolved fast plan path (`paths.plan`)
 - resolved fix plan path (`paths.fix_plan`)
 
@@ -264,12 +279,14 @@ If `git.enabled = false`, skip git recovery commands and reconcile only from the
 
 Then reconcile plan/task state:
 
-- Ensure the current plan file matches the current branch when git branch plans are in use (`@plan-file` override wins; otherwise branch-named plan takes priority over the resolved fast plan).
-- If `git.enabled = false` or full plans were created without a branch, prefer:
-    - explicit `@plan-file`,
-    - then the only `*.md` file in the configured plans dir,
+- Ensure the current plan artifact matches the current branch when git branch plans are in use (`@path` override wins; otherwise a branch-named full file or ultra directory takes priority over the resolved fast plan).
+- If `git.enabled = false` or full/ultra plans were created without a branch, prefer:
+    - explicit `@plan-file-or-directory`,
+    - then the only root `*.md` full plan or declared-ultra direct child
+      `*/index.md` entrypoint in the configured plans dir, excluding the
+      resolved fast/fix plan paths,
     - then the resolved fast plan path.
-- Compare `TaskList` statuses vs plan checkboxes.
+- Compare `TaskList` statuses vs plan-entrypoint checkboxes.
     - If code changes for a task appear already implemented but the task is not marked completed, verify quickly and then `TaskUpdate(..., status: "completed")` and update the plan checkbox.
     - If a task is marked completed but the corresponding code is missing (rebase/reset happened), mark it back to pending and discuss with the user.
 
@@ -406,78 +423,97 @@ If any rule is violated — fix the output before presenting it to the user.
 - Apply proper error handling and logging as specified
 - Avoid pitfalls documented in skill-context rules and relevant fallback patches
 
-### Step 0.2: Find Plan File
+### Step 0.2: Find Plan Artifact
+
+Normalize every selected artifact to:
+
+- `plan_entrypoint` — the single markdown file containing settings and `## Tasks`
+- `plan_bundle_dir` — empty for fast/full/fix plans; the ultra directory otherwise
+- `phase_files` — empty for single-file plans; ordered links from the ultra
+  entrypoint's `## Phase Index` otherwise
 
 **If `$ARGUMENTS` contains `@<path>`:**
 
-Use this explicit plan file and skip automatic plan discovery.
+1. Resolve the path relative to project root (absolute paths are also valid).
+2. Accept an existing markdown file, an ultra directory containing `index.md`,
+   or that ultra bundle's `index.md`.
+3. If neither representation exists, report the missing path with examples for
+   a fast file, full file, and ultra directory, then STOP.
+4. Before normalizing a directory or treating an explicit `index.md` as ultra,
+   Read `index.md` and require exactly one
+   `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
+5. If the selected file is `paths.fix_plan`, invoke `/aif-fix` and STOP.
+6. Otherwise use it and skip automatic discovery.
+
+**Without an explicit override, resolve in this order:**
 
 ```
-1. Extract path after "@"
-2. Resolve relative to project root (absolute paths are also valid)
-3. If file does not exist:
-   "Plan file not found: <path>
-    Provide an existing markdown plan file, for example:
-    - /aif-implement @<resolved fast plan path>
-    - /aif-implement @.ai-factory/plans/feature-user-auth.md"
-   → STOP
-4. If file is the resolved fix plan path:
-   → invoke /aif-fix (ownership + cleanup workflow) and STOP
-5. Otherwise use this file as the active plan
+1. Branch-based full/ultra artifact:
+   a. Compute <branch-stem> by replacing "/" with "-".
+   b. For workflow.plan_id_format=sequential, glob both:
+        <paths.plans>/[0-9][0-9][0-9][0-9]_<branch-stem>.md
+        <paths.plans>/[0-9][0-9][0-9][0-9]_<branch-stem>/index.md
+      Read every directory candidate and retain it only when `index.md` contains
+      exactly one <!-- aif:plan-mode:ultra -->. Choose the highest numeric prefix
+      across valid artifacts. If multiple valid candidates exist, emit
+      WARN [aif-implement] and name the chosen artifact; if both shapes share
+      the highest prefix, prefer ultra.
+   c. If no valid sequential candidate exists, or sequential mode is inactive,
+      check:
+        <paths.plans>/<branch-stem>/index.md
+        <paths.plans>/<branch-stem>.md
+      Read the directory entrypoint before selection and ignore it unless it
+      contains exactly one <!-- aif:plan-mode:ultra -->. If both valid shapes
+      exist, emit WARN and prefer the ultra entrypoint.
+2. If no branch artifact resolves, count active named artifacts as:
+     - each root <paths.plans>/*.md file except resolved paths.plan and paths.fix_plan
+     - each direct child <paths.plans>/*/index.md containing <!-- aif:plan-mode:ultra -->
+   Exactly one total → use it. More than one → ask the user to choose or use
+   @<path>; do not count phase files as independent plans.
+3. No named artifact → paths.plan.
+4. No regular plan → paths.fix_plan, then redirect to /aif-fix and STOP.
 ```
 
-Then continue with normal execution using the selected plan file.
+Priority remains: explicit path → branch-based full/ultra artifact → single
+named full/ultra artifact → fast plan → fix-plan redirect. Discovery scans only
+`paths.plans`; archived files and directories under `paths.archive/plans` are
+excluded.
 
-**If no `@<path>` override is provided, check plan files in this order:**
+**Read the selected artifact:**
 
-**Check for plan files in this order:**
+- If an automatically discovered directory entrypoint does not contain exactly
+  one `<!-- aif:plan-mode:ultra -->`, it is not an AI Factory plan. Ignore it and
+  continue discovery. If it contains the marker but its Phase Index is malformed,
+  STOP with a plan-integrity error instead of falling back to another plan.
+- Always read `plan_entrypoint` completely.
+- If it is ultra (contains `<!-- aif:plan-mode:ultra -->`),
+  validate every relative Phase Index link, reject paths escaping the bundle,
+  record the ordered phase files, and ensure every indexed task maps to exactly
+  one `## Task N` section. Warn and STOP on a broken bundle rather than guessing.
+- Read a task's complete phase file before implementing that task. On resume,
+  re-read the active phase even if it was read in a previous session.
+- `index.md` is the only progress source; phase files must not own duplicate
+  task checkboxes.
+- Treat `## Original Request` as useful original scope context. Executable inputs
+  remain settings, dependencies, the task checklist, committed Research Context,
+  and (for ultra) linked phase specifications.
+- Apply the existing research-drift contract to Research Context in the entrypoint:
+  compare the source revision with `paths.research`, emit
+  `WARN [research-drift]` on mismatch, and continue using committed plan context.
+  In the single-file wording of this contract: emit `WARN [research-drift]` and continue using the plan's embedded Research Context as scope.
 
-```
-1. Check current git branch:
-   git branch --show-current
-   → Convert branch name to filename: replace "/" with "-" (this is <branch-slug>)
-   → Resolve full-mode plan filename in this order:
-     a. When `workflow.plan_id_format = sequential`, glob
-        `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md`.
-        - 0 matches → fall through to step (b).
-        - 1 match → use it.
-        - >1 matches → use the **highest-numbered** match and emit
-          `WARN [aif-implement] multiple sequential plans for <branch>: <list>; using <chosen>`.
-     b. `<configured plans dir>/<branch-slug>.md` (default behavior, also used as
-        the fallback when sequential glob returned 0 matches).
-2. If git mode is off or no branch-based plan is found above:
-   - Check whether the configured plans dir contains exactly one `*.md` plan file created by `/aif-plan full` without a branch
-   - If exactly one exists → use it
-   - If multiple exist → ask the user to choose or use `@<path>`
-3. No full-mode plan → Check the resolved fast plan path
-4. No full-mode plan and no resolved fast plan → Check the resolved fix plan path
-   → If exists: invoke /aif-fix (handles its own workflow with patches) and STOP
-```
+**Immediately after reading `plan_entrypoint`, check its first line for
+`<!-- handoff:task:<uuid> -->`:**
 
-**Priority:**
+- In manual mode, extract it and call `handoff_sync_status` with status
+  `implementing`, the actual current UTC timestamp, direction
+  `aif_to_handoff`, and `paused: true`.
+- In autonomous Handoff mode, do not call MCP.
+- If absent, skip MCP sync for this session.
 
-1. `@<path>` argument - explicit user-selected plan file
-2. Branch-named file (from `/aif-plan full`) - if it matches current branch
-3. Single named full-plan file in `paths.plans` (from `/aif-plan full` without branch creation)
-4. `paths.plan` (from `/aif-plan fast`) - fallback when no full plan exists
-5. `paths.fix_plan` - redirect to `/aif-fix` (from `/aif-fix` plan mode)
-
-**Note:** Plan discovery scans `paths.plans/` only. Plans archived to `paths.archive/plans/` by `/aif-archive` are excluded from discovery.
-
-**Read the plan file** to understand:
-
-- Context and settings (testing, logging preferences)
-- Commit checkpoints (when to commit)
-- Task dependencies
-- Task checklist format (`- [ ]` / `- [x]`) to keep progress synced
-- Original request: when `## Original Request` exists, treat it as useful original scope context. It helps explain why the plan exists, but the executable implementation inputs remain the task checklist, settings, dependencies, and committed `## Research Context`.
-- Research linkage: if the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before executing tasks only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and continue using the plan's embedded Research Context as scope; do not apply requirements from the newer Active Summary unless the user explicitly asks to rebase/refine the plan. A linked plan without `Updated:` or `SHA256:` is a legacy unverified research link, not proof that the current `RESEARCH.md` is still authoritative. Skipping this drift check is a bug.
-
-**Immediately after reading the plan file, check the first line for `<!-- handoff:task:<uuid> -->`:**
-
-- If found AND `HANDOFF_MODE` is NOT `1` (manual session): extract the task ID. This is the Handoff task ID for MCP sync throughout this session. Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "implementing", sourceTimestamp: "<current UTC time in ISO 8601 format, e.g. 2026-04-02T18:30:45.000Z>", direction: "aif_to_handoff", paused: true }`. The timestamp must reflect the actual current time, not midnight or an approximation.
-- If found AND `HANDOFF_MODE` is `1`: the Handoff coordinator handles sync — do nothing.
-- If NOT found: no linked Handoff task — skip all MCP sync for the rest of this session.
+When pushing ultra progress to Handoff, serialize the full bundle as entrypoint
+content followed by each linked phase file in order, prefixed with
+`<!-- ultra-phase:<relative-path> -->`.
 
 ### Step 1: Load Current State
 
@@ -512,6 +548,14 @@ For each task:
 TaskGet(taskId) → Get description, files, context
 ```
 
+For an ultra bundle, resolve the task's details link from `index.md`, then read
+the entire linked phase file before marking the task in progress. Treat its
+ordered implementation steps, interfaces, edge cases, logging, acceptance
+criteria, and verification as requirements. Do not substitute a new approach
+merely because TaskGet contains a shorter summary. If phase instructions conflict
+with current code or project context, stop and report the concrete drift; do not
+silently make the architectural choice that ultra was meant to pre-plan.
+
 **3.2: Mark as in_progress**
 
 ```
@@ -538,9 +582,10 @@ TaskUpdate(taskId, status: "in_progress")
 TaskUpdate(taskId, status: "completed")
 ```
 
-**3.6: Update checkbox in plan file**
+**3.6: Update checkbox in plan entrypoint**
 
-**IMMEDIATELY** after completing a task, update the checkbox in the plan file:
+**IMMEDIATELY** after completing a task, update the checkbox in the plan entrypoint
+(`index.md` for ultra):
 
 ```markdown
 # Before
@@ -557,9 +602,10 @@ TaskUpdate(taskId, status: "completed")
 - Use `Edit` tool to change `- [ ]` to `- [x]`
 - Do this RIGHT AFTER each task completion
 - Even if deletion will be offered later
-- Plan file is the source of truth for progress
+- Plan entrypoint is the source of truth for progress
+- Never add or update duplicate progress checkboxes in ultra phase files
 
-**Handoff sync (manual mode ONLY — skip when `HANDOFF_MODE` is `1`):** If a Handoff task ID was extracted in Step 0.2, call `handoff_push_plan` with `{ taskId: <id>, planContent: <full updated plan text> }` to sync the checklist progress.
+**Handoff sync (manual mode ONLY — skip when `HANDOFF_MODE` is `1`):** If a Handoff task ID was extracted in Step 0.2, call `handoff_push_plan` with `{ taskId: <id>, planContent: <full updated plan text> }` to sync the checklist progress. For ultra, use the bundle serialization defined in Step 0.2.
 
 **3.7: Update the resolved description artifact if needed**
 
@@ -642,7 +688,7 @@ To resume later, run:
 ### Step 5: Completion
 
 **Handoff sync (manual mode ONLY — skip entirely when `HANDOFF_MODE` is `1`):** If a Handoff task ID was extracted from the plan annotation AND `HANDOFF_MODE` is NOT `1`:
-1. Call `handoff_push_plan` with `{ taskId: <id>, planContent: <final updated plan text> }`.
+1. Call `handoff_push_plan` with `{ taskId: <id>, planContent: <final updated plan text> }`; serialize the complete bundle for ultra.
 2. If `HANDOFF_SKIP_REVIEW` is `1`: call `handoff_sync_status` with `{ taskId: <id>, newStatus: "done", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: false }`.
 3. Otherwise: call `handoff_sync_status` with `{ taskId: <id>, newStatus: "review", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
 
@@ -654,7 +700,7 @@ When all tasks are done:
 All 8 tasks completed.
 
 Branch: feature/product-search
-Plan file: .ai-factory/plans/feature-product-search.md
+Plan artifact: .ai-factory/plans/feature-product-search.md
 Files modified:
 - src/services/search.ts (created)
 - src/api/products/search.ts (created)
@@ -672,7 +718,7 @@ What's next?
 If the resolved roadmap artifact exists:
 
 1. Read it
-   1.1. If the plan file includes `## Roadmap Linkage` with a non-`none` milestone, prefer that milestone for completion marking
+   1.1. If the plan entrypoint includes `## Roadmap Linkage` with a non-`none` milestone, prefer that milestone for completion marking
 2. Check if the completed work corresponds to any unchecked milestone
 3. If yes — mark it `[x]` and add entry to the Completed table with today's date
 4. Tell the user which milestone was marked done
@@ -716,7 +762,7 @@ Options:
 
 **Documentation policy checkpoint (after completion, before plan cleanup):**
 
-Read the plan file setting `Docs: yes/no`.
+Read the plan entrypoint setting `Docs: yes/no`.
 
 If plan setting is `Docs: yes`:
 
@@ -748,7 +794,7 @@ If plan setting is `Docs: no` or setting is unset:
 - `Documentation: skipped by user`
 - `Documentation: warn-only (Docs: no/unset)`
 
-**Handle plan file after completion:**
+**Handle plan artifact after completion:**
 
 - **If the resolved fast plan path** (from `/aif-plan fast`):
 
@@ -767,7 +813,7 @@ If plan setting is `Docs: no` or setting is unset:
       ```
     - "No, keep it" → leave the file as is, continue to the next step
 
-- **If branch-named file** (e.g., `<configured plans dir>/feature-user-auth.md`):
+- **If branch-named full file or ultra bundle directory**:
     - Keep it - documents what was done
     - User can delete before merging if desired
 
@@ -900,16 +946,19 @@ Continues from next incomplete task.
 /aif-implement --list
 ```
 
-Lists the resolved fast plan path, resolved fix plan path, and current-branch `<configured plans dir>/<branch>.md` (or `<configured plans dir>/<NNNN>_<branch>.md` when `workflow.plan_id_format = sequential`), then exits without implementation.
+Lists the resolved fast/fix plan paths and current-branch full/ultra artifacts
+(including sequential identifiers), then exits without implementation.
 
-### Use Explicit Plan File
+### Use Explicit Plan Artifact
 
 ```
 /aif-implement @my-custom-plan.md
 /aif-implement @.ai-factory/plans/feature-user-auth.md status
+/aif-implement @.ai-factory/plans/feature-user-auth status
 ```
 
-Uses the provided plan file instead of auto-detecting by branch/default files.
+Uses the provided plan file, ultra directory, or ultra `index.md` instead of
+auto-detecting by branch/default artifacts.
 
 ### Inline Implementation (No Plan)
 

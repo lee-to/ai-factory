@@ -32,9 +32,11 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 - **Rules hierarchy:** the resolved RULES.md path + `rules.base` + named `rules.<area>` entries
 - **Language:** `language.ui` for prompts, user-visible explanations, verification reports, context-gate summaries, issue remediation prompts, and next-step guidance
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery in Step 0.2.
-  Active values: `slug` and `sequential`. When `sequential`, the resolver globs
-  `<paths.plans>/[0-9]{4}_<branch_stem>.md` first and falls back to
-  `<paths.plans>/<branch_stem>.md` only if no numbered match is found.
+  Active values: `slug` and `sequential`. Discovery treats root `*.md` files as
+  full plans except the resolved fast/fix paths, and direct child `*/index.md`
+  files as ultra entrypoints only when they contain exactly one
+  `<!-- aif:plan-mode:ultra -->`. When
+  `sequential`, search both numbered shapes and choose the highest prefix.
   `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
   Treat any unknown value as `slug`.
 
@@ -68,7 +70,7 @@ Preserve machine-readable `aif-gate-result` JSON schema fields and enum values (
   - normal vs strict context-gate thresholds.
 - If this contract conflicts with older examples in this file, follow the contract.
 
-### 0.2 Find Plan File
+### 0.2 Find Plan Artifact
 
 Same logic as `/aif-implement` — produce the **canonical branch stem** before any plans-dir glob so producer and consumers agree by construction.
 
@@ -78,29 +80,35 @@ Same logic as `/aif-implement` — produce the **canonical branch stem** before 
 2. Convert branch to filename stem (git mode only):
    branch_stem = current branch with every "/" replaced by "-"
    Example: feature/user-auth → feature-user-auth
-3. Resolve the plan file using <branch_stem>:
-   → When `workflow.plan_id_format = sequential`, glob first
+3. Resolve the plan artifact using <branch_stem>:
+   → When `workflow.plan_id_format = sequential`, glob both
        <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>.md
-       - 0 matches → fall through to the un-prefixed lookup below
-       - 1 match  → use it
-       - >1 matches → use the **highest-numbered** match and emit
-           WARN [aif-verify] multiple sequential plans for <branch>: <list>; using <chosen>
-   → Otherwise (default `plan_id_format`, or sequential with no numbered match):
+       <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>/index.md
+     Read every directory candidate and retain it only when `index.md` contains
+     exactly one <!-- aif:plan-mode:ultra -->. Choose the highest prefix across
+     valid artifacts and warn when multiple valid candidates exist; prefer ultra
+     if both shapes share the highest prefix.
+   → Otherwise/fallback check the ultra entrypoint and full file:
+       <configured plans dir>/<branch_stem>/index.md
        <configured plans dir>/<branch_stem>.md
+     Read the directory entrypoint before selection and ignore it unless it
+     contains exactly one <!-- aif:plan-mode:ultra -->. If both valid shapes
+     exist, warn and prefer ultra.
 4. If the branch-based plan is missing or git mode is off:
-   → Check whether the configured plans dir contains exactly one `*.md` full-mode
-     plan (a leading 4-digit prefix counts as a match)
+   → Count root `*.md` full plans and declared-ultra direct child `*/index.md`
+     entrypoints as artifacts; exclude resolved fast/fix paths and do not count
+     phase files
    → If exactly one exists, use it
    → If multiple exist, ask the user to choose or use `@<path>` via `/aif-implement`
-5. No full-mode plan → Check the resolved fast plan path
-6. No full-mode plan and no resolved fast plan → fall back to standalone verification choices
+5. No named full/ultra plan → Check the resolved fast plan path
+6. No regular plan and no resolved fast plan → fall back to standalone verification choices
 ```
 
 **Note:** Plan discovery scans `paths.plans/` only. Plans archived to `paths.archive/plans/` by `/aif-archive` are excluded from discovery. If a plan is found only in the archive, emit `WARN [aif-verify] plan <name> is archived; verifying archived plan`.
 
-**If no plan file found:**
+**If no plan artifact is found:**
 ```
-AskUserQuestion: No plan file found. What should I verify?
+AskUserQuestion: No plan artifact found. What should I verify?
 
 Options:
 1. Verify last commit — Check the most recent commit for completeness
@@ -108,9 +116,19 @@ Options:
 3. Cancel
 ```
 
-### 0.2 Read Plan & Tasks
+### 0.3 Read Plan & Tasks
 
-- Read the plan file to understand what was supposed to be implemented
+- Read the selected plan entrypoint to understand what was supposed to be implemented
+- An automatically discovered directory entrypoint is a plan only when it
+  contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
+- For ultra, validate all Phase Index links and read every linked phase file
+  before verification. Verify implementation against the detailed per-task
+  interfaces, edge cases, logging, acceptance criteria, and commands—not only
+  the short checkbox text in `index.md`. A missing/broken/escaping phase link is
+  a blocking plan-integrity failure because the committed specification is incomplete.
+- Cross-check every `Task N` in `index.md` against exactly one matching
+  `## Task N` section in its linked phase file. Unmapped tasks, duplicate task
+  sections, and unlinked `phase-*.md` files are blocking plan-integrity failures.
 - `TaskList` → get all tasks and their statuses
 - Read `.ai-factory/DESCRIPTION.md` (use path from config) for project context (tech stack, conventions)
 - Read `.ai-factory/ARCHITECTURE.md` (use path from config) for dependency and boundary rules (if present)
@@ -119,8 +137,10 @@ Options:
   2. **rules/base.md** — project-specific base conventions
   3. **rules.<area>** — area-specific rule entries resolved from config (for example `rules.api`, `rules.frontend`)
 - Read `.ai-factory/ROADMAP.md` (use path from config) for milestone alignment checks (if present)
-- If the plan contains `## Original Request`, treat it as useful original scope context. Use it to understand the user's starting intent, while the task list and committed `## Research Context` remain the executable verification inputs.
-- If the plan contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before judging completeness only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and verify against the plan's embedded Research Context; do not fail or expand scope based on the newer Active Summary unless the user explicitly asks to rebase/refine the plan. Skipping this drift check is a verification bug.
+- If the plan entrypoint contains `## Original Request`, treat it as useful original scope context. Use it to understand the user's starting intent, while the task list, committed `## Research Context`, and ultra phase specifications remain the executable verification inputs.
+- If the plan entrypoint contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before judging completeness only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and verify against the plan's embedded Research Context; do not fail or expand scope based on the newer Active Summary unless the user explicitly asks to rebase/refine the plan. Skipping this drift check is a verification bug.
+- Compatibility wording for the same rule: emit `WARN [research-drift]` and
+  verify against the plan's embedded Research Context.
 
 **Read `.ai-factory/skill-context/aif-verify/SKILL.md`** — MANDATORY if the file exists.
 
@@ -465,7 +485,7 @@ Options:
 - After fixing, re-run the relevant verification checks to confirm
 
 **If "Accept as-is":**
-- Note the accepted issues in the plan file as a comment
+- Note the accepted issues in the plan entrypoint as a comment
 - Continue to Step 5
 
 ---
