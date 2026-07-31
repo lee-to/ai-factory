@@ -79,7 +79,7 @@ To avoid ownership conflicts, artifact writers are command-scoped:
 | `.ai-factory/ARCHITECTURE.md`                                             | `/aif-architecture`   | `/aif-implement` may update structure notes when implementation changes structure              |
 | `.ai-factory/ROADMAP.md`                                                  | `/aif-roadmap`        | `/aif-implement` may mark completed milestones with evidence                                   |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules` | top-level conventions plus area-rule files and registration                         |
-| `.ai-factory/RESEARCH.md`                                                 | `/aif-explore`        | explore-mode writable artifact                                                                 |
+| `paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle | `/aif-explore` | regular single file or explicit ultra bundle with conditional supporting artifacts |
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phases | `/aif-plan`          | `/aif-improve` refines existing single-file plans and ultra bundles                             |
 | `paths.fix_plan` and `paths.patches/*.md`                                 | `/aif-fix`            | defaults shown; actual paths come from `paths.fix_plan` and `paths.patches`                    |
 | `.ai-factory/skill-context/*`                                             | `/aif-evolve`         | project-specific skill overrides derived from patches                                          |
@@ -220,7 +220,7 @@ derived from the parent of configured `paths.research`, so relocating that file
 also relocates ultra bundles without a second config key. See
 [Research and System Analysis](research.md).
 
-When research influences a plan, `/aif-plan` copies the relevant Active Summary from the selected legacy or bundled `RESEARCH.md` into `## Research Context`. That embedded copy is the committed requirements snapshot for implementation and verification. The exact source path may change later; downstream skills compare its revision and warn on drift instead of silently applying newer research or sibling bundle artifacts to an older plan.
+When research influences a plan, `/aif-plan` copies the relevant Active Summary from the selected legacy or bundled `RESEARCH.md` into `## Research Context`. The canonical `Source:` line wraps the exact path in backticks so spaces and brackets remain parseable. That embedded copy is the committed requirements snapshot for implementation and verification. Downstream skills compare its SHA256 revision and warn on drift instead of applying newer research or sibling bundle artifacts to an older plan; `Updated:` is a legacy fallback only when no hash exists.
 
 Plans created before revision markers were introduced may contain a `Source:` or `Reference:` line to `RESEARCH.md` without `Updated:` or `SHA256:` metadata. Downstream skills intentionally treat that as an unverified research link and emit a legacy compatibility `WARN [research-drift]`; they still execute against the embedded plan context instead of silently applying the current Active Summary.
 
@@ -263,7 +263,7 @@ Add user authentication with OAuth
 - Docs: yes          # /aif-implement shows mandatory docs checkpoint, then routes through /aif-docs
 
 ## Research Context (optional)
-Source: .ai-factory/RESEARCH.md (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
+Source: `.ai-factory/RESEARCH.md` (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
 Goal: Add OAuth + email login
 Constraints: Must support existing session middleware
 Decisions: Use JWT for API auth

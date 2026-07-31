@@ -32,10 +32,12 @@ If config.yaml doesn't exist, use defaults:
 - Module boundaries and communication patterns
 
 **Optionally read one relevant research source:** the configured `paths.research`
-file or a clearly topic-matching marked active `research_bundles_dir/*/INDEX.md` bundle
-and its linked `RESEARCH.md`. Use its Active Summary for strategic context; read
-optional C4/ADR/dependency artifacts only for rationale. Do not merge unrelated
-research topics or treat a bundle's implementation-level notes as milestones.
+file or a clearly topic-matching active direct child bundle. Recognize one as
+active only when its `INDEX.md` contains `<!-- aif:research-mode:ultra -->` exactly once,
+declares `Status: active`, and links its `RESEARCH.md` from `## Artifact Index`.
+Use its Active Summary for
+strategic context; read optional C4/ADR/dependency artifacts only for rationale.
+Do not merge unrelated topics or treat implementation-level notes as milestones.
 
 **Read `.ai-factory/skill-context/aif-roadmap/SKILL.md`** — MANDATORY if the file exists.
 

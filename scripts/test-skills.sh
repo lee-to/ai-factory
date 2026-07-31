@@ -726,12 +726,18 @@ AIF_RULES_SKILL="$ROOT_DIR/skills/aif-rules/SKILL.md"
 AIF_REFERENCE_SKILL="$ROOT_DIR/skills/aif-reference/SKILL.md"
 AIF_SECURITY_SKILL="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
 AIF_VERIFY_SKILL="$ROOT_DIR/skills/aif-verify/SKILL.md"
+AIF_VERIFY_OWNERSHIP_REF="$ROOT_DIR/skills/aif-verify/references/CONTEXT-GATES-AND-OWNERSHIP.md"
+AIF_ROADMAP_SKILL="$ROOT_DIR/skills/aif-roadmap/SKILL.md"
 AIF_COMMIT_SKILL="$ROOT_DIR/skills/aif-commit/SKILL.md"
 AIF_ARCH_SKILL="$ROOT_DIR/skills/aif-architecture/SKILL.md"
 CONFIG_REFERENCE_DOC="$ROOT_DIR/docs/config-reference.md"
 WORKFLOW_DOC="$ROOT_DIR/docs/workflow.md"
 SKILLS_DOC="$ROOT_DIR/docs/skills.md"
 CONFIGURATION_DOC="$ROOT_DIR/docs/configuration.md"
+RESEARCH_DOC="$ROOT_DIR/docs/research.md"
+PLAN_FILES_DOC="$ROOT_DIR/docs/plan-files.md"
+GETTING_STARTED_DOC="$ROOT_DIR/docs/getting-started.md"
+PLAN_POLISHER="$ROOT_DIR/subagents/claude/agents/plan-polisher.md"
 MODE1_SECTION="$(awk '
     /^### Mode 1: Analyze Existing Project$/ { capture=1 }
     capture { print }
@@ -861,17 +867,63 @@ if [[ -f "$AIF_EXPLORE_ULTRA_REF" ]] \
    && grep -Fq '<!-- aif:research-mode:ultra -->' "$AIF_EXPLORE_ULTRA_REF" \
    && grep -Fq '## Language and Compatibility Tokens' "$AIF_EXPLORE_ULTRA_REF" \
    && grep -Fq 'metadata keys `Topic:`, `Slug:`, `Updated:`, and `Status:`' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq '`<!-- aif:active-summary:end -->`, `<!-- aif:sessions:start -->`, and' "$AIF_EXPLORE_ULTRA_REF" \
    && grep -Fq 'Every bundle has the same minimum shape:' "$AIF_EXPLORE_ULTRA_REF" \
    && grep -Fq 'Do not create empty placeholders.' "$AIF_EXPLORE_ULTRA_REF" \
-   && grep -Fq 'Source priority: an explicitly referenced bundle/file; then one clearly topic-matching marked `Status: active` bundle; then the relevant legacy file.' "$AIF_PLAN_SKILL" \
-   && grep -Fq 'Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact' "$AIF_PLAN_SKILL" \
-   && grep -Fq 'Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact' "$AIF_IMPROVE_SKILL" \
-   && grep -Fq 'Keep `## Research Context`, `Source:`, `Updated:`, and `SHA256:` exact' "$AIF_FIX_SKILL" \
-   && grep -Fq 'extract the `RESEARCH.md` path from the entrypoint `Source:` / `Reference:` line' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq '## Language and Compatibility' "$ROOT_DIR/docs/research.md"; then
+   && ! grep -Fq '| [C4-CONTEXT.md](C4-CONTEXT.md)' "$AIF_EXPLORE_ULTRA_REF" \
+   && grep -Fq 'When the user supplied a topic or request, source priority is:' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'No-description fallback is the deliberate backward-compatibility exception' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact' "$AIF_FIX_SKILL" \
+   && grep -Fq '^(?:Source|Reference):\s+\x60([^\x60]+)\x60\s+\(' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq '## Language and Compatibility' "$RESEARCH_DOC"; then
     pass "ultra research stays opt-in, adaptive, discoverable, and drift-compatible"
 else
     fail "ultra research producer/consumer contract missing"
+fi
+
+RESEARCH_DRIFT_CONSUMERS=(
+    "$AIF_IMPLEMENT_SKILL"
+    "$AIF_IMPROVE_SKILL"
+    "$AIF_FIX_SKILL"
+    "$AIF_VERIFY_SKILL"
+)
+
+RESEARCH_DRIFT_CONTRACT_OK=1
+for skill_file in "${RESEARCH_DRIFT_CONSUMERS[@]}"; do
+    if ! grep -Fq '^(?:Source|Reference):\s+\x60([^\x60]+)\x60\s+\(' "$skill_file" \
+        || ! grep -Fq '<!-- aif:research-mode:ultra -->` exactly once' "$skill_file" \
+        || ! grep -Fq 'When `SHA256:` is present' "$skill_file" \
+        || ! grep -Fq 'Use `Updated:` only as a legacy fallback' "$skill_file"; then
+        RESEARCH_DRIFT_CONTRACT_OK=0
+    fi
+done
+
+if [[ "$RESEARCH_DRIFT_CONTRACT_OK" -eq 1 ]] \
+   && grep -Fq 'Bash(shasum -a 256 *) Bash(sha256sum *)' "$AIF_VERIFY_SKILL" \
+   && grep -Fq 'marked-bundle `RESEARCH.md`' "$AIF_VERIFY_OWNERSHIP_REF" \
+   && grep -Fq '| `aif-improve`' "$AIF_VERIFY_OWNERSHIP_REF" \
+   && grep -Fq '<!-- aif:research-mode:ultra -->` exactly once' "$AIF_ROADMAP_SKILL"; then
+    pass "research drift consumers share canonical parsing, hashing, and bundle validation"
+else
+    fail "research drift consumer contract is incomplete"
+fi
+
+if node -e 'const canonical = /^(?:Source|Reference):\s+`([^`]+)`\s+\(/; const legacy = /^(?:Source|Reference):\s+(.+?)\s+\(/; const path = ".ai-factory/research/order sync [v2] (west)/RESEARCH.md"; const oldPath = ".ai-factory/research/order sync [v1]/RESEARCH.md"; if (("Source: `" + path + "` (Active Summary, Updated: now, SHA256: abc)").match(canonical)?.[1] !== path || ("Reference: " + oldPath + " (Updated: now)").match(legacy)?.[1] !== oldPath) process.exit(1)'; then
+    pass "research source grammar preserves spaces and brackets with legacy fallback"
+else
+    fail "research source grammar does not preserve configured paths"
+fi
+
+if grep -Fq '│   ├── research/              # Explicit ultra research bundles' "$CONFIGURATION_DOC" \
+   && grep -Fq 'paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle' "$PLAN_FILES_DOC" \
+   && grep -Fq 'compatibility is the documented exception:' "$RESEARCH_DOC" \
+   && grep -Fq '[Research and System Analysis](research.md) — persist adaptive research before planning' "$GETTING_STARTED_DOC" \
+   && grep -Fq 'Resolve `paths.research` from `.ai-factory/config.yaml` before research lookup' "$PLAN_POLISHER"; then
+    pass "research docs and planner context match the config-aware bundle contract"
+else
+    fail "research docs or planner config contract missing"
 fi
 
 CONFIG_LANGUAGE_ARTIFACTS_ROW="$(grep -F '| `language.artifacts` |' "$CONFIG_REFERENCE_DOC" || true)"
@@ -1014,13 +1066,13 @@ else
     fail "docs missing broadened workflow language policy"
 fi
 
-if grep -Fq 'stable revision marker (`Updated:` timestamp from the research file plus `SHA256:` of the copied Active Summary)' "$AIF_PLAN_SKILL" \
+if grep -Fq 'canonical ``Source: `<selected_research_path>` (Active Summary, Updated: <timestamp>, SHA256: <digest>)`` metadata' "$AIF_PLAN_SKILL" \
    && grep -Fq 'Track whether research content influenced this plan.' "$AIF_PLAN_SKILL" \
    && grep -Fq 'If the research artifact exists but is stale or unrelated to the user'\''s requested task, leave `research_influenced_plan = false`' "$AIF_PLAN_SKILL" \
    && grep -Fq 'An existing `RESEARCH.md` for topic A plus an explicit `/aif-plan` request for unrelated topic B must produce an unlinked plan for topic B.' "$AIF_PLAN_SKILL" \
-   && grep -Fq 'Source: .ai-factory/RESEARCH.md (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq 'Source: `.ai-factory/RESEARCH.md` (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)' "$AIF_PLAN_FORMAT_REF" \
    && grep -Fq 'emit `WARN [research-drift]` and continue using the plan'\''s embedded Research Context as scope' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'emit `WARN [research-drift]` and verify against the plan'\''s embedded Research Context' "$AIF_VERIFY_SKILL" \
+   && grep -Fq 'A missing/invalid source or revision mismatch emits `WARN [research-drift]`' "$AIF_VERIFY_SKILL" \
    && grep -Fq 'Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'If an unlinked plan is refined using current research, add `## Research Context`' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'If the resolved research path exists, read it before creating the fix plan.' "$AIF_FIX_SKILL"; then
@@ -1038,11 +1090,11 @@ if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
    && [[ "$AIF_FIX_ALLOWED_TOOLS_LINE" == *'Bash'* ]] \
    && grep -Fq 'Normalize the copied Active Summary before hashing' "$AIF_PLAN_SKILL" \
-   && grep -Fq 'normalize the copied Active Summary before hashing' "$AIF_IMPROVE_SKILL" \
-   && grep -Fq 'normalize the copied Active Summary before hashing' "$AIF_FIX_SKILL" \
+   && grep -Fq 'use the same normalization algorithm' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'use the same normalization algorithm as the drift check' "$AIF_FIX_SKILL" \
    && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_PLAN_SKILL" \
-   && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_IMPROVE_SKILL" \
-   && grep -Fq 'without writing any temporary file or repository artifact' "$AIF_FIX_SKILL" \
+   && grep -Fq 'without a temporary repository artifact' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'without a temporary repository artifact' "$AIF_FIX_SKILL" \
    && ! grep -Fq '.ai-factory/.tmp/' "$AIF_PLAN_SKILL" \
    && ! grep -Fq '.ai-factory/.tmp/' "$AIF_IMPROVE_SKILL" \
    && ! grep -Fq '.ai-factory/.tmp/' "$AIF_FIX_SKILL" \
@@ -1050,8 +1102,8 @@ if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && ! grep -Fq '<tmp-file>' "$AIF_IMPROVE_SKILL" \
    && ! grep -Fq '<tmp-file>' "$AIF_FIX_SKILL" \
    && grep -Fq 'end with exactly one final newline' "$AIF_PLAN_SKILL" \
-   && grep -Fq 'end with exactly one final newline' "$AIF_IMPROVE_SKILL" \
-   && grep -Fq 'end with exactly one final newline' "$AIF_FIX_SKILL"; then
+   && grep -Fq 'end with one newline' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'end with one newline' "$AIF_FIX_SKILL"; then
     pass "research-backed plan producers can calculate SHA256 revisions without temp artifacts"
 else
     fail "research-backed plan producers lack SHA256 tools, normalization instructions, or temp-artifact guard"

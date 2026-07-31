@@ -67,7 +67,7 @@ Milestone: "[milestone name or none]"
 Rationale: [one sentence]
 
 ## Research Context (optional)
-Source: .ai-factory/RESEARCH.md (Active Summary, Updated: ..., SHA256: ...)
+Source: `.ai-factory/RESEARCH.md` (Active Summary, Updated: ..., SHA256: ...)
 [committed Active Summary copy]
 
 ## Architecture and Decisions

@@ -138,6 +138,7 @@ Run `ai-factory upgrade` to migrate old bare-named skills (`commit`, `feature`, 
 ## Next Steps
 
 - [Development Workflow](workflow.md) — understand the full flow from plan to commit
+- [Research and System Analysis](research.md) — persist adaptive research before planning
 - [Reflex Loop](loop.md) — run iterative generate → evaluate → critique → refine cycles
 - [Core Skills](skills.md) — all available slash commands
 - [Configuration](configuration.md) — customize `.ai-factory.json` and MCP servers

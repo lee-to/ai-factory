@@ -318,8 +318,18 @@ your-project/
 ├── .ai-factory/               # AI Factory working directory
 │   ├── DESCRIPTION.md         # Project specification
 │   ├── ARCHITECTURE.md        # Architecture decisions and guidelines
+│   ├── ROADMAP.md             # Strategic milestones
+│   ├── RULES.md               # Project-wide conventions
+│   ├── RESEARCH.md            # Regular /aif-explore snapshot
+│   ├── research/              # Explicit ultra research bundles
+│   │   └── <english-topic-slug>/
+│   │       ├── INDEX.md       # Manifest and adaptive artifact index
+│   │       ├── RESEARCH.md    # Plan-compatible Active Summary + Sessions
+│   │       └── ...            # Only justified C4, ADR, or dependency files
 │   ├── PLAN.md                # Current plan (from /aif-plan fast)
 │   ├── SECURITY.md            # Ignored security items (from /aif-security-checklist ignore)
+│   ├── rules/                 # Base and named area rules
+│   ├── archive/               # Archived plans and roadmap snapshots
 │   ├── extensions/            # Installed extensions (from ai-factory extension add)
 │   │   └── <extension-name>/
 │   │       └── extension.json

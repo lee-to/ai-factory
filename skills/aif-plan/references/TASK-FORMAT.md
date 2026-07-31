@@ -47,7 +47,7 @@ Rationale: [1 short sentence]
 
 ## Research Context (optional)
 <!-- Only when a selected legacy or ultra-bundle RESEARCH.md influenced this plan, copy/paste the relevant Active Summary here -->
-Source: .ai-factory/RESEARCH.md (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
+Source: `.ai-factory/RESEARCH.md` (Active Summary, Updated: YYYY-MM-DD HH:MM, SHA256: <active-summary-sha256>)
 <!-- Required when any RESEARCH.md content influenced this plan. Replace the example source with the exact selected file, including research/<slug>/RESEARCH.md for ultra research. The copied context is the committed requirements snapshot; downstream skills use the live source file only to warn about revision drift. -->
 
 Goal:

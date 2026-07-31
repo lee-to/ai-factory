@@ -110,9 +110,17 @@ tools that do not render Mermaid.
 2. One clearly matching marked ultra bundle.
 3. The relevant configured single research file.
 
-It never chooses by recency alone or merges unrelated studies silently. If the
-selected research affects the plan, the plan embeds the Active Summary as
-`Research Context` and records the exact source path, timestamp, and hash.
+An explicit reference is a concrete file or bundle path named in the request or
+a follow-up. Topic matching checks exact English slug, normalized `Topic:`, then
+a unique semantic match against Purpose / Active Summary. It never chooses by
+recency or merges ambiguous studies. With no description at all, legacy
+compatibility is the documented exception: configured `paths.research` is tried
+first, then a single active marked bundle.
+
+If the selected research affects the plan, the plan embeds the Active Summary as
+`Research Context` and records the source path in backticks plus timestamp and
+hash. `SHA256:` is authoritative for Active Summary drift; `Updated:` is only the
+fallback for older linked plans without a hash.
 
 `/aif-implement`, `/aif-improve`, `/aif-verify`, and `/aif-fix` read that exact
 source path for drift checks. They continue to execute against the committed

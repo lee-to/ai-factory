@@ -12,8 +12,9 @@ Write human-readable headings, table labels, notes, and prose in the resolved
 tokens exact because discovery and drift checks depend on them:
 
 - filenames and relative links
-- `<!-- aif:research-mode:ultra -->`, the Active Summary markers, and the
-  Sessions markers
+- `<!-- aif:research-mode:ultra -->`, `<!-- aif:active-summary:start -->`,
+  `<!-- aif:active-summary:end -->`, `<!-- aif:sessions:start -->`, and
+  `<!-- aif:sessions:end -->`
 - `## Artifact Index`, `## Active Summary (input for /aif-plan)`, and
   `## Sessions`
 - metadata keys `Topic:`, `Slug:`, `Updated:`, and `Status:`
@@ -125,11 +126,11 @@ Status: active
 | Artifact | Purpose | Why included | Status |
 |----------|---------|--------------|--------|
 | [RESEARCH.md](RESEARCH.md) | Active summary and session history | Required | active |
-| [C4-CONTEXT.md](C4-CONTEXT.md) | System context | [specific boundary signal] | active |
+<!-- Add optional artifact rows only after their inclusion gates pass. -->
 
 ## Reading Order
 1. [RESEARCH.md](RESEARCH.md)
-2. [Only the optional artifacts needed to understand the conclusions]
+<!-- Add only the generated optional artifacts, in the order they should be read. -->
 
 ## Traceability (optional)
 

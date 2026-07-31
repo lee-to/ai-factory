@@ -47,7 +47,7 @@ All user-facing responses from `/aif-explore` MUST be written in `ui_language`.
 
 Persisted exploration artifacts under `paths.research` MUST be written in `artifact_language`.
 
-Ultra bundle artifacts under `research_bundles_dir` MUST also be written in `artifact_language`. Preserve filenames, relative links, Mermaid syntax, evidence paths, traceability IDs, the compatibility headings `## Artifact Index`, `## Active Summary (input for /aif-plan)`, and `## Sessions`, metadata keys `Topic:`, `Slug:`, `Updated:`, `Status:`, status values `active`, `paused`, `superseded`, `proposed`, and `accepted`, research markers, and the exact marker `<!-- aif:research-mode:ultra -->` unchanged. The topic and other human-readable values still use `artifact_language`; the English slug is a stable path identifier.
+Ultra bundle artifacts under `research_bundles_dir` MUST also be written in `artifact_language`. Preserve filenames, relative links, Mermaid syntax, evidence paths, traceability IDs, the compatibility headings `## Artifact Index`, `## Active Summary (input for /aif-plan)`, and `## Sessions`, metadata keys `Topic:`, `Slug:`, `Updated:`, `Status:`, status values `active`, `paused`, `superseded`, `proposed`, and `accepted`, the exact markers `<!-- aif:active-summary:start -->`, `<!-- aif:active-summary:end -->`, `<!-- aif:sessions:start -->`, `<!-- aif:sessions:end -->`, and `<!-- aif:research-mode:ultra -->` unchanged. The topic and other human-readable values still use `artifact_language`; the English slug is a stable path identifier.
 
 Apply `technical_terms_policy` while writing summaries and persisted artifacts:
 - `keep` - keep commands, paths, identifiers, config keys, API names, package names, branch names, code terms, and raw error messages unchanged
@@ -171,7 +171,7 @@ At the start, read these files if present:
 - `.ai-factory/ARCHITECTURE.md` — architecture decisions, folder structure
 - the resolved RULES.md path – project conventions and rules
 - the resolved RESEARCH.md path – persisted exploration notes (so you can `/clear` and still keep context)
-- direct child `research_bundles_dir/*/INDEX.md` files containing `<!-- aif:research-mode:ultra -->` – ultra research manifests. Read only their index metadata at startup; read the linked `RESEARCH.md` and optional artifacts only when the bundle is explicitly referenced or clearly relevant to the current topic. Ignore unmarked directories.
+- direct child `research_bundles_dir/*/INDEX.md` files containing `<!-- aif:research-mode:ultra -->` exactly once and linking their `RESEARCH.md` from `## Artifact Index` – ultra research manifests. Read only their index metadata at startup; read the linked `RESEARCH.md` and optional artifacts only when the bundle is explicitly referenced or clearly relevant to the current topic. Ignore invalid or unmarked directories.
 - the resolved fast plan path – active fast plan (if any)
 - `<configured plans dir>/<branch_stem>.md` or
   `<configured plans dir>/<branch_stem>/index.md` – active full/ultra plans.
@@ -271,7 +271,7 @@ If the conversation is crystallizing (you're about to plan, you want to `/clear`
 
 **Hard rule in regular explore mode:** If the user chooses to save, you may write/edit **only** the resolved research path (and create its parent directory if missing). Do not write or modify any other project files.
 
-Write the saved research content in `artifact_language`. The skeleton below defines structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, notes, and prose before saving, except for the compatibility headings `## Active Summary (input for /aif-plan)` and `## Sessions` and metadata keys `Topic:`, `Updated:`, and `Status:`. Preserve those tokens, the `active` status value, research markers, paths, commands, config keys, issue URLs, branch names, code identifiers, package names, and raw error messages unchanged. Values after human-readable fields such as `Topic:` still use `artifact_language`.
+Write the saved research content in `artifact_language`. The skeleton below defines structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, notes, and prose before saving, except for the compatibility headings `## Active Summary (input for /aif-plan)` and `## Sessions` and metadata keys `Topic:`, `Updated:`, and `Status:`. Preserve those tokens, the `active` status value, exact `<!-- aif:active-summary:start -->`, `<!-- aif:active-summary:end -->`, `<!-- aif:sessions:start -->`, and `<!-- aif:sessions:end -->` markers, paths, commands, config keys, issue URLs, branch names, code identifiers, package names, and raw error messages unchanged. Values after human-readable fields such as `Topic:` still use `artifact_language`.
 
 Ask:
 
