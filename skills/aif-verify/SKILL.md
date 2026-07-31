@@ -1,11 +1,11 @@
 ---
 name: aif-verify
 description: >-
-  Verify completed implementation against the plan. Checks that all tasks were fully implemented,
+  Verify completed implementation against the plan. Checks that all tasks were implemented,
   nothing was forgotten, code compiles, tests pass, and quality standards are met.
   Use after "/aif-implement" completes, or when user says "verify", "check work", "did we miss anything".
 argument-hint: "[--strict]"
-allowed-tools: Read Edit Glob Grep Bash(git *) Bash(npm *) Bash(npx *) Bash(yarn *) Bash(pnpm *) Bash(bun *) Bash(go *) Bash(python *) Bash(php *) Bash(composer *) Bash(cargo *) Bash(make *) Bash(task *) Bash(just *) Bash(mage *) TaskList TaskGet AskUserQuestion Questions
+allowed-tools: Read Edit Glob Grep Bash(git *) Bash(npm *) Bash(npx *) Bash(yarn *) Bash(pnpm *) Bash(bun *) Bash(go *) Bash(python *) Bash(php *) Bash(composer *) Bash(cargo *) Bash(make *) Bash(task *) Bash(just *) Bash(mage *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 metadata:
   author: AI Factory
@@ -26,7 +26,7 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 ### 0.0 Load config.yaml
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
-- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.specs`, `paths.rules`, and `paths.archive`
+- **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.specs`, `paths.rules`, and `paths.archive`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **verify_mode:** default verification strictness (`strict` | `normal` | `lenient`)
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Rules hierarchy:** the resolved RULES.md path + `rules.base` + named `rules.<area>` entries
@@ -138,7 +138,9 @@ Options:
   3. **rules.<area>** — area-specific rule entries resolved from config (for example `rules.api`, `rules.frontend`)
 - Read `.ai-factory/ROADMAP.md` (use path from config) for milestone alignment checks (if present)
 - If the plan entrypoint contains `## Original Request`, treat it as useful original scope context. Use it to understand the user's starting intent, while the task list, committed `## Research Context`, and ultra phase specifications remain the executable verification inputs.
-- If the plan entrypoint contains `## Research Context`, a `Source:` / `Reference:` line pointing to `RESEARCH.md`, or any path/link to the resolved `paths.research` artifact, treat the Research Context embedded in the plan as the committed requirements snapshot. Read the resolved research artifact before judging completeness only to verify the committed revision marker (`Updated:` and/or `SHA256:` in the plan source line) and to consult `## Sessions` for rationale when needed. If the source line lacks a revision marker or the current `Active Summary` revision differs, emit `WARN [research-drift]` and verify against the plan's embedded Research Context; do not fail or expand scope based on the newer Active Summary unless the user explicitly asks to rebase/refine the plan. Skipping this drift check is a verification bug.
+- If the plan entrypoint contains `## Research Context`, treat its embedded copy as the committed requirements snapshot. Parse the first `Source:` / `Reference:` line with canonical `^(?:Source|Reference):\s+\x60([^\x60]+)\x60\s+\(` syntax; for older bare-path lines, fall back to `^(?:Source|Reference):\s+(.+?)\s+\(`. Fall back to configured `paths.research` only when neither form identifies a usable path.
+- If the parsed source is inside `research_bundles_dir`, require its sibling `INDEX.md` to contain `<!-- aif:research-mode:ultra -->` exactly once and link that `RESEARCH.md` from `## Artifact Index`; otherwise emit `WARN [research-drift]`. Sibling C4/ADR/dependency files remain rationale only.
+- When `SHA256:` is present, extract the current source text strictly between `<!-- aif:active-summary:start -->` and `<!-- aif:active-summary:end -->`, remove HTML comment blocks, preserve line order and leading whitespace, trim trailing spaces from every line, use LF endings, and end with one newline. Hash through stdin with `shasum -a 256` or `sha256sum`; the digest is authoritative. Use `Updated:` only as a legacy fallback when `SHA256:` is absent. A missing/invalid source or revision mismatch emits `WARN [research-drift]`; verify against the embedded Research Context and do not expand scope unless the user explicitly requests a rebase/refinement. Skipping this drift check is a verification bug.
 - Compatibility wording for the same rule: emit `WARN [research-drift]` and
   verify against the plan's embedded Research Context.
 

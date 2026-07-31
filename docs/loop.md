@@ -1,4 +1,4 @@
-[← Development Workflow](workflow.md) · [Back to README](../README.md) · [Subagents →](subagents.md)
+[← Research](research.md) · [Back to README](../README.md) · [Subagents →](subagents.md)
 
 # Reflex Loop
 

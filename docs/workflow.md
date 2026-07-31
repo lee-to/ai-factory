@@ -1,4 +1,4 @@
-[← Getting Started](getting-started.md) · [Back to README](../README.md) · [Reflex Loop →](loop.md)
+[← Getting Started](getting-started.md) · [Back to README](../README.md) · [Research →](research.md)
 
 # Development Workflow
 
@@ -56,7 +56,7 @@ Optional discovery step: use `/aif-explore` before planning to investigate ideas
 
 Reliability gate: use `/aif-grounded` when the main problem is not discovery but certainty - high-stakes answers, changeable facts, version-sensitive behavior, or any request where the model must refuse to guess.
 
-If you want exploration results to survive `/clear` and feed directly into planning, ask `/aif-explore` to save them to `paths.research` (default: `.ai-factory/RESEARCH.md`).
+If you want exploration results to survive `/clear` and feed directly into planning, ask `/aif-explore` to save them to `paths.research` (default: `.ai-factory/RESEARCH.md`). Use explicit `/aif-explore ultra <topic>` for a named bundle with mandatory `INDEX.md` + compatible `RESEARCH.md` and only the C4, ADR, or dependency artifacts justified by the topic. See [Research and System Analysis](research.md).
 
 Optional conventions step: use `/aif-rules` to append or refine project-wide axioms in `paths.rules_file`, or `/aif-rules area:<name>` to create or update `<configured rules dir>/<area>.md` and register `rules.<area>` in `.ai-factory/config.yaml`. Downstream workflow skills resolve rules with the same hierarchy: `rules.<area>` > `rules/base.md` > `paths.rules_file`.
 
@@ -166,6 +166,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | Command | Use Case | Creates Branch? | Creates Plan? |
 |---------|----------|-----------------|---------------|
 | `/aif-explore` | Discovery, option comparison, and requirements clarification before planning | No | No (optional `paths.research` on request) |
+| `/aif-explore ultra` | Durable system analysis with adaptive C4/ADR/dependency coverage | No | No (creates `<parent(paths.research)>/research/<english-slug>/`) |
 | `/aif-grounded` | Evidence-only answers, strict verification, and high-stakes questions where guessing is unacceptable | No | No |
 | `/aif-roadmap` | Strategic planning, milestones, long-term vision | No | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`) |
 | `/aif-rules` | Capture project conventions or add area-specific rules before planning and implementation | No | No (`paths.rules_file` or `paths.rules/<area>.md`) |
@@ -197,7 +198,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-roadmap`                            | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-implement` may mark completed milestones            |
 | `/aif-rules`                              | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | top-level axioms plus area-rule files and registration    |
 | `/aif-plan`                               | `paths.plan`, full `paths.plans/<id>.md`, ultra `paths.plans/<id>/`                            | `/aif-improve` refines existing plans/bundles             |
-| `/aif-explore`                            | `paths.research` (default: `.ai-factory/RESEARCH.md`)                                         | all other artifacts are read-only in explore mode         |
+| `/aif-explore`                            | regular `paths.research`; ultra `<parent>/research/<english-slug>/`                            | ultra always has `INDEX.md` + `RESEARCH.md`; supporting files are conditional |
 | `/aif-reference`                          | `paths.references/*`, `paths.references/INDEX.md`                                             | knowledge references from external sources                |
 | `/aif-distillation`                       | current agent skills directory by default, or `--path <directory>` as an output root (`<root>/<skill-name>/`, or prefixed child dirs in `--split` mode) | distilled skills from explicit source material            |
 | `/aif-fix`                                | `paths.fix_plan`, `paths.patches/*.md`                                                        | bug-fix learning loop artifacts                           |
@@ -219,17 +220,21 @@ Context-gate defaults for `/aif-commit`, `/aif-review`, `/aif-verify`:
 
 These skills form the development pipeline. Each one feeds into the next.
 
-### `/aif-explore [topic or plan name]` — discovery before planning
+### `/aif-explore [ultra] [topic or plan name]` — discovery before planning
 
 ```
 /aif-explore real-time collaboration
 /aif-explore the auth system is getting unwieldy
 /aif-explore add-auth-system
+/aif-explore ultra partner order synchronization
 ```
 
 Thinking-partner mode for exploring ideas, constraints, and trade-offs without
 implementing code. Reads resolved context plus relevant active plan artifacts.
 If you want the context to persist after `/clear`, save it to `paths.research`.
+Explicit ultra mode persists an English-slug topic bundle. It always writes a
+manifest `INDEX.md` and plan-compatible `RESEARCH.md`, then adds C4 views, ADRs,
+or a dependency graph only when evidence crosses their inclusion thresholds.
 When direction is clear, transition to `/aif-plan fast`, `full`, or `ultra`.
 
 ### `/aif-grounded [question or task]` — certainty before action
@@ -343,7 +348,7 @@ When executing through the Claude top-level `implement-coordinator`, the quality
 /aif-verify --strict # Strict mode — zero tolerance for gaps
 ```
 
-Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it. If the plan contains `Original Request`, `/aif-verify` uses it as original scope context while the task list and committed Research Context remain the executable verification inputs. If the plan references `RESEARCH.md`, `/aif-verify` verifies against the embedded Research Context and checks `paths.research` only for revision drift. Checks build, tests, lint, looks for leftover TODOs, undocumented env vars, and plan-vs-code drift. If gaps are found, it first suggests `/aif-fix <issue summary>` (recommended). If verification is clean, it suggests `/aif-security-checklist` and `/aif-review`. Use `--strict` before merging to the configured base branch.
+Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it. If the plan contains `Original Request`, `/aif-verify` uses it as original scope context while the task list and committed Research Context remain the executable verification inputs. If the plan references `RESEARCH.md`, `/aif-verify` verifies against the embedded Research Context and checks the exact legacy or bundled source only for revision drift. Checks build, tests, lint, looks for leftover TODOs, undocumented env vars, and plan-vs-code drift. If gaps are found, it first suggests `/aif-fix <issue summary>` (recommended). If verification is clean, it suggests `/aif-security-checklist` and `/aif-review`. Use `--strict` before merging to the configured base branch.
 
 Also runs read-only context gates against the resolved architecture, roadmap, and RULES.md artifacts. In normal mode, roadmap/milestone linkage gaps are warnings; in strict mode, clear roadmap mismatch is a failure, while missing `feat`/`fix`/`perf` milestone linkage remains a warning. The final output appends an `aif-gate-result` JSON block for orchestrators.
 
@@ -380,7 +385,7 @@ When a plan exists, run without arguments to execute:
 
 After successful execution, `/aif-fix` deletes only the default `.ai-factory/FIX_PLAN.md`; custom/non-default fix plan files are preserved.
 
-If a fix plan references `RESEARCH.md`, `/aif-fix` executes against the embedded Research Context and checks `paths.research` only for revision drift.
+If a fix plan references `RESEARCH.md`, `/aif-fix` executes against the embedded Research Context and checks the exact legacy or bundled source only for revision drift.
 
 Every fix creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`). Patches improve future workflow runs primarily through `/aif-evolve` (which distills them into `.ai-factory/skill-context/*`).
 
@@ -406,6 +411,6 @@ For full details on all skills including utility commands (`/aif-docs`, `/aif-do
 
 ## See Also
 
-- [Reflex Loop](loop.md) — strict iterative loop contracts and state transitions
+- [Research and System Analysis](research.md) — adaptive ultra research bundles
 - [Core Skills](skills.md) — detailed reference for all workflow and utility skills
 - [Plan Files](plan-files.md) — how plan artifacts are stored and managed

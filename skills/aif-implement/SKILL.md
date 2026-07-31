@@ -46,7 +46,7 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
 
 ```
 1. Read `.ai-factory/config.yaml` if it exists to resolve:
-   - `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`
+   - `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
    - `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.patches`
    - `paths.archive`
    - `paths.rules`
@@ -497,9 +497,25 @@ excluded.
 - Treat `## Original Request` as useful original scope context. Executable inputs
   remain settings, dependencies, the task checklist, committed Research Context,
   and (for ultra) linked phase specifications.
-- Apply the existing research-drift contract to Research Context in the entrypoint:
-  compare the source revision with `paths.research`, emit
-  `WARN [research-drift]` on mismatch, and continue using committed plan context.
+- Apply the research-drift contract to Research Context in the entrypoint. Parse
+  the first `Source:` / `Reference:` line with canonical
+  `^(?:Source|Reference):\s+\x60([^\x60]+)\x60\s+\(` syntax; capture the backtick-delimited
+  path so spaces and brackets remain intact. For older bare-path lines, fall back
+  to `^(?:Source|Reference):\s+(.+?)\s+\(`. Fall back to `paths.research` only
+  when neither form identifies a usable path.
+- If the parsed source is inside `research_bundles_dir`, require its sibling
+  `INDEX.md` to contain `<!-- aif:research-mode:ultra -->` exactly once and link
+  that `RESEARCH.md` from `## Artifact Index`; otherwise emit
+  `WARN [research-drift]`. Valid sibling C4/ADR/dependency artifacts remain
+  rationale only and do not expand committed scope.
+- When `SHA256:` is present, extract the current source text strictly between
+  `<!-- aif:active-summary:start -->` and `<!-- aif:active-summary:end -->`,
+  remove HTML comment blocks, preserve line order and leading whitespace, trim
+  trailing spaces from every line, use LF endings, and end with one newline.
+  Hash through stdin with `shasum -a 256` or `sha256sum`; the digest is
+  authoritative. Use `Updated:` only as a legacy fallback when `SHA256:` is
+  absent. On a missing/invalid source or revision mismatch, emit
+  `WARN [research-drift]` and continue using committed plan context.
   In the single-file wording of this contract: emit `WARN [research-drift]` and continue using the plan's embedded Research Context as scope.
 
 **Immediately after reading `plan_entrypoint`, check its first line for
@@ -1012,7 +1028,7 @@ Shows progress without executing.
 
 - Primary ownership in this command: task execution state and plan progress checkboxes.
 - Allowed context artifact updates: the resolved description artifact, the resolved architecture artifact, and roadmap milestone completion in the resolved roadmap artifact when implementation evidence justifies it.
-- Read-only context in this command by default: the resolved `paths.rules_file` and `paths.research` artifacts.
+- Read-only context in this command by default: the resolved `paths.rules_file`, configured `paths.research`, and any exact research source linked from the plan entrypoint.
 - Context-gate findings should be communicated as `WARN`/`ERROR` outputs only; this does not replace the required verbose implementation logging rules below.
 
 For progress display format, blocker handling, session continuity examples, and full flow examples → see `references/IMPLEMENTATION-GUIDE.md`

@@ -64,7 +64,7 @@ ai-factory init
 /aif-plan Add user authentication with OAuth
 ```
 
-If scope is unclear, start with `/aif-explore` (optionally save results to `paths.research`, default: `.ai-factory/RESEARCH.md`); if the task is clear but the answer must be strictly verified, use `/aif-grounded`; if the direction is already clear, jump straight to `/aif-plan`. From there, AI Factory builds a plan, optionally creates a branch/worktree when git settings allow it, and you run `/aif-implement` to execute it step by step.
+If scope is unclear, start with `/aif-explore` (optionally save results to `paths.research`, default: `.ai-factory/RESEARCH.md`). Use `/aif-explore ultra <topic>` when the investigation needs a durable system-analysis bundle with adaptive C4/ADR/dependency views. If the task is clear but the answer must be strictly verified, use `/aif-grounded`; if the direction is already clear, jump straight to `/aif-plan`. From there, AI Factory builds a plan, optionally creates a branch/worktree when git settings allow it, and you run `/aif-implement` to execute it step by step.
 
 ## CLI Commands
 
@@ -138,6 +138,7 @@ Run `ai-factory upgrade` to migrate old bare-named skills (`commit`, `feature`, 
 ## Next Steps
 
 - [Development Workflow](workflow.md) — understand the full flow from plan to commit
+- [Research and System Analysis](research.md) — persist adaptive research before planning
 - [Reflex Loop](loop.md) — run iterative generate → evaluate → critique → refine cycles
 - [Core Skills](skills.md) — all available slash commands
 - [Configuration](configuration.md) — customize `.ai-factory.json` and MCP servers

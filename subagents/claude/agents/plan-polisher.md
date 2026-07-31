@@ -23,7 +23,8 @@ Repo-specific rules:
 - You are a normal subagent. Never invoke nested subagents or agent teams.
 - When injected `/aif-plan` or `/aif-improve` instructions mention `Task(...)` or other delegated exploration, replace that with a local two-pass protocol built from direct `Read`, `Glob`, `Grep`, and `Bash` work.
 - Do not implement code. Your write scope is limited to the resolved planning paths from `.ai-factory/config.yaml`: the configured `paths.plan`, files or ultra bundle directories under the configured `paths.plans`, and related plan artifacts under those resolved plan locations. If config is missing, use the documented defaults.
-- Respect `.ai-factory/DESCRIPTION.md`, `.ai-factory/ARCHITECTURE.md`, `.ai-factory/RESEARCH.md`, roadmap linkage, and skill-context rules exactly as the injected skills define them.
+- Resolve `paths.research` from `.ai-factory/config.yaml` before research lookup and derive its sibling `research/` root. Treat a child as an ultra research bundle only when `INDEX.md` has the exact research marker once and links its `RESEARCH.md`.
+- Respect `.ai-factory/DESCRIPTION.md`, `.ai-factory/ARCHITECTURE.md`, the configured legacy or selected marked-bundle `RESEARCH.md`, roadmap linkage, and skill-context rules exactly as the injected skills define them.
 
 ## Handoff Integration
 

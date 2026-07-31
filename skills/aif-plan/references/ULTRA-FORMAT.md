@@ -67,7 +67,7 @@ Milestone: "[milestone name or none]"
 Rationale: [one sentence]
 
 ## Research Context (optional)
-Source: .ai-factory/RESEARCH.md (Active Summary, Updated: ..., SHA256: ...)
+Source: `.ai-factory/RESEARCH.md` (Active Summary, Updated: ..., SHA256: ...)
 [committed Active Summary copy]
 
 ## Architecture and Decisions
@@ -100,6 +100,9 @@ Source: .ai-factory/RESEARCH.md (Active Summary, Updated: ..., SHA256: ...)
 Omit the first Handoff line unless `HANDOFF_MODE=1` and `HANDOFF_TASK_ID` is
 non-empty. The ultra marker is therefore always the first line or immediately
 follows the optional Handoff annotation.
+
+The source example may instead be a selected ultra research file such as
+`.ai-factory/research/<slug>/RESEARCH.md`; always record the exact source.
 
 Apply the standard `Original Request`, `Research Context`, roadmap, settings,
 language, Handoff annotation, and commit-plan contracts from `SKILL.md`. Keep

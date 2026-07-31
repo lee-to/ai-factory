@@ -91,6 +91,7 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
 - **Paths:** `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.research`, `paths.rules_file`, `paths.plan`, `paths.plans`, `paths.patches`, `paths.evolutions`, `paths.specs`, `paths.rules`, and `paths.archive`
+  - Derive `research_bundles_dir = <parent directory of paths.research>/research/` for opt-in ultra research bundles. No additional config key is required.
 - **Language:** `language.ui` for AskUserQuestion prompts, `language.artifacts` for generated plan files, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`, and `git.branch_prefix`
 - **Workflow:** `workflow.plan_id_format` — controls the full/ultra plan identifier shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. Only `slug` and `sequential` are active; `timestamp` and `uuid` are **reserved** and currently behave like `slug` (with an `INFO` log). The `sequential` value writes a full plan as `<NNNN>_<plan_file_stem>.md` and an ultra bundle as `<NNNN>_<plan_file_stem>/index.md` (see Step 1.2 for the canonical stem and algorithm). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
@@ -116,7 +117,7 @@ All AskUserQuestion prompts, progress updates, summaries, and next-step guidance
 Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
 For ultra this applies to `index.md` and every linked phase file.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Apply `technical_terms_policy` to other human-readable terminology.
 
 Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
 
@@ -168,15 +169,20 @@ If any rule is violated — fix the output before presenting it to the user.
 - Use it to link this plan to a specific milestone (when applicable)
 - This reduces ambiguity in `/aif-implement` milestone completion and `/aif-verify` roadmap gates
 
-**OPTIONAL (recommended):** Read the resolved research path if it exists:
+**OPTIONAL (recommended):** Resolve at most one relevant research source:
 
-- Treat `## Active Summary (input for /aif-plan)` as an additional requirements source
-- Carry over constraints/decisions into tasks and plan settings
-- Prefer the summary over raw notes; use `## Sessions` only when you need deeper rationale
-- If the user omitted the feature description, use `Active Summary -> Topic:` as the default description
+- A legacy source is the configured `paths.research` file.
+- An ultra source is `research_bundles_dir/<english-slug>/RESEARCH.md`, but only when the sibling `INDEX.md` contains `<!-- aif:research-mode:ultra -->` exactly once and its `## Artifact Index` links that `RESEARCH.md`. Do not treat arbitrary directories as research bundles.
+- When the user supplied a topic or request, source priority is: an explicitly referenced bundle/file; then one clearly topic-matching marked `Status: active` bundle; then the relevant legacy file. An explicit source means a concrete `RESEARCH.md` or bundle path named in the request or follow-up; it is user content, not a stripped command token.
+- Resolve a topic match by exact English slug first, then a normalized `Topic:` match, then a unique semantic match against `Purpose` / Active Summary. Never pick by recency. If no single match is clear or multiple sources would change scope, ask instead of merging or guessing. An explicitly referenced `paused` or `superseded` bundle requires a warning before use.
+- Read an ultra `INDEX.md` first, then its linked `RESEARCH.md`. Read C4/ADR/dependency artifacts only for rationale needed by this plan. They are not independent requirement sources; material conclusions must already be reflected in the Active Summary.
+- Store the chosen file as `selected_research_path`. Treat its `## Active Summary (input for /aif-plan)` as an additional requirements source.
+- Carry over constraints/decisions into tasks and plan settings.
+- Prefer the summary over raw notes; use `## Sessions` and linked optional artifacts only when you need deeper rationale.
+- No-description fallback is the deliberate backward-compatibility exception to the topic-based priority: use the configured `paths.research` Active Summary topic when available. Otherwise use a single active marked ultra bundle; if several active bundles exist, ask the user to choose rather than guessing.
 - Track whether research content influenced this plan. Set `research_influenced_plan = true` only when the Active Summary supplies the default description or when constraints, decisions, goals, open questions, or session rationale from the research artifact shape the plan scope, tasks, settings, or tradeoffs. If the research artifact exists but is stale or unrelated to the user's requested task, leave `research_influenced_plan = false`, ignore it for plan requirements, and do not add `## Research Context`.
-- If any research content influences the plan, the generated plan MUST include `## Research Context` with a `Source:` line pointing to the resolved research artifact and a stable revision marker (`Updated:` timestamp from the research file plus `SHA256:` of the copied Active Summary). Omitting this plan-owned research copy is a bug because downstream skills treat the embedded Research Context as the plan's authoritative requirements and use the live research file only for drift checks.
-- Normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, exclude markdown comments and the `Source:` line itself, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
+- If any research content influences the plan, the generated plan MUST include `## Research Context` with canonical ``Source: `<selected_research_path>` (Active Summary, Updated: <timestamp>, SHA256: <digest>)`` metadata. Omitting this plan-owned research copy is a bug because downstream skills treat the embedded Research Context as the plan's authoritative requirements and use the source research file only for drift checks.
+- Normalize the copied Active Summary before hashing: include exactly the text that will be pasted under `## Research Context` after the `Source:` line, remove HTML comment blocks, preserve line order and leading whitespace, trim trailing spaces from every line, use LF line endings, and end with exactly one final newline. Calculate the digest without writing any temporary file or repository artifact: feed the normalized text through stdin / inline shell input to `shasum -a 256`; if `shasum` is unavailable, feed the same normalized text to `sha256sum`. Use the first output field as the `SHA256:` value.
 
 ### Step 0.1: Resolve Git State
 
@@ -228,15 +234,17 @@ ultra       → Ultra mode (first word)
 
 **If the description is empty:**
 
-- If the resolved research path exists and its `Active Summary` has a non-empty `Topic:`, default the description to that topic (no extra user input required) and leave `original_user_request` empty. Plans created from `RESEARCH.md` without an explicit user request MUST NOT include an `Original Request` section.
+- If the configured `paths.research` file exists and its Active Summary has a non-empty `Topic:`, default the description to that topic (no extra user input required), set it as `selected_research_path`, and leave `original_user_request` empty.
+- Otherwise, if exactly one marked active ultra bundle exists and its linked `RESEARCH.md` has a non-empty `Topic:`, use that topic and file. If multiple marked active bundles exist, ask the user to select a topic/source.
+- Plans created from a selected `RESEARCH.md` without an explicit user request MUST NOT include an `Original Request` section.
 - Otherwise, ask the user for a short feature description. Preserve the user's answer verbatim as `original_user_request` and save it into the plan entrypoint later.
 
 **Original request contract:**
 
 - If the user explicitly supplied a planning request (for example `/aif-plan ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan full ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan ultra ТУТ ЗАПРОС НА ПЛАН`, or an answer to the description prompt), the generated plan entrypoint MUST include `## Original Request`.
 - `## Original Request` contains the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed. Do not rewrite, summarize, translate, or normalize its wording, even when `artifact_language` differs.
-- If the description was derived only from `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
-- If the user supplied a request and `RESEARCH.md` also influenced the plan, include both `## Original Request` and `## Research Context`.
+- If the description was derived only from a selected `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
+- If the user supplied a request and selected research also influenced the plan, include both `## Original Request` and `## Research Context`.
 
 **If `--list` is present**, jump to [--list Subcommand](#--list-subcommand).
 **If `--cleanup` is present**, jump to [--cleanup Subcommand](#--cleanup-subcommand).
@@ -258,7 +266,7 @@ Options:
 2. Fast – quick plan, no branch, saves to the resolved fast plan path
 ```
 
-If the user did not provide a description and the resolved research path exists:
+If the user did not provide a description and a research source was selected:
 
 - Mention that you will default the description to the `Active Summary` topic
 - Only ask for `full` vs `fast` (no description prompt needed)
@@ -736,12 +744,12 @@ If the resolved roadmap artifact exists:
 If research content influenced this plan:
 
 - Include `## Research Context` by copying only the `Active Summary` (do not paste full `Sessions`)
-- Include `Source: <resolved research path> (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)` so `/aif-implement`, `/aif-verify`, `/aif-improve`, and related consumers know the exact committed research revision
-- Compute the hash from the normalized copied Active Summary exactly as described in Step 0: exclude the `Source:` line and comments, preserve line order, trim trailing spaces, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
-- Treat the copied `Research Context` as the plan-owned authoritative requirements copy. A later change to `RESEARCH.md` must not override these requirements without an explicit drift warning and user-requested rebase/refinement.
+- Include ``Source: `<selected_research_path>` (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)`` so `/aif-implement`, `/aif-verify`, `/aif-improve`, and related consumers know the exact committed research revision
+- Compute the hash from the normalized copied Active Summary exactly as described in Step 0: remove HTML comment blocks, preserve line order and leading whitespace, trim trailing spaces from every line, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
+- Treat the copied `Research Context` as the plan-owned authoritative requirements copy. A later change to the selected `RESEARCH.md` must not override these requirements without an explicit drift warning and user-requested rebase/refinement.
 - Keep it compact; it should be readable as a one-screen requirements snapshot
 
-If the resolved research path exists but did not influence this plan, do not include `## Research Context`. An existing `RESEARCH.md` for topic A plus an explicit `/aif-plan` request for unrelated topic B must produce an unlinked plan for topic B.
+If research exists but did not influence this plan, do not include `## Research Context`. An existing `RESEARCH.md` for topic A plus an explicit `/aif-plan` request for unrelated topic B must produce an unlinked plan for topic B.
 
 Use the canonical template in `references/TASK-FORMAT.md` for fast/full.
 Use `references/ULTRA-FORMAT.md` for ultra and verify every Phase Index link,
