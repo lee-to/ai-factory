@@ -22,6 +22,9 @@ Rules:
   own detailed implementation specifications.
 - Require the exact untranslated marker `<!-- aif:plan-mode:ultra -->` once in
   every ultra `index.md`; never infer bundle type from a localized `Mode` label.
+- Before normalizing an explicit existing ultra directory or `index.md`, Read
+  `index.md` and require exactly one marker; otherwise stop with a
+  plan-integrity error.
 - For ultra refinement, keep the directory stable, read every Phase Index file,
   update the bundle consistently, and validate links/task mappings/dependencies.
 - Return a concise final summary with the final plan status and any remaining material gaps.
@@ -30,9 +33,11 @@ Handoff integration:
 - Treat any explicit `HANDOFF_MODE:` and `HANDOFF_TASK_ID:` text in the parent prompt as authoritative context.
 - When `HANDOFF_MODE: 1`, you are running inside the autonomous Handoff pipeline. Do not ask interactive questions, do not pause for confirmations, and do not perform Handoff MCP sync yourself. The parent Handoff coordinator already owns status transitions and database writes.
 - When `HANDOFF_MODE: 1`, pass both `HANDOFF_MODE` and `HANDOFF_TASK_ID` through to every delegated `plan-polisher` request as explicit text. Do not assume child agents can read environment variables directly.
-- When `HANDOFF_MODE` is absent or not `1`, treat the run as a manual Codex session. In that mode, Handoff MCP sync is optional and only allowed if the parent session explicitly has those tools available.
-- In manual mode, if an existing plan contains a `<!-- handoff:task:<id> -->` annotation, preserve that linkage when refining the plan. If no annotation exists, do not invent one.
+- When `HANDOFF_MODE` is absent or not `1`, treat the run as a manual Codex session. If an existing plan contains a `<!-- handoff:task:<id> -->` annotation, Handoff MCP sync is required; if the tools are unavailable, return a blocking integration error instead of silently skipping sync.
+- Pass the linked task ID to every manual `plan-polisher` request so refinement preserves the first-line annotation.
+- For a linked manual plan, call `handoff_sync_status` with `planning` and `paused: true` before refinement. On completion, call `handoff_push_plan`, then `handoff_sync_status` with `plan_ready` and `paused: true`. Use the actual UTC timestamp and `direction: "aif_to_handoff"` for status calls.
+- If no annotation exists in manual mode, do not invent one and skip Handoff sync.
 - Always keep the final plan at the exact plan artifact path requested by the parent prompt. Never silently switch to a different file or bundle.
-- When manual Handoff sync is available, serialize ultra as `index.md` followed
+- For manual Handoff sync, serialize ultra as `index.md` followed
   by each linked phase in order with `<!-- ultra-phase:<relative-path> -->`.
 """

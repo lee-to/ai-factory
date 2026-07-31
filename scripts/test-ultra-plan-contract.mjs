@@ -14,6 +14,12 @@ function isUltraIndex(content) {
   return content.split(/\r?\n/).filter(line => line.trim() === marker).length === 1;
 }
 
+function hasCanonicalUltraHeader(content) {
+  const lines = content.split(/\r?\n/);
+  return lines[0] === marker
+    || (/^<!-- handoff:task:[^>]+ -->$/.test(lines[0]) && lines[1] === marker);
+}
+
 function nextSequentialId(fullFiles, directoryIndexes) {
   const prefixes = [];
 
@@ -125,6 +131,11 @@ assert.equal(isUltraIndex('# План\nРежим: ultra\n'), false);
 assert.equal(isUltraIndex(`${marker}\n${marker}\n# Plan\n`), false);
 console.log('pass: localized ultra discovery uses the stable marker');
 
+assert.equal(hasCanonicalUltraHeader(`${marker}\n<!-- aif:archived:2026-07-31 -->\n# Plan\n`), true);
+assert.equal(hasCanonicalUltraHeader(`<!-- handoff:task:abc -->\n${marker}\n<!-- aif:archived:2026-07-31 -->\n# Plan\n`), true);
+assert.equal(hasCanonicalUltraHeader(`---\narchived: 2026-07-31\n---\n${marker}\n# Plan\n`), false);
+console.log('pass: archive metadata preserves the canonical ultra header');
+
 assert.equal(
   nextSequentialId(
     ['0002_existing.md'],
@@ -200,3 +211,18 @@ const commitSkill = read('skills/aif-commit/SKILL.md');
 assert(commitSkill.includes('`## Files to Change` table'));
 assert(commitSkill.includes('`## Task N` specifications'));
 console.log('pass: producer, consumers, runtime agents, and commit mapping share the ultra contract');
+
+const archiveSkill = read('skills/aif-archive/SKILL.md');
+assert(archiveSkill.includes('<!-- aif:archived:YYYY-MM-DD -->'));
+assert(archiveSkill.includes('Never prepend YAML or move the ultra marker'));
+
+const codexPolisher = read('subagents/codex/agents/plan-polisher.toml');
+assert(codexPolisher.includes('Omitting it is a contract violation'));
+
+for (const coordinator of [
+  'subagents/codex/agents/plan-coordinator.toml',
+  'subagents/codex/agents/implement-coordinator.toml',
+]) {
+  assert(read(coordinator).includes('Handoff MCP sync is required'));
+}
+console.log('pass: archive and Codex Handoff contracts remain explicit');

@@ -172,7 +172,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-plan fast` | Small tasks, quick fixes, experiments | No | `paths.plan` (default: `.ai-factory/PLAN.md`) |
 | `/aif-plan full` | Full features, stories, epics | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see [Plan Files](plan-files.md)) |
 | `/aif-plan ultra` | Large/cross-cutting work delegated from a strong planner to a smaller implementer | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<id>/index.md` + one detailed file per phase |
-| `/aif-plan full|ultra --parallel` | Concurrent features via worktrees | Yes + worktree (`git.enabled` + `git.create_branches`) | Autonomous end-to-end |
+| `/aif-plan full\|ultra --parallel` | Concurrent features via worktrees | Yes + worktree (`git.enabled` + `git.create_branches`) | Autonomous end-to-end |
 | `/aif-improve` | Refine plan before implementation | No | No (improves existing) |
 | `/aif-loop` | Iterative generation with quality gates and phase-based cycles | No | No (uses `paths.evolution`, default `.ai-factory/evolution/`) |
 | `/aif-reference` | Create knowledge refs from URLs/docs for AI agents | No | No (`paths.references`, default `.ai-factory/references/`) |

@@ -23,6 +23,8 @@ Rules:
   `*/index.md` is an ultra plan only when it contains the exact marker
   `<!-- aif:plan-mode:ultra -->`; unrelated
   directories must not affect plan discovery.
+- Before normalizing an explicit ultra directory or `index.md`, Read `index.md`
+  and require exactly one marker; otherwise stop with a plan-integrity error.
 - For ultra, normalize a directory to `index.md`, validate all Phase Index
   links and task mappings, read the complete phase file before each task, and
   update task progress only in `index.md`.
@@ -33,10 +35,10 @@ Handoff integration:
 - Treat any explicit `HANDOFF_MODE:`, `HANDOFF_TASK_ID:`, and `HANDOFF_SKIP_REVIEW:` text in the parent prompt as authoritative context.
 - When `HANDOFF_MODE: 1`, you are running inside the autonomous Handoff pipeline. Do not ask interactive questions, do not stop for confirmations, and do not perform Handoff MCP sync yourself. The parent Handoff coordinator already owns task status transitions and database writes.
 - In autonomous mode, pass `HANDOFF_MODE` and `HANDOFF_SKIP_REVIEW` through to every delegated `implement-worker` request as explicit text. Workers never own Handoff sync.
-- When `HANDOFF_MODE` is absent or not `1`, treat the run as a manual Codex session. In that mode, Handoff MCP sync is optional and only allowed if the parent session explicitly has those tools available.
-- In manual mode, if the plan entrypoint contains a `<!-- handoff:task:<id> -->` annotation, preserve the linked task identity through the run and only sync that task. If no annotation exists, skip Handoff sync.
-- In manual mode, any Handoff status sync must preserve the same semantics as Claude: `implementing` / `review` stay paused, and only `done` is unpaused.
+- When `HANDOFF_MODE` is absent or not `1`, treat the run as a manual Codex session. If the plan entrypoint contains a `<!-- handoff:task:<id> -->` annotation, Handoff MCP sync is required; if the tools are unavailable, return a blocking integration error instead of silently skipping sync.
+- For a linked manual plan, call `handoff_sync_status` with `implementing` and `paused: true` before dispatch. After each completed layer, call `handoff_push_plan`. On completion, push the final plan and sync `review` with `paused: true`, or `done` with `paused: false` when `HANDOFF_SKIP_REVIEW: 1`. Use the actual UTC timestamp and `direction: "aif_to_handoff"` for status calls.
+- If no annotation exists in manual mode, skip Handoff sync.
 - Always keep implementation scoped to the exact plan path and task identity provided by the parent prompt.
-- If manual plan sync is available, serialize ultra as `index.md` followed by
+- For manual Handoff sync, serialize ultra as `index.md` followed by
   each linked phase in order with `<!-- ultra-phase:<relative-path> -->`.
 """

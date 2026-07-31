@@ -106,9 +106,11 @@ Parsing rules:
 1. Check if `<paths.archive>/plans/` exists.
 2. If not: `Archive is empty. No plans have been archived yet.` → STOP.
 3. Glob root `<paths.archive>/plans/*.md` files and direct child
-   `<paths.archive>/plans/*/index.md` entrypoints containing
+   `<paths.archive>/plans/*/index.md` entrypoints containing exactly one
    `<!-- aif:plan-mode:ultra -->`.
-4. For each archived artifact, read entrypoint YAML frontmatter to extract `archived` date.
+4. For each archived artifact, extract its date from YAML frontmatter (full
+   plans) or `<!-- aif:archived:YYYY-MM-DD -->` immediately after the ultra
+   marker (`index.md`).
 5. Display:
    ```
    Archived plans (<paths.archive>/plans/):
@@ -242,20 +244,39 @@ For each plan artifact to archive:
      ```
    Do NOT overwrite in either case.
 
-3. **Move the complete source artifact** into the archive path first:
+3. **Validate an ultra bundle before moving it.** Read `index.md` and require:
+   - exactly one `<!-- aif:plan-mode:ultra -->`, as the first line or immediately
+     after an optional first-line `<!-- handoff:task:<id> -->`;
+   - a non-empty `## Phase Index`;
+   - every linked phase path is a direct child of the bundle and exists.
+
+   A malformed bundle is not safe to archive. STOP for a single plan, or emit
+   `WARN [aif-archive] skipped malformed ultra bundle: <filename>` and continue
+   in `--all` mode.
+
+4. **Move the complete source artifact** into the archive path first:
    ```bash
    mv <paths.plans>/<name> <paths.archive>/plans/<name>
    ```
    For ultra, `<name>` is the whole directory, so all linked phase files move
    together. This atomically removes the plan from active discovery.
 
-4. **Add archive metadata** to the moved entrypoint using `Edit` (`index.md` for
-   ultra, the moved plan file otherwise):
+5. **Add archive metadata** to the moved entrypoint using `Edit` (`index.md` for
+   ultra, the moved plan file otherwise).
 
-   If the file already has YAML frontmatter (between `---` markers at the top):
+   For ultra, preserve the canonical header and insert this comment immediately
+   after `<!-- aif:plan-mode:ultra -->`:
+   ```markdown
+   <!-- aif:archived:YYYY-MM-DD -->
+   ```
+   Never prepend YAML or move the ultra marker: it must remain the first line or
+   immediately after an optional first-line Handoff annotation.
+
+   For a full plan, if the file already has YAML frontmatter (between `---`
+   markers at the top):
    - Use `Edit` to add `archived: YYYY-MM-DD` field inside the existing frontmatter block.
 
-   If the file has no YAML frontmatter:
+   If the full plan has no YAML frontmatter:
    - Use `Edit` to prepend a minimal frontmatter block before the first line:
      ```yaml
      ---
@@ -266,9 +287,9 @@ For each plan artifact to archive:
    The original filename or directory name is preserved exactly, including any
    sequential `NNNN_` prefix.
 
-5. Logging: `INFO [aif-archive] archived: <filename> -> <paths.archive>/plans/<filename>`
+6. Logging: `INFO [aif-archive] archived: <filename> -> <paths.archive>/plans/<filename>`
 
-6. After all plans are processed, display summary:
+7. After all plans are processed, display summary:
    ```
    ## Archive Complete
 

@@ -83,7 +83,9 @@ iteration = 0
 # First pass: create the plan
 launch plan-polisher with the user's original request
 collect result → extract plan_path, needs_further_refinement, issues list
-verify plan artifact exists on disk (normalize a directory to index.md) — if missing, stop with error
+verify plan artifact exists on disk; before normalizing an existing directory or
+explicit index.md as ultra, read index.md and require exactly one
+<!-- aif:plan-mode:ultra --> marker — otherwise stop with a plan-integrity error
 
 # Refinement loop
 while needs_further_refinement == yes AND iteration < max_iterations:

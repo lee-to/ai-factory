@@ -126,7 +126,11 @@ Branch creation (full/ultra modes only):
 - The branch name is then used for the plan artifact path below.
 
 Plan artifact location (CRITICAL — do not deviate):
-- If the caller provided an explicit `@<path>` → use that exact markdown file, ultra directory, or ultra `index.md`; normalize a directory to `index.md`. This overrides mode-based rules.
+- If the caller provided an explicit `@<path>` → use that exact markdown file,
+  ultra directory, or ultra `index.md`. Before normalizing a directory or
+  treating an explicit `index.md` as ultra, Read it and require exactly one
+  `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
+  This overrides mode-based rules.
 - Derive the canonical stem exactly as `/aif-plan`: Handoff branch (slashes replaced) → created/current feature branch (slashes replaced) → description slug.
 - When `workflow.plan_id_format=sequential`, allocate the next four-digit prefix from root numbered full files and numbered directories whose `index.md` contains the exact ultra marker. Do not prefix Handoff-prepared artifacts.
 - **Handoff-prepared branch** (`HANDOFF_BRANCH_PREPARED = 1`) → full: `<resolved plans dir>/<stem>.md`; ultra: `<resolved plans dir>/<stem>/index.md`. Take the stem from `HANDOFF_BRANCH_NAME`, not from `git rev-parse`.

@@ -1281,7 +1281,7 @@ else
 fi
 
 if grep -Fq 'active plan contains `## Commit Plan`' "$WORKFLOW_DOC" \
-   && grep -Fiq 'unmapped staged files' "$WORKFLOW_DOC" \
+   && grep -Fq 'Unmapped staged files' "$WORKFLOW_DOC" \
    && grep -Fq 'staged-diff behavior unchanged' "$WORKFLOW_DOC" \
    && grep -Fq 'reads the relevant phase files' "$WORKFLOW_DOC" \
    && grep -Fq 'active plan `## Commit Plan`' "$SKILLS_DOC" \

@@ -31,7 +31,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
   Active values: `slug` and `sequential`. A root `*.md` is a named full plan
   unless it is the resolved fast/fix path; a direct child `*/index.md` is an
-  ultra bundle entrypoint only when it contains
+  ultra bundle entrypoint only when it contains exactly one
   `<!-- aif:plan-mode:ultra -->`. When `sequential`,
   search both `[0-9]{4}_<branch-slug>.md` and
   `[0-9]{4}_<branch-slug>/index.md`, then choose the highest prefix.
@@ -92,18 +92,25 @@ This step runs in the default (non-`--list`) mode and picks **one** plan artifac
 1. If `$ARGUMENTS` contains `@<path>`:
    - Resolve the path (relative to project root; absolute paths allowed)
    - Accept a markdown file, an ultra directory containing `index.md`, or that `index.md`
-   - Normalize an ultra directory to its entrypoint
    - If missing → show "Plan artifact not found: <path>" and STOP
+   - Before normalizing a directory or treating an explicit `index.md` as ultra,
+     Read `index.md` and require exactly one
+     `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error
 2. No explicit `@<path>` override → Check current git branch:
    git branch --show-current
    → Convert branch name to filename: replace "/" with "-" (this is <branch-slug>)
    → When `workflow.plan_id_format = sequential`, glob both:
      `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md`
      `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>/index.md`
-     Choose the highest-numbered artifact and emit
-     `WARN [aif-improve] multiple sequential plans...` when needed.
-   → Otherwise look for `<configured plans dir>/<branch-slug>/index.md` and
-     `<configured plans dir>/<branch-slug>.md`; if both exist, warn and prefer ultra.
+     Read every directory candidate and retain it only when `index.md` contains
+     exactly one `<!-- aif:plan-mode:ultra -->`. Choose the highest-numbered
+     valid artifact and emit `WARN [aif-improve]` when multiple valid candidates
+     exist; if both shapes share the highest prefix, prefer ultra.
+   → If no valid sequential match exists, or sequential mode is inactive, check
+     `<configured plans dir>/<branch-slug>/index.md` and
+     `<configured plans dir>/<branch-slug>.md`. Read the directory entrypoint
+     before selection and ignore it unless it contains exactly one ultra marker;
+     if both valid shapes exist, warn and prefer ultra.
    Example (slug):       feature/user-auth → .ai-factory/plans/feature-user-auth.md
    Example (sequential): feature/user-auth → .ai-factory/plans/0042_feature-user-auth.md
 3. If the branch-based plan is missing or git mode is off:
@@ -118,8 +125,9 @@ This step runs in the default (non-`--list`) mode and picks **one** plan artifac
 
 **Note:** Plan discovery scans `paths.plans/` only. Plans archived to `paths.archive/plans/` by `/aif-archive` are excluded from discovery.
 Any automatically discovered `*/index.md` candidate must be read before
-selection and ignored unless it contains `<!-- aif:plan-mode:ultra -->`. A marked ultra bundle
-with broken links is a blocking integrity error, not a fallback opportunity.
+selection and ignored unless it contains exactly one
+`<!-- aif:plan-mode:ultra -->`. A marked ultra bundle with broken links is a
+blocking integrity error, not a fallback opportunity.
 
 **If NO plan file found at any location:**
 

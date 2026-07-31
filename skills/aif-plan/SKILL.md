@@ -341,7 +341,8 @@ Format-specific handling:
 - `slug` (default) → no prefix.
 - `timestamp` / `uuid` → **reserved values; treat as `slug` for now.** Emit `INFO [aif-plan] workflow.plan_id_format=<value> is reserved and behaves like slug; numbering is not applied`. Do NOT invent a stem shape — branch-based consumers do not know how to discover non-`sequential` prefixes.
 - Unknown values → already handled in Step 0: emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`. Behaves like `slug` here.
-- `sequential` → apply the algorithm in 1.2.c to `plan_identifier`.
+- `sequential` → apply the algorithm in 1.2.c to `plan_file_stem` to produce
+  `plan_identifier`.
 
 Sequential is **force-disabled** when `HANDOFF_BRANCH_PREPARED = 1`. In that case keep the bare `plan_file_stem` and emit `INFO [aif-plan] sequential numbering disabled under HANDOFF_BRANCH_PREPARED=1`.
 
@@ -387,7 +388,7 @@ Implementation notes:
 - **Use `Glob` to enumerate candidates and `Read` to validate every numbered
   ultra candidate's marker.** Do NOT shell out to `ls` — `aif-plan`'s
   frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
-- The 4-digit `[0-9][0-9][0-9][0-9]` glob is **strict by contract**: the format supports `0001`..`9999` only. The error in step 3 enforces this.
+- The 4-digit `[0-9][0-9][0-9][0-9]` glob is **strict by contract**: the format supports `0001`..`9999` only. The error in step 4 enforces this.
 - **`--parallel` scope (TL;DR — source-worktree scoped):**
   - **Where the prefix is computed:** the source worktree's `<configured plans dir>`
     (the repo where `/aif-plan` was invoked) — i.e. exactly here, in Step 1.2.c.
@@ -684,14 +685,14 @@ Use `TaskUpdate` to set `blockedBy` relationships:
 - **Full mode** → `<configured plans dir>/<plan_identifier>.md`.
 - **Ultra mode** → `<configured plans dir>/<plan_identifier>/index.md` plus
   `phase-NN-<slug>.md` files in the same directory.
-- For `slug`, reserved `timestamp` / `uuid`, or the Handoff sequential override,
+- For `slug`, reserved `timestamp` / `uuid`, or Handoff-prepared branches,
   `plan_identifier = plan_file_stem`.
 - For active `sequential`, `plan_identifier = <NNNN>_<plan_file_stem>`.
 
 The `plan_file_stem` is **always** the canonical stem from Step 1.2.a (Handoff branch / git branch / description slug — in that order). Branch-based consumers reproduce the same stem at lookup time, so the producer must not deviate.
 
 Before writing any unprefixed full/ultra target (default/reserved slug behavior
-or the Handoff sequential override), check for the sibling representation
+or a Handoff-prepared branch), check for the sibling representation
 with the same stem: `<plan_identifier>.md` versus `<plan_identifier>/index.md`.
 If either already exists, do not silently create a second active representation
 or overwrite it. Ask the user to refine the existing plan, choose another

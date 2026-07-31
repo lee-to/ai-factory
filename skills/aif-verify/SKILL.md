@@ -34,7 +34,7 @@ Verify that the completed implementation matches the plan, nothing was missed, a
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery in Step 0.2.
   Active values: `slug` and `sequential`. Discovery treats root `*.md` files as
   full plans except the resolved fast/fix paths, and direct child `*/index.md`
-  files as ultra entrypoints only when they contain
+  files as ultra entrypoints only when they contain exactly one
   `<!-- aif:plan-mode:ultra -->`. When
   `sequential`, search both numbered shapes and choose the highest prefix.
   `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
@@ -84,11 +84,16 @@ Same logic as `/aif-implement` — produce the **canonical branch stem** before 
    → When `workflow.plan_id_format = sequential`, glob both
        <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>.md
        <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>/index.md
-     Choose the highest prefix across both; warn when multiple match.
+     Read every directory candidate and retain it only when `index.md` contains
+     exactly one <!-- aif:plan-mode:ultra -->. Choose the highest prefix across
+     valid artifacts and warn when multiple valid candidates exist; prefer ultra
+     if both shapes share the highest prefix.
    → Otherwise/fallback check the ultra entrypoint and full file:
        <configured plans dir>/<branch_stem>/index.md
        <configured plans dir>/<branch_stem>.md
-     If both exist, warn and prefer ultra.
+     Read the directory entrypoint before selection and ignore it unless it
+     contains exactly one <!-- aif:plan-mode:ultra -->. If both valid shapes
+     exist, warn and prefer ultra.
 4. If the branch-based plan is missing or git mode is off:
    → Count root `*.md` full plans and declared-ultra direct child `*/index.md`
      entrypoints as artifacts; exclude resolved fast/fix paths and do not count
@@ -121,6 +126,9 @@ Options:
   interfaces, edge cases, logging, acceptance criteria, and commands—not only
   the short checkbox text in `index.md`. A missing/broken/escaping phase link is
   a blocking plan-integrity failure because the committed specification is incomplete.
+- Cross-check every `Task N` in `index.md` against exactly one matching
+  `## Task N` section in its linked phase file. Unmapped tasks, duplicate task
+  sections, and unlinked `phase-*.md` files are blocking plan-integrity failures.
 - `TaskList` → get all tasks and their statuses
 - Read `.ai-factory/DESCRIPTION.md` (use path from config) for project context (tech stack, conventions)
 - Read `.ai-factory/ARCHITECTURE.md` (use path from config) for dependency and boundary rules (if present)

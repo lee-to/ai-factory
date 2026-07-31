@@ -159,8 +159,10 @@ At the start, read these files if present:
   Compute `branch_stem` as `git branch --show-current` with every `/` replaced by `-`
   (for example `feature/user-auth` → `feature-user-auth`).
   When `workflow.plan_id_format = sequential`, glob both the numbered full file
-  and numbered ultra `index.md`, pick the highest prefix, and fall back to the
-  unnumbered ultra entrypoint/full file when no numbered artifact exists.
+  and numbered ultra `index.md`; Read each directory candidate and retain it
+  only when it contains exactly one `<!-- aif:plan-mode:ultra -->`, then pick the
+  highest valid prefix. Fall back to the unnumbered entrypoint/full file only
+  after applying the same marker check to the directory.
 - the resolved ROADMAP.md path – strategic milestones (if any)
 
 This tells you:
@@ -197,11 +199,17 @@ If the user mentions a plan or you detect one is relevant:
      `branch_stem` = `git branch --show-current` with every `/` replaced by `-`
      (so `feature/user-auth` resolves to `feature-user-auth`).
      When `workflow.plan_id_format = sequential`, the file/directory identifier
-     has `<NNNN>_`; pick the highest-numbered artifact across both shapes.
+     has `<NNNN>_`; Read every directory candidate, retain it only when it
+     contains exactly one `<!-- aif:plan-mode:ultra -->`, then pick the
+     highest-numbered valid artifact across both shapes. If both shapes share
+     that prefix, warn and prefer ultra. For the unprefixed fallback, Read
+     `<configured plans dir>/<branch_stem>/index.md` before selection and ignore
+     it unless it contains exactly one ultra marker.
   - For ultra, read `index.md` first and only the linked phase files relevant
     to the current exploration question; phase files are not independent plans.
     Treat a discovered directory entrypoint as ultra only when it contains
-    `<!-- aif:plan-mode:ultra -->`; unrelated `*/index.md` files are not plan context.
+    exactly one `<!-- aif:plan-mode:ultra -->`; unrelated `*/index.md` files are
+    not plan context.
 
 2. **Reference it naturally in conversation**
    - "Your plan mentions adding Redis, but we just realized SQLite fits better..."
