@@ -21,15 +21,19 @@ The examples and output shapes in this reference define structure only. Render u
 3. **Check existence of every plan location below.** Use the path values resolved from `.ai-factory/config.yaml` (see Step 0 of `SKILL.md` for the defaults applied when the config file is missing):
 
    - `<configured plans dir>/<branch-slug>.md` and
-     `<configured plans dir>/<branch-slug>/index.md`.
+     `<configured plans dir>/<branch-slug>/index.md`. Read the directory
+     entrypoint and treat it as available only when it contains exactly one
+     `<!-- aif:plan-mode:ultra -->`.
    - When `workflow.plan_id_format = sequential`, additionally glob both
      `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>.md` and
      `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-slug>/index.md`;
-     report all matches with the highest-numbered match first.
+     Read every directory entrypoint, discard those without exactly one ultra
+     marker, and report all remaining matches with the highest-numbered match
+     first.
    - If git mode is off or branch creation is disabled, list every root `*.md`
-     full plan and every direct child `*/index.md` entrypoint containing
-     `<!-- aif:plan-mode:ultra -->`. Exclude the resolved fast/fix plan paths and do not list
-     ultra phase files independently.
+     full plan and every direct child `*/index.md` entrypoint containing exactly
+     one `<!-- aif:plan-mode:ultra -->`. Exclude the resolved fast/fix plan paths
+     and do not list ultra phase files independently.
    - The resolved fast plan path (`paths.plan`).
    - The resolved fix plan path (`paths.fix_plan`).
 

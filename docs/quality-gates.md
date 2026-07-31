@@ -1,4 +1,4 @@
-[Back to README](../README.md) · [Development Workflow](workflow.md) · [Core Skills](skills.md)
+[← Core Skills](skills.md) · [Back to README](../README.md) · [Skill Evolution →](evolve.md)
 
 # Quality Gates
 

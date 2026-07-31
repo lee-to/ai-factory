@@ -1353,7 +1353,7 @@ else
 fi
 
 if grep -Fq 'active plan contains `## Commit Plan`' "$WORKFLOW_DOC" \
-   && grep -Fiq 'unmapped staged files' "$WORKFLOW_DOC" \
+   && grep -Fq 'Unmapped staged files' "$WORKFLOW_DOC" \
    && grep -Fq 'staged-diff behavior unchanged' "$WORKFLOW_DOC" \
    && grep -Fq 'reads the relevant phase files' "$WORKFLOW_DOC" \
    && grep -Fq 'active plan `## Commit Plan`' "$SKILLS_DOC" \
@@ -1777,6 +1777,9 @@ else
     echo "$CONFIG_HELPER_OUTPUT" | sed 's/^/      /'
 fi
 
+# ───────────────────────────────────────────
+# Part 7: Update command smoke tests
+# ───────────────────────────────────────────
 echo -e "\n${BOLD}=== Update command smoke tests ===${NC}\n"
 
 set +e
@@ -1809,7 +1812,7 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Part 8: aif-qa skill smoke tests
+# Part 9: Extension and QA smoke tests
 # ─────────────────────────────────────────────
 echo -e "\n${BOLD}=== Extension resolver unit tests ===${NC}\n"
 

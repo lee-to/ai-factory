@@ -66,15 +66,23 @@ If any rule is violated — fix the output before presenting it to the user.
      - when `workflow.plan_id_format = sequential`, use `Glob` for both
        `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>.md` and
        `paths.plans/[0-9][0-9][0-9][0-9]_<branch-stem>/index.md`
-     - if multiple sequential matches exist, use the highest-numbered artifact and emit `WARN [aif-commit] multiple sequential plans for <branch>: <list>; using <chosen>`
-     - if no sequential match exists, check
+     - Read every directory candidate and retain it only when `index.md`
+       contains exactly one `<!-- aif:plan-mode:ultra -->`
+     - use the highest-numbered valid artifact and emit `WARN [aif-commit]` when
+       multiple valid candidates exist; if both shapes share the highest prefix,
+       prefer ultra
+     - if no valid sequential match exists, check
        `paths.plans/<branch-stem>/index.md` then
-       `paths.plans/<branch-stem>.md`; warn and prefer ultra if both exist
+       `paths.plans/<branch-stem>.md`; Read the directory entrypoint before
+       selection, ignore it unless it contains exactly one ultra marker, and
+       warn and prefer ultra if both valid shapes exist
    - If git mode is off, branch lookup cannot resolve, or no branch-based plan
      exists, count root `*.md` full plans plus direct child `*/index.md`
      entrypoints containing `<!-- aif:plan-mode:ultra -->`; exclude the resolved fast-plan
      path and do not count phase files.
-   - An explicit ultra directory normalizes to its `index.md`.
+   - Before normalizing an explicit ultra directory or treating an explicit
+     `index.md` as ultra, Read it and require exactly one
+     `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
    - An automatically discovered directory entrypoint counts only when it
      contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
    - If no active plan resolves or the active plan entrypoint has no `## Commit Plan`, keep current staged-diff behavior unchanged.

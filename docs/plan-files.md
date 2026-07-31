@@ -63,7 +63,9 @@ paths.plans/<plan>/    →  (index tasks [x]) → paths.archive/plans/<plan>/
 ```
 
 - Original file/directory names are preserved (including sequential `NNNN_` prefix)
-- An `archived: YYYY-MM-DD` field is added to the plan entrypoint's YAML frontmatter
+- Full plans receive `archived: YYYY-MM-DD` in YAML frontmatter; ultra
+  entrypoints receive `<!-- aif:archived:YYYY-MM-DD -->` immediately after the
+  stable ultra marker
 - Archived plans are excluded from plan discovery by `/aif-implement`, `/aif-verify`, `/aif-improve`
 - Sequential numbering counts active full files and marked ultra directories in `paths.plans/`, not unrelated numbered directories or the archive
 

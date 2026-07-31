@@ -1,4 +1,4 @@
-[← Core Skills](skills.md) · [Back to README](../README.md) · [Plan Files →](plan-files.md)
+[← Quality Gates](quality-gates.md) · [Back to README](../README.md) · [Plan Files →](plan-files.md)
 
 # Skill Evolution
 

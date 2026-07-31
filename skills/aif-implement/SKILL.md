@@ -56,8 +56,9 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
      Active values: `slug` and `sequential`. Discovery treats a root `*.md` as
      a full plan unless it is the resolved `paths.plan` or `paths.fix_plan`.
      Treat a direct child `*/index.md` as an ultra bundle only after reading it
-     and confirming that it contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated
-     directories and never count phase files independently.
+     and confirming that it contains exactly one
+     `<!-- aif:plan-mode:ultra -->`; ignore unrelated directories and never count
+     phase files independently.
      When `sequential`, resolve both
      `<paths.plans>/[0-9]{4}_<branch-slug>.md` and
      `<paths.plans>/[0-9]{4}_<branch-slug>/index.md`, then choose the
@@ -86,11 +87,14 @@ If `$ARGUMENTS` contains `--list`, run read-only plan discovery and stop.
 2. Convert branch to canonical stem: replace "/" with "-" (git mode only)
 3. Check existence of:
    - <configured plans dir>/<branch-stem>.md and
-     <configured plans dir>/<branch-stem>/index.md (git mode only)
+     <configured plans dir>/<branch-stem>/index.md (git mode only); Read the
+     directory entrypoint and report it only when it contains exactly one
+     `<!-- aif:plan-mode:ultra -->`
    - when `workflow.plan_id_format = sequential`: also glob
      `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-stem>.md` and
      `<configured plans dir>/[0-9][0-9][0-9][0-9]_<branch-stem>/index.md`;
-     report all matches (highest-numbered first)
+     Read every directory entrypoint, discard those without exactly one marker,
+     and report all valid matches (highest-numbered first)
    - if git mode is off or branch creation is disabled: any root `*.md` full
      plan or declared-ultra direct child `*/index.md` entrypoint in
      `<configured plans dir>/`; exclude the resolved fast/fix plan paths
@@ -432,11 +436,14 @@ Normalize every selected artifact to:
 
 1. Resolve the path relative to project root (absolute paths are also valid).
 2. Accept an existing markdown file, an ultra directory containing `index.md`,
-   or that ultra bundle's `index.md`. Normalize a directory to its `index.md`.
+   or that ultra bundle's `index.md`.
 3. If neither representation exists, report the missing path with examples for
    a fast file, full file, and ultra directory, then STOP.
-4. If the selected file is `paths.fix_plan`, invoke `/aif-fix` and STOP.
-5. Otherwise use it and skip automatic discovery.
+4. Before normalizing a directory or treating an explicit `index.md` as ultra,
+   Read `index.md` and require exactly one
+   `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
+5. If the selected file is `paths.fix_plan`, invoke `/aif-fix` and STOP.
+6. Otherwise use it and skip automatic discovery.
 
 **Without an explicit override, resolve in this order:**
 
@@ -446,12 +453,18 @@ Normalize every selected artifact to:
    b. For workflow.plan_id_format=sequential, glob both:
         <paths.plans>/[0-9][0-9][0-9][0-9]_<branch-stem>.md
         <paths.plans>/[0-9][0-9][0-9][0-9]_<branch-stem>/index.md
-      Choose the highest numeric prefix across both shapes. If multiple
-      candidates remain, emit WARN [aif-implement] and name the chosen artifact.
-   c. Otherwise/fallback check:
+      Read every directory candidate and retain it only when `index.md` contains
+      exactly one <!-- aif:plan-mode:ultra -->. Choose the highest numeric prefix
+      across valid artifacts. If multiple valid candidates exist, emit
+      WARN [aif-implement] and name the chosen artifact; if both shapes share
+      the highest prefix, prefer ultra.
+   c. If no valid sequential candidate exists, or sequential mode is inactive,
+      check:
         <paths.plans>/<branch-stem>/index.md
         <paths.plans>/<branch-stem>.md
-      If both exist, emit WARN and prefer the ultra entrypoint.
+      Read the directory entrypoint before selection and ignore it unless it
+      contains exactly one <!-- aif:plan-mode:ultra -->. If both valid shapes
+      exist, emit WARN and prefer the ultra entrypoint.
 2. If no branch artifact resolves, count active named artifacts as:
      - each root <paths.plans>/*.md file except resolved paths.plan and paths.fix_plan
      - each direct child <paths.plans>/*/index.md containing <!-- aif:plan-mode:ultra -->
@@ -468,10 +481,10 @@ excluded.
 
 **Read the selected artifact:**
 
-- If an automatically discovered directory entrypoint does not contain
-  `<!-- aif:plan-mode:ultra -->`, it is not an AI Factory plan. Ignore it and
-  continue discovery. If it contains the marker but its Phase Index is malformed, STOP with a
-  plan-integrity error instead of falling back to another plan.
+- If an automatically discovered directory entrypoint does not contain exactly
+  one `<!-- aif:plan-mode:ultra -->`, it is not an AI Factory plan. Ignore it and
+  continue discovery. If it contains the marker but its Phase Index is malformed,
+  STOP with a plan-integrity error instead of falling back to another plan.
 - Always read `plan_entrypoint` completely.
 - If it is ultra (contains `<!-- aif:plan-mode:ultra -->`),
   validate every relative Phase Index link, reject paths escaping the bundle,

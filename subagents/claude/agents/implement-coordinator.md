@@ -78,11 +78,18 @@ The user may provide:
    `paths.plans`, `paths.fix_plan`, `workflow.plan_id_format`, and git settings.
    Locate the active plan using the exact `/aif-implement` priority:
    a. If the user provided `@<path>`, accept a markdown file, ultra directory,
-      or ultra `index.md`; normalize a directory to `index.md`.
+      or ultra `index.md`. Before normalizing a directory or treating an
+      explicit `index.md` as ultra, Read it and require exactly one
+      `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
    b. Derive the current branch stem by replacing `/` with `-`. Under
       `sequential`, glob both `[0-9]{4}_<stem>.md` and
-      `[0-9]{4}_<stem>/index.md`, choosing the highest prefix. Otherwise check
-      `<stem>/index.md` and `<stem>.md`, preferring declared ultra if both exist.
+      `[0-9]{4}_<stem>/index.md`; Read every directory candidate, retain only
+      those with exactly one ultra marker, and choose the highest valid prefix.
+      Warn when multiple valid candidates exist, preferring ultra if both shapes
+      share the highest prefix. If none resolve,
+      or sequential mode is inactive, check `<stem>/index.md` and `<stem>.md`;
+      Read the directory entrypoint first and prefer it only when it contains
+      exactly one marker.
    c. If no branch artifact exists, count named root full files and direct child
       `*/index.md` files containing `<!-- aif:plan-mode:ultra -->`; exclude resolved fast/fix
       paths and never count phase files. Use it only when exactly one exists.
