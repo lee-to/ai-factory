@@ -1,4 +1,4 @@
-[← Development Workflow](workflow.md) · [Back to README](../README.md) · [Skill Evolution →](evolve.md)
+[← Subagents](subagents.md) · [Back to README](../README.md) · [Quality Gates →](quality-gates.md)
 
 # Core Skills
 
@@ -535,7 +535,8 @@ Archives completed plans and trims closed roadmap milestones:
 - Reads `.ai-factory/config.yaml` for `paths.plans`, `paths.archive`, `paths.plan`, `paths.fix_plan`, `paths.roadmap`, `workflow.plan_id_format`, and `language.ui`
 - A plan is "completed" when all checkboxes in its entrypoint `## Tasks` section are `- [x]`
 - Preserves original full filenames or ultra directory names when moving to archive
-- Adds `archived: YYYY-MM-DD` to the plan entrypoint's YAML frontmatter
+- Adds `archived: YYYY-MM-DD` to full-plan YAML frontmatter or
+  `<!-- aif:archived:YYYY-MM-DD -->` after the stable marker in ultra `index.md`
 - Archived plans are excluded from plan discovery by `/aif-implement`, `/aif-verify`, `/aif-improve`
 - Does not touch fast plans (`paths.plan`) or fix plans (`paths.fix_plan`)
 - `--roadmap` creates a dated snapshot under `paths.archive/roadmap/` and removes closed milestones from the source roadmap (with confirmation)

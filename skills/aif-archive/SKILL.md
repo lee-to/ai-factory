@@ -336,7 +336,8 @@ When displaying "completed" dates in interactive mode:
 1. **Never archive incomplete plans** — all tasks must be `- [x]`
 2. **Always ask confirmation** before `--all` and `--roadmap` operations
 3. **Preserve original file/directory names** — including sequential `NNNN_` prefix
-4. **Add archive metadata** — `archived: YYYY-MM-DD` in YAML frontmatter
+4. **Add archive metadata** — YAML frontmatter for full plans; the stable
+   `<!-- aif:archived:YYYY-MM-DD -->` comment after the ultra marker for bundles
 5. **Do not modify fast plans** (`paths.plan`) or fix plans (`paths.fix_plan`) —
    those are single-file artifacts managed by `/aif-implement` and `/aif-fix`
 6. **Do not count archived plans for sequential numbering** — archived plans

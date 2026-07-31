@@ -1705,6 +1705,9 @@ else
     echo "$CONFIG_HELPER_OUTPUT" | sed 's/^/      /'
 fi
 
+# ───────────────────────────────────────────
+# Part 7: Update command smoke tests
+# ───────────────────────────────────────────
 echo -e "\n${BOLD}=== Update command smoke tests ===${NC}\n"
 
 set +e
@@ -1737,7 +1740,7 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# Part 8: aif-qa skill smoke tests
+# Part 9: Extension and QA smoke tests
 # ─────────────────────────────────────────────
 echo -e "\n${BOLD}=== Extension resolver unit tests ===${NC}\n"
 
