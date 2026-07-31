@@ -24,6 +24,10 @@ Rules:
 - For an explicit existing ultra directory or `index.md`, Read `index.md` and
   require exactly one `<!-- aif:plan-mode:ultra -->` before refinement;
   otherwise stop with a plan-integrity error.
+- Before research lookup, resolve `paths.research` from `.ai-factory/config.yaml`
+  and derive its sibling `research/` root. Treat a direct child as an ultra
+  research bundle only when `INDEX.md` has the exact research marker once and
+  links its `RESEARCH.md` from `## Artifact Index`.
 - Preserve the exact untranslated `<!-- aif:plan-mode:ultra -->` marker once in
   ultra `index.md`, immediately after an optional first-line Handoff annotation.
 - Keep output short, concrete, and findings-first.

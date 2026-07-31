@@ -738,6 +738,7 @@ RESEARCH_DOC="$ROOT_DIR/docs/research.md"
 PLAN_FILES_DOC="$ROOT_DIR/docs/plan-files.md"
 GETTING_STARTED_DOC="$ROOT_DIR/docs/getting-started.md"
 PLAN_POLISHER="$ROOT_DIR/subagents/claude/agents/plan-polisher.md"
+CODEX_PLAN_POLISHER="$ROOT_DIR/subagents/codex/agents/plan-polisher.toml"
 MODE1_SECTION="$(awk '
     /^### Mode 1: Analyze Existing Project$/ { capture=1 }
     capture { print }
@@ -920,7 +921,9 @@ if grep -Fq '│   ├── research/              # Explicit ultra research bu
    && grep -Fq 'paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle' "$PLAN_FILES_DOC" \
    && grep -Fq 'compatibility is the documented exception:' "$RESEARCH_DOC" \
    && grep -Fq '[Research and System Analysis](research.md) — persist adaptive research before planning' "$GETTING_STARTED_DOC" \
-   && grep -Fq 'Resolve `paths.research` from `.ai-factory/config.yaml` before research lookup' "$PLAN_POLISHER"; then
+   && grep -Fq 'Resolve `paths.research` from `.ai-factory/config.yaml` before research lookup' "$PLAN_POLISHER" \
+   && grep -Fq 'resolve `paths.research` from `.ai-factory/config.yaml`' "$CODEX_PLAN_POLISHER" \
+   && grep -Fq 'links its `RESEARCH.md` from `## Artifact Index`' "$CODEX_PLAN_POLISHER"; then
     pass "research docs and planner context match the config-aware bundle contract"
 else
     fail "research docs or planner config contract missing"
