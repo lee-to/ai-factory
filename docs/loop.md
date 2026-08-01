@@ -44,8 +44,9 @@ Before iteration 1, `/aif-loop new` must always ask for explicit user confirmati
 
 1. Success criteria (rules + thresholds)
 2. Max iterations (`run.json.max_iterations`)
+3. The completed-phase time budget (`run.json.max_completed_phase_seconds`) whenever the drafted value is not `none` — `none` is always offered as an option
 
-This confirmation is mandatory even when the task prompt already contains criteria and an iteration count. The loop must not start until both are confirmed.
+This confirmation is mandatory even when the task prompt already contains criteria, an iteration count, or a duration. The loop must not start until they are confirmed. A domain-level timeout in the task text ("request timeout 5 seconds") is not a loop budget — a budget is inferred only when the text says the limit applies to running `/aif-loop` itself.
 
 ## Persistence Model
 
@@ -84,9 +85,9 @@ Single source of truth for current state:
   "status": "running",
   "iteration": 1,
   "max_iterations": 4,
-  "max_active_seconds": null,
-  "active_seconds": 0,
-  "phase_started_at": null,
+  "max_completed_phase_seconds": null,
+  "completed_phase_seconds": 0,
+  "phase_started_epoch_seconds": null,
   "phase": "A",
   "current_step": "PLAN",
   "task": {
@@ -214,28 +215,44 @@ Pre-built rule sets for common task types (API spec, code generation, documentat
 
 ## Stop Conditions
 
-Loop stops when any of the following is true:
+### Precedence contract
 
-1. `phase=B` and threshold passed (`threshold_reached`)
-2. no `fail`-severity rules failed in current evaluation (`no_major_issues`) — only `warn`/`info` remain
-3. iteration limit reached (`iteration_limit`)
-4. user requested stop (`user_stop`)
-5. stagnation detected (`stagnation`)
-6. active-time budget exhausted (`budget_exceeded`) — only when `max_active_seconds` is set
+More than one condition can hold at the same phase boundary. The numbered order below is a **tie-break**, not a list of independent checks: evaluate top-down, and the first match becomes `stop.reason`. Completion guards precede resource guards, so a successful run is never relabelled `stopped` because a resource ran out in the same breath.
 
-Default iteration limit is `4` (`run.json.max_iterations` is the single source of truth). The active-time budget has no default: `run.json.max_active_seconds` is optional, and `null` or a missing field means no limit — run files created before the field existed behave unchanged.
+1. `threshold_reached` — `phase=B` and threshold passed
+2. `no_major_issues` — no `fail`-severity rules failed in current evaluation; only `warn`/`info` remain
+3. `user_stop` — user requested stop
+4. `stagnation` — stagnation detected (`stagnation_count >= 2`)
+5. `budget_exceeded` — completed-phase budget exhausted, only when `max_completed_phase_seconds` is set
+6. `iteration_limit` — iteration limit reached
 
-### Active-Time Budget
+`budget_exceeded` outranks `iteration_limit` deliberately — time is an irreversibly spent external resource, so naming the budget is more useful when both trip. This exact order is repeated in `skills/aif-loop/SKILL.md` Step 5 and `subagents/claude/agents/loop-orchestrator.md`; all three must stay in sync.
 
-`max_active_seconds` caps **active** working time, measured at phase boundaries with `date +%s` — there are no background timers:
+Default iteration limit is `4` (`run.json.max_iterations` is the single source of truth). The time budget has no default: `run.json.max_completed_phase_seconds` is optional, and `null` or a missing field means no limit — run files created before the field existed behave unchanged.
 
-- before a phase starts: if `active_seconds >= max_active_seconds`, the loop stops with `budget_exceeded` instead of starting it; otherwise `phase_started_at` is set to the current epoch and persisted
-- after a phase completes: `active_seconds += now - phase_started_at`, `phase_started_at` resets to `null`, and the cap is re-checked
-- the parallel `PRODUCE||PREPARE` pair counts as one wall-clock segment, not a per-task sum
+### Simultaneous conditions
+
+| Conditions true at the same boundary | `stop_reason` | `run.json` status |
+|--------------------------------------|---------------|-------------------|
+| `threshold_reached` + `budget_exceeded` | `threshold_reached` | `completed` |
+| `no_major_issues` + `budget_exceeded` | `no_major_issues` | `completed` |
+| `iteration_limit` + `budget_exceeded` | `budget_exceeded` | `stopped` |
+| `stagnation` + `budget_exceeded` | `stagnation` | `stopped` |
+| `user_stop` + any other | `user_stop` | `stopped` |
+
+### Completed-Phase Time Budget
+
+`max_completed_phase_seconds` caps time spent inside **completed** phase segments, measured at phase boundaries with `date +%s` — there are no background timers:
+
+- before a phase starts: if `completed_phase_seconds >= max_completed_phase_seconds`, the loop stops with `budget_exceeded` instead of starting it; otherwise `phase_started_epoch_seconds` is set to the current epoch and persisted
+- after a phase completes: `completed_phase_seconds += max(0, now - phase_started_epoch_seconds)`, `phase_started_epoch_seconds` resets to `null`, and the cap is re-checked
+- the `PRODUCE_PREPARE` pair is one segment — parallel or sequential fallback alike, never a per-task sum
 
 The limit is **soft**: it is only evaluated at phase boundaries and never interrupts a running phase or its `Task` subagents. A run may overshoot the cap by up to the duration of the in-flight phase — expected behavior, not an error.
 
-Idle time never counts. `active_seconds` grows only by completed working segments, and resume discards a stale `phase_started_at` (re-set when the interrupted phase actually re-runs), so time a loop spends interrupted on disk costs nothing.
+Only completed segments count. An interrupted phase contributes nothing at all, and idle time never counts — so a repeatedly interrupted loop can spend real time without moving `completed_phase_seconds`. That is the contract, stated openly: precise accounting needs internal checkpoints that do not exist at the skill level.
+
+Field types, invariants, clock-rollback handling, diagnostics and setup rules: `skills/aif-loop/references/ACTIVE-TIME-BUDGET.md`.
 
 ### Stop Reason → Status Mapping
 
@@ -264,6 +281,8 @@ If stop reason is `iteration_limit` or `budget_exceeded` and latest evaluation i
 2. numeric gap to threshold (`threshold - score`, floor `0`)
 3. remaining failed `fail`-severity rule count and blocking rule IDs
 4. rules progress (`passed_rules / total_rules`)
+
+If stop reason is `budget_exceeded`, the summary and the `stopped` event payload additionally carry `completed_phase_seconds`, `max_completed_phase_seconds`, `overshoot_seconds`, and `last_completed_step`.
 
 ### Stagnation Rule
 

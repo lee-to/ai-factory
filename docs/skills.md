@@ -149,9 +149,9 @@ Runs a strict iterative Reflex Loop with phase-based execution and quality gates
   - `<alias>/artifact.md` (latest artifact output)
 - `list` shows all loop runs, `history` shows event timeline, `clean` removes stopped/completed/failed loop runs
 - Default `max_iterations` is `4`
-- Optional active-time budget: `run.json.max_active_seconds` (default: none) stops the loop with `budget_exceeded` once accumulated active time crosses the cap. The limit is soft — checked only at phase boundaries, it never interrupts a running phase — and idle time between sessions is not counted on resume
-- Before iteration 1, always explicitly confirms success criteria and max iterations with the user (even if already provided in task text)
-- Stops on threshold reached, no major issues, iteration limit, active-time budget, stagnation, or explicit user stop
+- Optional completed-phase time budget: `run.json.max_completed_phase_seconds` (default: none) stops the loop with `budget_exceeded` once time from completed phase segments crosses the cap. The limit is soft — checked only at phase boundaries, it never interrupts a running phase — and only completed segments count, so interrupted phases and idle time add nothing
+- Before iteration 1, always explicitly confirms success criteria, max iterations, and a non-`none` time budget with the user (even if already provided in task text)
+- Stop conditions follow a fixed precedence contract — `threshold_reached`, `no_major_issues`, `user_stop`, `stagnation`, `budget_exceeded`, `iteration_limit` — so completion always outranks a resource guard that trips at the same boundary
 - If stopped by `iteration_limit` or `budget_exceeded` with unmet criteria, final summary includes distance-to-success (threshold gap + remaining fail-rule blockers)
 - Full protocol and schemas: [Reflex Loop](loop.md)
 

@@ -300,15 +300,15 @@ Creates/loads configured `paths.evolution/current.json`
     ↓
 Creates/loads configured `paths.evolution/<alias>/run.json` + `history.jsonl` + `artifact.md`
     ↓
-Always asks explicit confirmation for success criteria and max iterations before iteration 1 (even if included in task prompt)
+Always asks explicit confirmation for success criteria, max iterations, and a non-`none` time budget before iteration 1 (even if included in task prompt)
     ↓
 Runs 6 phases: PLAN → PRODUCE||PREPARE → EVALUATE → CRITIQUE → REFINE
     ↓
 PRODUCE and PREPARE run in parallel (Task tool); EVALUATE runs check groups in parallel
     ↓
-Stops on: quality threshold, no major issues, stagnation, or max iterations (default 4)
+Stops by a fixed precedence contract: threshold_reached → no_major_issues → user_stop → stagnation → budget_exceeded → iteration_limit (default 4); completion always outranks a resource guard tripping at the same boundary
     ↓
-If stopped by max iterations without meeting criteria, final summary shows distance-to-success (score/threshold gap + remaining blocking fail rules)
+If stopped by max iterations or the optional completed-phase time budget without meeting criteria, final summary shows distance-to-success (score/threshold gap + remaining blocking fail rules), plus budget diagnostics when the stop reason is budget_exceeded
 
 /aif-implement
     ↓

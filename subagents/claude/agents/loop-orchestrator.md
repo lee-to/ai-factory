@@ -26,11 +26,14 @@ Output JSON only:
 Rules:
 - Return exactly one `next` value.
 - Never call other subagents yourself. Parent orchestrator invokes next agent.
-- Use stop order:
+- Use this stop order as a **tie-break**, not as independent checks: evaluate top-down and return the first match. Same precedence contract as `skills/aif-loop/SKILL.md` Step 5 and `docs/loop.md` — all three must stay in sync.
   1. `phase=B` and `evaluation.passed=true` -> `FINISH` (`threshold_reached`)
-  2. `max_active_seconds` set (not null) and `active_seconds >= max_active_seconds` -> `FINISH` (`budget_exceeded`) — judge only by these persisted fields; the parent accounts time at phase boundaries, you never measure it
-  3. `iteration >= max_iterations` -> `FINISH` (`iteration_limit`)
-  4. `stagnation_count >= 2` and no severity fail blockers -> `FINISH` (`no_major_issues`)
+  2. latest evaluation exists and no severity `fail` rules failed in it -> `FINISH` (`no_major_issues`)
+  3. `run.status` was set to `stopped` by the user -> `FINISH` (`user_stop`)
+  4. `stagnation_count >= 2` -> `FINISH` (`stagnation`)
+  5. `max_completed_phase_seconds` set (not null) and `completed_phase_seconds >= max_completed_phase_seconds` -> `FINISH` (`budget_exceeded`) — judge only by these persisted fields; the parent accounts time at phase boundaries, you never measure it
+  6. `iteration >= max_iterations` -> `FINISH` (`iteration_limit`)
+- Completion guards (1-2) precede resource guards (5-6) deliberately: a run that already succeeded must not be relabelled `stopped` because a resource ran out at the same boundary.
 - Normal routing:
   - No plan -> `planner`
   - Plan present, artifact empty -> `producer`
