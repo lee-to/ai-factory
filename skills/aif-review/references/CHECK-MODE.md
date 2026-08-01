@@ -1,6 +1,6 @@
 # `+check` validation procedure
 
-This file describes the optional findings-validation pass that runs when `aif-review` is invoked with the `+check` flag. The parent skill defers to this document so the main `SKILL.md` stays focused on the default review workflow; `+check` is opt-in and most invocations do not need it.
+This file describes the findings-validation pass. It runs when `aif-review` is invoked with the `+check` flag, and automatically when a review produced at least one confidence marker (`SKILL.md`, "Resolving markers before the gate"). The parent skill defers to this document so the main `SKILL.md` stays focused on the default review workflow; for marker-free reviews the flag remains opt-in and most invocations dispatch nothing.
 
 The two severity levels — **critical** (merge-blocking) and **suggestion** (non-blocking) — and the rules for moving an item between them are defined in `SEVERITY.md` next to this file. Do not redefine severity here.
 
@@ -8,7 +8,7 @@ The two severity levels — **critical** (merge-blocking) and **suggestion** (no
 
 After the full review is produced internally (all sections, including the gate result inputs) but **before** anything is rendered to the user. The validator only adjusts which items reach the user and what the final `aif-gate-result` block reports.
 
-If `+check` is not set, skip this entire procedure — render the review as-is, with no validator-related lines in the output. The validator receives exactly one class of item: actionable code findings, which live in "Critical Issues" and "Suggestions". "Questions", "Positive Notes", the "Context Gates" block, and commit-structure findings in commits mode (see Procedure step 1) are NOT validated even when `+check` is set — the validator judges items against the reviewed diff, which is not evidence for context-gate or per-commit claims. That class table, and the rule that an actionable code finding is never rendered outside the two validated sections, live in `SKILL.md` ("Findings taxonomy and the validation boundary").
+If `+check` is not set **and** the drafted review contains no `(confidence: low)` / `(confidence: medium)` marker, skip this entire procedure — render the review as-is, with no validator-related lines in the output. If markers are present, run the procedure even without the flag: the gate cannot be published while a marker is unresolved. The validator receives exactly one class of item: actionable code findings, which live in "Critical Issues" and "Suggestions". "Questions", "Positive Notes", the "Context Gates" block, and commit-structure findings in commits mode (see Procedure step 1) are NOT validated even when `+check` is set — the validator judges items against the reviewed diff, which is not evidence for context-gate or per-commit claims. That class table, and the rule that an actionable code finding is never rendered outside the two validated sections, live in `SKILL.md` ("Findings taxonomy and the validation boundary").
 
 ## Procedure
 
@@ -28,13 +28,16 @@ If `+check` is not set, skip this entire procedure — render the review as-is, 
 
    Reclassified items (target ≠ original) are rendered with a short suffix appended to the item text so the user understands the move: ` [+check: promoted from Suggestions]` or ` [+check: demoted from Critical Issues]`. The suffix is added by the main skill, not by the validator.
 
-   **Confidence markers.** A confirmed marked item loses its marker through `Modified-text` — `VALIDATOR.md` requires `modify` for exactly that reason. If the validator nevertheless returns `keep` for an item carrying a `(confidence: low)` / `(confidence: medium)` marker, keep the text verbatim as the verdict says: the marker survives and the item stays an unverified finding for the gate projection. Do not strip the marker yourself — the item was not confirmed through the contract, and silently unmarking it would present an unverified claim as verified.
+   **Confidence markers.** A confirmed marked item loses its marker through `Modified-text` — `VALIDATOR.md` requires `modify` for exactly that reason. A response that leaves the marker in place violates the marked-item contract and is handled as a malformed per-item response (see "Failure modes"), not as a normal outcome. Never strip a marker yourself: the item was not confirmed through the contract, and silently unmarking it would present an unverified claim as verified.
+
+   **Post-condition of a successful pass.** After a pass that had no whole-dispatch failure, every input marked item has been either removed via `drop` or returned via `modify` without its marker. No confidence marker remains among the processed findings — this is what lets the gate be computed at all (`SKILL.md`, "No unresolved markers reach the gate"). Items that hit the per-item malformed path are the exception and are reported by their `WARN` line.
 
 > Edge case: the reviewed diff covers the change itself. A finding about how the change interacts with **unchanged** surrounding code is still verified against disk, and in PR mode disk is the current branch, not the PR branch — that residual mismatch is an acceptable compromise, since checking out the PR branch would break the read-only contract.
 
 ## Failure modes
 
 - **Per-item malformed response** (heading missing, no `Verdict` line, unknown verdict token, unknown `Severity` value, or missing `Modified-text` line when `Verdict` is `modify`): treat that item as `keep` with `Severity: unchanged` and append one line after all review sections, just before the `aif-gate-result` fence: `WARN [+check]: validator response for item N was malformed, kept as-is`. Continue processing remaining items.
+- **Marked-item contract violation** — the input item carried a confidence marker and the response either returns `Verdict: keep`, or returns `Verdict: modify` whose `Modified-text` still contains `(confidence: low)` / `(confidence: medium)`. Both mean the uncertainty was not resolved, so neither is a normal outcome: preserve the original marked finding verbatim, leave it unverified in the gate projection, and append `WARN [+check]: validator response for item N violated the marked-item contract, kept as-is`. Continue processing remaining items. As with any per-item malformed response, the run no longer reports a fully successful filtering: the `Filtered:` line is replaced by the `WARN` line.
 - **Whole-dispatch failure** (empty response, exception, timeout, validator refusal): treat **all** items as `keep` with `Severity: unchanged` and append one line in the same position (before the `aif-gate-result` fence): `WARN [+check]: validator failed (<reason>), all items kept as-is`. In this case the `aif-gate-result` block is assembled from the **unfiltered** original list — do NOT recompute `status`, `blockers`, `affected_files`, or `suggested_next`.
 
 In both failure paths the `aif-gate-result` fence stays the **last** thing in the output. WARN lines always go above it.
@@ -47,7 +50,7 @@ When `+check` ran successfully (no whole-dispatch failure), append exactly one l
 Filtered: N hidden, M adjusted, K reclassified by +check
 ```
 
-`N`, `M`, `K` are zero when nothing happened in that bucket — still emit the line so the user sees the validator ran. Skip this line entirely when `+check` was not set or when the whole-dispatch failure path applies (the `WARN` line replaces it).
+`N`, `M`, `K` are zero when nothing happened in that bucket — still emit the line so the user sees the validator ran. Skip this line entirely when the pass did not run at all (no flag and no markers), when the whole-dispatch failure path applies, or when any per-item `WARN` was emitted — in those cases the `WARN` line replaces it.
 
 ## Recomputing `aif-gate-result` after `+check`
 
@@ -56,7 +59,7 @@ Filtered: N hidden, M adjusted, K reclassified by +check
 Apply the `SKILL.md` rules unchanged, with four `+check`-specific points:
 
 - **Input is the post-filter findings.** Recompute `status`, `blockers`, and `affected_files` from "Critical Issues" and "Suggestions" *after* every keep/modify/drop and severity move. A dropped critical item or a demoted finding can lower `status`; a promoted suggestion can raise it.
-- **Confirmed criticals become blockers.** A marked critical that the validator confirmed comes back without its marker, so the unverified-criticals rule in `SKILL.md` no longer applies to it: it enters `blockers` and drives `status` to `fail` like any other critical. This is the normal way a `warn` review turns into a `fail` one under `+check` — and the reason `suggested_next.command` moves from `null` to `/aif-fix`.
+- **Confirmed criticals become blockers.** A marked critical that the validator confirmed comes back without its marker and enters `blockers` like any other critical, driving `status` to `fail` and `suggested_next.command` to `/aif-fix`. This is the normal way a validation pass turns a draft into a `fail` gate. A refuted one is dropped and cannot influence the gate at all.
 - **Context gates are not touched.** `+check` never validates the "Context Gates" block (see "When to run" above). Carry its result over from the pre-`+check` draft unchanged and feed it into the same `status` merge — a blocking context gate keeps `status` at `fail` regardless of what the validator did to the findings, and that gate finding stays in `blockers`.
 - **`suggested_next.reason`** gains a short note mentioning `+check` and the three counters, e.g. `"After +check filtering: 2 hidden, 1 adjusted, 1 reclassified; remaining blockers require a fix pass."`.
 

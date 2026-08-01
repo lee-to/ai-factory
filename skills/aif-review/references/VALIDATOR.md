@@ -24,6 +24,8 @@ Items whose text ends with a `(confidence: low)` or `(confidence: medium)` marke
 - **confirm** it with `modify`, returning `Modified-text` that is the item minus the marker. `keep` is not valid for a marked item: `keep` returns the text verbatim, so the marker would survive and the finding would stay unresolved.
 - **refute** it with `drop`.
 
+`Modified-text` for a marked item MUST NOT contain `(confidence: low)` or `(confidence: medium)` — removing the marker is the whole point of confirming through `modify`. A response that keeps the marker (either verdict) leaves the finding unresolved and is rejected by the caller as a contract violation, which costs the run its clean result. Verify the claim and decide; if you cannot decide it from the diff and the surrounding code, `drop` is the correct verdict, not a hedged confirmation.
+
 `Severity` is judged independently, from the impact the item would have if true — a marker never justifies a demotion. Never confirm an item merely because it is hedged; hedging is not evidence.
 
 ## Verdicts
@@ -36,7 +38,7 @@ For every item in the input list you MUST choose exactly one verdict:
   - the fix repairs an adjacent behavior rather than the one described,
   - the wording duplicates another item under a different label,
   - the citation is paraphrased and does not match the file content verbatim.
-  Return a corrected version of the item under `Modified-text:`, keeping the same prose shape (behavior → optional note → path → fix).
+  Return a corrected version of the item under `Modified-text:`, keeping the same prose shape (behavior → optional note → path → fix). When the input item carried a confidence marker, the corrected version must not carry it.
 - **drop** — any of the following is true:
   - the behavior does not actually follow from the code,
   - the cited symbol/file/line exists neither in the reviewed diff nor on disk (the citation is fabricated),
@@ -89,6 +91,16 @@ Rules:
 - The `Severity` field is optional. When present, it must contain exactly one of the three tokens: `unchanged`, `critical`, `suggestion`. Omitting the line entirely is equivalent to `Severity: unchanged` — that is the common case; include the field only when you want to move the item between sections.
 - `Reason` must reference the validation question(s) that drove the decision, in plain text. Do not output JSON or bullet lists here. If `Severity` is not `unchanged`, also state in `Reason` why the original section was wrong.
 - `Modified-text` MUST appear only with `Verdict: modify`. For `keep` and `drop` omit the line entirely.
+- Confirming a marked item looks exactly like any other `modify` — same fields, same `Severity` handling — with the marker absent from `Modified-text`:
+
+  ```
+  ### Item 2 (section: critical)
+  Verdict: modify
+  Reason: verified against the diff — the retry path does reuse the key (question 1, 3)
+  Modified-text: Retries reuse the same idempotency key after a 5xx, so a duplicate charge is possible when the provider did commit the first attempt. `src/payments/retry.ts:88`. Generate a fresh key per attempt.
+  ```
+
+  The severity did not change here, so no `Severity` line is written — the item stays critical and becomes an ordinary blocker.
 - Process items in the same order as the input. Do not reorder, merge, or skip headings.
 - Produce one block for every input heading, even if the verdict is `drop`. The parser matches by `### Item N` and considers a missing block a malformed response.
 - Do not output anything before the first `### Item N` block or after the last one. No prologue, no summary, no closing remarks.

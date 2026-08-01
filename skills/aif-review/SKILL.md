@@ -133,14 +133,24 @@ This section is the single owner of `aif-gate-result` computation:
 - Append one final fenced `aif-gate-result` JSON block after the human-readable review.
 - Use `"gate": "review"`.
 - `"status": "pass|warn|fail"` — the more severe (`fail` > `warn` > `pass`) of two independent inputs:
-  - **findings input** — `fail` when any *confirmed* "Critical Issues" item remains (critical correctness, security, data-loss, performance, downstream regression — see `references/SEVERITY.md` for the authoritative critical/suggestion definitions); `warn` when only "Suggestions", unverified critical findings (see below), missing optional context, or review uncertainty remain; `pass` when nothing material remains.
+  - **findings input** — `fail` when any "Critical Issues" item remains (critical correctness, security, data-loss, performance, downstream regression — see `references/SEVERITY.md` for the authoritative critical/suggestion definitions); `warn` when only "Suggestions", missing optional context, or review uncertainty remain; `pass` when nothing material remains.
   - **context-gate input** — `fail` for a blocking (`ERROR`) gate finding; `warn` for a non-blocking (`WARN`) one; `pass` when none.
   - A failing context gate keeps `"status"` at `fail` even with zero Critical Issues — a clean findings list must never mask a failed gate.
-- **Unverified critical findings.** A "Critical Issues" item still carrying a `(confidence: low)` or `(confidence: medium)` marker is an *unverified potential blocker*: severity places it in Critical Issues by impact, but an unconfirmed claim must not block a merge by itself. Such an item does **not** enter `"blockers"` and does **not** push `"status"` to `fail`. When unverified criticals are the only material findings left, `"status"` is `warn`, and `"suggested_next.command"` is `null` with a `"reason"` that names them and points at `/aif-review +check` — never `/aif-commit`, because the change is not cleared for commit until they are resolved. Once `+check` confirms one the marker is gone and it counts as a normal blocker; a refuted one is dropped entirely.
+- **No unresolved markers reach the gate.** Publishing an `aif-gate-result` while a finding still carries a `(confidence: low)` / `(confidence: medium)` marker is a contract violation: schema v1 has no encoding for "unverified potential blocker", and any attempt to express it (`warn` + `command: null`) produces a state no consumer can act on. The marker is therefore resolved *before* the gate is computed — see "Resolving markers before the gate" below. The single exception is a `+check` whole-dispatch failure, which keeps the pre-validation gate and prints a `WARN [+check]` line (`references/CHECK-MODE.md`, Failure modes); that is the only path on which a marker is visible to the user, and it is diagnosable rather than silent.
 - `"blocking": true|false` — `true` only when `"status"` is `fail`.
-- `"blockers"` — merge-blocking findings only: every *unmarked* "Critical Issues" item and every blocking context-gate finding, nothing else.
+- `"blockers"` — merge-blocking findings only: every "Critical Issues" item and every blocking context-gate finding, nothing else.
 - `"affected_files"` — reviewed or implicated paths.
-- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`, except for the unverified-criticals case above, which uses `null`.
+- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`. `null` keeps its original meaning — no suitable command exists — and is not used to encode an unresolved finding.
+
+### Resolving markers before the gate
+
+A review that produced at least one `(confidence: low)` / `(confidence: medium)` marker runs the `+check` validation automatically, even when the flag was not given. The flag stays opt-in for everything else: a review with no markers behaves exactly as before and dispatches nothing.
+
+- Every marked finding is either **confirmed** — the validator returns it without the marker, and it counts as an ordinary finding of its section (a confirmed critical is a blocker and drives `fail`) — or **refuted** and dropped.
+- The gate is then computed from the post-validation findings, so the published block never contains a marker and never needs a state schema v1 cannot express.
+- The dispatch is paid only in runs that would otherwise produce that unrepresentable state. Since coverage-first deliberately surfaces uncertain findings rather than suppressing them, those runs are common enough that leaving the resolution to the user would stall the pipeline on every one of them.
+
+Procedure, counters, and failure handling are identical to an explicit `+check` (`references/CHECK-MODE.md`); the only difference is what triggered it.
 
 `/aif-review` is read-only for context artifacts by default. Do not modify context files unless user explicitly asks.
 
@@ -199,7 +209,7 @@ Confidence and severity are independent dimensions:
 - **Severity picks the section** — by the impact of the cited behavior *assuming the finding is true*. A potential merge-blocker sits in Critical Issues even when you are unsure it is real; a well-established nitpick sits in Suggestions.
 - **Confidence marks the text** — an uncertain finding ends with exactly one of `(confidence: low)` or `(confidence: medium)`. High confidence is the default and carries no marker; never emit the literal string `(confidence: low|medium)`.
 
-An unverified marked finding in Critical Issues does not block on its own — see "Machine-readable gate result" for how the gate treats it. `+check` resolves the marker: the validator confirms the finding (returning the corrected text without the marker) or drops it.
+A marker never survives to the published gate: its presence triggers the validation pass (see "Resolving markers before the gate"), which either confirms the finding — returning the corrected text without the marker, after which it counts as an ordinary finding of its section — or drops it. Marking a finding therefore costs nothing in correctness: it records honest uncertainty and schedules its resolution, rather than downgrading the finding or hiding it.
 
 ## Review Checklist
 
@@ -265,7 +275,12 @@ Example:
 ### Suggestions
 [Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug.
 
-In either findings section, an item you are not sure about ends with a `(confidence: low)` or `(confidence: medium)` marker — the section still follows impact, not certainty (see "Findings taxonomy and the validation boundary").]
+In either findings section, an item you are not sure about ends with a `(confidence: low)` or `(confidence: medium)` marker — the section still follows impact, not certainty (see "Findings taxonomy and the validation boundary").
+
+Example of a marked item, sitting in Critical Issues because its impact would be merge-blocking if real:
+> Retries reuse the same idempotency key after a 5xx, so a duplicate charge is possible when the provider did commit the first attempt. `src/payments/retry.ts:88`. Generate a fresh key per attempt, or record the provider's response before retrying. (confidence: medium)
+
+The marker never reaches the published gate: it is resolved by the validation pass (see "Resolving markers before the gate") — confirmed items come back without it, refuted ones are dropped.]
 
 ### Questions
 [Free-form clarifications. Path optional, fix optional — these are open questions for the author, never findings (see "Findings taxonomy and the validation boundary").]

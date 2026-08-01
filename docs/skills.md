@@ -528,7 +528,7 @@ Reviews staged changes or PR diffs:
 - Checks correctness, security, performance, and maintainability
 - **Coverage-first finding stage** — the review reports every issue it finds, including uncertain and low-severity ones, instead of pre-filtering to "only important" issues; ranking and filtering happen downstream
 - **Confidence markers** — an uncertain finding ends with `(confidence: low)` or `(confidence: medium)`; high confidence is the default and carries no marker. Confidence is independent of severity: the section still follows impact, so a potential merge-blocker you are unsure about is reported in "Critical Issues" with a marker
-- **Unverified criticals do not block** — a marked "Critical Issues" item is an *unverified potential blocker*: it stays out of `blockers`, keeps `status` at `warn`, and sets `suggested_next.command` to `null` with a reason pointing at `/aif-review +check`, which resolves it (confirmed → real blocker, refuted → dropped)
+- **Markers are resolved before the gate** — a review that produced any marker runs the `+check` validation automatically, even without the flag, so the published gate never carries an unresolved finding (confirmed → ordinary blocker driving `fail`, refuted → dropped). Marker-free reviews dispatch nothing, keeping `+check` opt-in everywhere else
 - Adds read-only context-gate findings (architecture/roadmap/rules) to review output
 - Uses `WARN` for non-blocking context drift and `ERROR` only for explicitly blocking review criteria
 - Appends a final `aif-gate-result` JSON block for Handoff/AIFHub and other orchestrators

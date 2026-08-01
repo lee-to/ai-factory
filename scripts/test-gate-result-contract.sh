@@ -228,11 +228,12 @@ REVIEW_CHECK_MODE="$ROOT_DIR/skills/aif-review/references/CHECK-MODE.md"
 assert_contains "$REVIEW_SKILL" 'Severity picks the section' "review skill separates severity from confidence"
 assert_contains "$REVIEW_SEVERITY" 'never changes severity semantics' "severity rules keep confidence out of severity"
 
-# An unverified marked critical is reported but does not block.
-assert_contains "$REVIEW_SKILL" 'unverified potential blocker' "review skill defines the unverified-blocker class"
-assert_contains "$REVIEW_SKILL" 'every *unmarked* "Critical Issues" item' "review skill excludes marked criticals from blockers"
-assert_contains "$REVIEW_SKILL" 'never `/aif-commit`' "review skill forbids commit as next step for unverified criticals"
-assert_contains "$DOCS_REF" 'unverified potential blockers' "docs explain the null suggested_next case"
+# Markers are resolved before the gate — schema v1 has no unverified-blocker state.
+assert_contains "$REVIEW_SKILL" 'No unresolved markers reach the gate' "review skill states the marker-free gate invariant"
+assert_contains "$REVIEW_SKILL" 'runs the `+check` validation automatically' "review skill triggers validation on markers without the flag"
+assert_contains "$REVIEW_SKILL" 'is not used to encode an unresolved finding' "review skill keeps null at its original meaning"
+assert_not_contains "$REVIEW_SKILL" 'every *unmarked* "Critical Issues" item' "blockers no longer carve out marked criticals"
+assert_contains "$DOCS_REF" 'does **not** use `null` to encode an unresolved finding' "docs drop the null-for-unverified case"
 
 # Only the two literal markers are legal; the pipe form is not example output.
 assert_contains "$REVIEW_SKILL" 'never emit the literal string' "review skill forbids the literal pipe marker"
@@ -242,7 +243,9 @@ assert_not_contains "$REVIEW_SEVERITY" '(confidence: low|medium)' "severity rule
 # A confirmed marked finding must lose its marker, and `keep` cannot do that.
 assert_contains "$REVIEW_VALIDATOR" '`keep` is not valid for a marked item' "validator forbids keep for marked findings"
 assert_contains "$REVIEW_VALIDATOR" 'Not valid for an item carrying a confidence marker' "validator verdict list repeats the keep restriction"
-assert_contains "$REVIEW_CHECK_MODE" 'Do not strip the marker yourself' "check-mode defines the stray-keep fallback"
+assert_contains "$REVIEW_CHECK_MODE" 'Never strip a marker yourself' "check-mode forbids silent unmarking"
+assert_contains "$REVIEW_CHECK_MODE" 'violated the marked-item contract' "check-mode defines the marked-item violation path"
+assert_contains "$REVIEW_VALIDATOR" 'MUST NOT contain' "validator forbids a marker inside Modified-text"
 assert_contains "$REVIEW_CHECK_MODE" 'Confirmed criticals become blockers' "check-mode promotes confirmed criticals into blockers"
 
 # Only actionable code findings enter the validator.
