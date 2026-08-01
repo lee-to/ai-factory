@@ -110,6 +110,7 @@ Uses artifact from PRODUCE and checks from PREPARE. Spawns parallel `Task` agent
 
 ```json
 {
+  "artifact_hash": "3f8a1d92",
   "score": 0.72,
   "passed": false,
   "failed": [
@@ -127,6 +128,7 @@ Uses artifact from PRODUCE and checks from PREPARE. Spawns parallel `Task` agent
 ```
 
 **Constraints:**
+- `artifact_hash` is the first 8 hex chars of the SHA-256 of `artifact.md` **as read for this evaluation** — it binds the score to one artifact version, so a later REFINE makes the stale evaluation detectable instead of silently reusable
 - evaluate only against active rules
 - map every failure to a `rule_id`
 - no fix suggestions or solution proposals

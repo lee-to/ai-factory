@@ -28,8 +28,8 @@ Rules:
 - Never call other subagents yourself. Parent orchestrator invokes next agent.
 - Use this stop order as a **tie-break**, not as independent checks: evaluate top-down and return the first match. Same precedence contract as `skills/aif-loop/SKILL.md` Step 5 and `docs/loop.md` — all three must stay in sync.
   1. `phase=B` and `evaluation.passed=true` -> `FINISH` (`threshold_reached`)
-  2. latest evaluation exists and no severity `fail` rules failed in it -> `FINISH` (`no_major_issues`)
-  3. `run.status` was set to `stopped` by the user -> `FINISH` (`user_stop`)
+  2. `phase=B`, latest evaluation exists, and no severity `fail` rules failed in it -> `FINISH` (`no_major_issues`) — never in `phase=A`: a clean A-evaluation moves to phase B instead, so B-level rules are never skipped
+  3. rank 3 in the shared contract is `user_stop`; it never reaches this router, because the `stop` command terminates the run and clears `current.json` before any routing happens
   4. `stagnation_count >= 2` -> `FINISH` (`stagnation`)
   5. `max_completed_phase_seconds` set (not null) and `completed_phase_seconds >= max_completed_phase_seconds` -> `FINISH` (`budget_exceeded`) — judge only by these persisted fields; the parent accounts time at phase boundaries, you never measure it
   6. `iteration >= max_iterations` -> `FINISH` (`iteration_limit`)

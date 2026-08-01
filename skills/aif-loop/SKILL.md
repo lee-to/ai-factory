@@ -127,7 +127,7 @@ If any rule is violated — fix the output before presenting it to the user.
 
 If command is `status`, `stop`, `list`, `history`, or `clean`, execute and stop:
 
-- **`status`**: read `current.json`; if file exists, read pointed `run.json` and display `alias | status | iteration | phase | current_step | last_score | updated_at`; if file is missing, report that no loop is active
+- **`status`**: read `current.json`; if file exists, read pointed `run.json` and display `alias | status | iteration | phase | current_step | last_score | updated_at`, plus `completed_phase_seconds / max_completed_phase_seconds` when a budget is set; if file is missing, report that no loop is active
 - **`stop [reason]`**: stop active running loop only; set `run.json.status = "stopped"` and `run.json.stop.reason = <reason or "user_stop">`, append `stopped` event to `history.jsonl`, then delete `current.json` (active pointer cleared) and exit
 - **`list`**: scan the resolved evolution directory, read each `run.json`, display table of `alias | status | iteration | last_score | updated_at`
 - **`history [alias]`**: read `history.jsonl` for the alias (or active loop), display formatted event timeline
@@ -305,7 +305,8 @@ For each iteration:
      - Content rules (structure, completeness, style) → `Task` with `Read`/`Grep`
    - Aggregate results into score
 4. If `passed=false`:
-   - Set `run.json.current_step = "CRITIQUE"`, run CRITIQUE phase
+   - **First evaluate the Step 5 stop conditions in precedence order.** If any of them holds, stop with that reason instead of continuing — Step 5 is checked before the iteration proceeds, never after
+   - Otherwise: set `run.json.current_step = "CRITIQUE"`, run CRITIQUE phase
    - Set `run.json.current_step = "REFINE"`, run REFINE phase
    - Write updated artifact to `artifact.md`
    - Increment iteration and continue
@@ -331,7 +332,7 @@ If `Task` tool is unavailable or returns errors, fall back to sequential executi
 Several conditions can hold at the same phase boundary. This numbered order is the **tie-break**, not a list of independent checks: evaluate top-down and report the first match as `stop.reason`. Completion guards come before resource guards, so a run that finished successfully is never relabelled as `stopped` by a resource that ran out in the same breath.
 
 1. `threshold_reached` — `phase=B` and `passed=true`
-2. `no_major_issues` — no `fail`-severity rules failed in current evaluation; even with the score below threshold the artifact has no blocking issues and only `warn`/`info` remain
+2. `no_major_issues` — **`phase=B`** and no `fail`-severity rules failed in current evaluation: only `warn`/`info` remain and no stricter phase is left. Never fires in `phase=A` — a clean A-evaluation moves into `phase=B` (Step 4.5) or keeps refining, so B-level rules are never skipped
 3. `user_stop` — explicit user stop
 4. `stagnation` — `stagnation_count >= 2` (see "Stagnation rule" below)
 5. `budget_exceeded` — `max_completed_phase_seconds` is set and `completed_phase_seconds >= max_completed_phase_seconds`
@@ -341,9 +342,7 @@ Several conditions can hold at the same phase boundary. This numbered order is t
 
 ### Completed-phase time budget
 
-`run.json.max_completed_phase_seconds` is an optional cap on time spent inside **completed** phase segments; `null` or absent = no limit, and older run files behave unchanged. The limit is **soft** — checked only at phase boundaries, never interrupting a phase mid-flight, so a run may overshoot by up to the in-flight phase duration. Only completed segments count: an interrupted phase contributes nothing, by definition rather than by accident.
-
-Full contract — field types and invariants, boundary measurement, `PRODUCE_PREPARE` as one segment, clock rollback, diagnostics, setup rules: **`references/ACTIVE-TIME-BUDGET.md`**.
+`run.json.max_completed_phase_seconds` is an optional cap on time spent inside **completed** phase segments; `null` or absent = no limit. The limit is **soft** — checked only at phase boundaries, never interrupting a phase (or its retry) mid-flight, so a run may overshoot by up to the in-flight phase duration. Only completed segments count: an interrupted phase contributes nothing, by definition rather than by accident. Full contract — types and invariants, boundary measurement, `PRODUCE_PREPARE` and retries as single segments, clock rollback, diagnostics, setup rules: **`references/ACTIVE-TIME-BUDGET.md`**.
 
 ### Stagnation rule
 
@@ -387,16 +386,20 @@ Event names:
 
 ## Step 7: Post-Loop
 
+### Artifact status (resolve before reporting anything numeric)
+
+A stop can land at any phase boundary, so the artifact may be missing (`not_created`), never evaluated (`unevaluated`), newer than the stored evaluation (`stale`, detected via `evaluation.artifact_hash`), or `evaluated`. **Only `evaluated` may report a numeric `final_score` or a distance-to-success block**; the other three print `final_score: unavailable` with the reason and, when one existed, `last_evaluated_score`. Full contract, output shapes, per-status rules: **`references/TERMINAL-REPORT.md`**.
+
 After the loop stops (any reason):
 
-1. Display final state summary (`iteration`, `max_iterations`, `phase`, `final score`, `stop reason`)
-2. If `stop reason` is `iteration_limit` or `budget_exceeded` and latest evaluation has `passed=false`, include mandatory **distance-to-success** details:
+1. Display final state summary (`iteration`, `max_iterations`, `phase`, `artifact_status`, `final score` per the rules above, `stop reason`)
+2. If `stop reason` is `iteration_limit` or `budget_exceeded`, `artifact_status` is `evaluated`, and that evaluation has `passed=false`, include mandatory **distance-to-success** details:
    - active phase threshold and final score
    - numeric gap to threshold (`threshold - score`, floor at `0`)
    - remaining failed `fail`-severity rule count + blocking rule IDs
    - rules progress (`passed_rules / total_rules`)
 3. If `stop reason` is `budget_exceeded`, also include budget diagnostics — `completed_phase_seconds`, `max_completed_phase_seconds`, `overshoot_seconds`, `last_completed_step` — and repeat them in the `stopped` event payload (`references/ACTIVE-TIME-BUDGET.md`)
-4. Ask user where to save the final artifact (default: keep it in `<resolved evolution dir>/<alias>/artifact.md`)
+4. Ask user where to save the final artifact (default: keep it in `<resolved evolution dir>/<alias>/artifact.md`) — skip steps 4-5 entirely when `artifact_status` is `not_created`, and say so instead of offering a file that does not exist
 5. Offer to copy artifact to a user-specified path
 6. Suggest next skills based on artifact type:
    - API spec -> `/aif-plan` to implement it
@@ -437,13 +440,13 @@ Artifact: <resolved evolution dir>/<alias>/artifact.md
 
 If `passed=false`, append a compact critique summary (rule ID + 1-line fix instruction per issue). Do not repeat the full artifact or full evaluation object.
 
-When the loop terminates with `reason=iteration_limit` or `reason=budget_exceeded` and `passed=false`, append a compact `distance_to_success` block to the final response.
+When the loop terminates with `reason=iteration_limit` or `reason=budget_exceeded`, `artifact_status` is `evaluated`, and `passed=false`, append a compact `distance_to_success` block to the final response. For any other `artifact_status`, print the `final_score: unavailable` block from Step 7 instead — never a computed gap against an evaluation that does not belong to the current artifact.
 
 ### Full output exceptions
 
 Show the **full artifact content** (not just summary) in these cases only:
 
-1. **Loop termination** — the final iteration always outputs the complete artifact
+1. **Loop termination** — the final iteration outputs the complete artifact, unless `artifact_status` is `not_created`; then report that no artifact was produced and why the loop stopped
 2. **Phase A → B transition** — show the phase-A-passing artifact in full once at the transition boundary for visibility (B-level evaluation still runs immediately per Step 4)
 3. **Explicit user request** — user asks to see the full artifact mid-loop
 

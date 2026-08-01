@@ -220,7 +220,7 @@ Pre-built rule sets for common task types (API spec, code generation, documentat
 More than one condition can hold at the same phase boundary. The numbered order below is a **tie-break**, not a list of independent checks: evaluate top-down, and the first match becomes `stop.reason`. Completion guards precede resource guards, so a successful run is never relabelled `stopped` because a resource ran out in the same breath.
 
 1. `threshold_reached` — `phase=B` and threshold passed
-2. `no_major_issues` — no `fail`-severity rules failed in current evaluation; only `warn`/`info` remain
+2. `no_major_issues` — **`phase=B`** and no `fail`-severity rules failed in current evaluation; only `warn`/`info` remain and no stricter phase is left. In `phase=A` this never stops the loop — a clean A-evaluation moves into `phase=B`, so B-level rules are never skipped
 3. `user_stop` — user requested stop
 4. `stagnation` — stagnation detected (`stagnation_count >= 2`)
 5. `budget_exceeded` — completed-phase budget exhausted, only when `max_completed_phase_seconds` is set
@@ -282,7 +282,20 @@ If stop reason is `iteration_limit` or `budget_exceeded` and latest evaluation i
 3. remaining failed `fail`-severity rule count and blocking rule IDs
 4. rules progress (`passed_rules / total_rules`)
 
-If stop reason is `budget_exceeded`, the summary and the `stopped` event payload additionally carry `completed_phase_seconds`, `max_completed_phase_seconds`, `overshoot_seconds`, and `last_completed_step`.
+If stop reason is `budget_exceeded`, the summary and the `stopped` event payload additionally carry `completed_phase_seconds`, `max_completed_phase_seconds`, `overshoot_seconds`, and `last_completed_step`. The `status` command shows `completed_phase_seconds / max_completed_phase_seconds` while the loop is still running.
+
+### Artifact status gates the numbers
+
+A stop can land at any phase boundary, so the artifact may be missing, unevaluated, or newer than the last evaluation. `evaluation.artifact_hash` (first 8 hex of the artifact SHA-256, recorded by EVALUATE) makes that detectable:
+
+| `artifact_status` | Condition | Reported score |
+|-------------------|-----------|----------------|
+| `not_created` | no `artifact.md` (e.g. stop right after PLAN) | `unavailable` |
+| `unevaluated` | artifact exists, `evaluation` is `null` | `unavailable` |
+| `stale` | `evaluation.artifact_hash` ≠ current artifact hash (e.g. stop right after REFINE) | `unavailable`, with `last_evaluated_score` |
+| `evaluated` | hashes match | numeric `final_score` |
+
+Distance-to-success is computed only for `evaluated`. A score belonging to an older artifact version is never presented as `final_score`.
 
 ### Stagnation Rule
 

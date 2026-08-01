@@ -16,10 +16,11 @@ phase_started_epoch_seconds: null | non-negative integer (Unix epoch seconds)
 
 `phase_started_epoch_seconds` is named for its unit on purpose — it is epoch seconds from `date +%s`, not an ISO-8601 timestamp like `created_at` / `updated_at`.
 
-A value outside these types is a **validation failure**, not something to interpret:
+A value outside these types is a **validation failure**, not something to interpret. Where it surfaces decides how it is handled — `phase_error` is deliberately *not* reused, because it means "a phase returned output off-contract" and carries a retry-once semantic that makes no sense for a config value:
 
-- `"300"` (string), `0`, a negative number, or a decimal for `max_completed_phase_seconds` → log `phase_error` with the offending field and value, stop the loop. Do not coerce, round, or guess.
-- `completed_phase_seconds` must never decrease. If a read shows it lower than the previously persisted value, treat the run file as corrupted and follow "Corrupted `run.json`" recovery in `SKILL.md`.
+- **During setup**, before iteration 1: `"300"` (string), `0`, a negative number, or a decimal for `max_completed_phase_seconds` → report the offending field and value to the user and do not start the loop. Do not coerce, round, or guess. No `phase_error` event is written; no phase has run.
+- **On resume**, when a hand-edited `run.json` carries such a value: treat the run file as corrupted and follow "Corrupted `run.json`" recovery in `SKILL.md`.
+- `completed_phase_seconds` must never decrease. A read lower than the previously persisted value is the same corruption case.
 
 Clock rollback is contained at the arithmetic, not trusted away:
 
@@ -57,6 +58,12 @@ The logical pair `PRODUCE_PREPARE` is a **single timed segment** regardless of h
 
 There is no budget stop between `PRODUCE` and `PREPARE`, and `current_step` stays `PRODUCE_PREPARE` throughout.
 
+### Retried phases
+
+`SKILL.md` retries a phase once when its output is off-contract. Both attempts belong to **one** segment: the boundary opens when the first attempt starts and closes when the retry completes. There is no budget check between the failed attempt and the retry — a phase already in flight is never interrupted, and that includes its retry.
+
+If the retry also fails, the loop stops with `phase_error` (`status: failed`). That is a failure path, not a budget path: no `budget_exceeded` reason is produced, and the segment's time is still folded into `completed_phase_seconds` before the run terminates, so `status` reflects what was actually spent.
+
 ## Soft limit
 
 The check runs only at phase boundaries and never interrupts a phase or its `Task` subagents mid-flight. A run may overshoot the cap by up to the duration of the phase that was in flight when the budget ran out. That overshoot is expected and is not an error.
@@ -70,7 +77,7 @@ When the loop stops with `budget_exceeded`, both the final summary and the `stop
 | `completed_phase_seconds` | total counted time |
 | `max_completed_phase_seconds` | the cap that was set |
 | `overshoot_seconds` | `max(0, completed_phase_seconds - max_completed_phase_seconds)` |
-| `last_completed_step` | the phase whose completion tripped the cap |
+| `last_completed_step` | the `run.json.current_step` value of the segment that just completed and tripped the cap — read at the boundary, not a new persisted field |
 
 Example `stopped` event line:
 
