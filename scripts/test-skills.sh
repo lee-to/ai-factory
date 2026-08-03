@@ -1890,6 +1890,20 @@ else
     echo "$GATE_RESULT_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
+echo -e "\n${BOLD}=== Loop budget contract smoke tests ===${NC}\n"
+
+set +e
+LOOP_BUDGET_SMOKE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-loop-budget-contract.sh" 2>&1)
+LOOP_BUDGET_SMOKE_EXIT=$?
+set -e
+
+if [[ $LOOP_BUDGET_SMOKE_EXIT -eq 0 ]]; then
+    pass "loop budget contract smoke tests"
+else
+    fail "loop budget contract smoke tests"
+    echo "$LOOP_BUDGET_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
 echo -e "\n${BOLD}=== audit-artifacts command smoke tests ===${NC}\n"
 
 set +e
