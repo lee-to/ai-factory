@@ -7,7 +7,7 @@
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (28 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
+2. **Built-in skills** (29 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
@@ -34,6 +34,7 @@ ai-factory/
 │   ├── aif-dockerize/          # Docker/compose generator
 │   ├── aif-docs/               # Documentation generation & maintenance
 │   ├── aif-evolve/             # Self-improve skills based on context
+│   ├── aif-transfer/           # Reuse anonymized patch experience from another project
 │   ├── aif-explore/            # Explore mode (thinking partner)
 │   ├── aif-fix/                # Quick bug fixes (no plans)
 │   ├── aif-grounded/           # Reliability gate for answers
@@ -81,8 +82,8 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/plans/<branch-or-slug>/index.md` — ultra plan entrypoint with sibling `phase-NN-*.md` files (or `.ai-factory/plans/<NNNN>_<branch-or-slug>/index.md` under sequential IDs)
 - `.ai-factory/RESEARCH.md` — regular persisted exploration context (from /aif-explore)
 - `.ai-factory/research/<english-topic-slug>/INDEX.md` — ultra research manifest with compatible `RESEARCH.md` and only justified C4/ADR/dependency files; the root is derived from the parent of `paths.research`
-- `.ai-factory/skill-context/<skill>/SKILL.md` — project-specific overrides for skills (from /aif-evolve)
-- `.ai-factory/evolutions/*.md` — evolution logs (from /aif-evolve)
+- `.ai-factory/skill-context/<skill>/SKILL.md` — project-specific overrides for skills (from /aif-evolve, directly or via /aif-transfer)
+- `.ai-factory/evolutions/*.md` — evolution logs (from /aif-evolve, directly or via /aif-transfer)
 - `.ai-factory/evolutions/patch-cursor.json` — incremental evolve cursor (latest processed patch)
 - `.ai-factory/qa/<branch-slug>/change-summary.md` — QA change summary (from /aif-qa)
 - `.ai-factory/qa/<branch-slug>/test-plan.md` — QA test plan (from /aif-qa)
@@ -110,8 +111,8 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phase files                | `/aif-plan`            | fast/full/ultra artifacts; `/aif-improve` refines existing plans and bundles                     |
 | `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
 | `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
-| `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills                                                      |
-| `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor                                                      |
+| `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills; `/aif-transfer` delegates approved writes here       |
+| `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor; `/aif-transfer` delegates logs but never the cursor  |
 | `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
 | `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results plus root-level `agent-context.md` and `agent-history.md` for automated QA |
 | `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                                         | `/aif-archive`         | archived completed plan files/bundles and dated roadmap snapshots                                |
@@ -137,7 +138,7 @@ Context gate policy for quality commands:
 
 - Core workflow and quality: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`,
   `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
-- Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`,
+- Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`,
   `/aif-distillation`,
   `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
 
@@ -402,6 +403,20 @@ Proposes targeted improvements → user approves
 Applies improvements to skills
     ↓
 Saves evolution log to configured `paths.evolutions/`
+
+/aif-transfer <source-project-path> [skill-name|"all"]
+    ↓
+Reads only source `.ai-factory` config/description/architecture/patches (source stays read-only)
+    ↓
+Extracts prevention points → keeps only candidates verified against current project
+    ↓
+Removes source paths, names, patch filenames, repository metadata, and source-only identifiers
+    ↓
+Runs the installed `/aif-evolve` workflow with the sanitized in-memory registry
+    ↓
+User approves → evolve writes current skill-context/evolution log
+    ↓
+Rechecks changed artifacts for source identity; never copies patches or advances patch cursor
 ```
 
 `/aif-distillation` can generate either one skill or, with `--split` / `--split-by <strategy>`, a set of focused child

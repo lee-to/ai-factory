@@ -190,7 +190,7 @@ rules:
 
 **Current config-aware skills** read `config.yaml` at Step 0. This currently includes:
 - Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
-- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
+- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
 
 Other skills are config-agnostic for now and rely on repository context, explicit arguments, or fixed non-configurable paths such as `skill-context`.
 
@@ -340,14 +340,14 @@ your-project/
 │   │   └── <ultra-id>/
 │   │       ├── index.md
 │   │       └── phase-01-<slug>.md
-│   ├── skill-context/         # Project-specific rules for built-in skills (from /aif-evolve)
+│   ├── skill-context/         # Project-specific rules from /aif-evolve (directly or via /aif-transfer)
 │   │   ├── aif-fix/
 │   │   │   └── SKILL.md
 │   │   └── aif-review/
 │   │       └── SKILL.md
 │   ├── patches/               # Self-improvement patches (from /aif-fix)
 │   │   └── 2026-02-07-14.30.md
-│   ├── evolutions/            # Evolution logs (from /aif-evolve)
+│   ├── evolutions/            # Evolution logs (from /aif-evolve, directly or via /aif-transfer)
 │   │   ├── 2026-02-08-10.00.md
 │   │   └── patch-cursor.json  # Incremental evolve cursor (latest processed patch)
 │   ├── evolution/             # Active reflex loop state (from /aif-loop)
@@ -388,6 +388,10 @@ For full phase contracts and stop conditions, see [Reflex Loop](loop.md).
 - First run (no cursor): evolve reads all patches
 - Subsequent runs: evolve reads patches newer than the cursor (plus a small overlap window to catch missed points)
 - To force a full rescan: delete `patch-cursor.json` and run `/aif-evolve` again
+
+`/aif-transfer` reuses the current project's `paths.evolutions` for an approved delegated
+evolve log, but it does not copy source patches into `paths.patches` and never reads or
+advances the current patch cursor for transferred evidence.
 
 ## Best Practices
 

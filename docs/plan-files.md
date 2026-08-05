@@ -84,8 +84,8 @@ To avoid ownership conflicts, artifact writers are command-scoped:
 | `paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle | `/aif-explore` | regular single file or explicit ultra bundle with conditional supporting artifacts |
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phases | `/aif-plan`          | `/aif-improve` refines existing single-file plans and ultra bundles                             |
 | `paths.fix_plan` and `paths.patches/*.md`                                 | `/aif-fix`            | defaults shown; actual paths come from `paths.fix_plan` and `paths.patches`                    |
-| `.ai-factory/skill-context/*`                                             | `/aif-evolve`         | project-specific skill overrides derived from patches                                          |
-| `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`             | `/aif-evolve`         | defaults shown; actual evolution-log path comes from `paths.evolutions`                        |
+| `.ai-factory/skill-context/*`                                             | `/aif-evolve`         | project-specific skill overrides; `/aif-transfer` delegates approved anonymized inputs          |
+| `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`             | `/aif-evolve`         | `/aif-transfer` delegates logs through evolve but never reads or advances the patch cursor       |
 | `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                     | `/aif-archive`        | archived plan files/bundles and dated roadmap snapshots                                        |
 
 Quality commands (`/aif-commit`, `/aif-review`, `/aif-verify`) treat these files as read-only context by default.
@@ -336,6 +336,12 @@ The more you use `/aif-fix`, the smarter AI becomes on your project. Patches acc
 ```
 
 This closes the full learning loop: **fix → patch → evolve → better skills → fewer bugs → smarter fixes**.
+
+To reuse lessons from a similar AI Factory project without merging its history into the
+current one, run `/aif-transfer <source-project-path>`. It reads the source patches in
+place, keeps only prevention points verified against the current project, removes source
+identity, and delegates approved rules to `/aif-evolve`. It never copies source patches
+into `paths.patches` or changes the current patch cursor.
 
 ## Skill Acquisition Strategy
 

@@ -52,30 +52,30 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
-| `language.ui` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | UI language for prompts, questions, and summaries; `/aif` resolves it before downstream setup questions |
-| `language.artifacts` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-fix`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | Language for generated or persisted artifacts; `/aif` locks it before the first setup artifact so DESCRIPTION/rules base/AGENTS/ARCHITECTURE stay aligned in one run; workflow artifact writers use it for plans, research, fix plans, patches, references, rules, security ignore state, docs, evolution reports, and QA artifacts, with fallback to `language.ui` |
-| `language.technical_terms` | `keep` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-fix`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | Present in schema and template; `/aif` preserves an existing value when present and otherwise writes the default `keep`; artifact-writing skills use it to decide whether human-readable terminology should stay in English, be translated, or use mixed style while preserving commands, paths, identifiers, config keys, package names, API names, machine-readable metadata keys/status values, and raw errors where required |
+| `language.ui` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | UI language for prompts, questions, and summaries; `/aif` resolves it before downstream setup questions |
+| `language.artifacts` | `en` | `/aif`, `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-improve`, `/aif-loop`, `/aif-docs`, `/aif-fix`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | Language for generated or persisted artifacts; `/aif` locks it before the first setup artifact so DESCRIPTION/rules base/AGENTS/ARCHITECTURE stay aligned in one run; workflow artifact writers use it for plans, research, fix plans, patches, references, rules, security ignore state, docs, evolution reports, and QA artifacts, with fallback to `language.ui` |
+| `language.technical_terms` | `keep` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-fix`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-rules`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check` | Present in schema and template; `/aif` preserves an existing value when present and otherwise writes the default `keep`; artifact-writing skills use it to decide whether human-readable terminology should stay in English, be translated, or use mixed style while preserving commands, paths, identifiers, config keys, package names, API names, machine-readable metadata keys/status values, and raw errors where required |
 
 ### `paths`
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
-| `paths.description` | `.ai-factory/DESCRIPTION.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-docs`, `/aif-qa`, `/aif-qa-check` | Core project description artifact |
-| `paths.architecture` | `.ai-factory/ARCHITECTURE.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-docs`, `/aif-loop`, `/aif-evolve`, `/aif-qa`, `/aif-qa-check` | Architecture source of truth |
+| `paths.description` | `.ai-factory/DESCRIPTION.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-docs`, `/aif-qa`, `/aif-qa-check` | Core project description artifact |
+| `paths.architecture` | `.ai-factory/ARCHITECTURE.md` | `/aif-architecture`, `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-fix`, `/aif-docs`, `/aif-loop`, `/aif-evolve`, `/aif-transfer`, `/aif-qa`, `/aif-qa-check` | Architecture source of truth |
 | `paths.docs` | `docs/` | `/aif-docs` | Detailed docs directory; `README.md` stays fixed in project root |
 | `paths.roadmap` | `.ai-factory/ROADMAP.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-commit`, `/aif-loop` | Strategic roadmap artifact |
 | `paths.research` | `.ai-factory/RESEARCH.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-improve`, `/aif-fix` | Regular persisted exploration file; ultra bundles derive `<parent>/research/<english-slug>/` from this path and keep a compatible `RESEARCH.md` inside |
-| `paths.rules_file` | `.ai-factory/RULES.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-rules`, `/aif-reference`, `/aif-loop` | Top-level rules artifact |
+| `paths.rules_file` | `.ai-factory/RULES.md` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-transfer`, `/aif-rules`, `/aif-reference`, `/aif-loop` | Top-level rules artifact |
 | `paths.plan` | `.ai-factory/PLAN.md` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-loop` | Fast-plan path |
 | `paths.plans` | `.ai-factory/plans/` | `/aif-plan`, `/aif-explore`, `/aif-improve`, `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-loop`, `/aif-archive` | Named plans directory: full plans are root `.md` files; ultra plans are direct child directories whose `index.md` contains the stable `<!-- aif:plan-mode:ultra -->` marker plus linked phase files |
 | `paths.fix_plan` | `.ai-factory/FIX_PLAN.md` | `/aif-fix`, `/aif-improve`, `/aif-implement`, `/aif-verify` | Fix-plan path |
 | `paths.security` | `.ai-factory/SECURITY.md` | `/aif-security-checklist` | Security ignore-state artifact |
 | `paths.references` | `.ai-factory/references/` | `/aif-reference` | Knowledge reference storage |
-| `paths.patches` | `.ai-factory/patches/` | `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-fix`, `/aif-evolve` | Fix patches and fallback learning context |
-| `paths.evolutions` | `.ai-factory/evolutions/` | `/aif-plan`, `/aif-evolve` | Evolution logs and patch cursor |
+| `paths.patches` | `.ai-factory/patches/` | `/aif-plan`, `/aif-improve`, `/aif-implement`, `/aif-fix`, `/aif-evolve`, `/aif-transfer` (source config only) | Fix patches and fallback learning context; transfer never writes or copies them |
+| `paths.evolutions` | `.ai-factory/evolutions/` | `/aif-plan`, `/aif-evolve`, `/aif-transfer` | Evolution logs and patch cursor; transfer delegates one approved log but never touches the cursor |
 | `paths.evolution` | `.ai-factory/evolution/` | `/aif-loop` | Reflex loop state root |
 | `paths.specs` | `.ai-factory/specs/` | `/aif-plan`, `/aif-verify` | Specs / archived plan support |
-| `paths.rules` | `.ai-factory/rules/` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-rules` | Area-rules directory and relative rule resolution base |
+| `paths.rules` | `.ai-factory/rules/` | `/aif-plan`, `/aif-explore`, `/aif-roadmap`, `/aif-implement`, `/aif-verify`, `/aif-review`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-transfer`, `/aif-rules` | Area-rules directory and relative rule resolution base |
 | `paths.qa` | `.ai-factory/qa/` | `/aif-qa`, `/aif-qa-check` | QA artifacts root; branch slug is appended as subdirectory (`<paths.qa>/<branch-slug>/`). `/aif-qa` writes `change-summary.md`, `test-plan.md`, and `test-cases.md`; `/aif-qa-check` writes revision/worktree/source-bound `qa-check.md` plus root-level `agent-context.md` and `agent-history.md` for reusable non-sensitive automated QA memory. |
 | `paths.archive` | `.ai-factory/archive/` | `/aif-archive`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-improve` | Archive directory for completed plans and roadmap snapshots. `archive/plans/` stores full `.md` plans and ultra bundle directories; `archive/roadmap/` stores dated snapshots. Plan identifiers retain any sequential prefix. |
 
@@ -103,8 +103,8 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
-| `rules.base` | `.ai-factory/rules/base.md` | `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve` | Base project rule file |
-| `rules.<area>` | none | `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`; written by `/aif-rules area:<name>` | Named area rule entries like `rules.api`, `rules.frontend`; preserved during `/aif` reruns |
+| `rules.base` | `.ai-factory/rules/base.md` | `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-transfer` | Base project rule file |
+| `rules.<area>` | none | `/aif-implement`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-fix`, `/aif-evolve`, `/aif-transfer`; written by `/aif-rules area:<name>` | Named area rule entries like `rules.api`, `rules.frontend`; preserved during `/aif` reruns |
 
 ## Skill Matrix
 
@@ -133,6 +133,7 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | `/aif-docs` | Yes | No | `paths.description`, `paths.architecture`, `paths.docs`, `language.ui`, `language.artifacts` |
 | `/aif-fix` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, `language.ui`, `language.artifacts`, `language.technical_terms`, `rules.base`, `rules.<area>` |
 | `/aif-evolve` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.patches`, `paths.evolutions`, `language.ui`, `language.artifacts`, `rules.base`, `rules.<area>` |
+| `/aif-transfer` | Yes | No | Current project: `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.evolutions`, `language.ui`, `language.artifacts`, `language.technical_terms`, `rules.base`, and `rules.<area>`; source project: `paths.description`, `paths.architecture`, and `paths.patches` inside the source root |
 | `/aif-reference` | Yes | No | `paths.references`, `paths.rules_file`, `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-distillation` | Yes | No | `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-security-checklist` | Yes | No | `paths.security`, `language.ui`, `language.artifacts`, `language.technical_terms` |
@@ -158,7 +159,7 @@ These locations are still fixed by contract and are not yet configurable via `co
 
 | Path | Notes |
 |------|-------|
-| `.ai-factory/skill-context/` | Built-in skill overrides written by `/aif-evolve` |
+| `.ai-factory/skill-context/` | Built-in skill overrides written by `/aif-evolve`, directly or through `/aif-transfer` |
 | `README.md` | Landing page for `/aif-docs` |
 | `docs-html/` | Static HTML output for `/aif-docs --web` |
 
