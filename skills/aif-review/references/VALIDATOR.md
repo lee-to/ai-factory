@@ -1,6 +1,6 @@
 # Review item validator — subagent prompt
 
-This file is loaded by `aif-review` when the `+check` flag is set. The skill substitutes the placeholders below and dispatches a single `Task(subagent_type: general-purpose)` call. The subagent runs with fresh context — it cannot rely on anything from the parent conversation. `general-purpose` exposes the full tool set; the validator's read-only behavior is enforced by the prompt below, not by a tool-level restriction.
+This file is loaded by `aif-review` when the `+check` flag is set or the review produced confidence markers — `references/CHECK-MODE.md` holds the exact trigger. The skill substitutes the placeholders below and dispatches a single `Task(subagent_type: general-purpose)` call. The subagent runs with fresh context — it cannot rely on anything from the parent conversation. `general-purpose` exposes the full tool set; the validator's read-only behavior is enforced by the prompt below, not by a tool-level restriction.
 
 Treat this file as a template. When the skill invokes the validator, it MUST replace:
 

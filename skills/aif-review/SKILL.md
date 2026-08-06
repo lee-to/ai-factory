@@ -1,6 +1,6 @@
 ---
 name: aif-review
-description: Perform code review on staged changes or a pull request. Checks for bugs, security issues, performance problems, and best practices. Use when user says "review code", "check my code", "review PR", or "is this code okay". Optional +check flag validates findings via a fresh-context subagent.
+description: Perform code review on staged changes or a pull request. Checks for bugs, security issues, performance problems, and best practices. Use when user says "review code", "check my code", "review PR", or "is this code okay". The +check flag validates findings via a fresh-context subagent; validation also runs automatically when the review produced confidence markers.
 argument-hint: "[PR number | branch/commit/tag | empty] [+check]"
 allowed-tools: Bash(git *) Bash(gh *) Read Glob Grep Task Agent AskUserQuestion
 disable-model-invocation: false
@@ -28,7 +28,7 @@ If config.yaml doesn't exist, use defaults:
 
 Before routing the argument string into one of the modes below, extract any standalone tokens that flag optional behavior. Strip them from the argument string and route the remainder normally.
 
-- `+check` — runs the optional findings validator after the review is produced. The full procedure (when to run, failure modes, output additions, gate-result recomputation) lives in `references/CHECK-MODE.md`. Default is OFF; the validator runs only when this token is present. The token may appear before or after the main argument (e.g. `/aif-review +check`, `/aif-review 123 +check`, `/aif-review main +check`).
+- `+check` — runs the optional findings validator after the review is produced. The full procedure (when to run, failure modes, output additions, gate-result recomputation) lives in `references/CHECK-MODE.md`. The validator runs when this token is present **or** when the review produced at least one confidence marker — see "Resolving markers before the gate" below. For a marker-free review the flag is the only trigger, so nothing is dispatched unless it is given. The token may appear before or after the main argument (e.g. `/aif-review +check`, `/aif-review 123 +check`, `/aif-review main +check`).
 
 If the leftover argument string is empty, fall back to the empty-argument mode (staged review). Unknown `+`-prefixed tokens are passed through as part of the main argument so they are not silently consumed.
 
