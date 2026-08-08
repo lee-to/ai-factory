@@ -725,7 +725,9 @@ AIF_FIX_SKILL="$ROOT_DIR/skills/aif-fix/SKILL.md"
 AIF_RULES_SKILL="$ROOT_DIR/skills/aif-rules/SKILL.md"
 AIF_REFERENCE_SKILL="$ROOT_DIR/skills/aif-reference/SKILL.md"
 AIF_SECURITY_SKILL="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
+AIF_TRANSFER_SKILL="$ROOT_DIR/skills/aif-transfer/SKILL.md"
 AIF_VERIFY_SKILL="$ROOT_DIR/skills/aif-verify/SKILL.md"
+SKILL_HINTS="$ROOT_DIR/src/cli/wizard/skill-hints.ts"
 AIF_VERIFY_OWNERSHIP_REF="$ROOT_DIR/skills/aif-verify/references/CONTEXT-GATES-AND-OWNERSHIP.md"
 AIF_ROADMAP_SKILL="$ROOT_DIR/skills/aif-roadmap/SKILL.md"
 AIF_COMMIT_SKILL="$ROOT_DIR/skills/aif-commit/SKILL.md"
@@ -739,6 +741,21 @@ PLAN_FILES_DOC="$ROOT_DIR/docs/plan-files.md"
 GETTING_STARTED_DOC="$ROOT_DIR/docs/getting-started.md"
 PLAN_POLISHER="$ROOT_DIR/subagents/claude/agents/plan-polisher.md"
 CODEX_PLAN_POLISHER="$ROOT_DIR/subagents/codex/agents/plan-polisher.toml"
+
+if grep -Fq '`.ai-factory/config.yaml` first, when present, to resolve:' "$AIF_TRANSFER_SKILL" \
+   && grep -Fq '`paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`' "$AIF_TRANSFER_SKILL" \
+   && grep -Fq '`technical_terms_policy`: `language.technical_terms || "keep"`' "$AIF_TRANSFER_SKILL" \
+   && grep -Fq '`{{skills_dir}}/aif-evolve/SKILL.md`' "$AIF_TRANSFER_SKILL" \
+   && grep -Fq 'The source project is read-only for the whole run.' "$AIF_TRANSFER_SKILL" \
+   && grep -Fq 'Do not read, create, or advance `paths.evolutions/patch-cursor.json`.' "$AIF_TRANSFER_SKILL" \
+   && grep -Fq 'Read `.ai-factory/skill-context/aif-transfer/SKILL.md` — MANDATORY when it exists.' "$AIF_TRANSFER_SKILL" \
+   && grep -Fq "'aif-transfer':" "$SKILL_HINTS" \
+   && grep -F '| `/aif-transfer` | Yes | No |' "$CONFIG_REFERENCE_DOC" | grep -Fq '`language.technical_terms`'; then
+    pass "aif-transfer preserves config, delegation, and privacy contract"
+else
+    fail "aif-transfer config, delegation, or privacy contract missing"
+fi
+
 MODE1_SECTION="$(awk '
     /^### Mode 1: Analyze Existing Project$/ { capture=1 }
     capture { print }

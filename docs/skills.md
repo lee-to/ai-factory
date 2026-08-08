@@ -2,7 +2,7 @@
 
 # Core Skills
 
-**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, and `/aif-archive`.
+**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, and `/aif-archive`.
 
 `/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
@@ -258,6 +258,20 @@ Self-improve skills based on project experience:
 - Writes project-specific overrides to `.ai-factory/skill-context/<skill>/SKILL.md` (skills treat these as higher-priority rules)
 - Saves evolution log to `paths.evolutions` (default: `.ai-factory/evolutions/`)
 - The more `/aif-fix` patches you accumulate, the smarter `/aif-evolve` becomes
+
+### `/aif-transfer <source-project-path> [skill-name|"all"]`
+Reuse relevant fix experience from another AI Factory project without identifying it:
+```
+/aif-transfer /path/to/reference-project
+/aif-transfer /path/to/reference-project fix
+```
+- Reads only the source project's AI Factory description, architecture, config, and patch files; the source stays read-only
+- Predicts applicability from verified current stack, architecture, and code patterns
+- Drops speculative and source-only lessons instead of adding generic rules
+- Removes source paths, names, patch filenames, repository metadata, and source-only identifiers before proposals or writes
+- Runs the installed `/aif-evolve` workflow in the same invocation, including its explicit approval step
+- Writes no imported patches and does not advance the current evolve cursor
+- Rechecks every changed current-project artifact for source identity after evolution
 
 ---
 

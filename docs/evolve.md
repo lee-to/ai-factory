@@ -4,6 +4,10 @@
 
 Every `/aif-fix` leaves behind a **patch** — a structured record of what went wrong and how it was fixed. `/aif-evolve` processes patches incrementally, analyzes your project's tech stack and conventions, and turns recurring patterns into **rules** that make skills smarter. The more you fix, the better the evolution.
 
+When a similar AI Factory project already has useful patches, `/aif-transfer` can feed
+only the applicable, anonymized prevention points into the same evolve workflow without
+copying patches or identifying the source project.
+
 Paths below show the default `.ai-factory/` layout. `config.yaml` can relocate patch and evolution-log storage via `paths.patches` and `paths.evolutions`; `skill-context` remains fixed.
 
 ## The Learning Loop
@@ -160,6 +164,30 @@ No overlap with base. Kept as-is, no action needed.
 Stale rule decisions are collected in batches of up to 3 per `AskUserQuestion` call. All stale rules must be resolved before gap analysis begins (Step 5).
 
 If all rules in a skill-context file are removed, the file and its directory are deleted.
+
+## Reusing Experience from a Similar Project
+
+```
+/aif-transfer /path/to/reference-project
+/aif-transfer /path/to/reference-project fix
+```
+
+`/aif-transfer` reads the reference project's `.ai-factory` patch history as read-only,
+untrusted evidence. It keeps a prevention point only when the current stack, architecture,
+or code contains a matching risk. Before invoking the standard evolve approval/apply flow,
+it removes source names, paths, patch filenames, repository metadata, and source-only code
+or domain identifiers.
+
+The transfer is intentionally ephemeral:
+
+- source patches are never copied into current `paths.patches`
+- current `patch-cursor.json` is never read or advanced for transferred evidence
+- persisted source labels are anonymous `experience-NNN` IDs
+- privacy is checked again in every changed skill-context and evolution-log file
+- no applicable prevention points means no artifacts are created
+
+The source project is never modified. Approved outputs retain normal `/aif-evolve`
+ownership under `.ai-factory/skill-context/*` and `paths.evolutions`.
 
 ## When to Evolve
 

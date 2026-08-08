@@ -151,9 +151,10 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
                                              ┌─────────────────────┐
                                              │                     │
                                              │ /aif-evolve         │
+                                             │ or /aif-transfer    │
                                              │                     │
-                                             │ Reads new patches + │
-                                             │ project context     │
+                                             │ Patches/experience  │
+                                             │ + current context   │
                                              │       ↓             │
                                              │ Improves skills     │
                                              │                     │
@@ -179,6 +180,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-reference` | Create knowledge refs from URLs/docs for AI agents | No | No (`paths.references`, default `.ai-factory/references/`) |
 | `/aif-distillation` | Turn books, docs, folders, or URLs into one reusable Agent Skill or a split set of focused skills | No | No |
 | `/aif-fix` | Bug fixes, errors, hotfixes | No | Optional (`paths.fix_plan`, default `.ai-factory/FIX_PLAN.md`) |
+| `/aif-transfer` | Reuse anonymized prevention lessons from a similar AI Factory project through `/aif-evolve` | No | No |
 | `/aif-rules-check` | Standalone read-only rules compliance gate for staged work, working tree, or a git ref | No | No (reads existing rules and optional plan context) |
 | `/aif-verify` | Post-implementation quality check | No | No (reads existing) |
 | `/aif-qa` | Manual QA for a feature/fix: change summary → test plan → test cases | No | `paths.qa/<branch-slug>/*.md` (default: `.ai-factory/qa/<branch-slug>/`) |
@@ -203,6 +205,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-distillation`                       | current agent skills directory by default, or `--path <directory>` as an output root (`<root>/<skill-name>/`, or prefixed child dirs in `--split` mode) | distilled skills from explicit source material            |
 | `/aif-fix`                                | `paths.fix_plan`, `paths.patches/*.md`                                                        | bug-fix learning loop artifacts                           |
 | `/aif-evolve`                             | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`, `.ai-factory/skill-context/*`  | skill-context overrides + evolution logs + cursor state   |
+| `/aif-transfer`                           | delegates approved writes to `/aif-evolve`; no source or patch ownership                     | source read-only; current patches and cursor untouched    |
 | `/aif-qa`                                 | `paths.qa/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`                   | derived branch slug as subdirectory (see aif-qa SKILL.md) |
 | `/aif-qa-check`                           | `paths.qa/<branch-slug>/qa-check.md`, `paths.qa/agent-context.md`, `paths.qa/agent-history.md` | executes `/aif-qa` test cases; source QA artifacts stay read-only; agent context/history are reusable automated-QA memory |
 | `/aif-archive`                            | `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                                         | moves completed plan files/bundles from `paths.plans/`; trims closed milestones from `paths.roadmap` |
@@ -397,6 +400,18 @@ Every fix creates a **self-improvement patch** in `paths.patches` (default: `.ai
 ```
 
 Reads patches incrementally using an evolve cursor, analyzes project patterns, and proposes targeted skill improvements. Closes the learning loop: **fix → patch → evolve → better skills → fewer bugs**.
+
+### `/aif-transfer` — reuse anonymized experience
+
+```
+/aif-transfer /path/to/reference-project
+/aif-transfer /path/to/reference-project fix
+```
+
+Reads another AI Factory project's patches as untrusted, read-only evidence, keeps only
+prevention points supported by the current project, removes source identity, then runs
+the installed `/aif-evolve` workflow. Raw patches are never copied, the current evolve
+cursor is not changed, and privacy is checked before and after approved writes.
 
 ---
 
