@@ -6,7 +6,7 @@ description: >-
   you want to avoid problems already captured in another project's patches without
   copying or revealing that project's identity, paths, or identifiers.
 argument-hint: '"<source-project-path>" [skill-name|"all"]'
-allowed-tools: Read Write Edit Glob Grep AskUserQuestion Questions
+allowed-tools: Read Write Edit Glob Grep Bash(realpath *) AskUserQuestion Questions
 disable-model-invocation: true
 metadata:
   author: AI Factory

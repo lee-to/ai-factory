@@ -153,8 +153,8 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
                                              │ /aif-evolve         │
                                              │ or /aif-transfer    │
                                              │                     │
-                                             │ Patches/experience +│
-                                             │ current context     │
+                                             │ Patches/experience  │
+                                             │ + current context   │
                                              │       ↓             │
                                              │ Improves skills     │
                                              │                     │

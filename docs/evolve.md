@@ -169,7 +169,7 @@ If all rules in a skill-context file are removed, the file and its directory are
 
 ```
 /aif-transfer /path/to/reference-project
-/aif-transfer /path/to/reference-project implement
+/aif-transfer /path/to/reference-project fix
 ```
 
 `/aif-transfer` reads the reference project's `.ai-factory` patch history as read-only,
