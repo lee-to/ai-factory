@@ -27,8 +27,9 @@ Explore ideas, constraints, and trade-offs before planning:
 - Uses `language.ui` for user-facing exploration responses, `language.artifacts` for persisted `paths.research` snapshots and derived ultra bundles, and `language.technical_terms` to preserve commands, paths, identifiers, config keys, and machine-readable research metadata where required
 - Does **not** implement code in this mode; when direction is clear, move to `/aif-plan`
 - Can optionally persist exploration context to `paths.research` (default: `.ai-factory/RESEARCH.md`) so you can `/clear` and still feed results into `/aif-plan`
+- Before presenting any persisted regular or ultra update, checks the saved research without relying on chat memory: the Active Summary must be self-contained, must not silently contradict durable research, and quoted mismatches must be resolved or made explicit in `Open questions`. Runtimes with fresh-context delegation use it; direct checking is the portable fallback.
 - Explicit `ultra` is opt-in and persists `<parent(paths.research)>/research/<english-topic-slug>/`. Every bundle has `INDEX.md` + compatible `RESEARCH.md`; C4 Context/Container/Component, ADR, and dependency graph files are added only when evidence meets their complexity signals.
-- Keeps `RESEARCH.md` Active Summary as the sole planning input. Supporting diagrams and decisions must promote material conclusions into that summary instead of silently expanding plan scope.
+- Keeps `RESEARCH.md` Active Summary as the sole planning input. In ultra mode, summary claims need self-contained supporting passages, and supporting diagrams and decisions must promote material conclusions into that summary instead of silently expanding plan scope.
 - Best when the problem is still fuzzy: requirements unclear, trade-offs unresolved, or you want to inspect the codebase before choosing a direction
 
 ### `/aif-plan [fast|full|ultra] <description>`

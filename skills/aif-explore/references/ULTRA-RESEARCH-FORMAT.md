@@ -325,7 +325,9 @@ sequence or data-flow explanation in `RESEARCH.md` or the relevant C4 artifact.
 
 ## Bundle Integrity Gate
 
-Before presenting or updating an ultra research bundle, verify:
+After updating the Active Summary, supporting artifacts, and `INDEX.md`, but
+before appending the current entry to `## Sessions` or presenting the bundle,
+verify:
 
 1. `INDEX.md` contains the exact marker once and links `RESEARCH.md`.
 2. `RESEARCH.md` contains intact Active Summary and Sessions markers.
@@ -333,11 +335,15 @@ Before presenting or updating an ultra research bundle, verify:
 4. Every generated optional artifact is linked exactly once; no placeholder or
    orphan optional file was created.
 5. Each optional artifact has a concrete inclusion signal from the matrix.
-6. Claims distinguish repository/source evidence from inference and unknowns.
-7. Material C4/ADR/dependency conclusions are reflected in the Active Summary
+6. The shared Research Coherence Gate in `SKILL.md` passes for the full linked
+   bundle.
+7. Every material Active Summary claim is supported by a linked bundle passage.
+8. Each supporting passage is self-contained: it identifies enough subject,
+   scope, status, and source for a reader who has only the bundle.
+9. Material C4/ADR/dependency conclusions are reflected in the Active Summary
    before the bundle is handed to `/aif-plan`.
-8. The bundle contains analysis only: no implementation task checklist and no
+10. The bundle contains analysis only: no implementation task checklist and no
    writes outside the selected bundle.
 
-When evidence is insufficient, record the gap in `Open questions` and omit the
-optional artifact instead of filling a template with guesses.
+When evidence is insufficient, apply the shared gate's correction rules and omit
+any unjustified optional artifact instead of filling a template with guesses.

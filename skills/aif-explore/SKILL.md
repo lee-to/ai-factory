@@ -2,7 +2,7 @@
 name: aif-explore
 description: Enter explore mode to investigate ideas, systems, problems, and requirements before planning. Use explicit ultra mode when the user wants a durable adaptive research bundle with an index and only the justified C4, ADR, or dependency artifacts.
 argument-hint: "[ultra] [topic or plan name]"
-allowed-tools: Read Glob Grep Write Edit Bash AskUserQuestion Questions
+allowed-tools: Read Glob Grep Write Edit Bash Task AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
@@ -258,6 +258,22 @@ If the user mentions a plan or you detect one is relevant:
 
 ### Persist exploration context
 
+#### Research Coherence Gate (all persisted modes)
+
+Run this gate whenever regular or ultra research is saved or updated. Re-read only the durable scope from disk: resolved `RESEARCH.md` in regular mode, or `INDEX.md` plus its Artifact Index links in ultra. Chat history and unstored memory are not evidence.
+
+Before presenting the save or appending its session entry, verify:
+
+1. The Active Summary is understandable without the conversation that produced it.
+2. It does not silently contradict durable research; superseded conclusions are explicit.
+3. Claims distinguish source evidence from inference and unknowns.
+4. Each mismatch quotes verbatim both the affected summary claim and the
+   conflicting or qualifying durable passage; a bare assertion is not a finding.
+
+Correct or qualify mismatches, record insufficient evidence in `Open questions`, then re-run. Append a session with a short pass note only after success; an Active-Summary-only regular save runs the gate without adding a session.
+
+Delegate the read-only pass to a fresh-context subagent when supported, giving it only the durable paths and this gate. If unavailable or failed, run it directly; the criteria do not change, and the gate is never skipped or delayed.
+
 #### Ultra mode: adaptive bundle
 
 For explicit ultra mode, follow `references/ULTRA-RESEARCH-FORMAT.md`:
@@ -267,7 +283,7 @@ For explicit ultra mode, follow `references/ULTRA-RESEARCH-FORMAT.md`:
 3. Assess the actual evidence against the artifact inclusion matrix before writing. `INDEX.md` and `RESEARCH.md` are mandatory. C4, ADR, and dependency graph files are conditional; a simple topic stays a two-file bundle.
 4. Create the bundle directory, write/update `RESEARCH.md` with the legacy Active Summary/Sessions markers, then write/update only the justified supporting artifacts.
 5. Write `INDEX.md` last so its Artifact Index and reading order match the files that actually belong to the bundle. Record the concrete reason each optional artifact exists.
-6. Run the Bundle Integrity Gate. Do not generate placeholders, orphan files, speculative diagrams, or implementation task checklists.
+6. Run the Research Coherence Gate, then the Bundle Integrity Gate, before appending the current session entry. Do not generate placeholders, orphan files, speculative diagrams, or implementation task checklists.
 
 Any C4/ADR/dependency conclusion that affects plan requirements MUST be summarized in the bundle `RESEARCH.md` Active Summary. `/aif-plan` commits and hashes that summary; it does not silently promote every diagram note into scope.
 
@@ -320,6 +336,7 @@ Next step:
 
 - Update the `Updated:` timestamp
 - Replace only the content inside `aif:active-summary:start/end`, written in `artifact_language`
+- Run the Research Coherence Gate against the updated file
 - If user selected option (1), append a new session entry just before `<!-- aif:sessions:end -->`:
 
 ```markdown

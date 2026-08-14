@@ -233,7 +233,7 @@ Suggests `/aif-rules` when rules need to be added or clarified
 
 /aif-explore [ultra] [topic or plan name]
     ↓
-Regular → thinking partner; optional save to configured `paths.research`
+Regular → thinking partner; optional save to configured `paths.research`; persisted updates pass a saved-content coherence gate before presentation/session append
     ↓
 Explicit ultra → derives `<parent(paths.research)>/research/<logical-english-slug>/`
     ↓
@@ -242,6 +242,8 @@ Always writes `INDEX.md` + compatible `RESEARCH.md`
 Adds C4 Context/Container/Component, ADR, and dependency graph files only when evidence meets their inclusion signals; never creates placeholders or C4 Level 4 by default
     ↓
 Material supporting-artifact conclusions are promoted into the `RESEARCH.md` Active Summary before planning
+    ↓
+Before appending each ultra session, adds bundle traceability: Active Summary claims need self-contained supporting passages and material supporting conclusions must be promoted; use a fresh-context subagent when available and direct checking as the portable fallback
     ↓
 All application code and non-research context artifacts remain read-only
 

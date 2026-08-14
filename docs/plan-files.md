@@ -230,6 +230,10 @@ Typical structure:
 - `## Active Summary (input for /aif-plan)` — compact, up-to-date snapshot
 - `## Sessions` — append-only history (keep prior notes verbatim)
 
+Before either regular or ultra research is saved as current context,
+`/aif-explore` runs its content-coherence gate. The later SHA256 in a plan detects
+revision drift; it does not replace this earlier semantic check.
+
 ## Original Request
 
 When the user supplies a request to `/aif-plan`, the plan includes `## Original Request` with the request preserved as raw source input.

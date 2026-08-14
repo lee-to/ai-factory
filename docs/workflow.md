@@ -58,6 +58,11 @@ Reliability gate: use `/aif-grounded` when the main problem is not discovery but
 
 If you want exploration results to survive `/clear` and feed directly into planning, ask `/aif-explore` to save them to `paths.research` (default: `.ai-factory/RESEARCH.md`). Use explicit `/aif-explore ultra <topic>` for a named bundle with mandatory `INDEX.md` + compatible `RESEARCH.md` and only the C4, ADR, or dependency artifacts justified by the topic. See [Research and System Analysis](research.md).
 
+Before presenting any persisted regular or ultra update, `/aif-explore` re-reads
+the saved research and checks that its Active Summary is self-contained and does
+not silently contradict durable findings. This coherence gate uses a fresh-context
+subagent where available and the same direct check everywhere else.
+
 Optional conventions step: use `/aif-rules` to append or refine project-wide axioms in `paths.rules_file`, or `/aif-rules area:<name>` to create or update `<configured rules dir>/<area>.md` and register `rules.<area>` in `.ai-factory/config.yaml`. Downstream workflow skills resolve rules with the same hierarchy: `rules.<area>` > `rules/base.md` > `paths.rules_file`.
 
 ![workflow](https://github.com/lee-to/ai-factory/raw/2.x/art/workflow.png)
@@ -238,6 +243,8 @@ If you want the context to persist after `/clear`, save it to `paths.research`.
 Explicit ultra mode persists an English-slug topic bundle. It always writes a
 manifest `INDEX.md` and plan-compatible `RESEARCH.md`, then adds C4 views, ADRs,
 or a dependency graph only when evidence crosses their inclusion thresholds.
+Ultra additionally checks that Active Summary claims have self-contained bundle
+support and material supporting conclusions are reflected back into the summary.
 When direction is clear, transition to `/aif-plan fast`, `full`, or `ultra`.
 
 ### `/aif-grounded [question or task]` — certainty before action

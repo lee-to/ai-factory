@@ -70,9 +70,21 @@ graphs, and C4 code-level diagrams are deliberately omitted.
 - ADR files own accepted or proposed material decisions and alternatives.
 - `DEPENDENCY-GRAPH.md` owns dependency direction and change-impact findings.
 
-Supporting artifacts do not silently become plan requirements. Before planning,
-any material conclusion from a C4, ADR, or dependency graph must be summarized in
-the `RESEARCH.md` Active Summary.
+Every persisted regular or ultra update runs a coherence gate before it is
+presented or appended to `Sessions`. `/aif-explore` re-reads only the saved
+research scope, checks that the Active Summary is self-contained, and rejects
+silent contradictions with durable research. Content findings require verbatim
+excerpts from both sides. Mismatches must be corrected, qualified, or recorded
+in `Open questions` before the session closes.
+
+This common check does not require subagents. A runtime with fresh-context
+subagents delegates the read-only pass; other runtimes perform it directly with
+the same evidence and pass criteria.
+
+Ultra adds bundle traceability: every material Active Summary claim needs a
+self-contained supporting passage, and every material C4, ADR, or dependency
+conclusion must be represented in the summary. Supporting artifacts therefore do
+not silently become plan requirements.
 
 ## Analyst-Friendly Traceability
 
