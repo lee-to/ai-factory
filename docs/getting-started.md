@@ -24,6 +24,7 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Kilo Code | `.kilocode/` | `.kilocode/skills/`, `.kilocode/workflows/` |
 | Antigravity | `.agent/` | `.agent/skills/`, `.agent/workflows/` |
 | OpenCode | `.opencode/` | `.opencode/skills/` |
+| ZCode | `.zcode/` | `.zcode/skills/`, `.zcode/commands/` |
 | Warp | `.warp/` | `.warp/skills/` |
 | Zencoder | `.zencoder/` | `.zencoder/skills/` |
 | Codex CLI | `.codex/` | `.codex/skills/` |
@@ -38,7 +39,7 @@ When Claude Code is selected, AI Factory installs bundled Claude agent files int
 
 Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. Slash-command runtimes keep `/aif-*` examples. Because Codex app and Universal both write to `.agents/skills/` with different invocation styles, select one of those runtimes per project.
 
-MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, Codex app, and Universal / Other. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
+MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, ZCode, Qwen Code, Codex app, and Universal / Other. Universal writes standard MCP settings to `.mcp.json`, ZCode writes to `.zcode/config.json` under `mcp.servers`. Other agents get skills installed with correct paths but without MCP auto-configuration.
 
 ## Your First Project
 

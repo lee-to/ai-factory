@@ -3,6 +3,7 @@ import { KiloCodeTransformer } from './transformers/kilocode.js';
 import { AntigravityTransformer } from './transformers/antigravity.js';
 import { CodexTransformer } from './transformers/codex.js';
 import { QwenTransformer } from './transformers/qwen.js';
+import { ZCodeTransformer } from './transformers/zcode.js';
 
 export interface TransformResult {
   targetDir: string;
@@ -110,6 +111,10 @@ const registry: Record<string, TransformerRegistration> = {
   antigravity: {
     create: () => new AntigravityTransformer(),
     identity: 'antigravity',
+  },
+  zcode: {
+    create: () => new ZCodeTransformer(),
+    identity: 'zcode',
   },
 };
 

@@ -33,7 +33,7 @@ ai-factory init
 - **Spec-driven development** — AI follows plans, not random exploration. Predictable, resumable, reviewable
 - **Community skills** — leverage [skills.sh](https://skills.sh) ecosystem or generate custom skills
 - **Stack-agnostic** — works with any language, framework, or platform
-- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
+- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, ZCode, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
 
 ---
 
@@ -154,6 +154,7 @@ npx skills add lee-to/ai-factory --skill '*'
 - [Claude Code](https://claude.ai/code) - Anthropic's AI coding agent
 - [Cursor](https://cursor.com) - AI-powered code editor
 - [OpenCode](https://opencode.ai) - Open-source AI coding agent
+- [ZCode](https://zcode.ai) - AI coding agent
 - [Roo Code](https://roocode.com) - AI coding agent for VS Code
 - [Kilo Code](https://kilo.ai) - Open-source agentic coding platform
 - [Windsurf](https://windsurf.com) - AI-powered code editor by Codeium

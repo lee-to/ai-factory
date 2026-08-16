@@ -529,6 +529,7 @@ AI Factory writes MCP config to `{{settings_file}}`, but the outer settings shap
 |---------|-------------|-------------|
 | Standard MCP runtimes (Claude Code, Cursor, Roo Code, Kilo Code, Qwen Code, Universal / Other) | `mcpServers.<server>` | `{ "command": "...", "args": [...], "env": {...} }` |
 | OpenCode | `mcp.<server>` | `{ "type": "local", "command": ["...", "..."], "environment": {...} }` |
+| ZCode | `mcp.servers.<server>` in `.zcode/config.json` | `{ "type": "stdio", "command": "...", "args": [...], "env": {...} }` |
 | GitHub Copilot | `servers.<server>` | `{ "type": "stdio", "command": "...", "args": [...], "env": {...} }` |
 | Codex app | `[mcp_servers.<server>]` in `.codex/config.toml` | `command = "..."`, optional `args = [...]`, credential placeholders as `env_vars = ["VAR"]`, literal values under `[mcp_servers.<server>.env]` |
 
@@ -623,6 +624,22 @@ GitHub Copilot (`servers` + `type: "stdio"`):
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    }
+  }
+}
+```
+
+ZCode (`.zcode/config.json`, `mcp.servers` + `type: "stdio"`):
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+      }
     }
   }
 }
