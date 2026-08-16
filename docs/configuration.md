@@ -1011,7 +1011,7 @@ AI Factory can configure these MCP servers:
 | Chrome Devtools | Browser inspection, debugging, performance | - |
 | Playwright | Browser automation, web testing | - |
 
-Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code and Universal / Other, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.codex/config.toml` for Codex app, `.agents/mcp_config.json` for Antigravity).
+Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code and Universal / Other, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.zcode/config.json` for ZCode, `.codex/config.toml` for Codex app, `.agents/mcp_config.json` for Antigravity).
 
 ### Runtime Format Contract
 
@@ -1021,6 +1021,7 @@ Source of truth for runtime MCP shapes and wrapper examples:
 Quick key mapping:
 - Standard MCP runtimes (including Antigravity in `.agents/mcp_config.json`) use `mcpServers.<server>`
 - OpenCode uses `mcp.<server>`
+- ZCode uses `mcp.servers.<server>` in `.zcode/config.json`
 - GitHub Copilot uses `servers.<server>`
 - Codex app uses TOML tables under `mcp_servers.<server>`
 

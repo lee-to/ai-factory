@@ -33,7 +33,7 @@ ai-factory init
 - **Spec-driven development** — AI follows plans, not random exploration. Predictable, resumable, reviewable
 - **Community skills** — leverage [skills.sh](https://skills.sh) ecosystem or generate custom skills
 - **Stack-agnostic** — works with any language, framework, or platform
-- **Multi-agent support** — Claude Code, Cursor, Devin CLI, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity 2.0, ChatGPT CLI, OpenRouter CLI, OpenCode, Warp, Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
+- **Multi-agent support** — Claude Code, Cursor, Devin CLI, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity 2.0, ChatGPT CLI, OpenRouter CLI, OpenCode, Warp, Zencoder, ZCode, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
 
 ---
 
@@ -171,6 +171,7 @@ See [global skills and project symlinks](docs/getting-started.md#global-skills-a
 - [Devin Desktop](https://devin.ai/desktop) - AI-powered code editor by Cognition (formerly Windsurf)
 - [Warp](https://www.warp.dev) - Intelligent terminal with AI agent
 - [Zencoder](https://zencoder.ai) - AI coding agent for VS Code and JetBrains
+- [ZCode](https://zcode.ai) - AI coding agent
 - [Codex CLI](https://github.com/openai/codex) - OpenAI's coding agent
 - [Codex app](https://openai.com/codex/) - OpenAI's coding agent app
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's coding agent
