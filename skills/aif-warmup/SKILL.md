@@ -64,10 +64,11 @@ Read every resolved file that exists, in this order:
 2. ARCHITECTURE
 3. ROADMAP
 4. RESEARCH
-5. RULES: the top-level rules file, `rules.base`, then every named
-   `rules.<area>` entry. Keep every area rule tied to its configured area;
-   never present it as a global rule. Priority is
-   `rules.<area>` > `rules.base` > `paths.rules_file`.
+5. RULES: load from broadest to most specific: the top-level rules file,
+   `rules.base`, then every named `rules.<area>` entry. Later, more specific
+   rules override earlier ones:
+   `rules.<area>` > `rules.base` > `paths.rules_file`. Keep every area rule
+   tied to its configured area; never present it as a global rule.
 
 Missing artifacts are normal. Record them as missing and continue.
 

@@ -25,6 +25,7 @@ const SECTION_KEYS = {
     'qa',
     'archive',
   ],
+  warmup: [],
   workflow: ['auto_create_dirs', 'plan_id_format', 'analyze_updates_architecture', 'architecture_updates_roadmap', 'verify_mode'],
   git: ['enabled', 'base_branch', 'create_branches', 'branch_prefix', 'skip_push_after_commit'],
   rules: ['base'],

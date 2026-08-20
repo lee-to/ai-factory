@@ -115,6 +115,11 @@ paths:
   docs: handbook/
   qa: quality/
 
+# keep this warmup comment
+warmup:
+  paths:
+    - docs/domain/
+
 git:
   enabled: true
   # keep this comment
@@ -125,10 +130,6 @@ git:
 rules:
   base: .ai-factory/rules/base.md
   api: .ai-factory/rules/api.md
-
-warmup:
-  paths:
-    - docs/domain/
 
 custom:
   owner: team
@@ -144,6 +145,7 @@ cat > "$MERGE_PAYLOAD" <<'EOF'
   "fillMissing": {
     "paths.docs": "docs/",
     "paths.qa": ".ai-factory/qa/",
+    "workflow.verify_mode": "normal",
     "git.branch_prefix": "feature/",
     "rules.base": ".ai-factory/rules/base.md"
   }
@@ -159,6 +161,7 @@ assert_contains "$MERGE_TARGET" '^  # keep this comment$' "merge must preserve c
 assert_contains "$MERGE_TARGET" '^  base_branch: trunk # team-default$' "merge must preserve inline comments while updating the value"
 assert_contains "$MERGE_TARGET" '^  api: \.ai-factory/rules/api\.md$' "merge must preserve existing rules.<area> entries"
 assert_contains "$MERGE_TARGET" '^    - docs/domain/$' "merge must preserve user-owned warmup.paths"
+node -e "const fs=require('fs');const text=fs.readFileSync(process.argv[1],'utf8');const comment=text.indexOf('# keep this warmup comment');const warmup=text.indexOf('warmup:');const workflow=text.indexOf('workflow:');if(!(comment < warmup && warmup < workflow)){console.error('Assertion failed: warmup must remain an insertion anchor before backfilled workflow');process.exit(1)}" "$MERGE_TARGET"
 assert_contains "$MERGE_TARGET" '^custom:$' "merge must preserve unknown sections"
 assert_contains "$MERGE_TARGET" '^  # Branch name prefix for new features$' "merge must backfill missing key comments from template"
 assert_contains "$MERGE_TARGET" '^  branch_prefix: feature/$' "merge must backfill missing managed keys"
