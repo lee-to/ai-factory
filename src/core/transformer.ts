@@ -39,6 +39,7 @@ export const WORKFLOW_SKILLS = new Set([
   'aif-plan',
   'aif-rules-check',
   'aif-verify',
+  'aif-warmup',
 ]);
 
 export function sanitizeName(name: string): string {

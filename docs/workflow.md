@@ -54,6 +54,8 @@ Path examples below show the default `.ai-factory/` locations. `config.yaml` can
 
 Optional discovery step: use `/aif-explore` before planning to investigate ideas, compare options, and clarify requirements.
 
+Session startup: use `/aif-warmup` to load the core project artifacts, applicable instructions, and optional extra files/directories from `warmup.paths` into a compact handoff before choosing the next workflow command. The warmed session can then continue directly or be forked.
+
 Reliability gate: use `/aif-grounded` when the main problem is not discovery but certainty - high-stakes answers, changeable facts, version-sensitive behavior, or any request where the model must refuse to guess.
 
 If you want exploration results to survive `/clear` and feed directly into planning, ask `/aif-explore` to save them to `paths.research` (default: `.ai-factory/RESEARCH.md`). Use explicit `/aif-explore ultra <topic>` for a named bundle with mandatory `INDEX.md` + compatible `RESEARCH.md` and only the C4, ADR, or dependency artifacts justified by the topic. See [Research and System Analysis](research.md).
@@ -171,6 +173,7 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 
 | Command | Use Case | Creates Branch? | Creates Plan? |
 |---------|----------|-----------------|---------------|
+| `/aif-warmup` | Load essential project context at session start or before a fork | No | No |
 | `/aif-explore` | Discovery, option comparison, and requirements clarification before planning | No | No (optional `paths.research` on request) |
 | `/aif-explore ultra` | Durable system analysis with adaptive C4/ADR/dependency coverage | No | No (creates `<parent(paths.research)>/research/<english-slug>/`) |
 | `/aif-grounded` | Evidence-only answers, strict verification, and high-stakes questions where guessing is unacceptable | No | No |
@@ -215,6 +218,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-qa-check`                           | `paths.qa/<branch-slug>/qa-check.md`, `paths.qa/agent-context.md`, `paths.qa/agent-history.md` | executes `/aif-qa` test cases; source QA artifacts stay read-only; agent context/history are reusable automated-QA memory |
 | `/aif-archive`                            | `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                                         | moves completed plan files/bundles from `paths.plans/`; trims closed milestones from `paths.roadmap` |
 | `/aif-rules-check`                        | read-only context by default                                                                  | standalone rules gate; no default context-file writes     |
+| `/aif-warmup`                             | read-only context                                                                             | loads a compact session handoff; writes nothing           |
 | `/aif-commit` `/aif-review` `/aif-verify` | read-only context by default                                                                  | gate and report, no default context-file writes           |
 
 Context-gate defaults for `/aif-commit`, `/aif-review`, `/aif-verify`:
