@@ -28,6 +28,7 @@ const SKILL_HINTS: Record<string, string> = {
     'aif-skill-generator': 'Generate new agent skills',
     'aif-transfer': 'Transfer anonymized project experience',
     'aif-verify': 'Verify implementation completeness',
+    'aif-warmup': 'Load project context for a new session',
 };
 
 const DEFAULT_SKILL_HINT = 'Additional custom skill';

@@ -727,6 +727,7 @@ AIF_REFERENCE_SKILL="$ROOT_DIR/skills/aif-reference/SKILL.md"
 AIF_SECURITY_SKILL="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
 AIF_TRANSFER_SKILL="$ROOT_DIR/skills/aif-transfer/SKILL.md"
 AIF_VERIFY_SKILL="$ROOT_DIR/skills/aif-verify/SKILL.md"
+AIF_WARMUP_SKILL="$ROOT_DIR/skills/aif-warmup/SKILL.md"
 SKILL_HINTS="$ROOT_DIR/src/cli/wizard/skill-hints.ts"
 AIF_VERIFY_OWNERSHIP_REF="$ROOT_DIR/skills/aif-verify/references/CONTEXT-GATES-AND-OWNERSHIP.md"
 AIF_ROADMAP_SKILL="$ROOT_DIR/skills/aif-roadmap/SKILL.md"
@@ -754,6 +755,23 @@ if grep -Fq '`.ai-factory/config.yaml` first, when present, to resolve:' "$AIF_T
     pass "aif-transfer preserves config, delegation, and privacy contract"
 else
     fail "aif-transfer config, delegation, or privacy contract missing"
+fi
+
+if grep -Fq 'Resolve relative artifact and rule paths from the project root' "$AIF_WARMUP_SKILL" \
+   && grep -Fq '`warmup.paths` (default `[]`)' "$AIF_WARMUP_SKILL" \
+   && grep -Fq 'inside it. Report and skip absolute paths and `..` escapes.' "$AIF_WARMUP_SKILL" \
+   && grep -Fq 'For a directory, recursively read text files in lexical path order.' "$AIF_WARMUP_SKILL" \
+   && grep -Fq '`language.artifacts` and `language.technical_terms`' "$AIF_WARMUP_SKILL" \
+   && grep -Fq '`git.enabled`, `git.base_branch`, `git.create_branches`' "$AIF_WARMUP_SKILL" \
+   && grep -Fq '`workflow.plan_id_format` and `workflow.verify_mode`' "$AIF_WARMUP_SKILL" \
+   && grep -Fq '`rules.<area>` > `rules.base` > `paths.rules_file`' "$AIF_WARMUP_SKILL" \
+   && grep -Fq "'aif-warmup'," "$ROOT_DIR/src/core/transformer.ts" \
+   && grep -Fq "'aif-warmup':" "$SKILL_HINTS" \
+   && grep -F '| `/aif-warmup` | Yes | No |' "$CONFIG_REFERENCE_DOC" | grep -Fq '`warmup.paths`' \
+   && grep -Fq 'warmup:' "$ROOT_DIR/skills/aif/references/config-template.yaml"; then
+    pass "aif-warmup preserves config-aware fork-ready workflow contract"
+else
+    fail "aif-warmup config, rules, transformer, or docs contract missing"
 fi
 
 MODE1_SECTION="$(awk '

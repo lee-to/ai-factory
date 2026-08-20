@@ -136,6 +136,20 @@ paths:
   archive: .ai-factory/archive/
 
 # =============================================================================
+# Session Warmup
+# =============================================================================
+# Optional extra context loaded by /aif-warmup after the core artifacts.
+# Entries may be files or directories and must stay inside project root.
+# Directories are scanned recursively for readable text files.
+
+warmup:
+  paths: []
+  # Example:
+  # paths:
+  #   - docs/domain/
+  #   - infrastructure/decisions.md
+
+# =============================================================================
 # Workflow Settings
 # =============================================================================
 # Controls AI Factory workflow behavior.

@@ -7,7 +7,7 @@
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (29 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
+2. **Built-in skills** (30 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
@@ -35,6 +35,7 @@ ai-factory/
 │   ├── aif-docs/               # Documentation generation & maintenance
 │   ├── aif-evolve/             # Self-improve skills based on context
 │   ├── aif-transfer/           # Reuse anonymized patch experience from another project
+│   ├── aif-warmup/             # Load startup context for a session or fork
 │   ├── aif-explore/            # Explore mode (thinking partner)
 │   ├── aif-fix/                # Quick bug fixes (no plans)
 │   ├── aif-grounded/           # Reliability gate for answers
@@ -137,7 +138,7 @@ Context gate policy for quality commands:
 `config.yaml` is not universal yet. The current config-aware skills are:
 
 - Core workflow and quality: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`,
-  `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
+  `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-warmup`
 - Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`,
   `/aif-distillation`,
   `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
@@ -154,6 +155,7 @@ Current config keys in active use:
 - `language.ui` / `language.artifacts` / `language.technical_terms` - prompt/report language, generated artifact language, and terminology handling while preserving commands, paths, identifiers, config keys, and raw errors where required
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
 - `workflow.verify_mode` - default verification strictness
+- `warmup.paths` - optional extra files/directories loaded recursively by `/aif-warmup`
 - `rules.base` plus named `rules.<area>` entries - rules hierarchy
 
 Not yet configurable via the current schema:
@@ -230,6 +232,16 @@ Reports standalone verdict:
     - final `aif-gate-result` JSON block → parseable lowercase pass/warn/fail summary
     ↓
 Suggests `/aif-rules` when rules need to be added or clarified
+
+/aif-warmup
+    ↓
+Reads config-aware DESCRIPTION, ARCHITECTURE, ROADMAP, RESEARCH, and rules paths plus applicable AGENTS.md
+    ↓
+Loads optional extra files/directories from `warmup.paths`
+    ↓
+Carries relevant language, git, and workflow preferences into a compact read-only handoff
+    ↓
+Stops without implementation so the warmed session can continue or be forked
 
 /aif-explore [ultra] [topic or plan name]
     ↓

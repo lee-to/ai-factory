@@ -163,6 +163,14 @@ paths:
   qa: .ai-factory/qa/
   archive: .ai-factory/archive/
 
+# Optional extra context for /aif-warmup
+warmup:
+  paths: []
+  # Example:
+  # paths:
+  #   - docs/domain/
+  #   - infrastructure/decisions.md
+
 # Workflow Settings
 workflow:
   auto_create_dirs: true           # Create .ai-factory/ directories when missing
@@ -189,7 +197,7 @@ rules:
 ```
 
 **Current config-aware skills** read `config.yaml` at Step 0. This currently includes:
-- Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`
+- Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-warmup`
 - Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
 
 Other skills are config-agnostic for now and rely on repository context, explicit arguments, or fixed non-configurable paths such as `skill-context`.
@@ -214,6 +222,7 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
   required, and existing fast/full prompts and artifact shapes remain unchanged.
 - `paths.plan` remains the default fast-plan file. If you prefer fast plans inside `paths.plans/`, change `paths.plan` manually in `config.yaml`.
 - `paths.docs` controls where `/aif-docs` writes the detailed documentation pages. `README.md` remains the landing page in the project root.
+- `warmup.paths` is an ordered list of extra files or directories for `/aif-warmup`. Entries resolve from and must stay inside project root; directories are scanned recursively for readable text files. Missing config is equivalent to an empty list.
 - `paths.qa` controls where `/aif-qa` and `/aif-qa-check` store QA artifacts. A derived branch slug is appended automatically: `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`, and `qa-check.md`. Agent-mode `/aif-qa-check` also uses root-level `<paths.qa>/agent-context.md` and `<paths.qa>/agent-history.md` to reuse non-sensitive cross-QA setup facts and recurring learnings, including stable browser routes/selectors and safe command/test-filter patterns. Run-specific details such as branch names, QA target paths, summary counts, assertion totals, and one-off command transcripts stay in `<paths.qa>/<branch-slug>/qa-check.md`. The slug is a deterministic, filesystem-safe, stable derived value with mandatory 40-character safe-slug truncation and a short hash suffix for collision resistance — see `skills/aif-qa/SKILL.md` for the full algorithm. `/aif-qa-check` binds results to the tested commit plus working tree digest, or to a manual build identifier when git is unavailable, plus deterministic `test-cases.md` and per-case digests.
 
 **Current schema limits:** `config.yaml` still leaves `.ai-factory/skill-context/` fixed by command contract. `README.md` and `docs-html/` remain fixed by current documentation workflow.

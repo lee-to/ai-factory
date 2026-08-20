@@ -2,7 +2,7 @@
 
 # Core Skills
 
-**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, and `/aif-archive`.
+**Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy. The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`, and `/aif-warmup`.
 
 `/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
@@ -13,6 +13,17 @@ Other skills are intentionally config-agnostic for now and rely on repository co
 ## Workflow Skills
 
 These skills form the core development loop. See [Development Workflow](workflow.md) for the full diagram and how they connect.
+
+### `/aif-warmup`
+Load the essential project context before starting work:
+```
+/aif-warmup
+```
+- Reads configured DESCRIPTION, ARCHITECTURE, ROADMAP, RESEARCH, and the complete scoped rules hierarchy, plus applicable `AGENTS.md` files
+- Resolves custom paths from project root and carries relevant language, git, and workflow preferences into the handoff
+- Loads extra engineer-selected files or directories from `warmup.paths`; directory scans are recursive and text-only
+- Summarizes active research bundles without loading unrelated supporting artifacts
+- Changes nothing and stops at a self-contained handoff, making the warmed session suitable for continuing or forking
 
 ### `/aif-explore [ultra] [topic or plan name]`
 Explore ideas, constraints, and trade-offs before planning:

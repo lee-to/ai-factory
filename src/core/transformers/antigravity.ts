@@ -38,6 +38,7 @@ export class AntigravityTransformer implements AgentTransformer {
 ## Skill Usage
 
 - Use \`/aif-explore\` to think through ideas before planning — no implementation, just exploration
+- Use \`/aif-warmup\` to load project context at session start or before a fork
 - Use \`/aif-plan\` for new features — creates branch, plan, and tasks
 - Use \`/aif-fix\` for bug fixes — analyzes, fixes, suggests tests
 - Use \`/aif-commit\` for commits — follows conventional commits
@@ -66,6 +67,7 @@ Action-oriented skills that execute specific tasks:
 - \`aif-implement.md\` — Execute plans step by step
 - \`aif-commit.md\` — Create conventional commits
 - \`aif-rules-check.md\` — Run a standalone rules compliance gate
+- \`aif-warmup.md\` — Load startup context for a session or fork
 - \`aif-review.md\` — Code review checklist
 - \`aif-ci.md\` — CI/CD pipeline setup
 
