@@ -344,6 +344,29 @@ project_gate pass
 assert_lacks_text "${OUT_TEXT[0]}" "confidence:" "gate input is marker-free on an implicit run"
 
 # ---------------------------------------------------------------------------
+echo -e "\n${BOLD}=== 9. refuted critical leaves only a suggestion -> warn + /aif-commit ===${NC}"
+
+ITEM_TEXT=([1]="$MARKED_CRITICAL" [2]="$PLAIN_SUGGESTION")
+ITEM_SECTION=([1]="critical" [2]="suggestion")
+stub "### Item 1 (section: critical)
+Verdict: drop
+Reason: behavior does not follow from the code
+
+### Item 2 (section: suggestion)
+Verdict: keep
+Reason: fair point, non-blocking"
+apply_validation "$STUB_FILE" 2
+project_gate pass
+
+assert_eq "${#OUT_TEXT[@]}" "1" "only the suggestion survives"
+assert_eq "${OUT_SECTION[0]}" "suggestion" "survivor stays in Suggestions"
+assert_eq "$GATE_STATUS" "warn" "a lone suggestion warns rather than fails"
+assert_eq "$GATE_BLOCKING" "false" "warn is non-blocking"
+assert_eq "$GATE_BLOCKERS" "" "no blockers once the critical is refuted"
+assert_eq "$GATE_COMMAND" "/aif-commit" "warn still suggests /aif-commit"
+assert_lacks_text "${OUT_TEXT[0]}" "confidence:" "published finding carries no marker"
+
+# ---------------------------------------------------------------------------
 echo -e "\n${BOLD}=== Contract prose invariants ===${NC}"
 
 assert_lacks_text "$(cat "$SKILL")" 'does **not** enter `"blockers"`' \

@@ -252,6 +252,17 @@ assert_contains "$REVIEW_CHECK_MODE" 'Confirmed criticals become blockers' "chec
 assert_contains "$REVIEW_SKILL" 'actionable code finding' "review skill names the validated item class"
 assert_contains "$REVIEW_CHECK_MODE" 'exactly one class of item' "check-mode scopes the validator input"
 
+# The narrative docs describe the same contract — prose drifting back to the
+# pre-validation `warn` + `command: null` state is what these guard.
+DOCS_WORKFLOW="$ROOT_DIR/docs/workflow.md"
+DOCS_SKILLS="$ROOT_DIR/docs/skills.md"
+
+assert_contains "$DOCS_WORKFLOW" 'A marker never reaches the published gate' "workflow docs state the marker-free gate invariant"
+assert_contains "$DOCS_WORKFLOW" 'runs the `+check` validation automatically' "workflow docs describe marker-triggered validation"
+assert_not_contains "$DOCS_WORKFLOW" 'An unverified marked critical is reported in "Critical Issues" but does not block' "workflow docs drop the unverified-blocker behavior"
+assert_contains "$DOCS_SKILLS" 'internal pre-validation draft' "skills docs scope warn+null to the draft"
+assert_contains "$DOCS_SKILLS" 'the published gate is already marker-free' "skills docs state the published gate is marker-free"
+
 echo -e "\n${BOLD}=== Gate result docs ===${NC}\n"
 
 assert_file_exists "$DOCS_REF" "quality gate docs page exists"
