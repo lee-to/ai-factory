@@ -130,14 +130,14 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsCliAgent: null,
     source: 'builtin',
   },
-  windsurf: {
-    id: 'windsurf',
-    displayName: 'Windsurf',
-    configDir: '.windsurf',
-    skillsDir: '.windsurf/skills',
+  devin: {
+    id: 'devin',
+    displayName: 'Devin',
+    configDir: '.devin',
+    skillsDir: '.devin/skills',
     settingsFile: null,
     supportsMcp: false,
-    skillsCliAgent: 'windsurf',
+    skillsCliAgent: 'devin',
     source: 'builtin',
   },
   warp: {

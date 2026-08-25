@@ -61,7 +61,7 @@ _BUILTIN_AGENT_SKILLS_DIRS = (
     '.gemini/skills',
     '.junie/skills',
     '.qwen/skills',
-    '.windsurf/skills',
+    '.devin/skills',
     '.warp/skills',
     '.zencoder/skills',
     '.roo/skills',

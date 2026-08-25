@@ -15,24 +15,24 @@ AI Factory is a **stack-agnostic** CLI tool and skill system that works with any
 
 AI Factory works with any AI coding agent. During `ai-factory init`, you choose one or more target agents and skills are installed to each agent's correct directory with paths adapted automatically:
 
-| Agent | Config Directory | Skills Directory |
-|-------|-----------------|-----------------|
-| Claude Code | `.claude/` | `.claude/skills/` |
-| Cursor | `.cursor/` | `.cursor/skills/` |
-| Windsurf | `.windsurf/` | `.windsurf/skills/` |
-| Roo Code | `.roo/` | `.roo/skills/` |
-| Kilo Code | `.kilocode/` | `.kilocode/skills/`, `.kilocode/workflows/` |
-| Antigravity | `.agent/` | `.agent/skills/`, `.agent/workflows/` |
-| OpenCode | `.opencode/` | `.opencode/skills/` |
-| Warp | `.warp/` | `.warp/skills/` |
-| Zencoder | `.zencoder/` | `.zencoder/skills/` |
-| Codex CLI | `.codex/` | `.codex/skills/` |
-| Codex app | `.agents/` | `.agents/skills/` |
-| GitHub Copilot | `.github/` | `.github/skills/` |
-| Gemini CLI | `.gemini/` | `.gemini/skills/` |
-| Junie | `.junie/` | `.junie/skills/` |
-| Qwen Code | `.qwen/` | `.qwen/skills/` |
-| Universal / Other | `.agents/` | `.agents/skills/` |
+| Agent             | Config Directory | Skills Directory                            |
+|-------------------|------------------|---------------------------------------------|
+| Claude Code       | `.claude/`       | `.claude/skills/`                           |
+| Cursor            | `.cursor/`       | `.cursor/skills/`                           |
+| Devin             | `.devin/`        | `.devin/skills/`                            |
+| Roo Code          | `.roo/`          | `.roo/skills/`                              |
+| Kilo Code         | `.kilocode/`     | `.kilocode/skills/`, `.kilocode/workflows/` |
+| Antigravity       | `.agent/`        | `.agent/skills/`, `.agent/workflows/`       |
+| OpenCode          | `.opencode/`     | `.opencode/skills/`                         |
+| Warp              | `.warp/`         | `.warp/skills/`                             |
+| Zencoder          | `.zencoder/`     | `.zencoder/skills/`                         |
+| Codex CLI         | `.codex/`        | `.codex/skills/`                            |
+| Codex app         | `.agents/`       | `.agents/skills/`                           |
+| GitHub Copilot    | `.github/`       | `.github/skills/`                           |
+| Gemini CLI        | `.gemini/`       | `.gemini/skills/`                           |
+| Junie             | `.junie/`        | `.junie/skills/`                            |
+| Qwen Code         | `.qwen/`         | `.qwen/skills/`                             |
+| Universal / Other | `.agents/`       | `.agents/skills/`                           |
 
 When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. When Codex CLI is selected, AI Factory also installs bundled Codex native agent TOML files into `.codex/agents/` plus a managed `.codex/config.toml`. That Codex bundle is currently the baseline planning / implementation / review layer, not full parity with the broader Claude bundle, and `.codex/config.toml` is intentionally AI-Factory-managed. Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex package inventory is documented separately in [Subagents](subagents.md).
 
