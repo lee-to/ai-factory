@@ -117,7 +117,7 @@ All AskUserQuestion prompts, progress updates, summaries, and next-step guidance
 Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
 For ultra this applies to `index.md` and every linked phase file.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Apply `technical_terms_policy` to other human-readable terminology.
 
 Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
 
@@ -620,6 +620,45 @@ I need a few clarifications before creating the plan:
 2. [Question about approach]
 ```
 
+#### Requirements Reconciliation Gate
+
+For work governed by existing requirements, reconcile them before exploring an
+implementation:
+
+1. Treat roadmap items and task summaries as scope indicators, not detailed
+   behavioral contracts, unless the project explicitly declares otherwise.
+2. Follow any source-priority hierarchy declared by the user or project context.
+   If no hierarchy exists, do not silently choose between conflicting sources.
+3. Record each material behavioral rule with its source path/section. When two
+   sources overlap, state whether they agree, one refines the other, or they
+   conflict. Ask the user and STOP when an unresolved conflict would change the
+   implementation.
+4. Do not edit source requirements while creating the plan. Report stale or
+   contradictory artifacts and route them to their owner command or the user.
+
+When behavior depends on two or more independent selectors, states, modes, or
+input shapes, enumerate the supported combinations before writing tasks. Cover
+only combinations allowed by the requirements, not a speculative Cartesian
+product. For each material combination specify:
+
+- accepted input and validation;
+- persisted state;
+- returned output or next transition;
+- side effects and invariants;
+- one verification scenario. If testing is enabled, make it a test; otherwise
+  provide a runnable/manual verification step without adding a test task.
+
+When repository data, configuration, fixtures, schemas, or content define the
+real contract, include at least one representative existing artifact in an
+end-to-end verification path instead of validating only synthetic fixtures.
+
+Add an exact `## Requirements Reconciliation` section to the plan entrypoint
+when multiple authoritative sources materially constrain the work, a conflict
+was resolved, independent behavior dimensions exist, or a representative real
+artifact is required. Keep it compact: declared authority, cited decisions,
+applicable combination table, and verification evidence. Omit it for simple
+work where none of these signals applies.
+
 ### Step 3: Explore Codebase
 
 Before planning, understand the existing code through **parallel exploration**.
@@ -727,6 +766,7 @@ For ultra also create the resolved bundle directory before writing its files.
 - `Settings` section (Testing, Logging, Docs)
 - `Roadmap Linkage` section (optional, only if the resolved roadmap artifact exists)
 - `Research Context` section (optional, only if research content influenced this plan)
+- `Requirements Reconciliation` section (conditional, when required by the gate in Step 2)
 - `Tasks` section grouped by phases; in ultra this is the only task-checkbox source
 - `Commit Plan` section when there are 5+ tasks
 
@@ -874,6 +914,8 @@ Every `TaskCreate` item MUST include:
 - File paths to change/create
 - Logging requirements (what to log, where, and levels)
 - Dependency notes when applicable
+- Requirement source anchors and applicable behavior combinations when the
+  Requirements Reconciliation Gate applies
 
 **Never create tasks without logging instructions.**
 
@@ -898,6 +940,9 @@ Use canonical examples in `references/TASK-FORMAT.md`:
    sequential prefix from Step 1.2; `timestamp` and `uuid` fall back to `slug`.
 9. **Ownership boundary** – This command owns plan artifacts only (the resolved fast plan path and full/ultra artifacts under `paths.plans`). Use owner commands (`/aif-roadmap`, `/aif-rules`, `/aif-explore`) for their artifacts.
 10. **Roadmap linkage (when available)** — If the resolved roadmap artifact exists, include a `## Roadmap Linkage` section in the plan (or explicitly state it was skipped).
+11. **Reconcile before planning** — Do not let a roadmap summary, lower-priority
+    source, or internally consistent implementation override an unresolved
+    behavioral requirement.
 
 ## Plan File Handling
 

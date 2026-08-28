@@ -572,6 +572,29 @@ merely because TaskGet contains a shorter summary. If phase instructions conflic
 with current code or project context, stop and report the concrete drift; do not
 silently make the architectural choice that ultra was meant to pre-plan.
 
+**3.1.1: Run the requirement consistency gate**
+
+Before marking a behavior-changing task in progress:
+
+1. Read the plan's `## Requirements Reconciliation` section when present and
+   re-read the cited passages relevant to the current task.
+2. Apply a source-priority hierarchy only when it is declared by the user or
+   project. Treat roadmap text as scope rather than a detailed contract unless
+   explicitly declared otherwise.
+3. Compare the task's proposed behavior with the cited requirements. If they
+   clearly conflict, emit `ERROR [requirement-conflict]`, leave the task pending,
+   and STOP for clarification. Do not implement first and rewrite a requirement
+   artifact afterwards.
+4. If behavior depends on independent selectors, states, modes, or input shapes,
+   confirm that the task covers each applicable supported combination across
+   validation, persistence, output/transition, and side effects. Do not infer a
+   restriction on one dimension from a rule about another.
+
+If an old plan lacks `## Requirements Reconciliation`, perform this gate from
+the task, Original Request, committed Research Context, project rules, and any
+authoritative sources they explicitly reference. Do not expand into unrelated
+research.
+
 **3.2: Mark as in_progress**
 
 ```
@@ -585,12 +608,20 @@ TaskUpdate(taskId, status: "in_progress")
 - Follow existing code patterns
 - **NO tests unless plan includes test tasks**
 - **NO reports or summaries**
+- Treat requirement, research, roadmap, rules, and architecture artifacts as
+  read-only unless the active task explicitly requires changing the owning
+  artifact. This does not block the factual context maintenance explicitly
+  allowed later in this workflow, but those updates must not change behavioral
+  requirements merely to match the implementation.
 
 **3.4: Verify implementation**
 
 - Check code compiles/runs
 - Verify functionality works
 - Fix any immediate issues
+- Run the verification scenarios assigned to the task. When a representative
+  repository artifact defines the contract, exercise that artifact through the
+  primary path rather than relying only on synthetic fixtures.
 
 **3.5: Mark as completed**
 
