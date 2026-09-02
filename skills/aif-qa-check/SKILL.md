@@ -1,6 +1,6 @@
 ---
 name: aif-qa-check
-description: Executes QA test cases created by /aif-qa in human-guided or automated-agent mode. Use when you need to walk through QA one case at a time, record pass/fail results, or have an agent verify cases through browser, CLI, API, automated tests, or file/document checks.
+description: Executes QA test cases created by /aif-qa in human-guided or automated-agent mode, including reusable browser replay scripts. Use when you need to walk through QA one case at a time, record pass/fail results, or have an agent verify and rerun cases through browser, CLI, API, automated tests, or file/document checks.
 argument-hint: "[human | agent] [<branch>]"
 allowed-tools: Read Write Grep Glob Bash AskUserQuestion Browser mcp__playwright__*
 disable-model-invocation: true
@@ -12,6 +12,8 @@ Runs the `test-cases.md` artifact produced by `/aif-qa` and records execution st
 In agent mode, it also maintains reusable cross-QA execution memory under the QA root:
 - `agent-context.md` — curated, current, reusable non-sensitive setup facts for future automated QA runs
 - `agent-history.md` — append-only reusable learnings extracted from prior runs, not a per-run audit log
+
+For browser/UI cases, agent mode saves executable replay scripts under the branch-specific `browser-replay/` directory. Later runs execute those scripts first, including scripts for previously passed cases, so fixes are retested and prior behavior gets regression coverage without regenerating browser automation.
 
 The skill is stack-free and agent-free: it does not assume a framework, package manager, browser tool name, or agent runtime. In agent mode, it uses the appropriate available execution surface for each case: live browser automation, CLI commands, project test runners, HTTP/API calls, database-safe read checks, file/document inspection, or other non-destructive automated verification.
 
@@ -117,6 +119,7 @@ Store:
 - `artifact_dir = <resolved paths.qa>/<branch-slug>`
 - `test_cases_path = <artifact_dir>/test-cases.md`
 - `qa_check_path = <artifact_dir>/qa-check.md`
+- `browser_replay_dir = <artifact_dir>/browser-replay`
 
 Compute `branch-slug` with the exact same algorithm as `/aif-qa`:
 1. Replace every character not in `[A-Za-z0-9._-]` with `-`, collapse consecutive `-`, trim leading/trailing `-`, and use `branch` if empty. Then MUST truncate `safe_slug` to the first 40 ASCII characters. Because the normalized `safe_slug` alphabet is `[A-Za-z0-9._-]`, byte length and character length are identical.
@@ -152,8 +155,8 @@ Canonicalize each per-case digest input exactly:
 Compute `worktree_digest` exactly when git is enabled and a git work tree exists:
 1. Capture `git status --porcelain=v1 --untracked-files=all`.
 2. Capture `git diff --binary HEAD --`.
-3. Exclude `qa_check_path` from the status, diff, and untracked-file digest inputs so saving `qa-check.md` does not stale its own results. Do not exclude `test_cases_path`; source changes are also tracked by `source_digest`.
-4. For each untracked file listed by porcelain status except `qa_check_path`, append `UNTRACKED <path> <content-digest>` where `<content-digest>` is `git hash-object --no-filters <path>` when the file is readable.
+3. Exclude `qa_check_path` and every file under `browser_replay_dir` from the status, diff, and untracked-file digest inputs so QA-owned result/replay artifacts do not stale their own results. Do not exclude `test_cases_path`; source changes are also tracked by `source_digest`.
+4. For each remaining untracked file listed by porcelain status, append `UNTRACKED <path> <content-digest>` where `<content-digest>` is `git hash-object --no-filters <path>` when the file is readable.
 5. Normalize line endings in the combined input to LF and hash it with `git hash-object --stdin`.
 6. If the filtered work tree input is clean, record the digest of the canonical string `clean\n`.
 
@@ -168,6 +171,7 @@ If `qa-check.md` exists, read it and resume from existing statuses only after co
 - If a new case appears, add it as unchecked `Pending`.
 - If a prior case no longer exists in `test-cases.md`, keep its historical entry marked `Stale` or move it to an artifact-language "Stale / Removed Cases" section; never count it as current.
 - Do not overwrite prior pass/fail comments unless the user explicitly chooses to retest that case.
+- Stale result bindings do not make a browser replay script stale. A replay script remains reusable across revisions and worktree changes while its embedded case digest matches the current `case_digest`; this is what allows rerunning the same checks after a fix.
 
 If `qa-check.md` does not exist, create it from `templates/QA-CHECK.md` using the extracted test cases and source binding metadata. Every case starts unchecked and `Pending`.
 
@@ -185,6 +189,7 @@ Before executing any case or writing `qa-check.md` in agent mode:
 2. Classify each test case by the evidence surface it requires: `browser-ui`, `cli`, `backend-test`, `api`, `file-docs`, `database-read`, `hybrid`, `human`, or `unknown`. If the case has an explicit `Execution surface:` field, use it unless the case text clearly contradicts it; record any override in `agent-history.md`.
 3. Choose the least invasive capability that can produce concrete evidence for that case. Browser automation is REQUIRED for browser/UI-observable cases and hybrid cases whose expected result depends on rendered web behavior. Do not substitute CLI commands, unit tests, static inspection, or backend checks for a browser/UI case; those may be recorded only as supporting evidence.
 4. If a case requires browser automation, prefer the in-app Browser capability if available. If in-app Browser is not available, use Playwright MCP if available.
+   - Prefer a browser capability that can execute a saved Playwright-compatible `page` script when replay scripts exist.
 5. If a browser/UI case requires live browser automation and neither in-app Browser nor Playwright MCP is available, keep only that case unchecked, set status to `Blocked`, ask the user in `ui_language` to enable a live browser capability, and append this blocker to `<paths.qa>/agent-history.md`. Continue with other cases that can be verified through CLI, tests, API, or file/document checks.
 6. Use `<paths.qa>/agent-context.md`, `<paths.qa>/agent-history.md`, `test-cases.md`, `change-summary.md`, project docs, current browser state, and repository scripts to determine the target URL, service startup commands, test commands, and environment.
 7. For browser/UI cases that require authentication or specific user state, resolve a browser test identity before marking the case blocked:
@@ -246,9 +251,25 @@ Determine the test target:
 - Do not invent credentials, URLs, commands, fixtures, or environment assumptions.
 - Use the target environment and authorizations collected in Step 1.1. Reconfirm if navigation redirects to a different host or a more sensitive environment.
 
+#### Browser Replay Contract
+
+For every `browser-ui` case, and every `hybrid` case with browser steps:
+
+1. Use `<browser_replay_dir>/TC-NNN.js` as the canonical replay artifact. Keep one case per file so a failed case can be rerun independently.
+2. Write the smallest Playwright-compatible `async (page) => { ... }` expression. This is the format accepted by browser run-code capabilities. Do not add imports, a test framework, fixtures, generated wrappers, or project dependencies. Include navigation, stable selectors, inputs/actions, and explicit assertions that throw on mismatch.
+3. Put `// aif-case-digest: <case_digest>` on the first line. Never write passwords, tokens, cookies, authorization values, one-time codes, or token-bearing URLs into the script. Reuse an already authenticated browser session or obtain secrets through the authorized runtime mechanism.
+4. Before issuing exploratory browser actions, look for the case's replay file:
+   - Matching digest and executable by an available browser capability → run it first.
+   - Missing or digest changed → execute the case once while creating/replacing the script, then run the saved script once to verify it reproduces the check.
+   - Matching script has a selector, syntax, or runner failure → repair only that script and rerun it; do not classify an automation defect as a product regression.
+   - Matching script reaches its assertion and observed behavior differs → record the case as `Failed`; this is regression/fix evidence, not a reason to regenerate the script.
+5. On any run after revision, worktree, or manual build changes, replay all current matching browser scripts, including cases that previously passed and failed. When the capability supports it, execute them in one browser session or batch to reduce setup and tool calls.
+6. Record the replay path, embedded digest, execution capability, and result in the case's `Browser replay` and `Evidence` fields in `qa-check.md`.
+7. If the available in-app Browser supports only discrete actions, read the saved script as the exact action/assertion program and replay it through those actions. If Playwright MCP can execute the file body directly, prefer direct execution. Do not regenerate known steps merely because the execution surface changed.
+
 For each pending or selected case:
 1. Select the execution surface from the case classification:
-   - `browser-ui`: navigate with Browser or Playwright MCP and execute UI steps.
+   - `browser-ui`: execute the matching saved browser replay first; create it only when missing or stale by case digest, then navigate with Browser or Playwright MCP and execute UI steps.
    - `cli`: run the relevant project command and inspect exit code/output.
    - `backend-test`: find and run the narrowest existing relevant test command or test filter first; broaden only when needed for confidence. Passing automated coverage is valid pass evidence for the case.
    - `api`: call the endpoint through existing project tooling, safe local commands, or browser/network capability as appropriate.
@@ -285,6 +306,7 @@ After stopping or finishing, report in `ui_language`:
 - blocked
 - pending
 - path to `qa-check.md`
+- path to `browser-replay/` when browser scripts were created or executed
 - path to `agent-context.md` and `agent-history.md` when agent mode ran or requested missing execution context
 - next recommended action
 
@@ -302,9 +324,9 @@ If human-verifiable cases remain blocked after an agent-mode run and the user di
 
 ## Artifact Ownership and Config Policy
 
-- Primary ownership: `<paths.qa>/<branch-slug>/qa-check.md`, `<paths.qa>/agent-context.md`, and `<paths.qa>/agent-history.md`.
+- Primary ownership: `<paths.qa>/<branch-slug>/qa-check.md`, `<paths.qa>/<branch-slug>/browser-replay/TC-NNN.js`, `<paths.qa>/agent-context.md`, and `<paths.qa>/agent-history.md`.
 - Read policy: may read `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`, `<paths.qa>/agent-context.md`, and `<paths.qa>/agent-history.md` as QA context.
-- Write policy: persistent writes are limited to `qa-check.md`, `agent-context.md`, and `agent-history.md`; do not rewrite `test-cases.md`, `test-plan.md`, `change-summary.md`, or `config.yaml`.
+- Write policy: persistent writes are limited to `qa-check.md`, branch-specific `browser-replay/TC-NNN.js`, `agent-context.md`, and `agent-history.md`; do not rewrite `test-cases.md`, `test-plan.md`, `change-summary.md`, or `config.yaml`.
 - Config policy: config-aware, read-only. Reads `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, and `git.enabled`; never writes `config.yaml`.
 
 ## Critical Rules
@@ -327,3 +349,6 @@ If human-verifiable cases remain blocked after an agent-mode run and the user di
 16. MUST persist reusable test-only credentials in `agent-context.md` only after explicit user permission, and MUST never persist production credentials, personal credentials, cookies, session tokens, one-time codes, or shared secrets.
 17. MUST write only reusable non-sensitive cross-QA answers and discovered stable execution facts to `agent-context.md`, and MUST append to `agent-history.md` only when a recurring reusable learning or blocker pattern was discovered.
 18. MUST ask whether to continue eligible blocked agent-mode cases in human mode before ending an agent run with any current human-verifiable `Blocked` cases.
+19. MUST save browser/UI automation as case-digest-bound `browser-replay/TC-NNN.js` scripts and execute matching scripts before generating new browser actions.
+20. MUST replay matching scripts for previously passed browser cases after revision, worktree, or manual build changes so regressions are checked.
+21. MUST NOT add a browser test dependency or runner solely for replay artifacts.

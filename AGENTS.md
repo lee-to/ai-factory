@@ -90,6 +90,7 @@ artifacts, but the paths below remain the default layout:
 - `.ai-factory/qa/<branch-slug>/test-plan.md` — QA test plan (from /aif-qa)
 - `.ai-factory/qa/<branch-slug>/test-cases.md` — QA test cases (from /aif-qa)
 - `.ai-factory/qa/<branch-slug>/qa-check.md` — QA execution checklist and results (from /aif-qa-check)
+- `.ai-factory/qa/<branch-slug>/browser-replay/TC-NNN.js` — reusable case-digest-bound browser scripts for fix verification and regression reruns (from /aif-qa-check agent)
 - `.ai-factory/qa/agent-context.md` — cross-QA reusable non-sensitive automated QA setup facts such as stable URLs, command patterns, login route, selectors, test account role, and seed data patterns (from /aif-qa-check agent)
 - `.ai-factory/qa/agent-history.md` — append-only cross-QA reusable learnings, recurring blockers, resolved setup questions, command patterns, selectors, and navigation notes; not a per-run log (from /aif-qa-check agent)
 - `.ai-factory/evolution/current.json` — active loop pointer (from /aif-loop)
@@ -115,7 +116,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills; `/aif-transfer` delegates approved writes here       |
 | `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor; `/aif-transfer` delegates logs but never the cursor  |
 | `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
-| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results plus root-level `agent-context.md` and `agent-history.md` for automated QA |
+| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results, browser replay scripts, and root-level automated-QA memory |
 | `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                                         | `/aif-archive`         | archived completed plan files/bundles and dated roadmap snapshots                                |
 
 Quality commands (`/aif-rules-check`, `/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
@@ -377,13 +378,15 @@ human → shows one test case at a time, asks whether it works, records pass/fai
     ↓
 agent → uses browser, CLI, API, automated tests, or file/document checks depending on each case; browser/UI cases require in-app Browser or Playwright MCP
     ↓
+agent → saves browser/UI automation as browser-replay/TC-NNN.js; later code/build changes replay prior passes and failures before generating new browser actions
+    ↓
 agent → for browser/UI login or user-state gaps, reuses known test fixtures, creates safe local/test disposable fixtures when authorized/available, or asks the user before blocking
     ↓
 agent → when URL/login/access/setup/selectors/commands/test filters are missing, asks the user before blocking, writes reusable non-sensitive cross-QA answers to agent-context.md, and appends only recurring reusable learnings to agent-history.md
     ↓
 agent → if human-verifiable cases remain Blocked, asks whether to continue those eligible cases in human mode before ending; automation-only blocked cases stay routed to tests/commands/context
     ↓
-Writes .ai-factory/qa/<branch-slug>/qa-check.md with checked passed cases and unchecked failed/blocked cases bound to revision plus worktree digest, or manual build id, plus test-case digests
+Writes .ai-factory/qa/<branch-slug>/qa-check.md plus browser-replay/ scripts, with checked passed cases and unchecked failed/blocked cases bound to revision plus worktree digest, or manual build id, plus test-case digests
 
 /aif-fix <bug description>
     ↓

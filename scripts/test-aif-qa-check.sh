@@ -114,7 +114,7 @@ fi
 
 if grep -Fq 'git status --porcelain=v1 --untracked-files=all' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'git diff --binary HEAD --' "$SKILL_DIR/SKILL.md" \
-    && grep -Fq 'Exclude `qa_check_path` from the status, diff, and untracked-file digest inputs' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Exclude `qa_check_path` and every file under `browser_replay_dir` from the status, diff, and untracked-file digest inputs' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'UNTRACKED <path> <content-digest>' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'If the filtered work tree input is clean, record the digest of the canonical string `clean\n`' "$SKILL_DIR/SKILL.md"; then
     pass "worktree digest covers dirty working tree state"
@@ -140,11 +140,28 @@ else
     fail "human failed comments must be redacted before write while preserving user wording"
 fi
 
-if grep -Fq 'persistent writes are limited to `qa-check.md`' "$SKILL_DIR/SKILL.md" \
+if grep -Fq 'persistent writes are limited to `qa-check.md`, branch-specific `browser-replay/TC-NNN.js`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'do not rewrite `test-cases.md`, `test-plan.md`, `change-summary.md`, or `config.yaml`' "$SKILL_DIR/SKILL.md"; then
-    pass "artifact ownership keeps source QA artifacts read-only"
+    pass "artifact ownership includes browser replay while keeping source QA artifacts read-only"
 else
-    fail "artifact ownership must limit writes to qa-check.md"
+    fail "artifact ownership must limit writes to qa-check results, browser replay, and agent memory"
+fi
+
+if grep -Fq '`browser_replay_dir = <artifact_dir>/browser-replay`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '`<browser_replay_dir>/TC-NNN.js`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '`async (page) => { ... }`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '// aif-case-digest: <case_digest>' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'replay all current matching browser scripts, including cases that previously passed and failed' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'MUST NOT add a browser test dependency or runner solely for replay artifacts' "$SKILL_DIR/SKILL.md"; then
+    pass "browser scripts are persisted and replayed for fix verification and regression coverage"
+else
+    fail "agent mode must persist digest-bound browser scripts and replay prior passes and failures"
+fi
+
+if grep -Fq 'Exclude `qa_check_path` and every file under `browser_replay_dir`' "$SKILL_DIR/SKILL.md"; then
+    pass "QA-owned browser replay files do not stale their own worktree binding"
+else
+    fail "worktree digest must exclude QA-owned browser replay files"
 fi
 
 if grep -Fq '`language.ui`' "$SKILL_DIR/SKILL.md" \
@@ -162,6 +179,8 @@ if grep -Fq -- '- [ ] TC-001:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Manual build/version identifier:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Source digest:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Case digest:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Browser replay directory:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Browser replay:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Stale / Removed Cases' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Status: Pending' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Evidence:' "$SKILL_DIR/templates/QA-CHECK.md"; then

@@ -7,6 +7,7 @@ Tested revision: `[commit SHA | n/a]`
 Worktree digest: `[worktree digest | n/a]`
 Manual build/version identifier: `[manual_build_id | n/a]`
 Source digest: `[test-cases.md digest]`
+Browser replay directory: `[artifact_dir]/browser-replay/`
 Last updated: `[YYYY-MM-DD HH:mm]`
 
 ---
@@ -27,6 +28,7 @@ Last updated: `[YYYY-MM-DD HH:mm]`
   - Type: [Positive / Negative / Edge / Regression]
   - Status: Pending
   - Tester: [human | agent]
+  - Browser replay: [browser-replay/TC-001.js, embedded case digest, execution capability, or n/a]
   - Comment: [User failure reason, redacted if sensitive; agent observation, blocker, or blank]
   - Evidence: [redacted URL, browser observation, screenshot reference, or blank]
 
