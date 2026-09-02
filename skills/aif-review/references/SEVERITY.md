@@ -34,7 +34,7 @@ The validator does NOT reclassify items just to balance the sections or to make 
 
 A `(confidence: low)` / `(confidence: medium)` marker on an item is not a third level and never changes severity semantics: severity reflects the impact of the cited behavior *assuming the finding is true*, so an uncertain potential blocker is filed as **critical** and a well-established nitpick as **suggestion**. Uncertainty is resolved by the validator's verdict (`modify` to confirm, `drop` to refute), never by demotion: do not demote a confirmed item because it arrived with a marker, and do not keep an unconfirmed one because it is hedged.
 
-How an unresolved marked critical projects into `aif-gate-result` — reported in "Critical Issues", but not counted as a blocker until confirmed — is defined by the owner of that projection (see below).
+A marker has no gate projection of its own: it is resolved before the gate is computed, and a marker that reaches the gate unresolved is a validation failure that the gate reports as such (`review-validation-failed`). Both rules belong to the owner of the projection (see below), not to this file.
 
 ## Where `aif-gate-result` is computed
 

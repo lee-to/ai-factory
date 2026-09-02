@@ -248,6 +248,17 @@ assert_contains "$REVIEW_CHECK_MODE" 'violated the marked-item contract' "check-
 assert_contains "$REVIEW_VALIDATOR" 'MUST NOT contain' "validator forbids a marker inside Modified-text"
 assert_contains "$REVIEW_CHECK_MODE" 'Confirmed criticals become blockers' "check-mode promotes confirmed criticals into blockers"
 
+# A marker the pass failed to resolve is a gate failure with its own blocker,
+# not a finding the gate guesses about.
+assert_contains "$REVIEW_SKILL" '"id": "review-validation-failed"' "review skill defines the validation-failure blocker"
+assert_contains "$REVIEW_SKILL" 'An unresolved marker is a validation failure' "review skill projects unresolved markers as a failed gate"
+assert_contains "$REVIEW_SKILL" 'never appear in `"blockers"`' "review skill keeps unconfirmed findings out of blockers"
+assert_contains "$REVIEW_CHECK_MODE" 'Validation failure is a gate failure' "check-mode routes validation failure into the gate"
+assert_contains "$REVIEW_SEVERITY" 'review-validation-failed' "severity rules point unresolved markers at the failure gate"
+assert_not_contains "$REVIEW_SEVERITY" 'not counted as a blocker until confirmed' "severity rules drop the unconfirmed-blocker model"
+assert_contains "$DOCS_REF" 'review-validation-failed' "docs name the validation-failure blocker"
+assert_contains "$DOCS_REF" 'decided by `status` and `blocking` alone' "docs keep the proceed verdict on status/blocking, not on null"
+
 # Only actionable code findings enter the validator.
 assert_contains "$REVIEW_SKILL" 'actionable code finding' "review skill names the validated item class"
 assert_contains "$REVIEW_CHECK_MODE" 'exactly one class of item' "check-mode scopes the validator input"
@@ -260,8 +271,9 @@ DOCS_SKILLS="$ROOT_DIR/docs/skills.md"
 assert_contains "$DOCS_WORKFLOW" 'A marker never reaches the published gate' "workflow docs state the marker-free gate invariant"
 assert_contains "$DOCS_WORKFLOW" 'runs the `+check` validation automatically' "workflow docs describe marker-triggered validation"
 assert_not_contains "$DOCS_WORKFLOW" 'An unverified marked critical is reported in "Critical Issues" but does not block' "workflow docs drop the unverified-blocker behavior"
-assert_contains "$DOCS_SKILLS" 'internal pre-validation draft' "skills docs scope warn+null to the draft"
-assert_contains "$DOCS_SKILLS" 'the published gate is already marker-free' "skills docs state the published gate is marker-free"
+assert_contains "$DOCS_WORKFLOW" 'review-validation-failed' "workflow docs describe the validation-failure gate"
+assert_contains "$DOCS_SKILLS" 'review-validation-failed' "skills docs describe the validation-failure gate"
+assert_not_contains "$DOCS_SKILLS" 'internal pre-validation draft' "skills docs no longer describe a warn+null draft state"
 
 echo -e "\n${BOLD}=== Gate result docs ===${NC}\n"
 

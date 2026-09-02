@@ -30,17 +30,19 @@ If `+check` is not set **and** the drafted review contains no `(confidence: low)
 
    **Confidence markers.** A confirmed marked item loses its marker through `Modified-text` — `VALIDATOR.md` requires `modify` for exactly that reason. A response that leaves the marker in place violates the marked-item contract and is handled as a malformed per-item response (see "Failure modes"), not as a normal outcome. Never strip a marker yourself: the item was not confirmed through the contract, and silently unmarking it would present an unverified claim as verified.
 
-   **Post-condition of a successful pass.** After a pass that had no whole-dispatch failure, every input marked item has been either removed via `drop` or returned via `modify` without its marker. No confidence marker remains among the processed findings — this is what lets the gate be computed at all (`SKILL.md`, "No unresolved markers reach the gate"). Items that hit the per-item malformed path are the exception and are reported by their `WARN` line.
+   **Post-condition of a successful pass.** After a pass that had no whole-dispatch failure, every input marked item has been either removed via `drop` or returned via `modify` without its marker. No confidence marker remains among the processed findings — this is what lets the gate publish a verdict at all (`SKILL.md`, "No unresolved markers reach the gate"). When the post-condition does not hold — a marked item went through the per-item malformed path or the marked-item violation path and is still carrying its marker — the pass has failed for that item, and the gate reports `review-validation-failed` (see "Recomputing `aif-gate-result`" below) in addition to the item's `WARN` line.
 
 > Edge case: the reviewed diff covers the change itself. A finding about how the change interacts with **unchanged** surrounding code is still verified against disk, and in PR mode disk is the current branch, not the PR branch — that residual mismatch is an acceptable compromise, since checking out the PR branch would break the read-only contract.
 
 ## Failure modes
 
-- **Per-item malformed response** (heading missing, no `Verdict` line, unknown verdict token, unknown `Severity` value, or missing `Modified-text` line when `Verdict` is `modify`): treat that item as `keep` with `Severity: unchanged` and append one line after all review sections, just before the `aif-gate-result` fence: `WARN [+check]: validator response for item N was malformed, kept as-is`. Continue processing remaining items.
-- **Marked-item contract violation** — the input item carried a confidence marker and the response either returns `Verdict: keep`, or returns `Verdict: modify` whose `Modified-text` still contains `(confidence: low)` / `(confidence: medium)`. Both mean the uncertainty was not resolved, so neither is a normal outcome: preserve the original marked finding verbatim, leave it unverified in the gate projection, and append `WARN [+check]: validator response for item N violated the marked-item contract, kept as-is`. Continue processing remaining items. As with any per-item malformed response, the run no longer reports a fully successful filtering: the `Filtered:` line is replaced by the `WARN` line.
-- **Whole-dispatch failure** (empty response, exception, timeout, validator refusal): treat **all** items as `keep` with `Severity: unchanged` and append one line in the same position (before the `aif-gate-result` fence): `WARN [+check]: validator failed (<reason>), all items kept as-is`. In this case the `aif-gate-result` block is assembled from the **unfiltered** original list — do NOT recompute `status`, `blockers`, `affected_files`, or `suggested_next`.
+- **Per-item malformed response** (heading missing, no `Verdict` line, unknown verdict token, unknown `Severity` value, or missing `Modified-text` line when `Verdict` is `modify`): treat that item as `keep` with `Severity: unchanged` and append one line after all review sections, just before the `aif-gate-result` fence: `WARN [+check]: validator response for item N was malformed, kept as-is`. Continue processing remaining items. An unmarked item kept this way is an established finding and projects normally; a **marked** item kept this way still carries its marker, so it is unresolved and the gate reports `review-validation-failed`.
+- **Marked-item contract violation** — the input item carried a confidence marker and the response either returns `Verdict: keep`, or returns `Verdict: modify` whose `Modified-text` still contains `(confidence: low)` / `(confidence: medium)`. Both mean the uncertainty was not resolved, so neither is a normal outcome: preserve the original marked finding verbatim in its section, exclude it from `blockers`, and append `WARN [+check]: validator response for item N violated the marked-item contract, kept as-is`. Continue processing remaining items. The gate for the run is the `review-validation-failed` failure (see "Recomputing `aif-gate-result`" below). As with any per-item malformed response, the run no longer reports a fully successful filtering: the `Filtered:` line is replaced by the `WARN` line.
+- **Whole-dispatch failure** (empty response, exception, timeout, validator refusal): treat **all** items as `keep` with `Severity: unchanged` and append one line in the same position (before the `aif-gate-result` fence): `WARN [+check]: validator failed (<reason>), all items kept as-is`. The `aif-gate-result` block is then assembled from the **unfiltered** original list, and what that yields depends on why the pass ran:
+  - **explicit `+check` on a marker-free review** — the draft is a legitimate gate input (every finding is high-confidence), so the block is exactly the pre-validation gate: `status`, `blockers`, `affected_files`, and `suggested_next` unchanged from the draft;
+  - **the draft carries at least one marker** (the pass was mandatory) — the unfiltered list still contains the markers, so the projection reports `review-validation-failed`; the marked items are excluded from `blockers`, the `WARN` line gives the reason.
 
-In both failure paths the `aif-gate-result` fence stays the **last** thing in the output. WARN lines always go above it.
+In every failure path the `aif-gate-result` fence stays the **last** thing in the output. WARN lines always go above it.
 
 ## Output additions
 
@@ -61,9 +63,10 @@ Apply the `SKILL.md` rules unchanged, with four `+check`-specific points:
 - **Input is the post-filter findings.** Recompute `status`, `blockers`, and `affected_files` from "Critical Issues" and "Suggestions" *after* every keep/modify/drop and severity move. A dropped critical item or a demoted finding can lower `status`; a promoted suggestion can raise it.
 - **Confirmed criticals become blockers.** A marked critical that the validator confirmed comes back without its marker and enters `blockers` like any other critical, driving `status` to `fail` and `suggested_next.command` to `/aif-fix`. This is the normal way a validation pass turns a draft into a `fail` gate. A refuted one is dropped and cannot influence the gate at all.
 - **Context gates are not touched.** `+check` never validates the "Context Gates" block (see "When to run" above). Carry its result over from the pre-`+check` draft unchanged and feed it into the same `status` merge — a blocking context gate keeps `status` at `fail` regardless of what the validator did to the findings, and that gate finding stays in `blockers`.
-- **`suggested_next.reason`** gains a short note mentioning `+check` and the three counters, e.g. `"After +check filtering: 2 hidden, 1 adjusted, 1 reclassified; remaining blockers require a fix pass."`.
+- **Validation failure is a gate failure, not a finding state.** If any marked item is still carrying its marker after the pass (per-item malformed response or marked-item contract violation on a marked item, or a whole-dispatch failure of a mandatory pass — see "Failure modes"), project per the `SKILL.md` rule "An unresolved marker is a validation failure": `status: fail`, `blocking: true`, one `review-validation-failed` blocker (`severity: error`, summary = count of unresolved items and the cause from the `WARN` line) next to the established blockers, the unresolved items excluded from `blockers`, and `suggested_next.command: null` with a reason that says the review is incomplete and to re-run `/aif-review +check`. The `null` takes precedence over `/aif-fix` even when established blockers exist.
+- **`suggested_next.reason`** gains a short note mentioning `+check` and the three counters, e.g. `"After +check filtering: 2 hidden, 1 adjusted, 1 reclassified; remaining blockers require a fix pass."`. On a validation failure the note names the failure instead of the counters.
 
-Whole-dispatch failure is the exception: keep the unfiltered draft and do NOT recompute (see "Failure modes" above).
+Whole-dispatch failure feeds the unfiltered draft into the same projection: a marker-free draft reproduces the pre-validation gate, a marked draft yields the `review-validation-failed` gate (see "Failure modes" above).
 
 ## Examples
 
@@ -91,15 +94,16 @@ aif-gate-result (post-filter):
 - reason: "After +check filtering: 1 hidden, 1 adjusted, 1 reclassified; remaining blockers require a fix pass."
 ```
 
-### Whole-dispatch failure
+### Whole-dispatch failure on a marker-free review
 
 ```
 User: /aif-review +check
 
-→ Review drafted: 2 in Critical Issues, 3 in Suggestions
+→ Review drafted: 2 in Critical Issues, 3 in Suggestions, no confidence markers
 → +check validator dispatched
 → Validator failed (timeout)
-→ All items kept as-is; aif-gate-result NOT recomputed (kept from the draft)
+→ All items kept as-is; the draft is a legitimate gate input, so the
+  aif-gate-result is the pre-validation gate
 
 Rendered review (unchanged from the draft):
 - Critical Issues: 2 (original)
@@ -110,6 +114,34 @@ WARN [+check]: validator failed (timeout), all items kept as-is
 
 aif-gate-result (assembled from the unfiltered original list):
 - status: fail, blocking: true
+- blockers: the 2 original criticals
 - suggested_next: /aif-fix
 - reason: original draft reason, no +check counters appended
+```
+
+### Validation failure on a marked item
+
+```
+User: /aif-review
+
+→ Review drafted: 1 in Critical Issues (unmarked), 1 in Critical Issues
+  with "(confidence: medium)", 1 in Suggestions
+→ Markers present → validator dispatched automatically
+→ Validator returned: item 1 keep, item 2 keep (marked — contract violation),
+  item 3 keep
+
+Rendered review:
+- Critical Issues: 2 (item 2 still carries its marker)
+- Suggestions: 1
+
+WARN [+check]: validator response for item 2 violated the marked-item contract, kept as-is
+
+aif-gate-result:
+- status: fail, blocking: true
+- blockers: item 1 (established) + review-validation-failed
+  ("1 marked finding left unresolved: validator response for item 2
+  violated the marked-item contract"); item 2 is NOT a blocker
+- suggested_next: null
+- reason: "Validation of 1 marked finding failed, so the review is
+  incomplete. Re-run /aif-review +check."
 ```

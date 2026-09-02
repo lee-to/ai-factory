@@ -77,7 +77,8 @@ has_marker() {
 #   OUT_TEXT[n] / OUT_SECTION[n]  — surviving findings
 #   OUT_WARNINGS                  — WARN lines, newline separated
 #   OUT_FILTERED                  — the "Filtered:" line, or empty
-#   GATE_STATUS / GATE_BLOCKING / GATE_BLOCKERS / GATE_COMMAND
+#   GATE_STATUS / GATE_BLOCKING / GATE_BLOCKERS / GATE_COMMAND / GATE_REASON
+#   GATE_VALIDATION_FAILED        — 1 when a marker survived the pass
 
 apply_validation() {
     local response_file="$1"
@@ -165,10 +166,17 @@ apply_validation() {
 
 project_gate() {
     local context_gate="${1:-pass}"   # pass | warn | fail
-    local criticals=0 suggestions=0 i
+    local criticals=0 suggestions=0 unresolved=0 i
 
+    # SKILL.md "Machine-readable gate result": only marker-free items are
+    # established findings. A marker that survived the pass is a validation
+    # failure — the item stays in its section but never enters blockers.
     GATE_BLOCKERS=""
     for i in "${!OUT_TEXT[@]}"; do
+        if has_marker "${OUT_TEXT[$i]}"; then
+            unresolved=$((unresolved + 1))
+            continue
+        fi
         if [[ "${OUT_SECTION[$i]}" == "critical" ]]; then
             criticals=$((criticals + 1))
             GATE_BLOCKERS+="${OUT_TEXT[$i]}"$'\n'
@@ -188,12 +196,37 @@ project_gate() {
         GATE_STATUS="$context_gate"
     fi
 
+    GATE_VALIDATION_FAILED=0
+    if [[ $unresolved -gt 0 ]]; then
+        GATE_VALIDATION_FAILED=1
+        GATE_STATUS="fail"
+        local cause
+        cause="$(printf '%s' "$OUT_WARNINGS" | sed -n 's/^WARN \[+check\]: //p' | head -1)"
+        GATE_BLOCKERS+="review-validation-failed: $unresolved marked finding(s) left unresolved: $cause"$'\n'
+    fi
+
     [[ "$GATE_STATUS" == "fail" ]] && GATE_BLOCKING="true" || GATE_BLOCKING="false"
 
-    case "$GATE_STATUS" in
-        fail) GATE_COMMAND="/aif-fix" ;;
-        *)    GATE_COMMAND="/aif-commit" ;;
-    esac
+    if [[ $GATE_VALIDATION_FAILED -eq 1 ]]; then
+        GATE_COMMAND="null"
+        GATE_REASON="Validation of $unresolved marked finding(s) failed, so the review is incomplete. Re-run /aif-review +check."
+    else
+        case "$GATE_STATUS" in
+            fail) GATE_COMMAND="/aif-fix"; GATE_REASON="Blocking findings remain." ;;
+            *)    GATE_COMMAND="/aif-commit"; GATE_REASON="Review found no blocking issues." ;;
+        esac
+    fi
+}
+
+# Asserts the full validation-failure gate shape from SKILL.md.
+assert_validation_failed_gate() {
+    local label="$1"
+    assert_eq "$GATE_VALIDATION_FAILED" "1" "$label: validation failure is detected"
+    assert_eq "$GATE_STATUS" "fail" "$label: status is fail"
+    assert_eq "$GATE_BLOCKING" "true" "$label: blocking is true"
+    assert_contains_text "$GATE_BLOCKERS" "review-validation-failed" "$label: blockers carry review-validation-failed"
+    assert_eq "$GATE_COMMAND" "null" "$label: suggested_next.command is null"
+    assert_contains_text "$GATE_REASON" "/aif-review +check" "$label: reason points at re-running validation"
 }
 
 stub() { printf '%s\n' "$1" > "$STUB_FILE"; }
@@ -251,6 +284,9 @@ project_gate pass
 assert_contains_text "$OUT_WARNINGS" "violated the marked-item contract" "keep on a marked item is a contract violation"
 assert_eq "${OUT_TEXT[0]}" "$MARKED_CRITICAL" "original marked text is preserved verbatim"
 assert_eq "$OUT_FILTERED" "" "a warned run does not report a clean Filtered line"
+assert_validation_failed_gate "invalid keep"
+assert_lacks_text "$GATE_BLOCKERS" "src/db.ts:42" "unconfirmed critical is not an established blocker"
+assert_contains_text "$GATE_BLOCKERS" "violated the marked-item contract" "failure blocker carries the cause"
 
 # ---------------------------------------------------------------------------
 echo -e "\n${BOLD}=== 4. marked critical -> modify keeping the marker -> contract violation ===${NC}"
@@ -265,6 +301,8 @@ project_gate pass
 
 assert_contains_text "$OUT_WARNINGS" "violated the marked-item contract" "modify that keeps a marker is a contract violation"
 assert_eq "${OUT_TEXT[0]}" "$MARKED_CRITICAL" "violating modify does not replace the original text"
+assert_validation_failed_gate "invalid modify"
+assert_lacks_text "$GATE_BLOCKERS" "src/db.ts:42" "unconfirmed critical is not an established blocker"
 
 # ---------------------------------------------------------------------------
 echo -e "\n${BOLD}=== 5. confirmed critical + suggestion never suggests /aif-commit ===${NC}"
@@ -286,16 +324,35 @@ assert_eq "$GATE_COMMAND" "/aif-fix" "mixed result never suggests /aif-commit"
 assert_eq "${#OUT_TEXT[@]}" "2" "both findings survive"
 
 # ---------------------------------------------------------------------------
-echo -e "\n${BOLD}=== 6. whole-dispatch failure keeps the pre-validation gate ===${NC}"
+echo -e "\n${BOLD}=== 6. whole-dispatch failure on a marked review -> validation-failed gate ===${NC}"
 
 ITEM_TEXT=([1]="$MARKED_CRITICAL"); ITEM_SECTION=([1]="critical")
 stub "DISPATCH_FAILURE"
 apply_validation "$STUB_FILE" 1
+project_gate pass
 
 assert_eq "$DISPATCH_FAILED" "1" "dispatch failure is detected"
 assert_contains_text "$OUT_WARNINGS" "validator failed" "dispatch failure emits a WARN line"
 assert_eq "${OUT_TEXT[0]}" "$MARKED_CRITICAL" "items are kept as-is on dispatch failure"
 assert_eq "$OUT_FILTERED" "" "no Filtered line on dispatch failure"
+assert_validation_failed_gate "dispatch failure with markers"
+assert_lacks_text "$GATE_BLOCKERS" "src/db.ts:42" "unconfirmed critical is not an established blocker"
+assert_contains_text "$GATE_BLOCKERS" "validator failed" "failure blocker carries the dispatch cause"
+
+# ---------------------------------------------------------------------------
+echo -e "\n${BOLD}=== 6b. whole-dispatch failure on a marker-free +check keeps the draft gate ===${NC}"
+
+ITEM_TEXT=([1]="$CONFIRMED_TEXT" [2]="$PLAIN_SUGGESTION")
+ITEM_SECTION=([1]="critical" [2]="suggestion")
+stub "DISPATCH_FAILURE"
+apply_validation "$STUB_FILE" 2
+project_gate pass
+
+assert_eq "$GATE_VALIDATION_FAILED" "0" "no marker means no validation failure"
+assert_eq "$GATE_STATUS" "fail" "draft critical still drives fail"
+assert_lacks_text "$GATE_BLOCKERS" "review-validation-failed" "optional validation failing adds no synthetic blocker"
+assert_contains_text "$GATE_BLOCKERS" "src/db.ts:42" "draft critical remains an established blocker"
+assert_eq "$GATE_COMMAND" "/aif-fix" "pre-validation gate suggests /aif-fix"
 
 # ---------------------------------------------------------------------------
 echo -e "\n${BOLD}=== 7. successful pass leaves no confidence marker ===${NC}"
@@ -367,10 +424,62 @@ assert_eq "$GATE_COMMAND" "/aif-commit" "warn still suggests /aif-commit"
 assert_lacks_text "${OUT_TEXT[0]}" "confidence:" "published finding carries no marker"
 
 # ---------------------------------------------------------------------------
+echo -e "\n${BOLD}=== 10. marked suggestion + validation failure -> fail, not warn ===${NC}"
+
+MARKED_SUGGESTION='Variable name `tmp2` is unclear. `src/db.ts:51`. Fix: rename. (confidence: low)'
+ITEM_TEXT=([1]="$MARKED_SUGGESTION"); ITEM_SECTION=([1]="suggestion")
+stub "### Item 1 (section: suggestion)
+Verdict: keep
+Reason: fine as written"
+apply_validation "$STUB_FILE" 1
+project_gate pass
+
+assert_contains_text "$OUT_WARNINGS" "violated the marked-item contract" "keep on a marked suggestion is a contract violation"
+assert_validation_failed_gate "marked suggestion"
+assert_lacks_text "$GATE_BLOCKERS" "src/db.ts:51" "the unresolved suggestion is not a blocker"
+assert_eq "${OUT_SECTION[0]}" "suggestion" "unresolved suggestion stays in its section for the reader"
+
+# ---------------------------------------------------------------------------
+echo -e "\n${BOLD}=== 11. established blocker + unresolved marker -> both reported, command null ===${NC}"
+
+UNMARKED_CRITICAL='Password is logged in plaintext. `src/auth.ts:12`. Fix: redact.'
+ITEM_TEXT=([1]="$UNMARKED_CRITICAL" [2]="$MARKED_CRITICAL")
+ITEM_SECTION=([1]="critical" [2]="critical")
+stub "### Item 1 (section: critical)
+Verdict: keep
+Reason: accurate
+### Item 2 (section: critical)
+Verdict: keep
+Reason: looks right"
+apply_validation "$STUB_FILE" 2
+project_gate pass
+
+assert_validation_failed_gate "mixed established + unresolved"
+assert_contains_text "$GATE_BLOCKERS" "src/auth.ts:12" "established critical stays in blockers"
+assert_lacks_text "$GATE_BLOCKERS" "src/db.ts:42" "unresolved critical is excluded from blockers"
+assert_eq "$GATE_COMMAND" "null" "validation failure outranks /aif-fix in suggested_next"
+
+# ---------------------------------------------------------------------------
+echo -e "\n${BOLD}=== 12. malformed response on a marked item -> validation-failed gate ===${NC}"
+
+ITEM_TEXT=([1]="$MARKED_CRITICAL"); ITEM_SECTION=([1]="critical")
+stub "### Item 1 (section: critical)
+Verdict: maybe
+Reason: unsure"
+apply_validation "$STUB_FILE" 1
+project_gate pass
+
+assert_contains_text "$OUT_WARNINGS" "was malformed" "unknown verdict token is a malformed response"
+assert_validation_failed_gate "malformed on marked item"
+assert_lacks_text "$GATE_BLOCKERS" "src/db.ts:42" "malformed-kept marked item is not a blocker"
+
+# ---------------------------------------------------------------------------
 echo -e "\n${BOLD}=== Contract prose invariants ===${NC}"
 
-assert_lacks_text "$(cat "$SKILL")" 'does **not** enter `"blockers"`' \
-    "the unverified-blocker carve-out is gone from the gate contract"
+assert_contains_text "$(cat "$SKILL")" 'review-validation-failed' \
+    "gate contract defines the validation-failure blocker"
+assert_contains_text "$(cat "$CHECK_MODE")" 'review-validation-failed' \
+    "check-mode routes unresolved markers into the validation-failure gate"
 assert_contains_text "$(cat "$VALIDATOR")" "MUST NOT contain" \
     "validator forbids returning a marker in Modified-text"
 assert_contains_text "$(cat "$CHECK_MODE")" "Post-condition of a successful pass" \

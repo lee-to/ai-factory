@@ -24,7 +24,7 @@ Items whose text ends with a `(confidence: low)` or `(confidence: medium)` marke
 - **confirm** it with `modify`, returning `Modified-text` that is the item minus the marker. `keep` is not valid for a marked item: `keep` returns the text verbatim, so the marker would survive and the finding would stay unresolved.
 - **refute** it with `drop`.
 
-`Modified-text` for a marked item MUST NOT contain `(confidence: low)` or `(confidence: medium)` — removing the marker is the whole point of confirming through `modify`. A response that keeps the marker (either verdict) leaves the finding unresolved and is rejected by the caller as a contract violation, which costs the run its clean result. Verify the claim and decide; if you cannot decide it from the diff and the surrounding code, `drop` is the correct verdict, not a hedged confirmation.
+`Modified-text` for a marked item MUST NOT contain `(confidence: low)` or `(confidence: medium)` — removing the marker is the whole point of confirming through `modify`. A response that keeps the marker (either verdict) leaves the finding unresolved and is rejected by the caller as a contract violation — the review then publishes a failed gate (`review-validation-failed`) instead of a verdict on that finding. Verify the claim and decide; if you cannot decide it from the diff and the surrounding code, `drop` is the correct verdict, not a hedged confirmation.
 
 `Severity` is judged independently, from the impact the item would have if true — a marker never justifies a demotion. Never confirm an item merely because it is hedged; hedging is not evidence.
 

@@ -136,11 +136,16 @@ This section is the single owner of `aif-gate-result` computation:
   - **findings input** — `fail` when any "Critical Issues" item remains (critical correctness, security, data-loss, performance, downstream regression — see `references/SEVERITY.md` for the authoritative critical/suggestion definitions); `warn` when only "Suggestions", missing optional context, or review uncertainty remain; `pass` when nothing material remains.
   - **context-gate input** — `fail` for a blocking (`ERROR`) gate finding; `warn` for a non-blocking (`WARN`) one; `pass` when none.
   - A failing context gate keeps `"status"` at `fail` even with zero Critical Issues — a clean findings list must never mask a failed gate.
-- **No unresolved markers reach the gate.** Publishing an `aif-gate-result` while a finding still carries a `(confidence: low)` / `(confidence: medium)` marker is a contract violation: schema v1 has no encoding for "unverified potential blocker", and any attempt to express it (`warn` + `command: null`) produces a state no consumer can act on. The marker is therefore resolved *before* the gate is computed — see "Resolving markers before the gate" below. The single exception is a `+check` whole-dispatch failure, which keeps the pre-validation gate and prints a `WARN [+check]` line (`references/CHECK-MODE.md`, Failure modes); that is the only path on which a marker is visible to the user, and it is diagnosable rather than silent.
+- **No unresolved markers reach the gate.** The projection expects marker-free findings: a `(confidence: low)` / `(confidence: medium)` marker is resolved by the validation pass *before* the gate is computed — see "Resolving markers before the gate" below. Schema v1 has no encoding for "unverified potential blocker", and the gate never tries to express one (`warn` + `command: null` is not a state, it is a bug).
+- **An unresolved marker is a validation failure, and the gate reports the failure itself.** If a marked finding still carries its marker when the gate is computed — the validation pass was dispatched and did not resolve it: per-item contract violation, malformed per-item response, or whole-dispatch failure (`references/CHECK-MODE.md`, Failure modes) — the review did not complete, and the block says so in the machine-readable fields, not only in the `WARN [+check]` line:
+  - `"status": "fail"`, `"blocking": true`;
+  - `"blockers"` gains exactly one synthetic entry `{"id": "review-validation-failed", "severity": "error", "summary": "<N> marked finding(s) left unresolved: <cause>"}`, alongside the established blockers (below);
+  - the unresolved findings stay in their human-readable sections with their markers, but are **not** established blockers and never appear in `"blockers"` — the gate does not guess whether they are real;
+  - `"suggested_next.command"` is `null` and the reason names the failure and the recovery: re-run `/aif-review +check`. That command is not on the allowlist, so `null` is the only honest value; the block is already `fail` + `blocking`, so no orchestrator can read `null` as "cleared".
 - `"blocking": true|false` — `true` only when `"status"` is `fail`.
-- `"blockers"` — merge-blocking findings only: every "Critical Issues" item and every blocking context-gate finding, nothing else.
+- `"blockers"` — established merge-blocking findings only: every "Critical Issues" item that carries no confidence marker (after a successful validation pass that is every item), every blocking context-gate finding, plus the `review-validation-failed` entry when validation failed — nothing else.
 - `"affected_files"` — reviewed or implicated paths.
-- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`. `null` keeps its original meaning — no suitable command exists — and is not used to encode an unresolved finding.
+- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`. When the `review-validation-failed` blocker is present the command is `null` regardless of the other blockers — a fix pass on an incomplete blocker list would consume a report the review never finished. `null` keeps its original meaning — no allowlisted command fits — and is not used to encode an unresolved finding.
 
 ### Resolving markers before the gate
 
@@ -148,6 +153,7 @@ A review that produced at least one `(confidence: low)` / `(confidence: medium)`
 
 - Every marked finding is either **confirmed** — the validator returns it without the marker, and it counts as an ordinary finding of its section (a confirmed critical is a blocker and drives `fail`) — or **refuted** and dropped.
 - The gate is then computed from the post-validation findings, so the published block never contains a marker and never needs a state schema v1 cannot express.
+- If the pass leaves a marker unresolved, the gate reports the validation failure (`review-validation-failed`, "Machine-readable gate result" above) instead of publishing a verdict the review did not earn. The marker stays visible in the human-readable section, and the `WARN [+check]` line names the cause.
 - The dispatch is paid only in runs that would otherwise produce that unrepresentable state. Since coverage-first deliberately surfaces uncertain findings rather than suppressing them, those runs are common enough that leaving the resolution to the user would stall the pipeline on every one of them.
 
 Procedure, counters, and failure handling are identical to an explicit `+check` (`references/CHECK-MODE.md`); the only difference is what triggered it.
@@ -280,7 +286,7 @@ In either findings section, an item you are not sure about ends with a `(confide
 Example of a marked item, sitting in Critical Issues because its impact would be merge-blocking if real:
 > Retries reuse the same idempotency key after a 5xx, so a duplicate charge is possible when the provider did commit the first attempt. `src/payments/retry.ts:88`. Generate a fresh key per attempt, or record the provider's response before retrying. (confidence: medium)
 
-The marker never reaches the published gate: it is resolved by the validation pass (see "Resolving markers before the gate") — confirmed items come back without it, refuted ones are dropped.]
+The marker never reaches the published gate as a finding: it is resolved by the validation pass (see "Resolving markers before the gate") — confirmed items come back without it, refuted ones are dropped, and a marker the pass failed to resolve turns the gate into a `review-validation-failed` failure.]
 
 ### Questions
 [Free-form clarifications. Path optional, fix optional — these are open questions for the author, never findings (see "Findings taxonomy and the validation boundary").]
@@ -308,7 +314,30 @@ Append the final machine-readable result after the markdown summary:
 }
 ```
 
-When the `+check` flag is set, the `aif-gate-result` block is assembled **after** validator filtering — `status`, `blockers`, `affected_files`, and `suggested_next` are recomputed accordingly. Exception: the whole-dispatch failure path keeps the unfiltered original list and does NOT recompute these fields. See `references/CHECK-MODE.md` for the full procedure.
+When the validation pass ran, the `aif-gate-result` block is assembled **after** validator filtering — `status`, `blockers`, `affected_files`, and `suggested_next` are recomputed accordingly. On a whole-dispatch failure the input is the unfiltered draft instead: for a marker-free review that reproduces the pre-validation gate, for a review with markers it yields the `review-validation-failed` gate. See `references/CHECK-MODE.md` for the full procedure.
+
+The failure block, for a review whose only marked critical could not be validated:
+
+```aif-gate-result
+{
+  "schema_version": 1,
+  "gate": "review",
+  "status": "fail",
+  "blocking": true,
+  "blockers": [
+    {
+      "id": "review-validation-failed",
+      "severity": "error",
+      "summary": "1 marked finding left unresolved: validator response for item 1 violated the marked-item contract"
+    }
+  ],
+  "affected_files": ["src/payments/retry.ts"],
+  "suggested_next": {
+    "command": null,
+    "reason": "Validation of the marked finding failed, so the review is incomplete and no blocker verdict exists for it. Re-run /aif-review +check."
+  }
+}
+```
 
 ## Review Style
 
