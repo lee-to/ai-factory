@@ -378,7 +378,7 @@ human → shows one test case at a time, asks whether it works, records pass/fai
     ↓
 agent → uses browser, CLI, API, automated tests, or file/document checks depending on each case; browser/UI cases require in-app Browser or Playwright MCP
     ↓
-agent → saves browser/UI automation as browser-replay/TC-NNN.js; later code/build changes replay prior passes and failures before generating new browser actions
+agent → saves browser/UI automation as browser-replay/TC-NNN.js; later code/build changes replay prior passes and failures, then records whether concrete change risk justifies one bounded exploratory pass
     ↓
 agent → for browser/UI login or user-state gaps, reuses known test fixtures, creates safe local/test disposable fixtures when authorized/available, or asks the user before blocking
     ↓

@@ -20,6 +20,13 @@ Last updated: `[YYYY-MM-DD HH:mm]`
 - Blocked: [N]
 - Pending: [N]
 
+## Browser Exploration
+
+- Decision: [Ran / Skipped / n/a]
+- Reason: [change-risk signals or why replay was sufficient]
+- Scope: [directly affected adjacent routes, states, or edge inputs / n/a]
+- Findings: [concise redacted findings / None]
+
 ## Execution Results
 
 - [ ] TC-001: [Test Case Name]

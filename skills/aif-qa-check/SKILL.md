@@ -266,6 +266,12 @@ For every `browser-ui` case, and every `hybrid` case with browser steps:
 5. On any run after revision, worktree, or manual build changes, replay all current matching browser scripts, including cases that previously passed and failed. When the capability supports it, execute them in one browser session or batch to reduce setup and tool calls.
 6. Record the replay path, embedded digest, execution capability, and result in the case's `Browser replay` and `Evidence` fields in `qa-check.md`.
 7. If the available in-app Browser supports only discrete actions, read the saved script as the exact action/assertion program and replay it through those actions. If Playwright MCP can execute the file body directly, prefer direct execution. Do not regenerate known steps merely because the execution surface changed.
+8. Treat replay as the regression baseline, not the only browser check. After replay, decide whether one bounded exploratory pass is justified from concrete change risk:
+   - Run it when the change affects shared UI, layout, navigation, authentication, permissions, state transitions, or another cross-cutting flow; when the bug cause or fix behavior remains uncertain; when a matching replay needed repair because application behavior changed; or when replay exposed unexpected adjacent behavior.
+   - Skip it when the fix is narrow and isolated, matching replay directly exercises the changed behavior, no adjacent high-risk path is affected, and replay passes.
+   - When running it, inspect only directly affected adjacent routes, states, or edge inputs. Do not start open-ended browsing or regenerate working replay steps.
+   - Record `Browser exploration: Ran` or `Browser exploration: Skipped`, the reason, scope, and concise redacted findings in `qa-check.md`.
+   - A new finding does not silently become a source test case. Record it in `qa-check.md` and recommend adding it through `/aif-qa test-cases`; create its replay script after it has a `TC-NNN` case.
 
 For each pending or selected case:
 1. Select the execution surface from the case classification:
@@ -352,3 +358,4 @@ If human-verifiable cases remain blocked after an agent-mode run and the user di
 19. MUST save browser/UI automation as case-digest-bound `browser-replay/TC-NNN.js` scripts and execute matching scripts before generating new browser actions.
 20. MUST replay matching scripts for previously passed browser cases after revision, worktree, or manual build changes so regressions are checked.
 21. MUST NOT add a browser test dependency or runner solely for replay artifacts.
+22. MUST make and record an evidence-based browser exploration decision after replay; replay is a baseline, not a replacement for bounded exploration when concrete change-risk signals exist.

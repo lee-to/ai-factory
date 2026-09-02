@@ -152,10 +152,13 @@ if grep -Fq '`browser_replay_dir = <artifact_dir>/browser-replay`' "$SKILL_DIR/S
     && grep -Fq '`async (page) => { ... }`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '// aif-case-digest: <case_digest>' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'replay all current matching browser scripts, including cases that previously passed and failed' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Treat replay as the regression baseline, not the only browser check' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Run it when the change affects shared UI, layout, navigation, authentication, permissions, state transitions' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'Browser exploration: Skipped' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'MUST NOT add a browser test dependency or runner solely for replay artifacts' "$SKILL_DIR/SKILL.md"; then
-    pass "browser scripts are persisted and replayed for fix verification and regression coverage"
+    pass "browser scripts provide regression replay plus evidence-based bounded exploration"
 else
-    fail "agent mode must persist digest-bound browser scripts and replay prior passes and failures"
+    fail "agent mode must combine digest-bound replay with an evidence-based exploration decision"
 fi
 
 if grep -Fq 'Exclude `qa_check_path` and every file under `browser_replay_dir`' "$SKILL_DIR/SKILL.md"; then
@@ -181,6 +184,8 @@ if grep -Fq -- '- [ ] TC-001:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Case digest:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Browser replay directory:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Browser replay:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq '## Browser Exploration' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Decision: [Ran / Skipped / n/a]' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Stale / Removed Cases' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Status: Pending' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Evidence:' "$SKILL_DIR/templates/QA-CHECK.md"; then
