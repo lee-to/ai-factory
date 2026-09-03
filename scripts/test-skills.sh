@@ -1119,6 +1119,46 @@ else
     fail "research-backed plan revision/drift contract missing"
 fi
 
+if grep -Fq 'Resolve citations to the selected research source against the embedded' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'research-backed citations against the embedded `## Research Context`' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'live research source is only a drift signal unless the user explicitly asks' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'live research file remains drift-only unless the user explicitly rebases' "$AIF_VERIFY_SKILL"; then
+    pass "requirements reconciliation preserves committed research snapshots"
+else
+    fail "requirements reconciliation may replace committed research snapshots"
+fi
+
+if grep -Fq '`handoff_outcome: blocked_external`' "$AIF_PLAN_SKILL" \
+   && grep -Fq '`handoff_outcome: blocked_external`' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq '`status: blocked_external` and `blocker: requirement-conflict`' "$PLAN_POLISHER" \
+   && grep -Fq '`status: blocked_external`' "$ROOT_DIR/subagents/claude/agents/plan-coordinator.md" \
+   && grep -Fq '`status: blocked_external`' "$CODEX_PLAN_POLISHER" \
+   && grep -Fq '`status: blocked_external`' "$ROOT_DIR/subagents/codex/agents/plan-coordinator.toml" \
+   && grep -Fq '`handoff_outcome: blocked_external`' "$ROOT_DIR/subagents/claude/agents/implement-coordinator.md" \
+   && grep -Fq '`handoff_outcome: blocked_external`' "$ROOT_DIR/subagents/codex/agents/implement-coordinator.toml"; then
+    pass "autonomous requirement conflicts return a deterministic Handoff blocker"
+else
+    fail "autonomous requirement conflict Handoff contract is incomplete"
+fi
+
+if grep -Fxq '## Requirements Reconciliation' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq 'REQUIREMENT EVIDENCE (when the Requirements Reconciliation Gate applies)' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fxq '## Requirements Reconciliation' "$AIF_PLAN_ULTRA_REF" \
+   && grep -Fq '### Requirement Evidence (when reconciliation applies)' "$AIF_PLAN_ULTRA_REF"; then
+    pass "full and ultra templates preserve requirements reconciliation"
+else
+    fail "full or ultra requirements reconciliation template is incomplete"
+fi
+
+if grep -Fq '`paths.architecture`, `paths.roadmap`, `paths.rules_file`, `paths.rules`' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'Read the resolved architecture and roadmap artifacts when present.' "$AIF_IMPROVE_SKILL" \
+   && grep -Fq 'Read the resolved rules hierarchy when present:' "$AIF_PLAN_SKILL" \
+   && grep -Fq '`ERROR [requirement-ambiguity]` in strict mode' "$AIF_VERIFY_SKILL"; then
+    pass "requirements gates load authoritative context and block strict ambiguity"
+else
+    fail "requirements gate context loading or strict verdict is incomplete"
+fi
+
 AIF_PLAN_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_PLAN_SKILL" || true)
 AIF_IMPROVE_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_IMPROVE_SKILL" || true)
 AIF_FIX_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_FIX_SKILL" || true)

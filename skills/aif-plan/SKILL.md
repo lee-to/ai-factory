@@ -142,6 +142,15 @@ Use this context when:
 - Planning file structure (follow project conventions)
 - **Follow architecture guidelines from the resolved architecture artifact when planning file structure and task organization**
 
+**ALSO:** Read the resolved rules hierarchy when present:
+
+1. `paths.rules_file` — project-wide axioms
+2. `rules.base` — base project conventions
+3. named `rules.<area>` entries relevant to the requested work
+
+Treat explicit rules as authoritative requirements. More-specific area rules
+override base rules, which override project-wide axioms.
+
 **Read `.ai-factory/skill-context/aif-plan/SKILL.md`** — MANDATORY if the file exists.
 
 This file contains project-specific rules accumulated by `/aif-evolve` from patches,
@@ -631,8 +640,12 @@ implementation:
    If no hierarchy exists, do not silently choose between conflicting sources.
 3. Record each material behavioral rule with its source path/section. When two
    sources overlap, state whether they agree, one refines the other, or they
-   conflict. Ask the user and STOP when an unresolved conflict would change the
-   implementation.
+   conflict. When an unresolved conflict would change the implementation:
+   - manual mode → ask the user and STOP;
+   - `HANDOFF_MODE=1` → do not prompt. Emit
+     `ERROR [requirement-conflict]`, return
+     `handoff_outcome: blocked_external`, and STOP without publishing or
+     signaling `plan_ready`.
 4. Do not edit source requirements while creating the plan. Report stale or
    contradictory artifacts and route them to their owner command or the user.
 

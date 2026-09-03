@@ -42,6 +42,9 @@ Bash: printenv HANDOFF_SKIP_REVIEW || true
 **When `HANDOFF_MODE` is `1`** (autonomous Handoff agent):
 
 The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Skip all interactive prompts and use defaults.
+If requirement reconciliation returns `handoff_outcome: blocked_external`, stop
+dispatch, propagate `blocker: requirement-conflict`, and never signal `review`
+or `done`.
 
 **When `HANDOFF_MODE` is NOT `1`** (manual Claude Code session):
 

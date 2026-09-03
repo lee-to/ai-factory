@@ -55,6 +55,14 @@ Constraints:
 Decisions:
 Open questions:
 
+## Requirements Reconciliation
+<!-- Include when multiple authoritative sources constrain behavior, a conflict was resolved, independent behavior dimensions exist, or a representative repository artifact is required. Keep this exact heading. -->
+Authority: [declared source priority, or "none declared"]
+
+| Decision / supported combination | Source path and section | Verification evidence |
+|----------------------------------|-------------------------|-----------------------|
+| [material rule or combination] | `[path]` — [section] | [test, command, or manual check] |
+
 ## Commit Plan
 <!-- For plans with 5+ tasks, define commit checkpoints -->
 - **Commit 1** (after tasks 1-3): "feat: add base models and types"
@@ -97,6 +105,11 @@ TaskCreate:
     - Use log levels (DEBUG/INFO/WARN/ERROR)
 
     Files: src/api/auth/login.ts, src/services/auth.ts
+
+    REQUIREMENT EVIDENCE (when the Requirements Reconciliation Gate applies):
+    - Source: `docs/auth.md` — Login contract
+    - Supported combinations: valid/invalid credentials × active/disabled user
+    - Verification: exercise each supported combination through POST /api/auth/login
   activeForm: "Implementing login endpoint"
 ```
 

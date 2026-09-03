@@ -123,6 +123,9 @@ Stop the loop when ANY of these is true:
 2. `iteration >= max_iterations` — refinement budget exhausted.
 3. Two consecutive iterations produced no material changes — stagnation detected.
 4. plan-polisher returned an error.
+5. plan-polisher returned `status: blocked_external` — propagate its blocker
+   unchanged, do not continue refinement, and never publish or signal
+   `plan_ready`.
 
 ## Stagnation detection
 
@@ -149,7 +152,7 @@ Final output:
 ```
 Plan: <plan path>
 Iterations: N (max: M)
-Status: ready | needs-work | stagnated | error
+Status: ready | needs-work | stagnated | error | blocked_external
 Remaining issues: [list or "none"]
 
 ⏎ This agent session is complete. Please close it (Ctrl+C or /exit)

@@ -289,13 +289,17 @@ Only lint the changed files to keep output focused.
 Verify the full chain `authoritative requirements → plan → implementation →
 verification evidence`, not only plan-to-code agreement.
 
-1. If the plan contains `## Requirements Reconciliation`, re-read its cited
-   source passages. Otherwise use the Original Request, committed Research
-   Context, project rules, and authoritative sources they explicitly reference.
+1. If the plan contains `## Requirements Reconciliation`, resolve citations to
+   the selected research source against the embedded `## Research Context`; the
+   live research file remains drift-only unless the user explicitly rebases the
+   plan. Re-read other cited source passages. Otherwise use the Original Request,
+   committed Research Context, project rules, and authoritative sources they
+   explicitly reference.
 2. Follow a source-priority hierarchy only when declared by the user or project.
    Treat roadmap text as scope rather than a detailed behavioral contract unless
    explicitly declared otherwise. If sources conflict without declared
-   authority, emit `WARN [requirement-ambiguity]` instead of guessing.
+   authority, do not guess: emit `WARN [requirement-ambiguity]` in normal or
+   lenient mode, and `ERROR [requirement-ambiguity]` in strict mode.
 3. A clear contradiction between the implementation and a higher-priority
    requirement is `ERROR [requirement-conflict]` and blocks verification even
    when the plan, code, and tests agree with one another.
@@ -585,7 +589,8 @@ When invoked with `--strict`:
 - **Rules gate must pass** — fail on clear rule violations
 - **Roadmap gate must pass** — fail on clear roadmap mismatch
 - **Requirements consistency gate must pass** — fail on clear requirement
-  conflicts or missing evidence for material supported combinations
+  conflicts, unresolved source ambiguity, or missing evidence for material
+  supported combinations
 - Missing milestone linkage for `feat`/`fix`/`perf` is a warning even in strict mode
 - Do not fail strict verification solely because milestone linkage is missing
 

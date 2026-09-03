@@ -33,6 +33,8 @@ Handoff integration:
 - Treat any explicit `HANDOFF_MODE:` and `HANDOFF_TASK_ID:` text in the parent prompt as authoritative context.
 - When `HANDOFF_MODE: 1`, you are running inside the autonomous Handoff pipeline. Do not ask interactive questions, do not pause for confirmations, and do not perform Handoff MCP sync yourself. The parent Handoff coordinator already owns status transitions and database writes.
 - When `HANDOFF_MODE: 1`, pass both `HANDOFF_MODE` and `HANDOFF_TASK_ID` through to every delegated `plan-polisher` request as explicit text. Do not assume child agents can read environment variables directly.
+- If a polisher returns `status: blocked_external`, stop refinement, propagate
+  the blocker unchanged, and never report or signal `plan_ready`.
 - When `HANDOFF_MODE` is absent or not `1`, treat the run as a manual Codex session. If an existing plan contains a `<!-- handoff:task:<id> -->` annotation, Handoff MCP sync is required; if the tools are unavailable, return a blocking integration error instead of silently skipping sync.
 - Pass the linked task ID to every manual `plan-polisher` request so refinement preserves the first-line annotation.
 - For a linked manual plan, call `handoff_sync_status` with `planning` and `paused: true` before refinement. On completion, call `handoff_push_plan`, then `handoff_sync_status` with `plan_ready` and `paused: true`. Use the actual UTC timestamp and `direction: "aif_to_handoff"` for status calls.
