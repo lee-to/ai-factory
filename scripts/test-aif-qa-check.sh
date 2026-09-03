@@ -95,6 +95,7 @@ fi
 
 if grep -Fq '`source_digest`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`case_digests`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '`replay_script_digests`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`tested_revision`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`worktree_digest`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`manual_build_id`' "$SKILL_DIR/SKILL.md"; then
@@ -141,6 +142,7 @@ else
 fi
 
 if grep -Fq 'persistent writes are limited to `qa-check.md`, branch-specific `browser-replay/TC-NNN.js`' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '`browser-replay/history/*.js`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'do not rewrite `test-cases.md`, `test-plan.md`, `change-summary.md`, or `config.yaml`' "$SKILL_DIR/SKILL.md"; then
     pass "artifact ownership includes browser replay while keeping source QA artifacts read-only"
 else
@@ -151,14 +153,21 @@ if grep -Fq '`browser_replay_dir = <artifact_dir>/browser-replay`' "$SKILL_DIR/S
     && grep -Fq '`<browser_replay_dir>/TC-NNN.js`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '`async (page) => { ... }`' "$SKILL_DIR/SKILL.md" \
     && grep -Fq '// aif-case-digest: <case_digest>' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '// aif-target-fingerprint: <target_fingerprint>' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq '"AIF_BASE_URL"' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'do not automatically execute a new or updated script a second time' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'explicitly says this is a repeat execution' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'same semantic element and expected behavior are still present' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'actual `script_digest` versus the last proof recorded' "$SKILL_DIR/SKILL.md" \
+    && grep -Fq 'history/TC-NNN-<old_script_digest>.js' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'replay all current matching browser scripts, including cases that previously passed and failed' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'Treat replay as the regression baseline, not the only browser check' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'Run it when the change affects shared UI, layout, navigation, authentication, permissions, state transitions' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'Browser exploration: Skipped' "$SKILL_DIR/SKILL.md" \
     && grep -Fq 'MUST NOT add a browser test dependency or runner solely for replay artifacts' "$SKILL_DIR/SKILL.md"; then
-    pass "browser scripts provide regression replay plus evidence-based bounded exploration"
+    pass "browser replay is side-effect-safe and bound to case, target, and executed script content"
 else
-    fail "agent mode must combine digest-bound replay with an evidence-based exploration decision"
+    fail "agent mode must safely bind and preserve replay evidence before regression reuse"
 fi
 
 if grep -Fq 'Exclude `qa_check_path` and every file under `browser_replay_dir`' "$SKILL_DIR/SKILL.md"; then
@@ -184,6 +193,10 @@ if grep -Fq -- '- [ ] TC-001:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Case digest:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Browser replay directory:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Browser replay:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Script digest:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Target fingerprint:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Proof status:' "$SKILL_DIR/templates/QA-CHECK.md" \
+    && grep -Fq 'Preserved previous script:' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq '## Browser Exploration' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Decision: [Ran / Skipped / n/a]' "$SKILL_DIR/templates/QA-CHECK.md" \
     && grep -Fq 'Stale / Removed Cases' "$SKILL_DIR/templates/QA-CHECK.md" \

@@ -142,6 +142,7 @@ Compute source binding metadata before creating or modifying `qa-check.md`:
 - `tested_revision` — when `git_enabled = true` and the repository is a git work tree, run `git rev-parse HEAD` and record the resolved commit SHA.
 - `worktree_digest` — when `git_enabled = true` and the repository is a git work tree, record a deterministic digest of the current working tree state so dirty-tree QA cannot be reused after local changes without a commit.
 - `manual_build_id` — when `git_enabled = false` or the repository is not a git work tree, ask the user for an explicit build/version identifier before creating or resuming results. Do not accept an empty identifier.
+- `replay_script_digests` — for each existing canonical `<browser_replay_dir>/TC-NNN.js`, hash the exact file content with `git hash-object --no-filters <path>` when available, or another stable SHA-1/SHA-256 digest. This binds evidence to the automation that actually ran even though QA-owned replay files are excluded from `worktree_digest`.
 
 Canonicalize each per-case digest input exactly:
 1. Extract the raw Markdown block from the line containing the case's `TC-NNN` identifier through the line before the next `TC-NNN` block or end of file.
@@ -171,7 +172,8 @@ If `qa-check.md` exists, read it and resume from existing statuses only after co
 - If a new case appears, add it as unchecked `Pending`.
 - If a prior case no longer exists in `test-cases.md`, keep its historical entry marked `Stale` or move it to an artifact-language "Stale / Removed Cases" section; never count it as current.
 - Do not overwrite prior pass/fail comments unless the user explicitly chooses to retest that case.
-- Stale result bindings do not make a browser replay script stale. A replay script remains reusable across revisions and worktree changes while its embedded case digest matches the current `case_digest`; this is what allows rerunning the same checks after a fix.
+- If a canonical replay file's actual content digest differs from the `Script digest` recorded for that case, mark the case `Stale`, preserve the previous replay metadata/evidence, and require a proof run of the changed script. Missing legacy script-digest or target-fingerprint metadata means the script is unproven, not matching.
+- Revision, worktree, or manual-build staleness alone does not invalidate a browser replay script. It remains reusable only while its embedded case digest, embedded target fingerprint, and actual script digest match the current case, approved target, and previously recorded script digest.
 
 If `qa-check.md` does not exist, create it from `templates/QA-CHECK.md` using the extracted test cases and source binding metadata. Every case starts unchecked and `Pending`.
 
@@ -208,7 +210,10 @@ Before executing any case or writing `qa-check.md` in agent mode:
    - stable selector, field identifier, or page route needed to continue
    - exact project command, test filter, service startup command, or safe API endpoint needed to continue
 9. Save reusable non-sensitive answers to `<paths.qa>/agent-context.md` immediately only when the answer is general enough to help future QA sets. Append the redacted answer summary to `<paths.qa>/agent-history.md` only when it captures a reusable lesson; otherwise keep it in the branch-specific `qa-check.md` evidence/comment.
-10. Determine and display the target environment, including URL when applicable and inferred environment class: `local`, `development`, `staging`, `test`, `production`, or `unknown`.
+10. Determine and display the target environment, including URL when applicable and inferred environment class: `local`, `development`, `staging`, `test`, `production`, or `unknown`. For a browser target:
+   - Derive `normalized_base_url` from the resolved target URL by removing user information, query, and fragment; preserving scheme, host, port, and deployment base path; and removing a trailing slash except for the origin root.
+   - Compute `target_fingerprint` from the exact canonical input `AIF TARGET\n<environment_class>\n<normalized_base_url>\n` with `git hash-object --stdin` when available, or another stable SHA-1/SHA-256 digest.
+   - Record the environment class and `target_fingerprint` in `qa-check.md`. Never treat a replay created for another target fingerprint as matching.
 11. Do not execute browser actions, API writes, CLI commands with side effects, database writes, destructive commands, payment, permission, email, notification, data export, or other external-side-effect steps against `production` or `unknown` targets without explicit user authorization immediately before execution. Record the authorization decision and target class in `qa-check.md`. Append it to `agent-history.md` only when it creates a reusable cross-QA policy or recurring authorization lesson; do not persist broad production authorization for future runs.
 12. Inspect each case and proposed command for destructive, irreversible, payment, permission, email, notification, data export, database mutation, service restart, deployment, filesystem deletion, or other external-side-effect risk. Require explicit per-case authorization before executing any such case.
 13. Prefer read-only and test-scoped commands. Do not run destructive shell commands such as `rm`, `git reset`, `git checkout --`, database resets, migrations against shared environments, deploy commands, or cleanup commands that delete user data unless the user explicitly authorizes the exact action.
@@ -257,16 +262,24 @@ For every `browser-ui` case, and every `hybrid` case with browser steps:
 
 1. Use `<browser_replay_dir>/TC-NNN.js` as the canonical replay artifact. Keep one case per file so a failed case can be rerun independently.
 2. Write the smallest Playwright-compatible `async (page) => { ... }` expression. This is the format accepted by browser run-code capabilities. Do not add imports, a test framework, fixtures, generated wrappers, or project dependencies. Include navigation, stable selectors, inputs/actions, and explicit assertions that throw on mismatch.
-3. Put `// aif-case-digest: <case_digest>` on the first line. Never write passwords, tokens, cookies, authorization values, one-time codes, or token-bearing URLs into the script. Reuse an already authenticated browser session or obtain secrets through the authorized runtime mechanism.
-4. Before issuing exploratory browser actions, look for the case's replay file:
-   - Matching digest and executable by an available browser capability → run it first.
-   - Missing or digest changed → execute the case once while creating/replacing the script, then run the saved script once to verify it reproduces the check.
-   - Matching script has a selector, syntax, or runner failure → repair only that script and rerun it; do not classify an automation defect as a product regression.
-   - Matching script reaches its assertion and observed behavior differs → record the case as `Failed`; this is regression/fix evidence, not a reason to regenerate the script.
-5. On any run after revision, worktree, or manual build changes, replay all current matching browser scripts, including cases that previously passed and failed. When the capability supports it, execute them in one browser session or batch to reduce setup and tool calls.
-6. Record the replay path, embedded digest, execution capability, and result in the case's `Browser replay` and `Evidence` fields in `qa-check.md`.
-7. If the available in-app Browser supports only discrete actions, read the saved script as the exact action/assertion program and replay it through those actions. If Playwright MCP can execute the file body directly, prefer direct execution. Do not regenerate known steps merely because the execution surface changed.
-8. Treat replay as the regression baseline, not the only browser check. After replay, decide whether one bounded exploratory pass is justified from concrete change risk:
+3. Start every canonical script with exactly these metadata lines, followed by the async expression:
+   - `// aif-case-digest: <case_digest>`
+   - `// aif-target-fingerprint: <target_fingerprint>`
+   Use the quoted placeholder `"AIF_BASE_URL"` for navigation instead of persisting an absolute target URL. Immediately before execution, replace that quoted placeholder in memory with a correctly JSON-encoded `normalized_base_url`; do not modify the saved file. Never write passwords, tokens, cookies, authorization values, one-time codes, personal secrets, or token-bearing URLs into the script. Reuse an already authenticated browser session or obtain secrets through the authorized runtime mechanism.
+4. A replay is `matching` only when all three bindings agree: embedded `case_digest`, embedded `target_fingerprint`, and actual `script_digest` versus the last proof recorded in `qa-check.md`. Verify all three before every replay. A target mismatch MUST stop execution until the currently displayed and authorized target is verified and the script is explicitly rebound; rebinding changes the script digest and requires a new proof run.
+5. Create a missing or outdated script before its first execution whenever the case is mechanically clear. Compute its `script_digest`, execute it once, and use that first execution as its proof run; do not automatically execute a new or updated script a second time.
+   - If interactive browser work was required to clarify the mechanics and the saved script changed after the observed run, mark the new script `Unproven`. Do not immediately rerun it.
+   - An unproven or changed script may run only after its stated preconditions have been explicitly restored or verified. If the case can create, submit, send, delete, mutate permissions/settings, or cause another external side effect, obtain a new per-case authorization that explicitly says this is a repeat execution. Cleanup/reset actions remain subject to the same safety rules and authorization.
+   - Record `Script digest` as a current evidence binding only after that exact file content has executed. For an unproven file, keep `Script digest: n/a`, set `Proof status: Unproven`, and record its computed candidate digest in the comment/evidence until a proof run completes.
+6. Before modifying any existing canonical script for repair, rebinding, or clarified mechanics, compute its old script digest and preserve it verbatim as `<browser_replay_dir>/history/TC-NNN-<old_script_digest>.js`. Record the archived path, old digest, and initial error in `qa-check.md`. Never execute history files automatically.
+7. Classify replay failures without hiding product regressions:
+   - Syntax or browser-runner failure → automation defect; archive, repair, recompute `script_digest`, and require a new proof run under the precondition/side-effect rules above.
+   - Missing selector → first preserve the original script and initial browser error/state. Repair the locator only when concrete browser evidence proves the same semantic element and expected behavior are still present and only locator mechanics changed. Record that proof. Otherwise mark the case `Failed`; never choose a merely similar element or bypass the missing step.
+   - Script reaches an assertion and observed behavior differs → mark the case `Failed`; this is regression/fix evidence, not a reason to regenerate the script.
+8. On any run after revision, worktree, or manual build changes, replay all current matching browser scripts, including cases that previously passed and failed. The capability/safety preflight and per-case side-effect authorization still apply to every replay. When safe and supported, execute non-stateful scripts in one browser session or batch to reduce setup and tool calls.
+9. Record the canonical path, case digest, script digest, target fingerprint, proof status, execution capability, and result in the case's `Browser replay` and `Evidence` fields in `qa-check.md`. `Proven` means that exact script content executed; it does not mean the product result passed.
+10. If the available in-app Browser supports only discrete actions, read the saved script as the exact action/assertion program and replay it through those actions. If Playwright MCP can execute the file body directly, prefer direct execution. Do not regenerate known steps merely because the execution surface changed.
+11. Treat replay as the regression baseline, not the only browser check. After replay, decide whether one bounded exploratory pass is justified from concrete change risk:
    - Run it when the change affects shared UI, layout, navigation, authentication, permissions, state transitions, or another cross-cutting flow; when the bug cause or fix behavior remains uncertain; when a matching replay needed repair because application behavior changed; or when replay exposed unexpected adjacent behavior.
    - Skip it when the fix is narrow and isolated, matching replay directly exercises the changed behavior, no adjacent high-risk path is affected, and replay passes.
    - When running it, inspect only directly affected adjacent routes, states, or edge inputs. Do not start open-ended browsing or regenerate working replay steps.
@@ -275,7 +288,7 @@ For every `browser-ui` case, and every `hybrid` case with browser steps:
 
 For each pending or selected case:
 1. Select the execution surface from the case classification:
-   - `browser-ui`: execute the matching saved browser replay first; create it only when missing or stale by case digest, then navigate with Browser or Playwright MCP and execute UI steps.
+   - `browser-ui`: execute the matching saved browser replay first; create or prove it only when missing or nonmatching by case, target, or script digest, then navigate with Browser or Playwright MCP and execute UI steps.
    - `cli`: run the relevant project command and inspect exit code/output.
    - `backend-test`: find and run the narrowest existing relevant test command or test filter first; broaden only when needed for confidence. Passing automated coverage is valid pass evidence for the case.
    - `api`: call the endpoint through existing project tooling, safe local commands, or browser/network capability as appropriate.
@@ -330,9 +343,9 @@ If human-verifiable cases remain blocked after an agent-mode run and the user di
 
 ## Artifact Ownership and Config Policy
 
-- Primary ownership: `<paths.qa>/<branch-slug>/qa-check.md`, `<paths.qa>/<branch-slug>/browser-replay/TC-NNN.js`, `<paths.qa>/agent-context.md`, and `<paths.qa>/agent-history.md`.
+- Primary ownership: `<paths.qa>/<branch-slug>/qa-check.md`, canonical `<paths.qa>/<branch-slug>/browser-replay/TC-NNN.js`, preserved `<paths.qa>/<branch-slug>/browser-replay/history/*.js`, `<paths.qa>/agent-context.md`, and `<paths.qa>/agent-history.md`.
 - Read policy: may read `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`, `<paths.qa>/agent-context.md`, and `<paths.qa>/agent-history.md` as QA context.
-- Write policy: persistent writes are limited to `qa-check.md`, branch-specific `browser-replay/TC-NNN.js`, `agent-context.md`, and `agent-history.md`; do not rewrite `test-cases.md`, `test-plan.md`, `change-summary.md`, or `config.yaml`.
+- Write policy: persistent writes are limited to `qa-check.md`, branch-specific `browser-replay/TC-NNN.js` and `browser-replay/history/*.js`, `agent-context.md`, and `agent-history.md`; do not rewrite `test-cases.md`, `test-plan.md`, `change-summary.md`, or `config.yaml`.
 - Config policy: config-aware, read-only. Reads `paths.description`, `paths.architecture`, `paths.qa`, `language.ui`, `language.artifacts`, `language.technical_terms`, and `git.enabled`; never writes `config.yaml`.
 
 ## Critical Rules
@@ -355,7 +368,10 @@ If human-verifiable cases remain blocked after an agent-mode run and the user di
 16. MUST persist reusable test-only credentials in `agent-context.md` only after explicit user permission, and MUST never persist production credentials, personal credentials, cookies, session tokens, one-time codes, or shared secrets.
 17. MUST write only reusable non-sensitive cross-QA answers and discovered stable execution facts to `agent-context.md`, and MUST append to `agent-history.md` only when a recurring reusable learning or blocker pattern was discovered.
 18. MUST ask whether to continue eligible blocked agent-mode cases in human mode before ending an agent run with any current human-verifiable `Blocked` cases.
-19. MUST save browser/UI automation as case-digest-bound `browser-replay/TC-NNN.js` scripts and execute matching scripts before generating new browser actions.
+19. MUST save browser/UI automation as case-, target-, and content-bound `browser-replay/TC-NNN.js` scripts and execute matching scripts before generating new browser actions.
 20. MUST replay matching scripts for previously passed browser cases after revision, worktree, or manual build changes so regressions are checked.
 21. MUST NOT add a browser test dependency or runner solely for replay artifacts.
 22. MUST make and record an evidence-based browser exploration decision after replay; replay is a baseline, not a replacement for bounded exploration when concrete change-risk signals exist.
+23. MUST NOT automatically execute a new or updated replay twice; repeat execution requires restored/verified preconditions and renewed authorization for external side effects.
+24. MUST treat a missing selector as a possible product regression unless concrete evidence proves only locator mechanics changed, preserving the original script and error before repair.
+25. MUST verify `case_digest`, `target_fingerprint`, and `script_digest` before replay and require a proof run after any script change or target rebinding.
