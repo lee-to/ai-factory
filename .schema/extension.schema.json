@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Factory Extension Manifest",
+  "description": "Manifest file for an ai-factory extension",
+  "type": "object",
+  "required": ["name", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Extension name"
+    },
+    "version": {
+      "type": "string",
+      "description": "Extension version"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the extension"
+    },
+    "commands": {
+      "type": "array",
+      "description": "Custom CLI commands provided by this extension",
+      "items": { "$ref": "#/definitions/ExtensionCommand" }
+    },
+    "agents": {
+      "type": "array",
+      "description": "Custom agent definitions provided by this extension",
+      "items": { "$ref": "#/definitions/ExtensionAgentDef" }
+    },
+    "injections": {
+      "type": "array",
+      "description": "Content injections into agent configuration files",
+      "items": { "$ref": "#/definitions/ExtensionInjection" }
+    },
+    "skills": {
+      "type": "array",
+      "description": "Skill names provided by this extension",
+      "items": { "type": "string" }
+    },
+    "replaces": {
+      "type": "object",
+      "description": "Map of built-in skill names to replacement skill names",
+      "additionalProperties": { "type": "string" }
+    },
+    "mcpServers": {
+      "type": "array",
+      "description": "MCP servers provided by this extension",
+      "items": { "$ref": "#/definitions/ExtensionMcpServer" }
+    }
+  },
+  "definitions": {
+    "ExtensionCommand": {
+      "type": "object",
+      "required": ["name", "description", "module"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Command name (used as CLI subcommand)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the command"
+        },
+        "module": {
+          "type": "string",
+          "description": "Relative path to the JS module implementing this command, e.g. ./commands/hello.js"
+        }
+      }
+    },
+    "ExtensionAgentDef": {
+      "type": "object",
+      "required": [
+        "id",
+        "displayName",
+        "configDir",
+        "skillsDir",
+        "settingsFile",
+        "supportsMcp",
+        "skillsCliAgent"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique agent identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable agent name"
+        },
+        "configDir": {
+          "type": "string",
+          "description": "Directory where agent configuration is stored"
+        },
+        "skillsDir": {
+          "type": "string",
+          "description": "Directory where skills are stored for this agent"
+        },
+        "settingsFile": {
+          "type": ["string", "null"],
+          "description": "Path to the agent settings file, or null if not applicable"
+        },
+        "supportsMcp": {
+          "type": "boolean",
+          "description": "Whether this agent supports MCP servers"
+        },
+        "skillsCliAgent": {
+          "type": ["string", "null"],
+          "description": "CLI agent identifier for skills management, or null if not applicable"
+        }
+      }
+    },
+    "ExtensionInjection": {
+      "type": "object",
+      "required": ["target", "position", "file"],
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Target agent ID to inject content into"
+        },
+        "position": {
+          "type": "string",
+          "description": "Where to inject the content relative to existing content",
+          "enum": ["append", "prepend"]
+        },
+        "file": {
+          "type": "string",
+          "description": "Relative path to the file containing the content to inject"
+        }
+      }
+    },
+    "ExtensionMcpServer": {
+      "type": "object",
+      "required": ["key", "template"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Unique key for this MCP server"
+        },
+        "template": {
+          "description": "MCP server configuration: a path to a JSON template file or an inline config object",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Path to a JSON template file containing the MCP server config"
+            },
+            { "$ref": "#/definitions/McpServerConfig" }
+          ]
+        },
+        "instruction": {
+          "type": "string",
+          "description": "Setup instructions shown to the user"
+        }
+      }
+    },
+    "McpServerConfig": {
+      "type": "object",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "The executable command to run the MCP server"
+        },
+        "args": {
+          "type": "array",
+          "description": "Command-line arguments passed to the MCP server",
+          "items": { "type": "string" }
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables set for the MCP server process",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Factory Configuration",
+  "description": "Configuration file for the ai-factory CLI tool",
+  "type": "object",
+  "required": ["version", "agents"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Version of ai-factory used"
+    },
+    "agents": {
+      "type": "array",
+      "description": "List of configured AI agents",
+      "items": { "$ref": "#/definitions/AgentInstallation" }
+    },
+    "extensions": {
+      "type": "array",
+      "description": "Installed extensions",
+      "items": { "$ref": "#/definitions/ExtensionRecord" }
+    }
+  },
+  "definitions": {
+    "AgentInstallation": {
+      "type": "object",
+      "required": ["id", "skillsDir", "installedSkills", "mcp"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Agent identifier"
+        },
+        "skillsDir": {
+          "type": "string",
+          "description": "Directory where skills are stored for this agent"
+        },
+        "installedSkills": {
+          "type": "array",
+          "description": "List of installed skill names",
+          "items": { "type": "string" }
+        },
+        "mcp": { "$ref": "#/definitions/McpConfig" }
+      }
+    },
+    "McpConfig": {
+      "type": "object",
+      "description": "MCP server feature flags for this agent",
+      "additionalProperties": false,
+      "properties": {
+        "github": {
+          "type": "boolean",
+          "description": "Enable GitHub MCP server"
+        },
+        "filesystem": {
+          "type": "boolean",
+          "description": "Enable Filesystem MCP server"
+        },
+        "postgres": {
+          "type": "boolean",
+          "description": "Enable PostgreSQL MCP server"
+        },
+        "chromeDevtools": {
+          "type": "boolean",
+          "description": "Enable Chrome DevTools MCP server"
+        },
+        "playwright": {
+          "type": "boolean",
+          "description": "Enable Playwright MCP server"
+        }
+      }
+    },
+    "ExtensionRecord": {
+      "type": "object",
+      "required": ["name", "source", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Extension name"
+        },
+        "source": {
+          "type": "string",
+          "description": "Local path or GitHub URL to the extension"
+        },
+        "version": {
+          "type": "string",
+          "description": "Installed version of the extension"
+        },
+        "replacedSkills": {
+          "type": "array",
+          "description": "Skills that this extension replaces",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
