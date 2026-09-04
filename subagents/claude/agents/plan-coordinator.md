@@ -49,7 +49,7 @@ Do this even though `HANDOFF_MODE` stays unset or non-`1` in manual sessions. Th
 If a task ID IS found in the plan annotation, sync with Handoff via MCP tools:
 
 - **On start (before first plan-polisher):** Call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "planning", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
-- **On completion (after final iteration):** Read the final plan artifact, then call `handoff_push_plan`. For fast/full, `planContent` is the file text. For ultra, serialize `index.md` followed by every Phase Index file in order, each prefixed with `<!-- ultra-phase:<relative-path> -->`. Then call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "plan_ready", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`.
+- **On successful completion (after final iteration):** Read the final plan artifact, then call `handoff_push_plan`. For fast/full, `planContent` is the file text. For ultra, serialize `index.md` followed by every Phase Index file in order, each prefixed with `<!-- ultra-phase:<relative-path> -->`. Then call `handoff_sync_status` with `{ taskId: <extracted-id>, newStatus: "plan_ready", sourceTimestamp: "<current UTC time in ISO 8601 format>", direction: "aif_to_handoff", paused: true }`. If any polisher result is `status: blocked_external`, skip the final artifact read, `handoff_push_plan`, and `plan_ready` sync.
 
 **CRITICAL:** Always pass `paused: true` with every `handoff_sync_status` call except `done`. This prevents the autonomous Handoff agent from picking up the task while you work manually. Only `done` passes `paused: false`.
 
@@ -82,7 +82,10 @@ iteration = 0
 
 # First pass: create the plan
 launch plan-polisher with the user's original request
-collect result → extract plan_path, needs_further_refinement, issues list
+collect result
+if result.status == blocked_external:
+    preserve result.blocker unchanged and go directly to Blocked output
+extract plan_path, needs_further_refinement, issues list
 verify plan artifact exists on disk; before normalizing an existing directory or
 explicit index.md as ultra, read index.md and require exactly one
 <!-- aif:plan-mode:ultra --> marker — otherwise stop with a plan-integrity error
@@ -94,11 +97,19 @@ while needs_further_refinement == yes AND iteration < max_iterations:
         "Critique and improve the existing plan at {plan_path}.
          Focus on these remaining issues: {issues list from previous iteration}.
          Do NOT recreate the plan from scratch — refine what exists."
-    collect result → extract needs_further_refinement, issues list
+    collect result
+    if result.status == blocked_external:
+        preserve result.blocker unchanged and go directly to Blocked output
+    extract needs_further_refinement, issues list
 
 # Done
 read final plan artifact (all linked files for ultra)
 report summary
+
+# Blocked
+do not extract or validate plan_path
+do not read or publish a final plan artifact
+report Status: blocked_external and Blocker: requirement-conflict
 ```
 
 ## Dispatch rules
@@ -133,9 +144,11 @@ After each iteration, compare the current issues list with the previous one. If 
 
 ## Plan file tracking
 
-After the first plan-polisher run, confirm the plan artifact exists and note its
-stable path. An ultra path may be its directory or `index.md`; normalize it once
-and track the same bundle throughout all subsequent iterations.
+After the first non-blocked plan-polisher result, confirm the plan artifact
+exists and note its stable path. Never extract, normalize, or validate a plan
+path from a `blocked_external` result. An ultra path may be its directory or
+`index.md`; normalize it once and track the same bundle throughout all
+subsequent iterations.
 
 ## Output
 
@@ -147,18 +160,26 @@ Iteration N/M: [created|refined] — needs_further_refinement: yes/no
   [list of remaining issues, if any]
 ```
 
-Final output:
+Final output for every non-blocked result:
 
 ```
 Plan: <plan path>
 Iterations: N (max: M)
-Status: ready | needs-work | stagnated | error | blocked_external
+Status: ready | needs-work | stagnated | error
 Remaining issues: [list or "none"]
 
 ⏎ This agent session is complete. Please close it (Ctrl+C or /exit)
   and return to your main Claude Code session to continue working.
   Do NOT use /clear — it resets context but keeps the agent session alive,
   which wastes tokens and may cause confusion.
+```
+
+For `blocked_external`, output only the deterministic blocker result; a plan
+path may not exist:
+
+```
+Status: blocked_external
+Blocker: requirement-conflict
 ```
 
 If status is `needs-work`, include actionable next steps so the user knows what to address manually.

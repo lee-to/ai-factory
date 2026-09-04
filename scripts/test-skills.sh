@@ -1141,6 +1141,39 @@ else
     fail "autonomous requirement conflict Handoff contract is incomplete"
 fi
 
+PLAN_BLOCKED_LINE=$(grep -nF 'if result.status == blocked_external:' "$ROOT_DIR/subagents/claude/agents/plan-coordinator.md" | head -1 | cut -d: -f1 || true)
+PLAN_PATH_LINE=$(grep -nF 'extract plan_path, needs_further_refinement, issues list' "$ROOT_DIR/subagents/claude/agents/plan-coordinator.md" | head -1 | cut -d: -f1 || true)
+if [[ -n "$PLAN_BLOCKED_LINE" && -n "$PLAN_PATH_LINE" && "$PLAN_BLOCKED_LINE" -lt "$PLAN_PATH_LINE" ]] \
+   && grep -Fq 'do not extract or validate plan_path' "$ROOT_DIR/subagents/claude/agents/plan-coordinator.md" \
+   && grep -Fq 'skip the final artifact read, `handoff_push_plan`, and `plan_ready` sync' "$ROOT_DIR/subagents/claude/agents/plan-coordinator.md" \
+   && grep -Fq 'Blocker: requirement-conflict' "$ROOT_DIR/subagents/claude/agents/plan-coordinator.md"; then
+    pass "first-pass planning conflict bypasses missing-artifact processing"
+else
+    fail "first-pass planning conflict can enter normal plan-result processing"
+fi
+
+CLAUDE_BLOCKED_LAYER_LINE=$(grep -nF 'if any result has handoff_outcome: blocked_external:' "$ROOT_DIR/subagents/claude/agents/implement-coordinator.md" | head -1 | cut -d: -f1 || true)
+CLAUDE_FAILURE_LINE=$(grep -nF 'if any worker failed:' "$ROOT_DIR/subagents/claude/agents/implement-coordinator.md" | head -1 | cut -d: -f1 || true)
+if [[ -n "$CLAUDE_BLOCKED_LAYER_LINE" && -n "$CLAUDE_FAILURE_LINE" && "$CLAUDE_BLOCKED_LAYER_LINE" -lt "$CLAUDE_FAILURE_LINE" ]] \
+   && grep -Fq 'restore every unmerged task in this layer to pending' "$ROOT_DIR/subagents/claude/agents/implement-coordinator.md" \
+   && grep -Fq 'do not merge or commit the layer' "$ROOT_DIR/subagents/claude/agents/implement-coordinator.md" \
+   && grep -Fq 'Status: complete | partial | failed | blocked_external' "$ROOT_DIR/subagents/claude/agents/implement-coordinator.md"; then
+    pass "parallel implementation blocker stays pending and bypasses failure/merge"
+else
+    fail "parallel implementation blocker can be failed, merged, or committed"
+fi
+
+if grep -Fq 'Before editing, run the requirement consistency gate:' "$ROOT_DIR/subagents/codex/agents/implement-worker.toml" \
+   && grep -Fq 'embedded `## Research Context`' "$ROOT_DIR/subagents/codex/agents/implement-worker.toml" \
+   && grep -Fq 'return exactly `handoff_outcome: blocked_external` and' "$ROOT_DIR/subagents/codex/agents/implement-worker.toml" \
+   && grep -Fq 'check for `handoff_outcome: blocked_external`' "$ROOT_DIR/subagents/codex/agents/implement-coordinator.toml" \
+   && grep -Fq 'do not merge or commit any' "$ROOT_DIR/subagents/codex/agents/implement-coordinator.toml" \
+   && grep -Fq 'and `Blocker: requirement-conflict`' "$ROOT_DIR/subagents/codex/agents/implement-coordinator.toml"; then
+    pass "delegated Codex conflicts run the gate and return a first-class blocker"
+else
+    fail "delegated Codex conflicts can implement or enter normal completion"
+fi
+
 if grep -Fxq '## Requirements Reconciliation' "$AIF_PLAN_FORMAT_REF" \
    && grep -Fq 'REQUIREMENT EVIDENCE (when the Requirements Reconciliation Gate applies)' "$AIF_PLAN_FORMAT_REF" \
    && grep -Fxq '## Requirements Reconciliation' "$AIF_PLAN_ULTRA_REF" \
