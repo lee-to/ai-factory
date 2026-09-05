@@ -28,7 +28,9 @@ Bash: printenv HANDOFF_SKIP_REVIEW || true
 The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Instead:
 
 - **No interactive questions:** Do not use `AskUserQuestion` — use sensible defaults (auto-commit at checkpoints, skip pause prompts).
-- **No pause/resume prompts:** Execute all tasks sequentially without stopping.
+- **No pause/resume prompts:** Execute all tasks sequentially without stopping
+  for confirmation. Blocking integrity, safety, or requirement conflicts still
+  stop with their defined non-interactive outcome.
 
 #### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session)
 
@@ -572,6 +574,35 @@ merely because TaskGet contains a shorter summary. If phase instructions conflic
 with current code or project context, stop and report the concrete drift; do not
 silently make the architectural choice that ultra was meant to pre-plan.
 
+**3.1.1: Run the requirement consistency gate**
+
+Before marking a behavior-changing task in progress:
+
+1. Read the plan's `## Requirements Reconciliation` section when present.
+   Resolve citations to the selected research source against the embedded
+   `## Research Context`, which remains the committed requirements snapshot.
+   Use the live research file only for the Step 0.2 drift warning; never use it
+   to change task requirements without an explicit rebase. Re-read relevant
+   passages from other cited authoritative sources.
+2. Apply a source-priority hierarchy only when it is declared by the user or
+   project. Treat roadmap text as scope rather than a detailed contract unless
+   explicitly declared otherwise.
+3. Compare the task's proposed behavior with the cited requirements. If they
+   clearly conflict, emit `ERROR [requirement-conflict]`, leave the task pending,
+   and STOP. In manual mode, ask for clarification. In `HANDOFF_MODE=1`, do not
+   prompt; return `handoff_outcome: blocked_external` so the coordinator can
+   route the task, and do not signal implementation completion or review.
+   Do not implement first and rewrite a requirement artifact afterwards.
+4. If behavior depends on independent selectors, states, modes, or input shapes,
+   confirm that the task covers each applicable supported combination across
+   validation, persistence, output/transition, and side effects. Do not infer a
+   restriction on one dimension from a rule about another.
+
+If an old plan lacks `## Requirements Reconciliation`, perform this gate from
+the task, Original Request, committed Research Context, project rules, and any
+authoritative sources they explicitly reference. The embedded Research Context
+still wins over its live drift source. Do not expand into unrelated research.
+
 **3.2: Mark as in_progress**
 
 ```
@@ -585,12 +616,20 @@ TaskUpdate(taskId, status: "in_progress")
 - Follow existing code patterns
 - **NO tests unless plan includes test tasks**
 - **NO reports or summaries**
+- Treat requirement, research, roadmap, rules, and architecture artifacts as
+  read-only unless the active task explicitly requires changing the owning
+  artifact. This does not block the factual context maintenance explicitly
+  allowed later in this workflow, but those updates must not change behavioral
+  requirements merely to match the implementation.
 
 **3.4: Verify implementation**
 
 - Check code compiles/runs
 - Verify functionality works
 - Fix any immediate issues
+- Run the verification scenarios assigned to the task. When a representative
+  repository artifact defines the contract, exercise that artifact through the
+  primary path rather than relying only on synthetic fixtures.
 
 **3.5: Mark as completed**
 

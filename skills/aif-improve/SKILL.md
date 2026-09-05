@@ -25,7 +25,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 ### Step 0: Load Config & Parse Arguments
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
-- **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, and `paths.archive`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
+- **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.rules_file`, `paths.rules`, `paths.patches`, and `paths.archive`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for plan artifact updates, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
 - **Workflow:** `workflow.plan_id_format` (default: `slug`) — used by branch-based plan discovery.
@@ -45,6 +45,10 @@ If config.yaml doesn't exist, use defaults:
 - research: `.ai-factory/RESEARCH.md`
 - patches/: `.ai-factory/patches/`
 - DESCRIPTION.md: `.ai-factory/DESCRIPTION.md`
+- architecture: `.ai-factory/ARCHITECTURE.md`
+- roadmap: `.ai-factory/ROADMAP.md`
+- rules file: `.ai-factory/RULES.md`
+- rules directory: `.ai-factory/rules/`
 - `ui_language`: `en`
 - `artifact_language`: `en`
 - `technical_terms_policy`: `keep`
@@ -63,7 +67,7 @@ Any generated or updated plan artifact content under `paths.plan`, `paths.plans`
 
 Exception: an existing `## Original Request` section is raw source input, not generated artifact prose. Preserve its heading and body exactly as read from the plan file on every edit or regeneration, even when `artifact_language` differs. Do not translate, summarize, normalize, trim, or rewrite it.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, improvement notes, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, numeric prefixes, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, improvement notes, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, numeric prefixes, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, and raw errors unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Apply `technical_terms_policy` to other human-readable terminology.
 
 **First parse arguments:**
 
@@ -169,6 +173,12 @@ Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists:
 - Conventions
 - Non-functional requirements
 
+Read the resolved architecture and roadmap artifacts when present. Read the
+resolved rules hierarchy in order: `paths.rules_file`, `rules.base`, then named
+`rules.<area>` entries relevant to the plan. More-specific rules override
+general ones. Treat roadmap text as scope unless the project explicitly declares
+it authoritative for detailed behavior.
+
 If the plan contains `## Research Context`, treat its embedded copy as the committed requirements snapshot. Parse the first `Source:` / `Reference:` line with canonical `^(?:Source|Reference):\s+\x60([^\x60]+)\x60\s+\(` syntax; for older bare-path lines, fall back to `^(?:Source|Reference):\s+(.+?)\s+\(`. Fall back to configured `paths.research` only when neither form identifies a usable path.
 
 If the parsed source is inside `research_bundles_dir`, require its sibling `INDEX.md` to contain `<!-- aif:research-mode:ultra -->` exactly once and link that `RESEARCH.md` from `## Artifact Index`; otherwise emit `WARN [research-drift]`. Valid sibling C4/ADR/dependency artifacts are rationale only and must not expand plan scope.
@@ -256,6 +266,26 @@ Based on the tech stack and codebase:
 - Rate limiting, caching considerations
 - Data validation at boundaries
 
+**3.4: Reconcile requirements and behavior combinations**
+
+- Read any `## Requirements Reconciliation` section in the plan. Resolve
+  research-backed citations against the embedded `## Research Context`; the
+  live research source is only a drift signal unless the user explicitly asks
+  to rebase. Verify other cited passages against the current authoritative
+  context.
+- Follow a source-priority hierarchy only when the user or project declares it.
+  If conflicting sources have no declared authority, report the ambiguity
+  instead of choosing silently.
+- Treat roadmap items as scope indicators rather than detailed behavioral
+  contracts unless the project explicitly says otherwise.
+- When behavior depends on independent selectors, states, modes, or input
+  shapes, check the supported combinations across input validation, persistence,
+  output/transition, and side effects. Look for combinations that were described
+  separately but never verified together.
+- When real repository data, configuration, fixtures, schemas, or content define
+  the contract, check that the plan exercises a representative existing artifact
+  through the primary integration path.
+
 ### Step 4: Identify Improvements
 
 Compare the plan against what you found. Use `## Original Request` as the original intent / scope anchor when it exists, together with the current task list and any committed `## Research Context`. A proposed refinement is in scope only when it supports that original request or an explicitly approved user refinement prompt; otherwise route it to 4.6 (`out_of_scope`) instead of adding it to the active plan. Categorize issues:
@@ -269,6 +299,11 @@ Compare the plan against what you found. Use `## Original Request` as the origin
 - Missing logging requirements
 - Missing error handling details
 - Incorrect file paths
+- Missing or incorrect requirement citations, unresolved source conflicts, or a
+  missing `## Requirements Reconciliation` section when Step 3.4 requires one
+- Missing verification of a supported behavior combination or representative
+  real artifact. Respect the plan's testing setting: add a test only when testing
+  is enabled; otherwise add a runnable/manual verification step.
 
 **4.3: Dependency issues**
 - Wrong task order (task A depends on B but B comes after A)
@@ -424,6 +459,12 @@ The difference between the two is the report only. `removals` are dead-weight du
 - Preserve any `- [x]` checkboxes for already completed tasks
 - Preserve existing `## Original Request` exactly, including heading, body text, whitespace, and line breaks. Do not translate, summarize, normalize, trim, or rewrite it; this section is raw source input and is exempt from `artifact_language` rewriting.
 - Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite, unless the user explicitly asks to rebase the plan to current research
+- Preserve or update `## Requirements Reconciliation` from the plan's committed
+  evidence; keep the exact heading, declared authority, citations, applicable
+  combination table, and verification scenarios synchronized with the refined
+  tasks. When linked research has drifted, preserve its research-backed
+  decisions until the user explicitly requests a rebase; only that rebase may
+  update them from the live research source
 - If an unlinked plan is refined using current research, add `## Research Context` by copying the relevant Active Summary and write ``Source: `<selected research path>` (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)``
 - Compute that hash with the canonical drift normalization: remove HTML comment blocks, preserve line order and leading whitespace, trim trailing spaces from every line, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
 - If a linked plan has research drift, keep the committed Research Context and source revision in the plan and include `WARN [research-drift]` in the refinement report
@@ -489,6 +530,9 @@ Suggest the user to free up context space if needed: `/clear` (full reset) or `/
 7. **User approves first** — never apply changes without user confirmation
 8. **Keep plan file in sync** — the plan file MUST match the task list after improvements
 9. **Original Request is immutable** — when present, use `## Original Request` to judge scope and preserve it verbatim on every plan edit or regeneration
+10. **Requirements remain external evidence** — never rewrite requirement,
+    research, roadmap, rules, or architecture artifacts to make the plan look
+    consistent; refine the plan or report the conflict.
 
 ## Examples
 

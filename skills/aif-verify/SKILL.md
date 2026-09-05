@@ -284,6 +284,37 @@ Only lint the changed files to keep output focused.
 
 ## Step 3: Consistency Checks
 
+### 3.0 Requirements Provenance and Semantic Consistency
+
+Verify the full chain `authoritative requirements → plan → implementation →
+verification evidence`, not only plan-to-code agreement.
+
+1. If the plan contains `## Requirements Reconciliation`, resolve citations to
+   the selected research source against the embedded `## Research Context`; the
+   live research file remains drift-only unless the user explicitly rebases the
+   plan. Re-read other cited source passages. Otherwise use the Original Request,
+   committed Research Context, project rules, and authoritative sources they
+   explicitly reference.
+2. Follow a source-priority hierarchy only when declared by the user or project.
+   Treat roadmap text as scope rather than a detailed behavioral contract unless
+   explicitly declared otherwise. If sources conflict without declared
+   authority, do not guess: emit `WARN [requirement-ambiguity]` in normal or
+   lenient mode, and `ERROR [requirement-ambiguity]` in strict mode.
+3. A clear contradiction between the implementation and a higher-priority
+   requirement is `ERROR [requirement-conflict]` and blocks verification even
+   when the plan, code, and tests agree with one another.
+4. When behavior depends on independent selectors, states, modes, or input
+   shapes, enumerate only the supported combinations and verify each material
+   combination across validation, persistence, output/transition, and side
+   effects. Separate tests for each dimension do not prove their interaction.
+5. When repository data, configuration, fixtures, schemas, or content define the
+   contract, verify at least one representative existing artifact through the
+   primary integration path when such an artifact is available and relevant.
+
+Respect the plan's testing setting. If tests were intentionally skipped, use
+static inspection plus the plan's runnable/manual verification evidence; report
+missing evidence as a warning in normal mode and a failure in strict mode.
+
 ### 3.1 Plan vs Code Drift
 
 Check for discrepancies between what the plan says and what was built:
@@ -421,6 +452,11 @@ Write the human-readable verification report in `ui_language`. The template belo
 - Tests: ✅ 42 passed, 0 failed
 - Lint: ⚠️ 2 warnings in src/api/auth/reset.ts
 
+### Requirements Consistency
+- Source reconciliation: ✅ Passes
+- Supported combinations: ✅ Covered
+- Representative artifact path: ✅ Verified / ⏭️ Not applicable
+
 ### Issues Found
 1. **Task #3 incomplete** — Password reset endpoint created but email sending not implemented (SendGrid integration missing)
 2. **Task #8 not done** — API documentation not updated despite plan requirement
@@ -552,6 +588,9 @@ When invoked with `--strict`:
 - **Architecture gate must pass** — fail on clear boundary/dependency violations
 - **Rules gate must pass** — fail on clear rule violations
 - **Roadmap gate must pass** — fail on clear roadmap mismatch
+- **Requirements consistency gate must pass** — fail on clear requirement
+  conflicts, unresolved source ambiguity, or missing evidence for material
+  supported combinations
 - Missing milestone linkage for `feat`/`fix`/`perf` is a warning even in strict mode
 - Do not fail strict verification solely because milestone linkage is missing
 

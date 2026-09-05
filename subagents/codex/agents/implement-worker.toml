@@ -19,6 +19,17 @@ Rules:
 - Never update plan progress or phase files; report verified completion to the
   coordinator, which owns `index.md`.
 - Return concise output: what changed, what was verified, and any remaining blockers.
+- Before editing, run the requirement consistency gate: read `## Requirements
+  Reconciliation` when present; resolve research citations only against the
+  embedded `## Research Context`; apply any declared source priority; and
+  compare the task behavior and supported selector/state/mode/input combinations
+  with the cited authoritative requirements. The live research file is only a
+  drift signal unless the user explicitly rebases the plan. For an older plan,
+  use the task, Original Request, embedded Research Context, project rules, and
+  authoritative sources explicitly referenced by them.
+- On a clear authoritative conflict, make no edits. In `HANDOFF_MODE: 1`, do
+  not prompt; return exactly `handoff_outcome: blocked_external` and
+  `blocker: requirement-conflict`. Outside Handoff mode, stop for clarification.
 
 Handoff integration:
 - If the parent prompt includes `HANDOFF_MODE:` or `HANDOFF_TASK_ID:`, treat them as execution context only.

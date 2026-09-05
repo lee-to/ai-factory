@@ -30,10 +30,22 @@ Rules:
   update task progress only in `index.md`.
 - Pass an ultra worker the normalized entrypoint, matching phase file, and
   complete Task N specification. Treat the bundle as the executable contract.
+- Before marking or executing each ready task, run the requirement consistency
+  gate from `aif-implement` against the plan's authoritative sources. If it
+  returns `handoff_outcome: blocked_external`, leave the task pending and stop
+  before editing or dispatching.
+- After delegated workers return, check for `handoff_outcome: blocked_external`
+  before normal failure, merge, commit, review, or completion handling. Restore
+  every unmerged task in that layer to pending, do not merge or commit any
+  branch from the blocked layer, and emit exactly `Status: blocked_external`
+  and `Blocker: requirement-conflict`.
 
 Handoff integration:
 - Treat any explicit `HANDOFF_MODE:`, `HANDOFF_TASK_ID:`, and `HANDOFF_SKIP_REVIEW:` text in the parent prompt as authoritative context.
 - When `HANDOFF_MODE: 1`, you are running inside the autonomous Handoff pipeline. Do not ask interactive questions, do not stop for confirmations, and do not perform Handoff MCP sync yourself. The parent Handoff coordinator already owns task status transitions and database writes.
+- If requirement reconciliation returns `handoff_outcome: blocked_external`,
+  stop dispatch, propagate `blocker: requirement-conflict` unchanged, and never
+  report or signal `review` or `done`.
 - In autonomous mode, pass `HANDOFF_MODE` and `HANDOFF_SKIP_REVIEW` through to every delegated `implement-worker` request as explicit text. Workers never own Handoff sync.
 - When `HANDOFF_MODE` is absent or not `1`, treat the run as a manual Codex session. If the plan entrypoint contains a `<!-- handoff:task:<id> -->` annotation, Handoff MCP sync is required; if the tools are unavailable, return a blocking integration error instead of silently skipping sync.
 - For a linked manual plan, call `handoff_sync_status` with `implementing` and `paused: true` before dispatch. After each completed layer, call `handoff_push_plan`. On completion, push the final plan and sync `review` with `paused: true`, or `done` with `paused: false` when `HANDOFF_SKIP_REVIEW: 1`. Use the actual UTC timestamp and `direction: "aif_to_handoff"` for status calls.

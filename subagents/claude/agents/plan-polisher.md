@@ -53,6 +53,9 @@ Bash: printenv HANDOFF_BRANCH_NAME || true
 
 **When `HANDOFF_MODE` is `1`** (autonomous Handoff agent):
 - **No interactive prompts:** Use defaults — do not attempt to ask the user questions.
+- If authoritative requirements conflict and need a user decision, do not
+  prompt or mark the plan ready. Stop and return exactly:
+  `status: blocked_external` and `blocker: requirement-conflict`.
 - **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan entrypoint (`index.md` for ultra), before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug.**
 
 **Branch ownership under Handoff (CRITICAL):**

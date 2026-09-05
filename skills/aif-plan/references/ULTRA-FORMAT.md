@@ -70,6 +70,13 @@ Rationale: [one sentence]
 Source: `.ai-factory/RESEARCH.md` (Active Summary, Updated: ..., SHA256: ...)
 [committed Active Summary copy]
 
+## Requirements Reconciliation
+Authority: [declared source priority, or "none declared"]
+
+| Decision / supported combination | Source path and section | Verification evidence |
+|----------------------------------|-------------------------|-----------------------|
+| [material rule or combination] | `[path]` — [section] | [test, command, or manual check] |
+
 ## Architecture and Decisions
 - [Cross-phase boundary, contract, or implementation decision]
 
@@ -148,6 +155,10 @@ Depends on: none | Phase N / Task N
 - Compatibility requirements and invariants.
 - Include concise pseudocode when prose leaves meaningful ambiguity.
 
+### Requirement Evidence (when reconciliation applies)
+- Source anchors for each material behavioral rule.
+- Applicable supported combinations and their verification scenarios.
+
 ### Error Handling and Logging
 - Failure modes and expected behavior.
 - Log events, levels, safe fields, and sensitive fields that must not be logged.
@@ -186,7 +197,9 @@ Before saving an ultra bundle, verify every task has all of the following:
 5. Tests and commands when testing is enabled; an explicit no-test statement
    when testing is disabled.
 6. Observable acceptance criteria and verification commands/checks.
-7. No unresolved implementation choice hidden behind words such as "handle",
+7. Requirement source anchors and applicable supported combinations when the
+   Requirements Reconciliation Gate applies.
+8. No unresolved implementation choice hidden behind words such as "handle",
    "support", "wire up", "as needed", or "etc." If a decision truly cannot be
    made during planning, record it as a blocking open question in `index.md`
    instead of delegating the guess to the implementer.
