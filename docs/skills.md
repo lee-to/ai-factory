@@ -526,6 +526,9 @@ Reviews staged changes or PR diffs:
 /aif-review 123 +check
 ```
 - Checks correctness, security, performance, and maintainability
+- **Coverage-first finding stage** — the review reports every issue it finds, including uncertain and low-severity ones, instead of pre-filtering to "only important" issues; ranking and filtering happen downstream
+- **Confidence markers** — an uncertain finding ends with `(confidence: low)` or `(confidence: medium)`; high confidence is the default and carries no marker. Confidence is independent of severity: the section still follows impact, so a potential merge-blocker you are unsure about is reported in "Critical Issues" with a marker
+- **Markers are resolved before the gate** — a review that produced any marker runs the `+check` validation automatically, even without the flag, so the published gate never carries an unresolved finding (confirmed → ordinary blocker driving `fail`, refuted → dropped). Marker-free reviews dispatch nothing, keeping `+check` opt-in everywhere else
 - Adds read-only context-gate findings (architecture/roadmap/rules) to review output
 - Uses `WARN` for non-blocking context drift and `ERROR` only for explicitly blocking review criteria
 - Appends a final `aif-gate-result` JSON block for Handoff/AIFHub and other orchestrators
@@ -533,10 +536,13 @@ Reviews staged changes or PR diffs:
 
 **Optional validation (`+check`)**
 - After the review is drafted the skill dispatches a single fresh-context `general-purpose` subagent that re-reads cited files and judges each item from "Critical Issues" and "Suggestions"
-- Invented findings are dropped, partially-correct ones are rewritten in place, real findings stay untouched; "Questions" and "Positive Notes" are not validated
+- Invented findings are dropped, partially-correct ones are rewritten in place, real findings stay untouched — except confirmed marked findings, which come back through `modify` with the confidence marker removed
+- Only actionable code findings are validated: context-gate findings, commit-structure findings, "Questions", and "Positive Notes" are not — the validator judges items against the reviewed diff, which is not evidence for those classes
 - The subagent can also reclassify items between the two severity levels — promote a suggestion to "Critical Issues" if the underlying behavior is actually merge-blocking, or demote a critical finding to "Suggestions" if the framing was too harsh. The two levels and the promotion/demotion rules live in `references/SEVERITY.md`
 - `aif-gate-result` is recomputed after filtering — `status` is the post-filter findings merged with the unchanged context-gate result, so a failing architecture/rules/roadmap gate still forces `fail` even when no Critical Issues remain; `suggested_next` is recomputed accordingly (`/aif-commit` when there are no blockers; otherwise `/aif-fix`, or the failing gate's own command — `/aif-rules`, `/aif-architecture`, `/aif-roadmap` — when a single context gate is the sole blocker)
-- The rendered review gains a final line `Filtered: N hidden, M adjusted, K reclassified by +check`; if the validator call fails entirely, the unfiltered review is kept and a single `WARN [+check]` line is appended instead (always above the `aif-gate-result` block — that block stays the last thing in the output)
+- A confirmed marked critical is an ordinary blocker: the marker is gone, so `status` is `fail` and `suggested_next.command` resolves to `/aif-fix`, exactly as for an unmarked critical
+- **Validation failure is machine-readable** — if the pass cannot resolve a marker (the validator answers `keep` on a marked item, returns `modify` with the marker still present, gives a malformed response for it, or the dispatch fails entirely on a marked review), the gate does not fall back to a guess: `status: fail`, `blocking: true`, a `review-validation-failed` blocker next to the established ones, the unresolved findings kept in the review with their markers but **not** counted as blockers, and `suggested_next.command: null` with a reason to re-run `/aif-review +check`
+- The rendered review gains a final line `Filtered: N hidden, M adjusted, K reclassified by +check`; if the validator call fails entirely, the unfiltered review is kept and a single `WARN [+check]` line is appended instead (always above the `aif-gate-result` block — that block stays the last thing in the output). For a marker-free review that keeps the pre-validation gate; for a review with markers it is the validation failure above
 
 ### `/aif-rules-check [git ref]`
 Runs a standalone read-only rules compliance gate:

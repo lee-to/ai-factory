@@ -2012,6 +2012,20 @@ else
     echo "$LOOP_BUDGET_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
+echo -e "\n${BOLD}=== Review confidence lifecycle tests ===${NC}\n"
+
+set +e
+REVIEW_LIFECYCLE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-review-confidence-lifecycle.sh" 2>&1)
+REVIEW_LIFECYCLE_EXIT=$?
+set -e
+
+if [[ $REVIEW_LIFECYCLE_EXIT -eq 0 ]]; then
+    pass "review confidence lifecycle tests"
+else
+    fail "review confidence lifecycle tests"
+    echo "$REVIEW_LIFECYCLE_OUTPUT" | sed 's/^/      /'
+fi
+
 echo -e "\n${BOLD}=== audit-artifacts command smoke tests ===${NC}\n"
 
 set +e

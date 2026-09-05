@@ -50,6 +50,18 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    local file="$1"
+    local unexpected="$2"
+    local message="$3"
+
+    if [[ -f "$file" ]] && ! grep -Fq "$unexpected" "$file"; then
+        pass "$message"
+    else
+        fail "$message"
+    fi
+}
+
 extract_last_gate_result() {
     local input_file="$1"
     local output_file="$2"
@@ -204,6 +216,64 @@ done
 assert_contains "$ROOT_DIR/skills/aif-rules-check/SKILL.md" 'PASS` -> `pass`, `WARN` -> `warn`, and `FAIL` -> `fail`' "rules skill documents explicit verdict mapping"
 assert_contains "$ROOT_DIR/skills/aif-rules-check/SKILL.md" 'Do not use `/aif-review` in the JSON `suggested_next.command`' "rules skill separates disallowed review command"
 assert_contains "$ROOT_DIR/skills/aif-security-checklist/SKILL.md" 'Do not append this gate block for the `ignore <item>` writer flow' "security skill documents ignore writer-flow exception"
+
+echo -e "\n${BOLD}=== Review confidence / unverified-blocker contract ===${NC}\n"
+
+REVIEW_SKILL="$ROOT_DIR/skills/aif-review/SKILL.md"
+REVIEW_VALIDATOR="$ROOT_DIR/skills/aif-review/references/VALIDATOR.md"
+REVIEW_SEVERITY="$ROOT_DIR/skills/aif-review/references/SEVERITY.md"
+REVIEW_CHECK_MODE="$ROOT_DIR/skills/aif-review/references/CHECK-MODE.md"
+
+# Severity and confidence stay independent dimensions.
+assert_contains "$REVIEW_SKILL" 'Severity picks the section' "review skill separates severity from confidence"
+assert_contains "$REVIEW_SEVERITY" 'never changes severity semantics' "severity rules keep confidence out of severity"
+
+# Markers are resolved before the gate — schema v1 has no unverified-blocker state.
+assert_contains "$REVIEW_SKILL" 'No unresolved markers reach the gate' "review skill states the marker-free gate invariant"
+assert_contains "$REVIEW_SKILL" 'runs the `+check` validation automatically' "review skill triggers validation on markers without the flag"
+assert_contains "$REVIEW_SKILL" 'is not used to encode an unresolved finding' "review skill keeps null at its original meaning"
+assert_not_contains "$REVIEW_SKILL" 'every *unmarked* "Critical Issues" item' "blockers no longer carve out marked criticals"
+assert_contains "$DOCS_REF" 'does **not** use `null` to encode an unresolved finding' "docs drop the null-for-unverified case"
+
+# Only the two literal markers are legal; the pipe form is not example output.
+assert_contains "$REVIEW_SKILL" 'never emit the literal string' "review skill forbids the literal pipe marker"
+assert_not_contains "$REVIEW_VALIDATOR" '(confidence: low|medium)' "validator prompt avoids the literal pipe marker"
+assert_not_contains "$REVIEW_SEVERITY" '(confidence: low|medium)' "severity rules avoid the literal pipe marker"
+
+# A confirmed marked finding must lose its marker, and `keep` cannot do that.
+assert_contains "$REVIEW_VALIDATOR" '`keep` is not valid for a marked item' "validator forbids keep for marked findings"
+assert_contains "$REVIEW_VALIDATOR" 'Not valid for an item carrying a confidence marker' "validator verdict list repeats the keep restriction"
+assert_contains "$REVIEW_CHECK_MODE" 'Never strip a marker yourself' "check-mode forbids silent unmarking"
+assert_contains "$REVIEW_CHECK_MODE" 'violated the marked-item contract' "check-mode defines the marked-item violation path"
+assert_contains "$REVIEW_VALIDATOR" 'MUST NOT contain' "validator forbids a marker inside Modified-text"
+assert_contains "$REVIEW_CHECK_MODE" 'Confirmed criticals become blockers' "check-mode promotes confirmed criticals into blockers"
+
+# A marker the pass failed to resolve is a gate failure with its own blocker,
+# not a finding the gate guesses about.
+assert_contains "$REVIEW_SKILL" '"id": "review-validation-failed"' "review skill defines the validation-failure blocker"
+assert_contains "$REVIEW_SKILL" 'An unresolved marker is a validation failure' "review skill projects unresolved markers as a failed gate"
+assert_contains "$REVIEW_SKILL" 'never appear in `"blockers"`' "review skill keeps unconfirmed findings out of blockers"
+assert_contains "$REVIEW_CHECK_MODE" 'Validation failure is a gate failure' "check-mode routes validation failure into the gate"
+assert_contains "$REVIEW_SEVERITY" 'review-validation-failed' "severity rules point unresolved markers at the failure gate"
+assert_not_contains "$REVIEW_SEVERITY" 'not counted as a blocker until confirmed' "severity rules drop the unconfirmed-blocker model"
+assert_contains "$DOCS_REF" 'review-validation-failed' "docs name the validation-failure blocker"
+assert_contains "$DOCS_REF" 'decided by `status` and `blocking` alone' "docs keep the proceed verdict on status/blocking, not on null"
+
+# Only actionable code findings enter the validator.
+assert_contains "$REVIEW_SKILL" 'actionable code finding' "review skill names the validated item class"
+assert_contains "$REVIEW_CHECK_MODE" 'exactly one class of item' "check-mode scopes the validator input"
+
+# The narrative docs describe the same contract — prose drifting back to the
+# pre-validation `warn` + `command: null` state is what these guard.
+DOCS_WORKFLOW="$ROOT_DIR/docs/workflow.md"
+DOCS_SKILLS="$ROOT_DIR/docs/skills.md"
+
+assert_contains "$DOCS_WORKFLOW" 'A marker never reaches the published gate' "workflow docs state the marker-free gate invariant"
+assert_contains "$DOCS_WORKFLOW" 'runs the `+check` validation automatically' "workflow docs describe marker-triggered validation"
+assert_not_contains "$DOCS_WORKFLOW" 'An unverified marked critical is reported in "Critical Issues" but does not block' "workflow docs drop the unverified-blocker behavior"
+assert_contains "$DOCS_WORKFLOW" 'review-validation-failed' "workflow docs describe the validation-failure gate"
+assert_contains "$DOCS_SKILLS" 'review-validation-failed' "skills docs describe the validation-failure gate"
+assert_not_contains "$DOCS_SKILLS" 'internal pre-validation draft' "skills docs no longer describe a warn+null draft state"
 
 echo -e "\n${BOLD}=== Gate result docs ===${NC}\n"
 

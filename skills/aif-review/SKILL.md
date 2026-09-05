@@ -1,6 +1,6 @@
 ---
 name: aif-review
-description: Perform code review on staged changes or a pull request. Checks for bugs, security issues, performance problems, and best practices. Use when user says "review code", "check my code", "review PR", or "is this code okay". Optional +check flag validates findings via a fresh-context subagent.
+description: Perform code review on staged changes or a pull request. Checks for bugs, security issues, performance problems, and best practices. Use when user says "review code", "check my code", "review PR", or "is this code okay". The +check flag validates findings via a fresh-context subagent; validation also runs automatically when the review produced confidence markers.
 argument-hint: "[PR number | branch/commit/tag | empty] [+check]"
 allowed-tools: Bash(git *) Bash(gh *) Read Glob Grep Task Agent AskUserQuestion
 disable-model-invocation: false
@@ -28,7 +28,7 @@ If config.yaml doesn't exist, use defaults:
 
 Before routing the argument string into one of the modes below, extract any standalone tokens that flag optional behavior. Strip them from the argument string and route the remainder normally.
 
-- `+check` — runs the optional findings validator after the review is produced. The full procedure (when to run, failure modes, output additions, gate-result recomputation) lives in `references/CHECK-MODE.md`. Default is OFF; the validator runs only when this token is present. The token may appear before or after the main argument (e.g. `/aif-review +check`, `/aif-review 123 +check`, `/aif-review main +check`).
+- `+check` — runs the optional findings validator after the review is produced. The full procedure (when to run, failure modes, output additions, gate-result recomputation) lives in `references/CHECK-MODE.md`. The validator runs when this token is present **or** when the review produced at least one confidence marker — see "Resolving markers before the gate" below. For a marker-free review the flag is the only trigger, so nothing is dispatched unless it is given. The token may appear before or after the main argument (e.g. `/aif-review +check`, `/aif-review 123 +check`, `/aif-review main +check`).
 
 If the leftover argument string is empty, fall back to the empty-argument mode (staged review). Unknown `+`-prefixed tokens are passed through as part of the main argument so they are not silently consumed.
 
@@ -136,10 +136,27 @@ This section is the single owner of `aif-gate-result` computation:
   - **findings input** — `fail` when any "Critical Issues" item remains (critical correctness, security, data-loss, performance, downstream regression — see `references/SEVERITY.md` for the authoritative critical/suggestion definitions); `warn` when only "Suggestions", missing optional context, or review uncertainty remain; `pass` when nothing material remains.
   - **context-gate input** — `fail` for a blocking (`ERROR`) gate finding; `warn` for a non-blocking (`WARN`) one; `pass` when none.
   - A failing context gate keeps `"status"` at `fail` even with zero Critical Issues — a clean findings list must never mask a failed gate.
+- **No unresolved markers reach the gate.** The projection expects marker-free findings: a `(confidence: low)` / `(confidence: medium)` marker is resolved by the validation pass *before* the gate is computed — see "Resolving markers before the gate" below. Schema v1 has no encoding for "unverified potential blocker", and the gate never tries to express one (`warn` + `command: null` is not a state, it is a bug).
+- **An unresolved marker is a validation failure, and the gate reports the failure itself.** If a marked finding still carries its marker when the gate is computed — the validation pass was dispatched and did not resolve it: per-item contract violation, malformed per-item response, or whole-dispatch failure (`references/CHECK-MODE.md`, Failure modes) — the review did not complete, and the block says so in the machine-readable fields, not only in the `WARN [+check]` line:
+  - `"status": "fail"`, `"blocking": true`;
+  - `"blockers"` gains exactly one synthetic entry `{"id": "review-validation-failed", "severity": "error", "summary": "<N> marked finding(s) left unresolved: <cause>"}`, alongside the established blockers (below);
+  - the unresolved findings stay in their human-readable sections with their markers, but are **not** established blockers and never appear in `"blockers"` — the gate does not guess whether they are real;
+  - `"suggested_next.command"` is `null` and the reason names the failure and the recovery: re-run `/aif-review +check`. That command is not on the allowlist, so `null` is the only honest value; the block is already `fail` + `blocking`, so no orchestrator can read `null` as "cleared".
 - `"blocking": true|false` — `true` only when `"status"` is `fail`.
-- `"blockers"` — merge-blocking findings only: every "Critical Issues" item and every blocking context-gate finding, nothing else.
+- `"blockers"` — established merge-blocking findings only: every "Critical Issues" item that carries no confidence marker (after a successful validation pass that is every item), every blocking context-gate finding, plus the `review-validation-failed` entry when validation failed — nothing else.
 - `"affected_files"` — reviewed or implicated paths.
-- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`; `null` only when no command fits.
+- `"suggested_next.command"` follows `"status"`: `fail` → `/aif-fix` by default, but if every blocker came from a single context gate point at that gate's command instead (rules gate → `/aif-rules`, architecture gate → `/aif-architecture`, roadmap gate → `/aif-roadmap`); `warn`/`pass` → `/aif-commit`. When the `review-validation-failed` blocker is present the command is `null` regardless of the other blockers — a fix pass on an incomplete blocker list would consume a report the review never finished. `null` keeps its original meaning — no allowlisted command fits — and is not used to encode an unresolved finding.
+
+### Resolving markers before the gate
+
+A review that produced at least one `(confidence: low)` / `(confidence: medium)` marker runs the `+check` validation automatically, even when the flag was not given. The flag stays opt-in for everything else: a review with no markers behaves exactly as before and dispatches nothing.
+
+- Every marked finding is either **confirmed** — the validator returns it without the marker, and it counts as an ordinary finding of its section (a confirmed critical is a blocker and drives `fail`) — or **refuted** and dropped.
+- The gate is then computed from the post-validation findings, so the published block never contains a marker and never needs a state schema v1 cannot express.
+- If the pass leaves a marker unresolved, the gate reports the validation failure (`review-validation-failed`, "Machine-readable gate result" above) instead of publishing a verdict the review did not earn. The marker stays visible in the human-readable section, and the `WARN [+check]` line names the cause.
+- The dispatch is paid only in runs that would otherwise produce that unrepresentable state. Since coverage-first deliberately surfaces uncertain findings rather than suppressing them, those runs are common enough that leaving the resolution to the user would stall the pipeline on every one of them.
+
+Procedure, counters, and failure handling are identical to an explicit `+check` (`references/CHECK-MODE.md`); the only difference is what triggered it.
 
 `/aif-review` is read-only for context artifacts by default. Do not modify context files unless user explicitly asks.
 
@@ -164,6 +181,41 @@ codebase conventions, and tech-stack analysis. These rules are tailored to the c
 
 **Enforcement:** After generating any output artifact, verify it against all skill-context rules.
 If any rule is violated — fix the output before presenting it to the user.
+
+## Finding stage: coverage over filtering
+
+At the finding stage your job is **coverage, not filtering**. Report every issue you find, including ones you are uncertain about or judge low-severity — do not omit a finding because it feels minor or you are not fully sure. Filtering happens downstream (the `+check` validator, the human, or the gate's Critical/Suggestion split), never here.
+
+- Uncertain findings still get surfaced — in the section their **impact** warrants, carrying an explicit confidence marker (see "Findings taxonomy and the validation boundary" below). Never in **Questions**: uncertainty marks a finding, it never exempts one from validation.
+- Do not self-censor to satisfy "only high-severity" / "be conservative" framing: investigate fully, then report what you found and let the downstream stage rank it.
+- Keep the Critical-vs-Suggestion split honest (the gate blocks on confirmed Criticals) — confidence belongs in the finding text, it never justifies omission or demotion.
+
+> Why: Opus 4.8 follows "report only important issues" more literally than earlier models — same investigation depth, but fewer findings converted to output. Coverage-first framing keeps recall up; ranking is a separate step.
+
+## Findings taxonomy and the validation boundary
+
+Every item in the review output belongs to exactly one class. The class decides where the item is rendered and whether `+check` validates it:
+
+| Class | Rendered in | Validated by `+check` |
+|---|---|---|
+| **actionable code finding** — a claim about the reviewed change: defect, risk, or improvement, normally anchored to `file:line` | Critical Issues or Suggestions | yes |
+| **context-gate finding** — architecture / roadmap / rules drift | Context Gates | no |
+| **commit-structure finding** — commit-message accuracy or atomicity (commits mode) | inline in the review | no |
+| **non-actionable observation** — acknowledgement of a good pattern | Positive Notes | no |
+| **genuinely open clarification** — carries no claim of its own | Questions | no |
+
+The invariant that matters: **an actionable code finding is never rendered outside Critical Issues or Suggestions**, so it always enters the validated path when `+check` is set. The other classes are exempt because the validator's input cannot adjudicate them — it receives the reviewed diff, not the architecture/rules artifacts (context gates) and not per-commit boundaries (the commits-mode diff is squashed). The exemption is a limit of the validator's evidence, not an escape hatch: a claim about the changed code belongs in the validated path however it is phrased.
+
+Litmus test: if an item asserts something about the reviewed change that could be true or false, it is an actionable code finding. When a draft "question" smuggles such a claim ("is it intended that X leaks the connection?"), split it: the claim becomes a finding with a confidence marker, and only the genuinely open part may stay in Questions.
+
+### Confidence markers
+
+Confidence and severity are independent dimensions:
+
+- **Severity picks the section** — by the impact of the cited behavior *assuming the finding is true*. A potential merge-blocker sits in Critical Issues even when you are unsure it is real; a well-established nitpick sits in Suggestions.
+- **Confidence marks the text** — an uncertain finding ends with exactly one of `(confidence: low)` or `(confidence: medium)`. High confidence is the default and carries no marker; never emit the literal string `(confidence: low|medium)`.
+
+A marker never survives to the published gate: its presence triggers the validation pass (see "Resolving markers before the gate"), which either confirms the finding — returning the corrected text without the marker, after which it counts as an ordinary finding of its section — or drops it. Marking a finding therefore costs nothing in correctness: it records honest uncertainty and schedules its resolution, rather than downgrading the finding or hiding it.
 
 ## Review Checklist
 
@@ -223,13 +275,21 @@ If any rule is violated — fix the output before presenting it to the user.
 4. Suggested fix — concrete edit that addresses the behavior above.
 
 Example:
-> Two clients buying the last item both get a confirmation and stock goes negative — the order creation and stock reservation run in separate transactions. `src/services/order.ts:42`. Wrap `OrderService.create` and `InventoryService.reserve` in a shared transaction so the second buyer fails fast with "out of stock".]
+> Two clients buying the last item both get a confirmation and stock goes negative — the order creation and stock reservation run in separate transactions. `src/services/order.ts:42`. Wrap `OrderService.create` and `InventoryService.reserve` in a shared transaction so the second buyer fails fast with "out of stock".
+]
 
 ### Suggestions
-[Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug.]
+[Same item shape as Critical Issues. The behavioral impact describes a non-blocking improvement (clarity, performance budget, missing log), not a bug.
+
+In either findings section, an item you are not sure about ends with a `(confidence: low)` or `(confidence: medium)` marker — the section still follows impact, not certainty (see "Findings taxonomy and the validation boundary").
+
+Example of a marked item, sitting in Critical Issues because its impact would be merge-blocking if real:
+> Retries reuse the same idempotency key after a 5xx, so a duplicate charge is possible when the provider did commit the first attempt. `src/payments/retry.ts:88`. Generate a fresh key per attempt, or record the provider's response before retrying. (confidence: medium)
+
+The marker never reaches the published gate as a finding: it is resolved by the validation pass (see "Resolving markers before the gate") — confirmed items come back without it, refuted ones are dropped, and a marker the pass failed to resolve turns the gate into a `review-validation-failed` failure.]
 
 ### Questions
-[Free-form clarifications. Path optional, fix optional — these are open questions for the author, not findings.]
+[Free-form clarifications. Path optional, fix optional — these are open questions for the author, never findings (see "Findings taxonomy and the validation boundary").]
 
 ### Positive Notes
 [Free-form acknowledgements of good patterns. No path/fix required.]
@@ -254,7 +314,30 @@ Append the final machine-readable result after the markdown summary:
 }
 ```
 
-When the `+check` flag is set, the `aif-gate-result` block is assembled **after** validator filtering — `status`, `blockers`, `affected_files`, and `suggested_next` are recomputed accordingly. Exception: the whole-dispatch failure path keeps the unfiltered original list and does NOT recompute these fields. See `references/CHECK-MODE.md` for the full procedure.
+When the validation pass ran, the `aif-gate-result` block is assembled **after** validator filtering — `status`, `blockers`, `affected_files`, and `suggested_next` are recomputed accordingly. On a whole-dispatch failure the input is the unfiltered draft instead: for a marker-free review that reproduces the pre-validation gate, for a review with markers it yields the `review-validation-failed` gate. See `references/CHECK-MODE.md` for the full procedure.
+
+The failure block, for a review whose only marked critical could not be validated:
+
+```aif-gate-result
+{
+  "schema_version": 1,
+  "gate": "review",
+  "status": "fail",
+  "blocking": true,
+  "blockers": [
+    {
+      "id": "review-validation-failed",
+      "severity": "error",
+      "summary": "1 marked finding left unresolved: validator response for item 1 violated the marked-item contract"
+    }
+  ],
+  "affected_files": ["src/payments/retry.ts"],
+  "suggested_next": {
+    "command": null,
+    "reason": "Validation of the marked finding failed, so the review is incomplete and no blocker verdict exists for it. Re-run /aif-review +check."
+  }
+}
+```
 
 ## Review Style
 
@@ -262,7 +345,7 @@ When the `+check` flag is set, the `aif-gate-result` block is assembled **after*
 - Explain the "why" behind suggestions
 - Provide code examples when helpful
 - Acknowledge good code
-- Prioritize feedback by importance
+- Order feedback by importance — but never drop low-severity findings; surface them as Suggestions (see "Finding stage: coverage over filtering")
 - Ask questions instead of making assumptions
 
 ## Examples
