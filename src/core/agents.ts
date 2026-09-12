@@ -143,6 +143,16 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsCliAgent: 'devin',
     source: 'builtin',
   },
+  [AGENT_IDS.devin]: {
+    id: AGENT_IDS.devin,
+    displayName: 'Devin',
+    configDir: '.devin',
+    skillsDir: '.devin/skills',
+    settingsFile: null,
+    supportsMcp: false,
+    skillsCliAgent: 'devin',
+    source: 'builtin',
+  },
   warp: {
     id: 'warp',
     displayName: 'Warp',

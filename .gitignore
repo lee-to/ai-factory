@@ -34,6 +34,7 @@ coverage/
 
 # ai
 .claude
+.devin
 .ai
 .ai-factory/
 .ai-factory.json

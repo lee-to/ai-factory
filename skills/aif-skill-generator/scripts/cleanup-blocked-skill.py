@@ -64,6 +64,7 @@ _BUILTIN_AGENT_SKILLS_DIRS = (
     '.devin/skills',
     # Saved pre-rebrand installations still use this supported legacy root.
     '.windsurf/skills',
+    '.devin/skills',
     '.warp/skills',
     '.zencoder/skills',
     '.roo/skills',
