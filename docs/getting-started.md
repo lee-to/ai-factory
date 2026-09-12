@@ -31,12 +31,12 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Warp | `.warp/` | `.warp/skills/` |
 | Zencoder | `.zencoder/` | `.zencoder/skills/` |
 | Codex CLI | `.codex/` | `.agents/skills/` when `.agents/` already exists; otherwise `.codex/skills/` |
-| Codex app | `.agents/` | `.agents/skills/` |
-| GitHub Copilot | `.github/` | `.github/skills/` |
-| Gemini CLI | `.gemini/` | `.gemini/skills/` |
-| Junie | `.junie/` | `.junie/skills/` |
-| Qwen Code | `.qwen/` | `.qwen/skills/` |
-| Universal / Other | `.agents/` | `.agents/skills/` |
+| Codex app         | `.agents/`       | `.agents/skills/`                           |
+| GitHub Copilot    | `.github/`       | `.github/skills/`                           |
+| Gemini CLI        | `.gemini/`       | `.gemini/skills/`                           |
+| Junie             | `.junie/`        | `.junie/skills/`                            |
+| Qwen Code         | `.qwen/`         | `.qwen/skills/`                             |
+| Universal / Other | `.agents/`       | `.agents/skills/`                           |
 
 Devin Desktop [replaced Windsurf](https://cognition.com/blog/introducing-devin-desktop)
 on June 2, 2026. AI Factory keeps the `windsurf` agent ID for CLI/config
