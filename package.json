@@ -13,6 +13,7 @@
     "watch": "tsc -w",
     "test": "node scripts/run-bash-test.mjs scripts/test-skills.sh",
     "test:init": "node scripts/run-bash-test.mjs scripts/test-init.sh",
+    "test:loop-subagents": "node scripts/test-loop-subagents.mjs",
     "test:codex-targets": "node scripts/test-codex-skill-targets.mjs --group=control,targets,core,preflight,migration,extensions,ownership,cli,upgrade && node scripts/test-managed-skill-receipts.mjs && node scripts/test-skill-migration-modes.mjs",
     "test:update": "node scripts/run-bash-test.mjs scripts/test-update.sh",
     "test:extension-schema": "node scripts/test-extension-schema.mjs",
