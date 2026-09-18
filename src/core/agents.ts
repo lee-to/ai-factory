@@ -5,6 +5,7 @@ export type AgentFileExtension = '.md' | '.toml';
 export const AGENT_IDS = {
   claude: 'claude',
   codex: 'codex',
+  devin: 'devin',
 } as const;
 
 export interface AgentConfig {
@@ -138,6 +139,16 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     settingsFile: null,
     supportsMcp: false,
     skillsCliAgent: 'windsurf',
+    source: 'builtin',
+  },
+  [AGENT_IDS.devin]: {
+    id: AGENT_IDS.devin,
+    displayName: 'Devin',
+    configDir: '.devin',
+    skillsDir: '.devin/skills',
+    settingsFile: null,
+    supportsMcp: false,
+    skillsCliAgent: 'devin',
     source: 'builtin',
   },
   warp: {
