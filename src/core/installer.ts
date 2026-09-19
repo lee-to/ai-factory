@@ -846,7 +846,7 @@ export async function renderSkillFiles(
           let content = bytes.toString('utf8');
           if (relPath === 'SKILL.md') {
             content = replaceFrontmatterName(content, skillName);
-            content = getTransformer(agentId).transform(skillName, content).content;
+            content = getTransformer(context.transformerAgentId ?? agentId).transform(skillName, content).content;
           }
           bytes = Buffer.from(processTemplate(content, vars));
         }
@@ -869,7 +869,7 @@ async function installSkillWithTransformer(
 ): Promise<void> {
   const agentConfig = context.agent;
   logSkillTarget('install:start', { agentId, skillsDir, skillName, renderContextHash: context.hash });
-  const transformer = getTransformer(agentId);
+  const transformer = getTransformer(context.transformerAgentId ?? agentId);
   const skillMdPath = path.join(sourceSkillDir, 'SKILL.md');
   const content = await readTextFile(skillMdPath);
   if (!content) {
@@ -934,7 +934,7 @@ export async function installSkills(options: InstallOptions): Promise<string[]> 
     }
   }
 
-  const transformer = getTransformer(agentId);
+  const transformer = getTransformer(context.transformerAgentId ?? agentId);
   if (transformer.postInstall) {
     await transformer.postInstall(projectDir);
   }
