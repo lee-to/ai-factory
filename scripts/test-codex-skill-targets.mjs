@@ -241,7 +241,7 @@ test('cli', 're-init restores persisted shared and custom paths without revertin
 });
 
 test('cli', 'extension mutations reject incompatible targets and list remains read-only', async project => {
-  const config = { version: '2.19.0', agents: [installation('codex', '.agents/skills'), installation('universal', '.agents/skills')],
+  const config = { version: '2.19.0', agents: [installation('codex', '.agents/skills'), installation('qwen', '.agents/skills')],
     extensions: [{ name: 'aif-ext-guard', version: '1.0.0', source: './extension-source' }] };
   await saveConfig(project, config, { hydrateAgentFileSources: false });
   await fs.mkdir(path.join(project, '.agents/skills/aif'), { recursive: true });
@@ -285,7 +285,7 @@ test('upgrade', 'v1 Codex upgrade selects .agents before legacy cleanup', async 
 });
 
 test('upgrade', 'incompatible upgrade fails before legacy file/directory changes', async project => {
-  const agents = [installation('codex', '.agents/skills', ['commit']), installation('universal', '.agents/skills', ['commit'])];
+  const agents = [installation('codex', '.agents/skills', ['commit']), installation('qwen', '.agents/skills', ['commit'])];
   await fs.mkdir(path.join(project, '.agents/skills/commit'), { recursive: true });
   await fs.writeFile(path.join(project, '.agents/skills/commit/SKILL.md'), 'legacy');
   await fs.mkdir(path.join(project, '.ai-factory/changes'), { recursive: true });
@@ -956,7 +956,7 @@ test('targets', 'resolver rejects escaping, nested, native and incompatible targ
     await assert.rejects(resolveSkillTargets(project, [installation('codex', unsafe)]));
   }
   await assert.rejects(resolveSkillTargets(project, [installation('codex', '.agents/skills'), installation('codex-app', '.agents/skills/child')]));
-  await assert.rejects(resolveSkillTargets(project, [installation('codex', '.agents/skills'), installation('universal', '.agents/skills')]), /Incompatible/);
+  await assert.rejects(resolveSkillTargets(project, [installation('codex', '.agents/skills'), installation('qwen', '.agents/skills')]), /Incompatible/);
   await assert.rejects(resolveSkillTargets(project, [{ ...installation('codex', '.team/skills'), agentsDir: '.team/skills/native' }]), /overlap/);
   await assert.rejects(resolveSkillTargets(project, [{ ...installation('codex', '.codex/custom'), configFiles: ['custom/config.toml'] }]), /overlap/);
 });

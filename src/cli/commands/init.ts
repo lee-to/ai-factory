@@ -376,7 +376,9 @@ async function initLocked(options: InitOptions): Promise<void> {
     console.log(chalk.bold('\nNext steps:'));
     const onboardingByAgent = installedAgents.map(agent => ({
       agent,
-      onboarding: getAgentOnboarding(agent.id),
+      onboarding: getAgentOnboarding(agent.id, groups.flatMap(group =>
+        group.targets.map(target => ({ id: target.id, skillsDir: group.physicalPath })),
+      )),
     }));
 
     for (const [index, { agent, onboarding }] of onboardingByAgent.entries()) {
