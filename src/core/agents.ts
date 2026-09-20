@@ -146,6 +146,7 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     displayName: 'Devin',
     configDir: '.devin',
     skillsDir: '.devin/skills',
+    homeSkillsDir: '.config/devin/skills',
     settingsFile: null,
     supportsMcp: false,
     skillsCliAgent: 'devin',
