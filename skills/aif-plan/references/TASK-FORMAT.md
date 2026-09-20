@@ -39,6 +39,9 @@ Created: [date]
 - Testing: yes/no
 - Logging: verbose/standard/minimal
 - Docs: yes/no  # yes => mandatory docs checkpoint in /aif-implement, no/unset => WARN [docs] only
+- Commit strategy: incremental/incremental-at-end/single-commit  # how commits are structured
+- Development methodology: implementation-first/tdd  # implementation-first or test-driven development
+- TDD granularity: task-based/feature-based  # only shown when Development methodology: tdd
 
 ## Roadmap Linkage (optional)
 <!-- Only when .ai-factory/ROADMAP.md exists -->
@@ -70,6 +73,8 @@ Authority: [declared source priority, or "none declared"]
 
 ## Tasks
 
+### Classic Format (separate Commit Plan section)
+
 ### Phase 1: Setup
 - [ ] Task 1: [description]
 - [ ] Task 2: [description]
@@ -82,7 +87,72 @@ Authority: [declared source priority, or "none declared"]
 ### Phase 3: Integration
 - [ ] Task 5: [description] (depends on 3, 4)
 <!-- Commit checkpoint: tasks 5+ -->
+
+### Task-Based Format (commits as explicit tasks)
+
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service with login/logout
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 2,3)
+- [ ] Task 5: Implement auth middleware
+- [ ] Task 6: Write integration tests for auth flow (depends on 5)
+- [ ] Task 7: Document auth middleware usage (depends on 5)
+- [ ] Task 8: Commit changes with message "feat: implement auth middleware" (depends on 6,7)
+
+### TDD Task-Based Format (test before each implementation task)
+
+### Phase 1: User Authentication System (TDD)
+- [ ] Task 1: Write failing unit test for user login functionality
+- [ ] Task 2: Implement user login to make test pass (depends on 1)
+- [ ] Task 3: Write failing unit test for user registration functionality
+- [ ] Task 4: Implement user registration to make test pass (depends on 3)
+- [ ] Task 5: Refactor authentication logic (ensure all tests still passing) (depends on 2,4)
+- [ ] Task 6: Write failing integration test for complete auth flow
+- [ ] Task 7: Implement auth middleware to make test pass (depends on 6)
+- [ ] Task 8: Commit changes with message "feat: implement user authentication with TDD" (depends on 5,7)
+
+### TDD Feature-Based Format (test batch before implementation)
+
+### Phase 1: User Authentication System (TDD)
+- [ ] Task 1: Write failing unit test for user login functionality
+- [ ] Task 2: Write failing unit test for user registration functionality
+- [ ] Task 3: Write failing integration test for complete auth flow
+- [ ] Task 4: Implement user login to make test pass (depends on 1)
+- [ ] Task 5: Implement user registration to make test pass (depends on 2)
+- [ ] Task 6: Implement auth middleware to make test pass (depends on 3)
+- [ ] Task 7: Refactor authentication logic (ensure all tests still passing) (depends on 4,5,6)
+- [ ] Task 8: Commit changes with message "feat: implement user authentication with TDD" (depends on 7)
+
+### Incremental at End Commit Strategy
+
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service with login/logout
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+- [ ] Task 4: Implement auth middleware
+- [ ] Task 5: Write integration tests for auth flow (depends on 4)
+- [ ] Task 6: Document auth middleware usage (depends on 4)
+- [ ] Task 7: Commit changes with message "feat: implement user service" (depends on 2,3)
+- [ ] Task 8: Commit changes with message "feat: implement auth middleware" (depends on 5,6)
+
+### Single Commit at End Strategy
+
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service with login/logout
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+- [ ] Task 4: Implement auth middleware
+- [ ] Task 5: Write integration tests for auth flow (depends on 4)
+- [ ] Task 6: Document auth middleware usage (depends on 4)
+- [ ] Task 7: Commit all changes with message "feat: implement user authentication system" (depends on 2,3,5,6)
 ```
+
+**Note:** The examples above show all three commit strategies and both TDD granularity options:
+- **Commit strategies**: incremental (commits interspersed), incremental at end (commits grouped at end), single commit at end (one final commit)
+- **TDD granularity**: task-based (test before each implementation task), feature-based (test batch before implementation per phase)
+- **Classic format**: preserved for backward compatibility with separate Commit Plan section
+- **Task-based format**: commits as explicit tasks with dependencies on related implementation/test/doc tasks
 
 ## TaskCreate Example
 

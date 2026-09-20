@@ -448,11 +448,25 @@ AskUserQuestion: Before we start, a few questions:
    a. Yes — mandatory docs checkpoint at completion (recommended)
    b. No — warn-only (`WARN [docs]`), no mandatory checkpoint
 
-4. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
+4. Commit strategy?
+   a. Incremental - commits at natural boundaries throughout implementation (default)
+   b. Incremental at end - all commits created after implementation completes
+   c. Single commit at end - one commit after all implementation
+
+5. Development methodology?
+   a. Implementation-first (default)
+   b. Test-driven development (TDD)
+
+[If TDD selected, ask conditional follow-up:]
+6. TDD granularity?
+   a. Task-based - test before each implementation task
+   b. Feature-based - all tests for phase before implementation
+
+7. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
    a. Link this plan to a milestone
    b. Skip — no linkage (allowed; `/aif-verify --strict` should report WARN, not fail, for missing linkage alone)
 
-5. Any specific requirements or constraints?
+8. Any specific requirements or constraints?
 ```
 
 **Default to verbose logging.** AI-generated code benefits greatly from extensive logging because:
@@ -462,6 +476,24 @@ AskUserQuestion: Before we start, a few questions:
 - Missing logs during development wastes debugging time
 
 Store all preferences — they will be used in the plan entrypoint and passed to `/aif-implement`.
+
+**New preferences explanation:**
+
+- **Commit strategy**: Controls how commits are structured in the plan
+  - `incremental`: Creates commit tasks at natural boundaries throughout implementation (default)
+  - `incremental-at-end`: Creates commit tasks at natural boundaries but places them after all implementation tasks
+  - `single-commit`: Creates one commit task at the very end depending on all implementation tasks
+  - This affects whether commits are interspersed with implementation or grouped at the end
+
+- **Development methodology**: Controls the order of implementation and testing
+  - `implementation-first`: Traditional approach where implementation comes before tests (default)
+  - `tdd`: Test-driven development where tests are written before implementation
+  - When TDD is selected, a follow-up question asks about TDD granularity
+
+- **TDD granularity**: Controls the granularity of test-first cycles (only shown when TDD is selected)
+  - `task-based`: Write a failing test before each individual implementation task, then implement to pass, then refactor
+  - `feature-based`: Write all tests for a phase/feature first, then implement all tasks in that phase, then refactor
+  - Both approaches produce comprehensive test coverage but with different task organization
 
 Docs policy semantics:
 
@@ -731,6 +763,27 @@ Create tasks using `TaskCreate` with clear, actionable items.
 - Be specific about what to implement, not vague
 - In ultra, keep TaskCreate descriptions concise but include the matching phase
   file link; the bundle remains the durable detailed source after context resets
+
+**Task Generation Based on Preferences:**
+
+When generating tasks, consider the user's preferences:
+
+- **Commit strategy preference**:
+  - `incremental`: Create commit tasks at natural boundaries throughout implementation (after related impl/test/doc groups)
+  - `incremental-at-end`: Create commit tasks at natural boundaries but place them after all implementation tasks
+  - `single-commit`: Create one commit task at the very end depending on all implementation tasks
+  - Commit tasks should be explicit tasks in the plan with dependencies on related implementation/test/doc tasks
+
+- **Development methodology preference**:
+  - `implementation-first`: Generate tasks in traditional order (implementation → tests → docs)
+  - `tdd`: Generate tasks with test-first ordering
+    - `task-based TDD`: Generate test task before each implementation task (test → implement → refactor cycle per task)
+    - `feature-based TDD`: Generate batch of test tasks at start of each phase before implementation tasks (test batch → implementation batch → refactor per phase)
+
+- **Task organization**:
+  - Co-locate related implementation, test, and documentation tasks together within feature-oriented phases
+  - Use task dependencies to ensure proper ordering (tests depend on implementation when implementation-first, implementation depends on tests when TDD)
+  - Group commits with their related implementation/test/doc tasks rather than in a separate section
 
 Use `TaskUpdate` to set `blockedBy` relationships:
 
