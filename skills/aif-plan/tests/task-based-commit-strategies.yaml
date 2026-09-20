@@ -1,0 +1,93 @@
+scenario: task-based-commit-strategies
+description: |
+  Plan generation should support task-based commit structure with all three
+  commit strategies: incremental, incremental at end, and single commit at end.
+  Commit tasks should be explicit tasks in the plan with dependencies on related
+  implementation/test/doc tasks.
+skill: aif-plan
+argument: "full add user authentication system"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo API
+
+        Tiny Node.js API skeleton.
+    - path: package.json
+      content: |
+        {
+          "name": "demo-api",
+          "version": "0.1.0",
+          "type": "module",
+          "dependencies": { "express": "^4.0.0" }
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        workflow:
+          plan_structure: task-based
+
+user_responses:
+  - match_question: "(?i)(fast|full|ultra)"
+    choose: "Full"
+  - match_question: "(?i)test"
+    choose: "Yes, include tests"
+  - match_question: "(?i)commit strategy"
+    choose: "Incremental"
+  - match_question: "(?i)development methodology"
+    choose: "Implementation-first"
+  - match_question: "(?i)(requirement|constraint|clarif)"
+    choose: "None"
+  - match_question: "(?i)(roadmap|milestone|linkage)"
+    choose: "Skip — no linkage"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: writes-full-mode-plan
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/"
+    weight: 2
+
+  - id: plan-contains-commit-tasks
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "Commit changes with message"
+    weight: 3
+
+  - id: commit-tasks-have-dependencies
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "depends on"
+    weight: 2
+
+  - id: plan-contains-co-located-tasks
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "Write unit tests"
+    weight: 2
