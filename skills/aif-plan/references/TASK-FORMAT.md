@@ -193,3 +193,82 @@ Every task description should specify:
 - Safety: production log level can be reduced without code edits
 
 Never create tasks without logging instructions.
+
+## TDD Task Pattern Examples
+
+**Task-Based TDD Pattern:**
+```text
+TaskCreate:
+  subject: "Write failing unit test for user login"
+  description: |
+    Write a unit test for the user login functionality that:
+    - Tests successful login with valid credentials
+    - Tests failed login with invalid credentials
+    - Tests edge cases (empty email, missing password)
+
+    LOGGING REQUIREMENTS:
+    - Log test file creation
+    - Log test execution results
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for test creation, DEBUG for test details
+
+    Files: tests/auth/login.test.ts
+  activeForm: "Writing failing unit test for user login"
+
+TaskCreate:
+  subject: "Implement user login to make test pass"
+  description: |
+    Implement the user login functionality to pass the login test:
+    - Implement authentication logic
+    - Handle valid credentials
+    - Handle invalid credentials with appropriate error response
+    - Ensure test from previous task passes
+
+    LOGGING REQUIREMENTS:
+    - Log implementation progress
+    - Log test validation
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for progress, DEBUG for validation
+
+    Files: src/services/auth.ts
+  activeForm: "Implementing user login"
+```
+
+**Feature-Based TDD Pattern:**
+```text
+TaskCreate:
+  subject: "Write failing unit tests for user authentication"
+  description: |
+    Write unit tests for the user authentication feature:
+    - Test user login functionality
+    - Test user registration functionality
+    - Test password validation
+    - Test session management
+
+    LOGGING REQUIREMENTS:
+    - Log test file creation
+    - Log test suite composition
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for test creation, DEBUG for test details
+
+    Files: tests/auth/user-auth.test.ts
+  activeForm: "Writing failing unit tests for user authentication"
+
+TaskCreate:
+  subject: "Implement user authentication to make tests pass"
+  description: |
+    Implement the user authentication feature to pass all tests:
+    - Implement user login
+    - Implement user registration
+    - Implement password validation
+    - Implement session management
+
+    LOGGING REQUIREMENTS:
+    - Log implementation progress
+    - Log test validation
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for progress, DEBUG for validation
+
+    Files: src/services/auth.ts, src/middleware/auth.ts
+  activeForm: "Implementing user authentication"
+```
