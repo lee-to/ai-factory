@@ -785,6 +785,82 @@ When generating tasks, consider the user's preferences:
   - Use task dependencies to ensure proper ordering (tests depend on implementation when implementation-first, implementation depends on tests when TDD)
   - Group commits with their related implementation/test/doc tasks rather than in a separate section
 
+**TDD Task Generation Implementation:**
+
+When `Development methodology: tdd` is selected:
+
+1. **Task-based TDD** (when `TDD granularity: task-based`):
+   - For each implementation task, create a preceding test task
+   - Test task description: "Write failing unit test for [specific functionality]"
+   - Implementation task description: "Implement [functionality] to make test pass"
+   - After 2-3 implementation cycles, add a refactoring task: "Refactor [area] while keeping all tests passing"
+   - Dependencies: test task → implementation task → next test task (or refactor task)
+   - Example cycle: Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor
+
+2. **Feature-based TDD** (when `TDD granularity: feature-based`):
+   - For each phase/feature, create a batch of test tasks at the start
+   - Then create all implementation tasks for that phase
+   - Add a refactoring task at the end of the phase
+   - Dependencies: test batch → implementation batch → refactor task
+   - Example: Test #1, Test #2, Test #3 → Implement #1, Implement #2, Implement #3 → Refactor
+
+3. **TDD task descriptions**:
+   - Test tasks: Explicitly state "Write failing test for X"
+   - Implementation tasks: Reference the specific test they need to pass
+   - Refactoring tasks: Emphasize "keep all tests passing"
+   - Include logging requirements for each task type
+
+4. **TDD logging requirements**:
+   - Test tasks: Log test creation, test execution failures
+   - Implementation tasks: Log implementation progress, test validation
+   - Refactoring tasks: Log refactoring changes, test validation after refactoring
+
+**Commit Task Generation Implementation:**
+
+When generating tasks based on commit strategy preference:
+
+1. **Respect `workflow.plan_structure` config option**:
+   - If `plan_structure: classic` (default): Use separate `## Commit Plan` section
+   - If `plan_structure: task-based`: Use commit tasks as explicit tasks in the plan
+   - This config option overrides the default behavior for new plans
+   - Existing plans continue to use their original structure
+
+2. **Incremental commit strategy** (default):
+   - Create commit tasks at natural boundaries throughout implementation
+   - Place commit tasks after related implementation/test/documentation groups
+   - Each commit task depends on the tasks it's committing
+   - Commit task description: "Commit changes with message '<conventional commit message>'"
+   - Example: After implementing user service, tests, and docs → commit task
+   - Dependencies: commit task depends on all related implementation/test/doc tasks
+
+3. **Incremental at end commit strategy**:
+   - Create commit tasks at natural boundaries but place them after all implementation tasks
+   - Identify logical groupings of implementation/test/doc work
+   - Create commit tasks for each grouping
+   - Place all commit tasks at the end of the plan after all implementation/test/doc tasks
+   - Each commit task depends on its related implementation/test/doc tasks
+   - Example: All implementation done → commit user service → commit auth middleware → commit API routes
+   - Dependencies: commit tasks depend on their related work, but appear at the end
+
+4. **Single commit at end strategy**:
+   - Create one commit task at the very end of the plan
+   - The commit task depends on all implementation/test/documentation tasks
+   - Commit task description: "Commit all changes with message '<conventional commit message>'"
+   - Example: All tasks complete → single commit task
+   - Dependencies: commit task depends on all implementation/test/doc tasks
+
+5. **Commit task naming**:
+   - Use self-descriptive task names: "Commit changes with message 'feat: ...'"
+   - Include the commit message in the task description
+   - Make it clear what is being committed
+   - No metadata tags needed - task name and description are sufficient
+
+6. **Classic format compatibility**:
+   - Preserve the separate `## Commit Plan` section for backward compatibility
+   - Classic plans with `## Commit Plan` continue to work as before
+   - New plans use task-based commit structure when commit strategy is configured
+   - `/aif-implement` must handle both formats (see Step 3.8.1)
+
 Use `TaskUpdate` to set `blockedBy` relationships:
 
 - Task 2 blocked by Task 1 if it depends on Task 1's output
