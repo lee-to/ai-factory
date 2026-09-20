@@ -1,0 +1,90 @@
+scenario: commit-task-recognition
+description: |
+  aif-implement should recognize commit tasks in task-based plan structure and
+  invoke /aif-commit when encountered. This test verifies commit task recognition
+  for all three commit strategies.
+skill: aif-implement
+argument: ""
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/test-commit-tasks
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo API
+
+        Tiny Node.js API skeleton.
+    - path: package.json
+      content: |
+        {
+          "name": "demo-api",
+          "version": "0.1.0",
+          "type": "module",
+          "dependencies": { "express": "^4.0.0" }
+        }
+    - path: .ai-factory/plans/feature-test-commit-tasks.md
+      content: |
+        # Implementation Plan: Test Commit Tasks
+
+        Branch: feature/test-commit-tasks
+        Created: 2026-09-20
+
+        ## Original Request
+
+        Test commit task recognition
+
+        ## Settings
+        - Testing: yes
+        - Logging: verbose
+        - Docs: yes
+        - Commit strategy: incremental
+        - Development methodology: implementation-first
+
+        ## Tasks
+
+        ### Phase 1: Implementation
+        - [ ] Task 1: Implement user service
+          Files: src/services/user.ts
+        - [ ] Task 2: Write unit tests for user service
+          Files: tests/user.test.ts
+          Depends on: 1
+        - [ ] Task 3: Commit changes with message "feat: implement user service"
+          Depends on: 2
+
+user_responses:
+  - match_question: "(?i)commit"
+    choose: "Yes, commit now"
+
+assertions:
+  - id: recognizes-commit-task
+    type: tool_called
+    tool: TaskUpdate
+    args_match:
+      status: "completed"
+    weight: 3
+
+  - id: invokes-aif-commit
+    type: tool_called
+    tool: AskUserQuestion
+    args_match:
+      question: "(?i)commit"
+    weight: 3
