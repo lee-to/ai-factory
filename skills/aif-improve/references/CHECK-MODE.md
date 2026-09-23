@@ -1,14 +1,14 @@
 # `+check` validation procedure
 
-This file describes the optional findings-validation pass that runs when `aif-improve` is invoked with the `+check` flag. The parent skill defers to this document so the main `SKILL.md` stays focused on the default refinement workflow; `+check` is opt-in and most invocations do not need it.
+This file describes the optional findings-validation pass that runs when `aif-improve` is invoked with the `+check` flag or `workflow.improve_check: true` (unless overridden by `--no-check`). The parent skill defers to this document so the main `SKILL.md` stays focused on the default refinement workflow; `+check` is opt-in and most invocations do not need it.
 
 The examples and output shapes in this reference define structure only. Render user-facing human-readable text in resolved `ui_language`.
 
 ## When this runs
 
-`aif-improve` is invoked with `+check` and **without** `--list`. The pass executes between Step 4 (Identify Improvements) and Step 5 (Present Improvements). Without `+check`, skip this procedure entirely — there are no validator-related lines in the output and the Step 5 Summary block stays in its default shape without the two `+check` counter rows.
+Step 0 resolves `check_enabled = true` from an explicit `+check` flag or `workflow.improve_check: true`, and `aif-improve` is invoked **without** `--list`. The pass executes between Step 4 (Identify Improvements) and Step 5 (Present Improvements). When `check_enabled = false`, skip this procedure entirely — there are no validator-related lines in the output and the Step 5 Summary block stays in its default shape without the two `+check` counter rows.
 
-`+check` together with `--list` is silently ignored (no refinement to validate).
+Both validation flags and the configured default are silently ignored with `--list` (no refinement to validate).
 
 ## Procedure
 
@@ -51,7 +51,7 @@ When phase (a) ran successfully (no whole-dispatch failure), the Step 5 Summary 
 - Adjusted by +check: M
 ```
 
-The counters cover the four validated groups (`missing`, `improvements`, `removals`, `out_of_scope`) — `Dependencies to fix` is computed after validation and is not part of the counters. Skip both rows entirely when `+check` was not set, when the whole-dispatch failure path applies (the single `WARN [+check]` line replaces them), or when Step 5 takes the no-improvements branch (the "Plan Review Complete" / "Plan looks solid" path has no Summary block to extend).
+The counters cover the four validated groups (`missing`, `improvements`, `removals`, `out_of_scope`) — `Dependencies to fix` is computed after validation and is not part of the counters. Skip both rows entirely when `check_enabled = false`, when the whole-dispatch failure path applies (the single `WARN [+check]` line replaces them), or when Step 5 takes the no-improvements branch (the "Plan Review Complete" / "Plan looks solid" path has no Summary block to extend).
 
 ## Examples
 

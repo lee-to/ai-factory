@@ -20,8 +20,9 @@ Ultra is intended for planning with a stronger model and implementation with a
 smaller model. The planner commits implementation decisions into a bundle:
 
 Ultra is additive and strictly opt-in. Updating AI Factory does not migrate
-existing plan files or change fast/full artifact shapes; only an explicit
-`/aif-plan ultra ...` creates a bundle.
+existing plan files or change fast/full artifact shapes. A leading `ultra` token
+or `workflow.plan_mode: ultra` selects a bundle; an explicit `fast` or `full`
+overrides the configured default.
 
 ```text
 .ai-factory/plans/feature-billing-ledger/

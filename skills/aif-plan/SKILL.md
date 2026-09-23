@@ -45,7 +45,7 @@ Bash: printenv HANDOFF_BRANCH_NAME || true
 The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools (`handoff_sync_status`, `handoff_push_plan`). Instead:
 
 - **No interactive questions:** Do not use `AskUserQuestion` — use sensible defaults (verbose logging, yes to tests, yes to docs, skip roadmap linkage).
-- **Mode default:** If mode is not specified, default to `fast`.
+- **Mode default:** Resolve explicit mode → valid `workflow.plan_mode` → `fast`. The `ask` default falls back to `fast` in non-interactive Handoff mode; never ask a mode question there. Resolve config in Step 0 before applying this fallback.
 - **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan entrypoint (`index.md` for ultra; the plan file otherwise), before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.**
 
 ##### Branch ownership under Handoff (CRITICAL)
@@ -90,6 +90,7 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
+- **Command default:** `workflow.plan_mode` (`ask` by default; allowed: `ask`, `fast`, `full`, `ultra`). An absent value uses `ask`; an invalid value/type emits `WARN [config] invalid workflow.plan_mode; falling back to ask` and uses `ask`.
 - **Paths:** `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.research`, `paths.rules_file`, `paths.plan`, `paths.plans`, `paths.patches`, `paths.evolutions`, `paths.specs`, `paths.rules`, and `paths.archive`
   - Derive `research_bundles_dir = <parent directory of paths.research>/research/` for opt-in ultra research bundles. No additional config key is required.
 - **Language:** `language.ui` for AskUserQuestion prompts, `language.artifacts` for generated plan files, and `language.technical_terms` for human-readable technical terminology in plan artifacts
@@ -236,6 +237,7 @@ ultra       → Ultra mode (first word)
   - recognized control flags `--parallel`, `--list`, and `--cleanup <branch>`
   - do not remove matching words inside the user's actual request text
 - Remaining text becomes the description
+- Resolve configured defaults separately; never prepend them to `$ARGUMENTS` or include them in `original_user_request`.
 - Preserve the remaining text as `original_user_request` when it is non-empty: trim only outer whitespace introduced by command parsing, but keep internal whitespace, line breaks, wording, casing, and punctuation exactly. This is the user's original planning request and MUST be saved into the plan entrypoint later.
 - `--list` and `--cleanup` execute immediately and **STOP** (do NOT continue to Step 1+)
 - If `git.enabled = false`, reject `--parallel`, `--list`, and `--cleanup` with a short explanation instead of trying git commands
@@ -260,12 +262,11 @@ ultra       → Ultra mode (first word)
 
 **Mode selection:**
 
-- `fast` keyword → fast mode
-- `full` keyword → full mode
-- `ultra` keyword → ultra mode
-- Neither → preserve the pre-ultra interactive contract and ask only between
-  full and fast. Ultra is strictly opt-in and is selected only by the explicit
-  leading `ultra` mode token:
+- An explicit leading `fast`, `full`, or `ultra` token wins over config.
+- Otherwise, `workflow.plan_mode: fast|full|ultra` selects that mode without a mode-selection question. Full/ultra preference questions and git restrictions still apply.
+- Otherwise (`ask`, missing, or invalid config), use `fast` in non-interactive Handoff mode; in normal mode ask only between full and fast below.
+- Ultra is strictly opt-in. Select it through the leading `ultra` token or `workflow.plan_mode: ultra`; never infer it from task complexity.
+- `--list` and `--cleanup` keep their early-return behavior regardless of the configured mode.
 
 ```
 AskUserQuestion: Which planning mode?

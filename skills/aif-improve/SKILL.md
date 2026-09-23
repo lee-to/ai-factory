@@ -1,7 +1,7 @@
 ---
 name: aif-improve
 description: Refine an existing implementation plan with a second iteration. Re-analyzes the codebase for gaps, missing tasks, and wrong dependencies. Use after /aif-plan or to improve an /aif-fix plan. Optional +check flag validates refinements via a fresh-context subagent.
-argument-hint: "[--list] [+check] [@plan-file-or-directory] [improvement prompt or empty for auto-review]"
+argument-hint: "[--list] [+check|--no-check] [@plan-file-or-directory] [improvement prompt or empty for auto-review]"
 allowed-tools: Read Write Edit Glob Grep Bash(git *) Bash(shasum -a 256 *) Bash(sha256sum *) Task Agent TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 ---
@@ -25,6 +25,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 ### Step 0: Load Config & Parse Arguments
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
+- **Command default:** `workflow.improve_check` (boolean, default: `false`). An absent value uses `false`; an invalid value/type (including quoted boolean strings) emits `WARN [config] invalid workflow.improve_check; falling back to false` and uses `false`.
 - **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.rules_file`, `paths.rules`, `paths.patches`, and `paths.archive`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for plan artifact updates, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
@@ -74,13 +75,14 @@ Templates and examples define structure, not fixed English output. If `artifact_
 ```
 - --list    → list available plans only (read-only, then STOP)
 - +check    → after refinement, validate findings via a fresh-context subagent
+- --no-check → skip findings validation for this invocation, overriding config
 - @<path>   → explicit plan file, ultra directory, or ultra `index.md` override (highest priority)
 - remaining argument text → optional improvement prompt
 ```
 
-`+check` is orthogonal to the other flags and may appear anywhere in `$ARGUMENTS`. Strip it from the argument string before resolving `@<path>` and the improvement prompt.
+`+check` and `--no-check` are standalone control tokens and may appear anywhere in `$ARGUMENTS`. Strip only those tokens before resolving `@<path>` and the improvement prompt; do not remove substrings inside paths or prose. Resolve `check_enabled` from the explicit flag, otherwise from `workflow.improve_check`. If both flags occur, the last one wins. Never prepend configured defaults to `$ARGUMENTS` or the improvement prompt.
 
-When `--list` is present, it wins and no refinement is executed. `+check` is silently ignored in `--list` mode (there is nothing to validate before refinement runs).
+When `--list` is present, it wins and no refinement is executed. Both validation flags and `workflow.improve_check` are silently ignored in `--list` mode (there is nothing to validate before refinement runs). Everywhere below, “`+check` is set” means resolved `check_enabled = true`, whether enabled by config or the explicit flag.
 
 ### Step 0.list: List Available Plans (`--list`)
 
@@ -326,7 +328,7 @@ Compare the plan against what you found. Use `## Original Request` as the origin
 
 **4.7: User-prompted improvements (if $ARGUMENTS provided)**
 
-If the user provided specific improvement instructions in `$ARGUMENTS` (excluding `--list`, `+check`, and `@<path>` tokens):
+If the user provided specific improvement instructions in `$ARGUMENTS` (excluding `--list`, `+check`, `--no-check`, and `@<path>` tokens):
 - Apply the user's feedback to the plan
 - Look for tasks that need modification based on the prompt
 - Add new tasks if the user's prompt requires them
@@ -335,7 +337,7 @@ This is a dispatcher step, not a separate finding category. Each finding it prod
 
 ### Optional: `+check` validation between Step 4 and Step 5
 
-When the `+check` flag is set (and `--list` is not), run the validation procedure from `references/CHECK-MODE.md` here, between Step 4 and Step 5. It re-reads cited files via a fresh-context subagent, then drops invented items, rewrites partially-correct ones, and recomputes dependencies on the filtered list. For ultra, the validator must receive the entrypoint plus all linked phase files as the plan artifact; validating `index.md` alone is incomplete. Without `+check`, skip this entirely — the output has no validator-related lines and the Summary block stays in its default shape without the two `+check` counter rows.
+When `check_enabled = true` (and `--list` is not), run the validation procedure from `references/CHECK-MODE.md` here, between Step 4 and Step 5. It re-reads cited files via a fresh-context subagent, then drops invented items, rewrites partially-correct ones, and recomputes dependencies on the filtered list. For ultra, the validator must receive the entrypoint plus all linked phase files as the plan artifact; validating `index.md` alone is incomplete. When `check_enabled = false`, skip this entirely — the output has no validator-related lines and the Summary block stays in its default shape without the two `+check` counter rows.
 
 ### Step 5: Present Improvements
 

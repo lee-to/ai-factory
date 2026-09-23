@@ -218,6 +218,9 @@ warmup:
 
 # Workflow Settings
 workflow:
+  explore_mode: regular            # regular | ultra; explicit mode wins
+  plan_mode: ask                   # ask | fast | full | ultra; explicit mode wins
+  improve_check: false             # true enables +check; --no-check overrides once
   auto_create_dirs: true           # Create .ai-factory/ directories when missing
   plan_id_format: slug             # full filename / ultra directory ID: slug | sequential
   analyze_updates_architecture: true
@@ -240,6 +243,12 @@ rules:
   # backend: .ai-factory/rules/backend.md
   # database: .ai-factory/rules/database.md
 ```
+
+For repeated command options, set `workflow.explore_mode: ultra`,
+`workflow.plan_mode: full`, or `workflow.improve_check: true`. Explicit command
+arguments override these defaults; absent settings preserve existing behavior.
+See [Command defaults](config-reference.md#command-defaults) for precedence and
+one-invocation overrides.
 
 **Current config-aware skills** read `config.yaml` at Step 0. This currently includes:
 - Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-warmup`

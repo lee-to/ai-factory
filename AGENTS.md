@@ -156,6 +156,7 @@ Current config keys in active use:
 - `language.ui` / `language.artifacts` / `language.technical_terms` - prompt/report language, generated artifact language, and terminology handling while preserving commands, paths, identifiers, config keys, and raw errors where required
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
 - `workflow.verify_mode` - default verification strictness
+- `workflow.explore_mode` / `workflow.plan_mode` / `workflow.improve_check` - command defaults (`regular` / `ask` / `false`); explicit arguments win, `/aif` reruns preserve values
 - `warmup.paths` - optional extra files/directories loaded recursively by `/aif-warmup`
 - `rules.base` plus named `rules.<area>` entries - rules hierarchy
 
@@ -244,11 +245,11 @@ Carries relevant language, git, and workflow preferences into a compact read-onl
     ↓
 Stops without implementation so the warmed session can continue or be forked
 
-/aif-explore [ultra] [topic or plan name]
+/aif-explore [regular|ultra] [topic or plan name]
     ↓
 Regular → thinking partner; optional save to configured `paths.research`; persisted updates pass a saved-content coherence gate before presentation/session append
     ↓
-Explicit ultra → derives `<parent(paths.research)>/research/<logical-english-slug>/`
+Ultra (leading token or workflow.explore_mode: ultra; regular overrides) → derives `<parent(paths.research)>/research/<logical-english-slug>/`
     ↓
 Always writes `INDEX.md` + compatible `RESEARCH.md`
     ↓
@@ -284,8 +285,9 @@ full → creates richer plan, asks: tests? logging? docs?
         `<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential`)
     ↓
 ultra → uses full-mode preferences and optional branch/worktree flow
-        → is strictly opt-in via the leading `ultra` token; omitted mode keeps
-          the existing full/fast interactive choice
+        → is opt-in via the leading `ultra` token or workflow.plan_mode: ultra;
+          explicit mode wins; otherwise workflow.plan_mode selects ask/fast/full/ultra
+          (ask preserves the full/fast question, or fast in non-interactive Handoff mode)
         → saves `paths.plans/<id>/index.md` plus one `phase-NN-*.md` per phase
         → `index.md` contains the exact untranslated `<!-- aif:plan-mode:ultra -->` discovery marker
         → `index.md` owns scope/settings/context/TOC/task checkboxes/dependencies/commits
@@ -300,7 +302,9 @@ Creates tasks with TaskCreate
     ↓
 For 5+ tasks: includes commit checkpoints
 
-/aif-improve
+/aif-improve [+check|--no-check]
+    ↓
+Resolves validation: last explicit flag → workflow.improve_check → false; --list skips validation
     ↓
 Reads the active plan and treats `## Original Request` as the immutable original intent / scope anchor when present
     ↓

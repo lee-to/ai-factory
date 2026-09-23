@@ -1,20 +1,21 @@
 ---
 name: aif-explore
-description: Enter explore mode to investigate ideas, systems, problems, and requirements before planning. Use explicit ultra mode when the user wants a durable adaptive research bundle with an index and only the justified C4, ADR, or dependency artifacts.
-argument-hint: "[ultra] [topic or plan name]"
+description: Enter explore mode to investigate ideas, systems, problems, and requirements before planning. Use ultra mode, explicitly or through config, when the user wants a durable adaptive research bundle with an index and only the justified C4, ADR, or dependency artifacts.
+argument-hint: "[regular|ultra] [topic or plan name]"
 allowed-tools: Read Glob Grep Write Edit Bash Task AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
-**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER implement features or modify project code. If the user asks to implement something, remind them to exit explore mode first (e.g., start with `/aif-plan`). Regular mode may write only the resolved research file after the user chooses to save. Explicit ultra mode may write only its selected research bundle; the leading `ultra` token is the user's request to persist that bundle.
+**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER implement features or modify project code. If the user asks to implement something, remind them to exit explore mode first (e.g., start with `/aif-plan`). Regular mode may write only the resolved research file after the user chooses to save. Ultra mode may write only its selected research bundle; a leading `ultra` token or `workflow.explore_mode: ultra` is the user's request to persist that bundle.
 
 ---
 
 ## Step 0: Load Config
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
+- **Command default:** `workflow.explore_mode` (`regular` by default; allowed: `regular`, `ultra`). An absent value uses `regular`; an invalid value/type emits `WARN [config] invalid workflow.explore_mode; falling back to regular` and uses `regular`.
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, and `paths.rules`
   - Derive `research_bundles_dir = <parent directory of paths.research>/research/`. This keeps ultra research colocated with a relocated legacy research file without adding a second config key.
 - **Language:**
@@ -69,15 +70,16 @@ Apply `technical_terms_policy` while writing summaries and persisted artifacts:
 
 ## Mode Selection
 
-Parse only a leading `ultra` token as mode syntax:
+Parse only a leading `regular` or `ultra` token as mode syntax:
 
 - `/aif-explore ultra <topic>` -> ultra mode; strip the token and preserve the remaining topic text.
-- `/aif-explore <topic>` or no arguments -> regular mode; behavior and save prompt remain unchanged.
-- The word `ultra` elsewhere in a topic is ordinary content.
+- `/aif-explore regular <topic>` -> regular mode, even when config defaults to ultra; strip only the leading mode token.
+- `/aif-explore <topic>` or no arguments -> use `workflow.explore_mode`; missing or invalid config keeps regular mode and its save prompt.
+- The words `regular` and `ultra` elsewhere in a topic are ordinary content. Keep configured defaults separate from the topic; never prepend them to `$ARGUMENTS`.
 
-Ultra is strictly opt-in. Never recommend, infer, or auto-select it because a topic looks complex. In ultra mode, read `references/ULTRA-RESEARCH-FORMAT.md` completely before choosing a slug or writing files.
+Ultra is strictly opt-in. Select it through the leading `ultra` token or `workflow.explore_mode: ultra`. Never recommend, infer, or auto-select it because a topic looks complex. In ultra mode, read `references/ULTRA-RESEARCH-FORMAT.md` completely before choosing a slug or writing files.
 
-The explicit ultra invocation is permission to persist the selected bundle, so do not ask the regular "save research?" question. Explore and gather enough evidence first, then create or update the bundle. If no meaningful topic is available, ask for one before writing; never create `research/analysis/`, `research/research/`, or a date-only directory.
+The explicit ultra invocation or configured ultra default is permission to persist the selected bundle, so do not ask the regular "save research?" question. An explicit `regular` overrides that default and restores the save prompt. Explore and gather enough evidence first, then create or update the bundle. If no meaningful topic is available, ask for one before writing; never create `research/analysis/`, `research/research/`, or a date-only directory.
 
 ---
 

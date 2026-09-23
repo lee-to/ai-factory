@@ -232,7 +232,7 @@ Context-gate defaults for `/aif-commit`, `/aif-review`, `/aif-verify`:
 
 These skills form the development pipeline. Each one feeds into the next.
 
-### `/aif-explore [ultra] [topic or plan name]` — discovery before planning
+### `/aif-explore [regular|ultra] [topic or plan name]` — discovery before planning
 
 ```
 /aif-explore real-time collaboration
@@ -244,8 +244,9 @@ These skills form the development pipeline. Each one feeds into the next.
 Thinking-partner mode for exploring ideas, constraints, and trade-offs without
 implementing code. Reads resolved context plus relevant active plan artifacts.
 If you want the context to persist after `/clear`, save it to `paths.research`.
-Explicit ultra mode persists an English-slug topic bundle. It always writes a
-manifest `INDEX.md` and plan-compatible `RESEARCH.md`, then adds C4 views, ADRs,
+Ultra mode, selected explicitly or through `workflow.explore_mode: ultra`,
+persists an English-slug topic bundle. A leading `regular` overrides the default.
+Ultra always writes a manifest `INDEX.md` and plan-compatible `RESEARCH.md`, then adds C4 views, ADRs,
 or a dependency graph only when evidence crosses their inclusion thresholds.
 Ultra additionally checks that Active Summary claims have self-contained bundle
 support and material supporting conclusions are reflected back into the summary.
@@ -273,7 +274,7 @@ High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROAD
 ### `/aif-plan [fast|full|ultra] <description>` — plan the work
 
 ```
-/aif-plan Add user authentication with OAuth       # Asks which mode
+/aif-plan Add user authentication with OAuth       # Uses config, otherwise asks which mode
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
 /aif-plan ultra Rebuild billing around a ledger    # Multi-file, implementation-complete plan
@@ -286,8 +287,10 @@ specify implementation in code-level detail). Full and ultra share testing,
 logging, docs, roadmap, branch, and worktree preferences. Sequential IDs put
 `NNNN_` on the full filename or ultra directory and count active full files plus
 directories whose `index.md` contains the stable ultra marker.
-Ultra is strictly opt-in through the explicit leading `ultra` token. Omitting
-the mode preserves the existing interactive choice between full and fast.
+A leading mode token overrides `workflow.plan_mode`. With its default `ask`,
+omitting the mode preserves the full/fast question (fast in non-interactive
+Handoff mode). Ultra requires a leading `ultra` token or `workflow.plan_mode: ultra`.
+See [Command defaults](config-reference.md#command-defaults).
 Ultra discovery uses the exact untranslated
 `<!-- aif:plan-mode:ultra -->` entrypoint marker, so artifact localization cannot
 change bundle recognition.
@@ -297,7 +300,7 @@ symbols, ordered edits, contracts, errors/logging, test policy, acceptance
 criteria, verification, and bundle-integrity checks so a smaller model does not
 have to reconstruct architecture. See [Plan Files](plan-files.md).
 
-### `/aif-improve [--list] [+check] [@plan-file-or-directory] [prompt]` — refine the plan
+### `/aif-improve [--list] [+check|--no-check] [@plan-file-or-directory] [prompt]` — refine the plan
 
 ```
 /aif-improve
@@ -317,7 +320,8 @@ reruns link/task/dependency integrity checks. `Original Request` stays verbatim;
 revisioned Research Context remains committed scope and drift produces
 `WARN [research-drift]`. `--list` is read-only.
 
-Optional `+check` runs a single fresh-context `general-purpose` subagent on the refinements (`missing` / `improvements` / `removals` / `out_of_scope` groups), drops invented items, rewrites partially-correct ones, and appends `Hidden by +check` / `Adjusted by +check` counters to the Step 5 Summary block. Dependency fixes are recomputed against the filtered list after validation. Combined with `--list`, the flag is silently ignored — there is no refinement to validate.
+Optional `+check` (also enabled by `workflow.improve_check: true`, overridden
+for one invocation with `--no-check`) runs a single fresh-context `general-purpose` subagent on the refinements (`missing` / `improvements` / `removals` / `out_of_scope` groups), drops invented items, rewrites partially-correct ones, and appends `Hidden by +check` / `Adjusted by +check` counters to the Step 5 Summary block. Dependency fixes are recomputed against the filtered list after validation. Combined with `--list`, validation flags and the configured default are silently ignored — there is no refinement to validate.
 
 ### `/aif-loop [new|resume|status|stop|list|history|clean] [task or alias]` — iterative quality loop
 
