@@ -30,7 +30,13 @@ fail() { FAILED=$((FAILED + 1)); echo -e "  ${RED}✗${NC} $1"; if [[ -n "${2:-}
 # ─────────────────────────────────────────────
 PYTHON="${PYTHON:-}"
 if [[ -z "$PYTHON" ]]; then
-    PYTHON=$(command -v python3 || command -v python || true)
+    for candidate in python3 python py; do
+        cmd=$(command -v "$candidate" 2>/dev/null || true)
+        if [[ -n "$cmd" ]] && "$cmd" -c "import sys" >/dev/null 2>&1; then
+            PYTHON="$cmd"
+            break
+        fi
+    done
 fi
 if [[ -z "$PYTHON" ]]; then
     echo -e "${RED}ERROR:${NC} python interpreter not found on PATH" >&2

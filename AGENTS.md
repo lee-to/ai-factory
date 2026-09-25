@@ -64,8 +64,7 @@ ai-factory/
 
 - **Package skills**: `skills/` — source of truth, copied during install
 - **User skills**: `<agent-config-dir>/skills/` (e.g. `.claude/skills/`, `.opencode/skills/`, `.agents/skills/`)
-- **Agent transformer system**: `src/core/transformers/` adapts skill format per agent (e.g. Antigravity uses flat `.md`
-  for workflow skills, KiloCode sanitizes dotted names)
+- **Agent transformer system**: `src/core/transformers/` adapts skill format per agent (e.g. Codex rewrites invocation prefixes to `$`, Antigravity 2.0 uses `.agents/` with triggered rules and subagents, KiloCode sanitizes dotted names)
 
 ### Bundled loop subagents
 

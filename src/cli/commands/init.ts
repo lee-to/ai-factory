@@ -263,6 +263,8 @@ async function initLocked(options: InitOptions): Promise<void> {
           previousInstallation: existingAgent,
           agentId: agentSelection.id,
           agentsDir: agentConfig.agentsDir,
+          installedAgentFiles: existingAgent?.installedAgentFiles,
+          managedAgentFiles: existingAgent?.managedAgentFiles,
         })
         : [];
       const installedConfigFiles = agentConfig.configFiles?.length

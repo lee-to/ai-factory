@@ -81,6 +81,31 @@
         "chromeDevtools": false,
         "playwright": true
       }
+    },
+    {
+      "id": "antigravity",
+      "skillsDir": ".agents/skills",
+      "agentsDir": ".agents/agents",
+      "installedSkills": ["aif", "aif-plan", "aif-implement", "aif-commit"],
+      "installedAgentFiles": [
+        "best-practices-sidecar.md",
+        "commit-preparer.md",
+        "docs-auditor.md",
+        "implement-coordinator.md",
+        "implement-worker.md",
+        "plan-coordinator.md",
+        "plan-polisher.md",
+        "review-sidecar.md",
+        "rules-sidecar.md",
+        "security-sidecar.md"
+      ],
+      "mcp": {
+        "github": true,
+        "postgres": false,
+        "filesystem": true,
+        "chromeDevtools": false,
+        "playwright": false
+      }
     }
   ],
   "extensions": [
@@ -155,6 +180,56 @@ On POSIX systems, migration and rollback preserve file permission bits, includin
 After an interruption, rerun the command. Recovery rolls back destination writes if the old config is still current, or finishes cleanup if the new config was committed. If files or `.ai-factory.json` changed concurrently, recovery stops and retains its material. Preserve that directory, reconcile the reported file/config revision with the saved copies, and retry. A later extension or native-update error does not roll back an already committed skill migration.
 
 Set `LOG_LEVEL=debug` for target decisions, rendering profiles, and migration diagnostics. Normal output reports conflicts and recovery locations without requiring debug logging. See [Extensions](extensions.md#shared-skill-targets) for replacement and injection behavior.
+
+## Antigravity Directory Layout and Migration
+
+Antigravity 2.0 uses the `.agents/` directory structure for all agent context, skills, autonomous workers, rules, and MCP configurations.
+
+### Directory Structure
+
+```
+your-project/
+└── .agents/
+    ├── skills/           # Modular Agent Skills in standard multi-file format (SKILL.md)
+    │   ├── aif/
+    │   │   └── SKILL.md
+    │   └── aif-plan/
+    │       └── SKILL.md
+    ├── agents/           # Native autonomous workers and quality sidecars (subagent: true)
+    │   ├── implement-coordinator.md
+    │   ├── implement-worker.md
+    │   ├── plan-coordinator.md
+    │   ├── plan-polisher.md
+    │   ├── review-sidecar.md
+    │   ├── security-sidecar.md
+    │   ├── best-practices-sidecar.md
+    │   ├── rules-sidecar.md
+    │   ├── commit-preparer.md
+    │   └── docs-auditor.md
+    ├── rules/            # Project rules with YAML frontmatter triggers
+    │   ├── aif-guardrails.md    (trigger: always_on)
+    │   └── aif-conventions.md   (trigger: model_decision)
+    └── mcp_config.json   # Model Context Protocol configuration
+```
+
+### Migration from Antigravity 1.0 (`.agent/`) and Subagents Layout
+
+When running `ai-factory upgrade`:
+- **Flat Workflow Staging**: Real Antigravity 1.0 installations that have only `.agent/workflows/<name>.md` (no `.agent/skills/` directories) are detected automatically. Unmodified flat workflows are staged into `.agent/skills/<name>/` with managed state before the skill target migration runs, ensuring a smooth upgrade path.
+- **Workflow Cleanup**: AI Factory removes legacy flat workflow files from `.agent/workflows/` only when they match exact historical generator output variants (full package template, simplified frontmatter, or headless). Workflows with user-modified YAML metadata (changed `description:`, added custom fields) or body edits are preserved.
+- **Cross-Agent Skill Protection**: Legacy skill directory removal verifies all files against package templates file-by-file with CRLF normalization. Skill directories belonging to other agents (e.g., `.claude/skills/qa/`) or containing user modifications or untracked files are never deleted.
+- **Rules Cleanup**: Legacy rules in `.agent/rules/` are compared against known rule templates before removal. User-modified rules are preserved with a warning.
+- **Empty Directory Cleanup**: `.agent/workflows/references/`, `.agent/workflows/`, `.agent/rules/`, and `.agent/` are removed bottom-up only when completely empty. If user files exist, the directory structure is preserved.
+- **Subagents Migration**: Any legacy `.agents/subagents/` directory on disk is migrated to `.agents/agents/` file-by-file.
+  - If the destination does not exist, the file is copied and the source is removed.
+  - If the destination exists with identical content, the source copy is removed.
+  - **Collision Safety**: If a file in `.agents/subagents/` collides with a destination file in `.agents/agents/` with differing content, the destination is never overwritten, the source file is preserved in `.agents/subagents/`, and a warning is logged.
+  - `.agents/subagents/` is removed only if all files were cleanly migrated and the directory is empty.
+
+### Native Agent File and Custom Rule Protection
+
+- **Init and Update**: `ai-factory init` and `ai-factory update` detect pre-existing untracked files in `.agents/agents/` and `.agents/rules/`. Untracked user files and locally modified files are preserved with a warning and never overwritten.
+- **Artifact Language Compliance**: Guardrail rules installed in `.agents/rules/aif-guardrails.md` defer generated artifact language to `language.artifacts` in `.ai-factory/config.yaml` (defaulting to English if unspecified), while maintaining code, identifiers, and technical syntax in English, and deferring user communication to `language.ui`.
 
 ## `.ai-factory/config.yaml` — User Preferences
 
@@ -305,7 +380,7 @@ AI Factory can configure these MCP servers:
 | Chrome Devtools | Browser inspection, debugging, performance | - |
 | Playwright | Browser automation, web testing | - |
 
-Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code and Universal / Other, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.codex/config.toml` for Codex app).
+Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code and Universal / Other, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.codex/config.toml` for Codex app, `.agents/mcp_config.json` for Antigravity).
 
 ### Runtime Format Contract
 
@@ -313,7 +388,7 @@ Source of truth for runtime MCP shapes and wrapper examples:
 [`skills/aif/SKILL.md#MCP Configuration`](../skills/aif/SKILL.md#mcp-configuration)
 
 Quick key mapping:
-- Standard MCP runtimes use `mcpServers.<server>`
+- Standard MCP runtimes (including Antigravity in `.agents/mcp_config.json`) use `mcpServers.<server>`
 - OpenCode uses `mcp.<server>`
 - GitHub Copilot uses `servers.<server>`
 - Codex app uses TOML tables under `mcp_servers.<server>`

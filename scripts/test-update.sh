@@ -297,11 +297,11 @@ mkdir -p "$AG_PROJECT_DIR"
 
 cat > "$AG_PROJECT_DIR/.ai-factory.json" << 'EOF'
 {
-  "version": "2.4.0",
+  "version": "2.19.0",
   "agents": [
     {
       "id": "antigravity",
-      "skillsDir": ".agent/skills",
+      "skillsDir": ".agents/skills",
       "installedSkills": ["aif", "aif-docs", "custom/workflow-ref"],
       "mcp": {
         "github": false,
@@ -322,17 +322,21 @@ AG_FORCE_OUTPUT="$TMPDIR/update-antigravity-force.log"
 (cd "$AG_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$AG_FIRST_OUTPUT" 2>&1)
 assert_contains "$AG_FIRST_OUTPUT" "\[antigravity\] Status:" "antigravity status section must be printed"
 
-mkdir -p "$AG_PROJECT_DIR/.agent/workflows/references/custom"
-cat > "$AG_PROJECT_DIR/.agent/workflows/references/custom/keep.md" << 'EOF'
+mkdir -p "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref"
+cat > "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref/SKILL.md" << 'EOF'
+---
+name: custom-ref
+description: custom reference skill
+---
 # custom reference
 keep-me
 EOF
 
-mkdir -p "$AG_PROJECT_DIR/.agent/skills/aif-docs/references"
-cat > "$AG_PROJECT_DIR/.agent/skills/aif-docs/stale.txt" << 'EOF'
+mkdir -p "$AG_PROJECT_DIR/.agents/skills/aif-docs/references"
+cat > "$AG_PROJECT_DIR/.agents/skills/aif-docs/stale.txt" << 'EOF'
 stale
 EOF
-cat > "$AG_PROJECT_DIR/.agent/skills/aif-docs/references/stale.md" << 'EOF'
+cat > "$AG_PROJECT_DIR/.agents/skills/aif-docs/references/stale.md" << 'EOF'
 stale-ref
 EOF
 
@@ -343,10 +347,10 @@ assert_contains "$AG_FORCE_OUTPUT" "aif \(force reinstall\)" "workflow skill sho
 assert_contains "$AG_FORCE_OUTPUT" "aif-docs \(force reinstall\)" "non-workflow skill should be force reinstalled"
 assert_contains "$AG_FORCE_OUTPUT" "\[antigravity\] Custom skills \(preserved\):" "custom skills section should be printed"
 assert_contains "$AG_FORCE_OUTPUT" "custom/workflow-ref" "custom skill reference should be preserved in config"
-assert_exists "$AG_PROJECT_DIR/.agent/workflows/references/custom/keep.md" "custom workflow reference must survive force update"
-assert_contains "$AG_PROJECT_DIR/.agent/workflows/references/custom/keep.md" "keep-me" "custom workflow reference content must be preserved"
-assert_not_exists "$AG_PROJECT_DIR/.agent/skills/aif-docs/stale.txt" "stale file in .agent/skills/<skill> must be cleaned on force update"
-assert_not_exists "$AG_PROJECT_DIR/.agent/skills/aif-docs/references/stale.md" "stale reference in .agent/skills/<skill> must be cleaned on force update"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref/SKILL.md" "custom skill must survive force update"
+assert_contains "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref/SKILL.md" "keep-me" "custom skill content must be preserved"
+assert_not_exists "$AG_PROJECT_DIR/.agents/skills/aif-docs/stale.txt" "stale file in .agents/skills/<skill> must be cleaned on force update"
+assert_not_exists "$AG_PROJECT_DIR/.agents/skills/aif-docs/references/stale.md" "stale reference in .agents/skills/<skill> must be cleaned on force update"
 
 echo "antigravity force smoke tests passed"
 
@@ -447,8 +451,9 @@ echo "<!-- drift -->" >> "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.m
 
 (cd "$CLAUDE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CLAUDE_SECOND_OUTPUT" 2>&1)
 assert_contains "$CLAUDE_SECOND_OUTPUT" "Local modifications detected in agent file" "local drift warning must be printed"
-assert_contains "$CLAUDE_SECOND_OUTPUT" "loop-orchestrator\\.md \(local drift\)" "agent file drift must be repaired on update"
-assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "name: loop-orchestrator" "reinstalled agent file content must be restored"
+assert_contains "$CLAUDE_SECOND_OUTPUT" "loop-orchestrator\\.md \(local changes preserved\)" "agent file drift must be preserved on update"
+assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "<!-- drift -->" "local agent file modifications must be preserved"
+assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "name: loop-orchestrator" "agent file content must remain valid"
 
 echo "claude agent files smoke tests passed"
 
@@ -787,8 +792,9 @@ echo "# drift" >> "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator
 
 (cd "$CODEX_AGENT_DRIFT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" 2>&1)
 assert_contains "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" "Local modifications detected in agent file" "Codex agent drift warning must be printed"
-assert_contains "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" "plan-coordinator\\.toml \(local drift\)" "Codex agent drift must be repaired on update"
-assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "name = \"plan-coordinator\"" "Codex agent TOML content must be restored"
+assert_contains "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" "plan-coordinator\\.toml \(local changes preserved\)" "Codex agent drift must be preserved on update"
+assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "# drift" "Codex agent local drift must be preserved"
+assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "name = \"plan-coordinator\"" "Codex agent TOML content must be preserved"
 assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "HANDOFF_MODE" "Codex plan coordinator handoff guidance must survive update repair"
 assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "HANDOFF_TASK_ID" "Codex plan coordinator task identity guidance must survive update repair"
 assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/implement-coordinator.toml" "HANDOFF_SKIP_REVIEW" "Codex implement coordinator handoff guidance must remain installed"

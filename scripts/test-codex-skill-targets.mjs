@@ -268,7 +268,7 @@ let failures = 0;
 test('upgrade', 'v1 Codex upgrade selects .agents before legacy cleanup', async project => {
   await fs.mkdir(path.join(project, '.agents'));
   await fs.mkdir(path.join(project, '.codex/skills/commit'), { recursive: true });
-  await fs.writeFile(path.join(project, '.codex/skills/commit/SKILL.md'), 'legacy commit');
+  await fs.copyFile(path.join(root, 'skills/aif-commit/SKILL.md'), path.join(project, '.codex/skills/commit/SKILL.md'));
   await fs.mkdir(path.join(project, '.codex/skills/user'));
   await fs.writeFile(path.join(project, '.codex/skills/user/SKILL.md'), 'user skill');
   await fs.writeFile(path.join(project, '.codex/config.toml'), 'user native config');

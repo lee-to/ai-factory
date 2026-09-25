@@ -453,19 +453,21 @@ echo "codex deselect cleanup smoke tests passed"
 # installation.
 # -------------------------------------------------------------------
 
-FLAT_PROJECT_DIR="$TMPDIR/init-smoke-antigravity"
-mkdir -p "$FLAT_PROJECT_DIR"
+AG_PROJECT_DIR="$TMPDIR/init-smoke-antigravity"
+mkdir -p "$AG_PROJECT_DIR"
 
-(cd "$FLAT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents antigravity --skills aif,aif-rules-check > "$TMPDIR/init-antigravity.log" 2>&1)
+(cd "$AG_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents antigravity --skills aif,aif-rules-check --mcp filesystem > "$TMPDIR/init-antigravity.log" 2>&1)
 
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/aif.md" "antigravity init must install aif as a flat workflow"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/aif-rules-check.md" "antigravity init must install aif-rules-check as a flat workflow"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/references/update-config.mjs" "flat workflow installs must include the config helper in references/"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/references/config-template.yaml" "flat workflow installs must include config template references"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/references/RULES-CHECK-CONTRACT.md" "flat workflow installs must include rules-check references"
-assert_not_exists "$FLAT_PROJECT_DIR/.agent/skills/aif-rules-check" "workflow-classified skills must not remain under .agent/skills/"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/aif/SKILL.md" "antigravity init must install aif as standard SKILL.md directory"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/aif-rules-check/SKILL.md" "antigravity init must install aif-rules-check as standard SKILL.md directory"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/aif/references/config-template.yaml" "antigravity skills must include config template references"
+assert_exists "$AG_PROJECT_DIR/.agents/mcp_config.json" "antigravity init must create .agents/mcp_config.json"
+assert_exists "$AG_PROJECT_DIR/.agents/rules/aif-guardrails.md" "antigravity init must create .agents/rules/aif-guardrails.md"
+assert_exists "$AG_PROJECT_DIR/.agents/rules/aif-conventions.md" "antigravity init must create .agents/rules/aif-conventions.md"
+assert_exists "$AG_PROJECT_DIR/.agents/agents/implement-coordinator.md" "antigravity init must install implement-coordinator subagent"
+assert_not_exists "$AG_PROJECT_DIR/.agent/workflows" "legacy .agent/workflows/ must not exist in Antigravity 2.0"
 
-echo "flat workflow init smoke tests passed"
+echo "antigravity 2.0 init smoke tests passed"
 
 # -------------------------------------------------------------------
 # Codex app skills smoke: Codex app uses the repository skills location
@@ -1116,62 +1118,68 @@ import { pathToFileURL } from 'node:url';
 
 const { resolveNpmCommand } = await import(pathToFileURL(path.join(process.env.ROOT_DIR, 'dist/core/extensions.js')).href);
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aif-npm-resolve-'));
-const fakeExecDir = path.join(tempRoot, 'current-node');
-fs.mkdirSync(fakeExecDir, { recursive: true });
-const fakeExecPath = path.join(fakeExecDir, 'node.exe');
-fs.writeFileSync(fakeExecPath, '');
+const tempRoot = fs.mkdtempSync(path.join(process.cwd(), 'temp-npm-resolve-'));
+const noSafeRoot = fs.mkdtempSync(path.join(process.cwd(), 'temp-npm-missing-'));
 
-const npmRoot = path.join(tempRoot, 'npm-root');
-const npmCliPath = path.join(npmRoot, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-const bundledNodePath = path.join(npmRoot, 'node.exe');
-fs.mkdirSync(path.dirname(npmCliPath), { recursive: true });
-fs.writeFileSync(path.join(npmRoot, 'npm.cmd'), '@ECHO off\r\n');
-fs.writeFileSync(npmCliPath, '#!/usr/bin/env node\n');
-fs.writeFileSync(bundledNodePath, '');
+try {
+  const fakeExecDir = path.join(tempRoot, 'current-node');
+  fs.mkdirSync(fakeExecDir, { recursive: true });
+  const fakeExecPath = path.join(fakeExecDir, 'node.exe');
+  fs.writeFileSync(fakeExecPath, '');
 
-const resolved = await resolveNpmCommand({
-  platform: 'win32',
-  execPath: fakeExecPath,
-  pathEnv: `${npmRoot};${process.env.PATH}`,
-});
+  const npmRoot = path.join(tempRoot, 'npm-root');
+  const npmCliPath = path.join(npmRoot, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  const bundledNodePath = path.join(npmRoot, 'node.exe');
+  fs.mkdirSync(path.dirname(npmCliPath), { recursive: true });
+  fs.writeFileSync(path.join(npmRoot, 'npm.cmd'), '@ECHO off\r\n');
+  fs.writeFileSync(npmCliPath, '#!/usr/bin/env node\n');
+  fs.writeFileSync(bundledNodePath, '');
 
-assert.equal(resolved.command, bundledNodePath, 'Windows npm resolution must prefer node.exe adjacent to npm.cmd');
-assert.deepEqual(resolved.argsPrefix, [npmCliPath], 'Windows npm resolution must invoke npm-cli.js directly');
-
-const resolvedWithCustomDelimiter = await resolveNpmCommand({
-  platform: 'win32',
-  execPath: fakeExecPath,
-  pathEnv: `${path.relative(process.cwd(), npmRoot)}:${path.relative(process.cwd(), tempRoot)}`,
-  pathDelimiter: ':',
-});
-
-assert.equal(
-  resolvedWithCustomDelimiter.command,
-  path.join(path.relative(process.cwd(), npmRoot), 'node.exe'),
-  'Windows npm resolution must honor injected path delimiters instead of host defaults',
-);
-assert.deepEqual(
-  resolvedWithCustomDelimiter.argsPrefix,
-  [path.join(path.relative(process.cwd(), npmRoot), 'node_modules', 'npm', 'bin', 'npm-cli.js')],
-  'Windows npm resolution must honor injected delimiters when locating npm-cli.js',
-);
-
-const noSafeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aif-npm-missing-'));
-const missingExecDir = path.join(noSafeRoot, 'isolated-node');
-fs.mkdirSync(missingExecDir, { recursive: true });
-const missingExecPath = path.join(missingExecDir, 'node.exe');
-fs.writeFileSync(missingExecPath, '');
-
-await assert.rejects(
-  () => resolveNpmCommand({
+  const resolved = await resolveNpmCommand({
     platform: 'win32',
-    execPath: missingExecPath,
-    pathEnv: noSafeRoot,
-  }),
-  /safe Windows npm/i,
-  'Windows npm resolution must fail explicitly when no safe npm-cli.js path is available',
-);
+    execPath: fakeExecPath,
+    pathEnv: `${npmRoot};${process.env.PATH}`,
+  });
+
+  assert.equal(resolved.command, bundledNodePath, 'Windows npm resolution must prefer node.exe adjacent to npm.cmd');
+  assert.deepEqual(resolved.argsPrefix, [npmCliPath], 'Windows npm resolution must invoke npm-cli.js directly');
+
+  const resolvedWithCustomDelimiter = await resolveNpmCommand({
+    platform: 'win32',
+    execPath: fakeExecPath,
+    pathEnv: `${path.relative(process.cwd(), npmRoot)}:${path.relative(process.cwd(), tempRoot)}`,
+    pathDelimiter: ':',
+  });
+
+  assert.equal(
+    resolvedWithCustomDelimiter.command,
+    path.join(path.relative(process.cwd(), npmRoot), 'node.exe'),
+    'Windows npm resolution must honor injected path delimiters instead of host defaults',
+  );
+  assert.deepEqual(
+    resolvedWithCustomDelimiter.argsPrefix,
+    [path.join(path.relative(process.cwd(), npmRoot), 'node_modules', 'npm', 'bin', 'npm-cli.js')],
+    'Windows npm resolution must honor injected delimiters when locating npm-cli.js',
+  );
+
+  const missingExecDir = path.join(noSafeRoot, 'isolated-node');
+  fs.mkdirSync(missingExecDir, { recursive: true });
+  const missingExecPath = path.join(missingExecDir, 'node.exe');
+  fs.writeFileSync(missingExecPath, '');
+
+  await assert.rejects(
+    () => resolveNpmCommand({
+      platform: 'win32',
+      execPath: missingExecPath,
+      pathEnv: noSafeRoot,
+    }),
+    /safe Windows npm/i,
+    'Windows npm resolution must fail explicitly when no safe npm-cli.js path is available',
+  );
+} finally {
+  fs.rmSync(tempRoot, { recursive: true, force: true });
+  fs.rmSync(noSafeRoot, { recursive: true, force: true });
+}
 EOF
 
 echo "windows npm resolution smoke tests passed"

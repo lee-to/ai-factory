@@ -22,7 +22,7 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Windsurf | `.windsurf/` | `.windsurf/skills/` |
 | Roo Code | `.roo/` | `.roo/skills/` |
 | Kilo Code | `.kilocode/` | `.kilocode/skills/`, `.kilocode/workflows/` |
-| Antigravity | `.agent/` | `.agent/skills/`, `.agent/workflows/` |
+| Antigravity | `.agents/` | `.agents/skills/` |
 | OpenCode | `.opencode/` | `.opencode/skills/` |
 | Warp | `.warp/` | `.warp/skills/` |
 | Zencoder | `.zencoder/` | `.zencoder/skills/` |
@@ -34,11 +34,11 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Qwen Code | `.qwen/` | `.qwen/skills/` |
 | Universal / Other | `.agents/` | `.agents/skills/` |
 
-When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. When Codex CLI is selected, AI Factory also installs bundled Codex native agent TOML files into `.codex/agents/` plus a managed `.codex/config.toml`. That Codex bundle is currently the baseline planning / implementation / review layer, not full parity with the broader Claude bundle, and `.codex/config.toml` is intentionally AI-Factory-managed. Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex package inventory is documented separately in [Subagents](subagents.md).
+When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. When Codex CLI is selected, AI Factory also installs bundled Codex native agent TOML files into `.codex/agents/` plus a managed `.codex/config.toml`. When Antigravity is selected, AI Factory installs bundled Antigravity agent files into `.agents/agents/`, triggered rules into `.agents/rules/`, and configures MCP in `.agents/mcp_config.json`. Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex/Antigravity package inventory is documented separately in [Subagents](subagents.md).
 
 Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. They can share `.agents/skills/`. Slash-command runtimes keep `/aif-*` examples; Universal cannot share a physical skill directory with either Codex runtime because their rendered content differs. See [Codex skill directories and migration](configuration.md#codex-skill-directories-and-migration) for first-init defaults, saved overrides, and conflict recovery.
 
-MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, Codex app, and Universal / Other. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
+MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, Codex app, Antigravity, and Universal / Other. Antigravity writes standard MCP settings to `.agents/mcp_config.json`. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
 
 ## Your First Project
 
