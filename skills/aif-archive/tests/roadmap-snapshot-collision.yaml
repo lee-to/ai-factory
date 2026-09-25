@@ -19,7 +19,6 @@ skill: aif-archive
 argument: "--roadmap"
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   allowed_tools_override:
     - Read

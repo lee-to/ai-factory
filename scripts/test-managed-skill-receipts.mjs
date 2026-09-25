@@ -22,14 +22,14 @@ async function installedProject(project, id = 'codex', skillsDir = '.agents/skil
   return agent;
 }
 
-function runCommand(project, command, agents = 'codex') {
+function runCommand(project, command, agents = 'codex', skills = 'aif') {
   const moduleUrl = pathToFileURL(path.join(root, `dist/cli/commands/${command}.js`)).href;
-  const options = command === 'init' ? { agents, skills: 'aif' } : {};
+  const options = command === 'init' ? { agents, skills } : {};
   const code = `globalThis.fetch = async () => ({ok:true,status:200,headers:{get:()=>null},json:async()=>({version:'2.19.0'})});
     const module = await import(${JSON.stringify(moduleUrl)}); await module[${JSON.stringify(`${command}Command`)}](${JSON.stringify(options)});`;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: project, encoding: 'utf8', timeout: 60000 });
   assert.equal(result.status, 0, `${command} failed: ${result.error?.message ?? result.stderr}\n${result.stdout}`);
-  return result.stdout;
+  return result.stdout + result.stderr;
 }
 
 async function registeredInjection(project, agent) {
@@ -107,6 +107,65 @@ test('flat workflow receipts cover their actual installed files', async project 
   assert.match(agent.managedSkills.aif.rawInstalledHash, /^[a-f0-9]{64}$/);
   assert.deepEqual(await removeOwnedSkills(project, agent, []), ['aif']);
 });
+
+for (const [id, skill, installedFile] of [
+  ['claude', 'aif-loop', '.claude/skills/aif-loop/SKILL.md'],
+  ['codex', 'aif-loop', '.agents/skills/aif-loop/SKILL.md'],
+  ['antigravity', 'aif-plan', '.agent/workflows/aif-plan.md'],
+  ['kilocode', 'aif-plan', '.kilocode/workflows/aif-plan.md'],
+]) {
+  for (const scenario of ['clean', 'modified', 'missing-raw-receipt', 'missing-managed-state']) {
+    test(`init skill deselection respects ownership: ${id}/${scenario}`, async project => {
+      if (id === 'codex') await fs.mkdir(path.join(project, '.agents'));
+      runCommand(project, 'init', id, `aif,${skill}`);
+      const target = path.join(project, installedFile);
+      const configPath = path.join(project, '.ai-factory.json');
+      const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
+      assert.match(config.agents[0].managedSkills[skill].rawInstalledHash, /^[a-f0-9]{64}$/);
+      if (scenario === 'modified') await fs.appendFile(target, '\nUser-authored instructions\n');
+      if (scenario === 'missing-raw-receipt') delete config.agents[0].managedSkills[skill].rawInstalledHash;
+      if (scenario === 'missing-managed-state') delete config.agents[0].managedSkills;
+      await fs.writeFile(configPath, JSON.stringify(config));
+      const before = await fs.readFile(target);
+
+      const output = runCommand(project, 'init', id, 'aif');
+      if (scenario === 'clean') {
+        await assert.rejects(fs.access(target), { code: 'ENOENT' });
+        assert.match(output, /Removed deselected skill/);
+      } else {
+        assert.deepEqual(await fs.readFile(target), before, 'unproven or modified skill must remain intact');
+        assert.match(output, /Preserving unproven or modified skill/);
+      }
+      const saved = await loadConfig(project);
+      assert.deepEqual(saved.agents[0].installedSkills, ['aif']);
+      assert.equal(saved.agents[0].managedSkills[skill], undefined, 'preserved files must not remain managed');
+    });
+  }
+  if (id === 'claude' || id === 'codex') {
+    for (const timing of ['before-install', 'after-install']) {
+      test(`init preserves additional user files in a tracked skill: ${id}/${timing}`, async project => {
+        if (id === 'codex') await fs.mkdir(path.join(project, '.agents'));
+        const target = path.join(project, installedFile);
+        const notes = path.join(path.dirname(target), 'personal-notes.md');
+        if (timing === 'before-install') {
+          await fs.mkdir(path.dirname(notes), { recursive: true });
+          await fs.writeFile(notes, 'User-owned notes\n');
+        }
+        runCommand(project, 'init', id, `aif,${skill}`);
+        if (timing === 'before-install') {
+          assert.equal((await loadConfig(project)).agents[0].managedSkills[skill].rawInstalledHash, undefined);
+        } else {
+          await fs.writeFile(notes, 'User-owned notes\n');
+        }
+        const before = await fs.readFile(target);
+        const output = runCommand(project, 'init', id, 'aif');
+        assert.equal(await fs.readFile(notes, 'utf8'), 'User-owned notes\n');
+        assert.deepEqual(await fs.readFile(target), before);
+        assert.match(output, /Preserving unproven or modified skill/);
+      });
+    }
+  }
+}
 
 let failures = 0;
 const temporaryRoot = path.resolve(os.tmpdir());

@@ -111,8 +111,10 @@ See [Plan Files](plan-files.md) for the artifact frontmatter schema, default sca
 
 - `--agents` - Comma-separated target agents (for example `claude,codex`)
 - `--skills` - Comma-separated skill set to install instead of full defaults
-- `--no-skills` - Skip base skill installation (useful when only MCP setup is needed)
+- `--no-skills` - Select no base skills (useful when only MCP setup is needed); on reruns, removes unchanged base skills with verified ownership
 - `--mcp` - Comma-separated MCP servers to configure (`github`, `postgres`, `filesystem`, `chrome-devtools`, `playwright`)
+
+Rerunning `init` removes deselected base skills only when their saved raw ownership receipt proves that the installed contents are unchanged. This also applies to flat workflow files. Modified skills, extra user files inside a tracked skill directory, and installations without a verifiable receipt are preserved with a warning; the deselected skill is removed from CLI tracking. Cleanup also preserves custom skills, untracked files, and extension replacements. Bundled `loop-*` agent files require `aif-loop` to be selected; `init` and `update` remove previously tracked bundled loop agents when that skill is absent. Other bundled agent files are installed independently of the base skill selection.
 
 ### Upgrade from v1 to v2
 

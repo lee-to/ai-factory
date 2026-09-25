@@ -177,10 +177,11 @@ async function initLocked(options: InitOptions): Promise<void> {
 
   try {
     const existingAgentIds = existingConfig?.agents.map(agent => agent.id) ?? [];
+    const availableSkills = await getAvailableSkills();
+    const availableSkillSet = new Set(availableSkills);
 
     let answers: WizardAnswers;
     if (nonInteractive) {
-      const availableSkills = await getAvailableSkills();
       answers = buildAnswersFromFlags(options, availableSkills);
     } else {
       answers = await runWizard(existingAgentIds);
@@ -203,6 +204,8 @@ async function initLocked(options: InitOptions): Promise<void> {
       skillsDir: groups.find(group => group.targets.some(target => target.id === selection.id))!.skillsDir,
       installedSkills: answers.selectedSkills,
     }));
+    const replacedSkills = collectReplacedSkills(existingExtensions);
+    const selectedSkillSet = new Set(answers.selectedSkills);
 
     if (removedAgents.length > 0) {
       console.log(chalk.dim('\nRemoving deselected agent setups...\n'));
@@ -226,6 +229,24 @@ async function initLocked(options: InitOptions): Promise<void> {
     for (const agentSelection of answers.agents) {
       const agentConfig = getAgentConfig(agentSelection.id);
       const group = groups.find(group => group.targets.some(target => target.id === agentSelection.id))!;
+      const existingAgent = existingConfig?.agents.find(agent => agent.id === agentSelection.id);
+      const retainedSkills = existingAgent?.installedSkills.filter(
+        skill => !availableSkillSet.has(skill) || replacedSkills.has(skill),
+      ) ?? [];
+
+      if (existingAgent) {
+        const deselectedSkills = existingAgent.installedSkills.filter(
+          skill => availableSkillSet.has(skill) && !selectedSkillSet.has(skill) && !replacedSkills.has(skill),
+        );
+        const removedSkills = await removeOwnedSkills(
+          projectDir,
+          { ...existingAgent, installedSkills: deselectedSkills },
+          survivingAgents,
+        );
+        for (const skill of removedSkills) {
+          console.log(chalk.dim(`  [${agentConfig.displayName}] Removed deselected skill: ${skill}`));
+        }
+      }
 
       const installedSkills = skillsByTarget.get(group.physicalPath) ?? await installSkills({
         projectDir,
@@ -238,11 +259,12 @@ async function initLocked(options: InitOptions): Promise<void> {
       const installedAgentFiles = agentConfig.agentsDir
         ? await installSubagents({
           projectDir,
+          installedSkills: [...installedSkills, ...retainedSkills],
+          previousInstallation: existingAgent,
           agentId: agentSelection.id,
           agentsDir: agentConfig.agentsDir,
         })
         : [];
-      const existingAgent = existingConfig?.agents.find(agent => agent.id === agentSelection.id);
       const installedConfigFiles = agentConfig.configFiles?.length
         ? await installConfigFiles({
           projectDir,
@@ -268,7 +290,7 @@ async function initLocked(options: InitOptions): Promise<void> {
       installedAgents.push({
         id: agentSelection.id,
         skillsDir: group.skillsDir,
-        installedSkills,
+        installedSkills: [...new Set([...installedSkills, ...retainedSkills])],
         ...(agentConfig.agentsDir ? {
           agentsDir: agentConfig.agentsDir,
           installedAgentFiles,
@@ -315,7 +337,6 @@ async function initLocked(options: InitOptions): Promise<void> {
       }
     }
 
-    const replacedSkills = collectReplacedSkills(existingExtensions);
     for (const agent of installedAgents) {
       const managedBaseSkills = agent.installedSkills.filter(skill => !replacedSkills.has(skill));
       agent.managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills,

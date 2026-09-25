@@ -1,0 +1,128 @@
+# Sends the same signed webhook as aif-handoff to the AI Review Runner on VPS.
+# Required repository secrets:
+#   RUNNER_URL           — HTTPS endpoint ending in /review.
+#   RUNNER_HMAC_SECRET   — runner's HMAC signing secret.
+#   RUNNER_GH_PAT        — PAT with Contents, Pull requests and Issues read/write
+#                          plus Metadata read for this repository (/fix pushes).
+#   RUNNER_TRUSTED_USERS — JSON array of logins allowed to run slash commands.
+# The PAT must outlive this job: GITHUB_TOKEN expires before async review ends.
+
+name: AI Review
+
+on:
+  pull_request:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  ai-review:
+    # Fork PRs require an explicit command from a trusted maintainer.
+    # The secret-based whitelist is enforced inside the step.
+    if: |
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       github.event.sender.type != 'Bot' &&
+       (contains(github.event.comment.body, '/code-review-and-fix') ||
+        contains(github.event.comment.body, '/code-review') ||
+        contains(github.event.comment.body, '/fix')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send signed webhook
+        env:
+          RUNNER_URL: ${{ secrets.RUNNER_URL }}
+          RUNNER_HMAC_SECRET: ${{ secrets.RUNNER_HMAC_SECRET }}
+          GH_TOKEN: ${{ secrets.RUNNER_GH_PAT }}
+          TRUSTED_USERS: ${{ secrets.RUNNER_TRUSTED_USERS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+
+          if [ -z "${RUNNER_URL:-}" ] || [ -z "${RUNNER_HMAC_SECRET:-}" ] || [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::AI Review runner secrets are unavailable; skipping webhook dispatch"
+            exit 0
+          fi
+
+          # Read event data as data, never interpolate comment text into shell code.
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            HEAD_REPO="$(jq -r '.pull_request.head.repo.full_name' "${GITHUB_EVENT_PATH}")"
+            if [ "${HEAD_REPO}" != "${REPO}" ]; then
+              echo "::notice::automatic review skipped for fork PR; a trusted maintainer can comment /code-review to run it"
+              exit 0
+            fi
+            PR_NUMBER="$(jq -r '.pull_request.number' "${GITHUB_EVENT_PATH}")"
+            HEAD_SHA="$(jq -r '.pull_request.head.sha' "${GITHUB_EVENT_PATH}")"
+            ACTION="review"
+          elif [ "${GITHUB_EVENT_NAME}" = "issue_comment" ]; then
+            if ! jq -e '.issue.pull_request != null and .sender.type != "Bot"' "${GITHUB_EVENT_PATH}" >/dev/null; then
+              exit 0
+            fi
+            SENDER="$(jq -r '.sender.login' "${GITHUB_EVENT_PATH}")"
+            if ! jq -e --arg u "${SENDER}" \
+              'type == "array" and all(.[]; type == "string") and index($u) != null' \
+              <<< "${TRUSTED_USERS:-[]}" >/dev/null 2>&1; then
+              echo "::notice::user '${SENDER}' is not in RUNNER_TRUSTED_USERS — skipping"
+              exit 0
+            fi
+
+            COMMENT="$(jq -r '.comment.body' "${GITHUB_EVENT_PATH}")"
+            # Longest command first, matching the existing aif-handoff workflow.
+            if [[ "$COMMENT" == *"/code-review-and-fix"* ]]; then
+              ACTION="review-and-fix"
+            elif [[ "$COMMENT" == *"/fix"* ]]; then
+              ACTION="fix"
+            elif [[ "$COMMENT" == *"/code-review"* ]]; then
+              ACTION="review"
+            else
+              exit 0
+            fi
+            PR_NUMBER="$(jq -r '.issue.number' "${GITHUB_EVENT_PATH}")"
+            HEAD_SHA="$(gh pr view "${PR_NUMBER}" --repo "${REPO}" --json headRefOid -q .headRefOid)"
+          else
+            exit 0
+          fi
+
+          if [[ ! "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]] || [[ ! "${HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid PR number or head SHA"
+            exit 1
+          fi
+          if [[ "${RUNNER_URL}" != https://* ]]; then
+            echo "::error::RUNNER_URL must use HTTPS"
+            exit 1
+          fi
+
+          TS="$(date +%s)"
+          # HMAC covers <timestamp>.<single-line JSON> byte-for-byte.
+          BODY="$(jq -nc \
+            --arg action "${ACTION}" \
+            --arg repo "${REPO}" \
+            --argjson pr "${PR_NUMBER}" \
+            --arg sha "${HEAD_SHA}" \
+            --arg tok "${GH_TOKEN}" \
+            --argjson ts "${TS}" \
+            '{action: $action, repo: $repo, pr_number: $pr, head_sha: $sha, gh_token: $tok, ts: $ts}')"
+          SIG="sha256=$(printf '%s.%s' "${TS}" "${BODY}" \
+            | openssl dgst -sha256 -hmac "${RUNNER_HMAC_SECRET}" -hex \
+            | awk '{print $2}')"
+
+          # Do not retry automatically: a timed-out request may already be queued.
+          # Do not follow redirects or log response bodies containing runner data.
+          HTTP_CODE="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --connect-timeout 10 --max-time 60 \
+            --request POST "${RUNNER_URL}" \
+            --header 'Content-Type: application/json' \
+            --header "X-Signature: ${SIG}" \
+            --header "X-Timestamp: ${TS}" \
+            --data-raw "${BODY}")"
+          echo "runner http: ${HTTP_CODE} (action=${ACTION}, pr=${PR_NUMBER})"
+          if [[ ! "${HTTP_CODE}" =~ ^2[0-9]{2}$ ]]; then
+            echo "::error::Runner returned ${HTTP_CODE}"
+            exit 1
+          fi

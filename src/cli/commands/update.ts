@@ -54,6 +54,8 @@ function formatReason(reason: string): string {
       return 'artifact missing';
     case 'package-removed':
       return 'removed from package';
+    case 'skill-not-selected':
+      return 'aif-loop not selected';
     case 'new-skill-not-installed':
       return 'new in package';
     case 'new-in-package':

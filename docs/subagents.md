@@ -8,13 +8,15 @@ This page focuses on the bundled Claude and Codex files shipped by the base AI F
 
 ## Migration Note
 
+Bundled `loop-*` agent files are installed only when `aif-loop` is selected. This rule applies to Claude Markdown and Codex TOML bundles; the current Codex bundle contains no loop roles. Rerunning `init` without `aif-loop`, or running `update` when it is absent from `installedSkills`, removes previously tracked bundled loop files and their metadata. `update --force` respects the same selection. Untracked user files and extension-owned helpers are preserved; other bundled agents remain independent of skill selection.
+
 If you have an existing AI Factory project that was initialized before bundled agent-file support was added, running `ai-factory update` will automatically install bundled package agent files into the runtime-specific target directory (`.claude/agents/` for Claude, `.codex/agents/` for Codex). `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents`, but persists the universal `agentsDir`, `installedAgentFiles`, `managedAgentFiles`, and `agentFileSources` fields on the next save.
 
 If you already have custom agents in `.claude/agents/` or `.codex/agents/`, they will not be touched. AI Factory tracks its managed files in `installedAgentFiles`, `managedAgentFiles`, `installedConfigFiles`, and `managedConfigFiles` in `.ai-factory.json`. Updates preserve local modifications and untracked pre-existing config files, including `.codex/config.toml`.
 
 The [Codex skill-directory migration](configuration.md#codex-skill-directories-and-migration) can move skills to `.agents/skills/`; native agents remain in `.codex/agents/` and their configuration remains in `.codex/config.toml`. Skill migration preserves native bytes and ownership records before a separate native update runs. Runtime deselection also preserves `.codex/config.toml` when Codex app still uses it.
 
-If a future AI Factory package version drops a previously bundled source file, `ai-factory update` reports that managed agent file as skipped and preserves the local tracked file instead of deleting it implicitly. Removal of managed agent files is only performed through explicit agent deselection or extension removal flows.
+Tracked agent files with unavailable source metadata can be preserved with a warning. Bundled files whose source was removed from the package, or whose required `aif-loop` skill is no longer selected, are removed during update. Explicit agent deselection and extension removal also clean up their managed files.
 
 ## Why This Exists
 

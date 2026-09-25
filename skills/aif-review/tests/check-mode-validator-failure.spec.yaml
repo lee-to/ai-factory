@@ -42,7 +42,6 @@ argument: "+check"
 max_turns: 50
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   # `Task` is INTENTIONALLY omitted from this list to simulate validator
   # unavailability. A runner that denies the call must surface the

@@ -29,6 +29,9 @@ coverage/
 # test
 /test
 
+# ai-tester run results
+/runs/
+
 # ai
 .claude
 .ai

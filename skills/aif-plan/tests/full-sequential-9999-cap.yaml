@@ -23,7 +23,6 @@ skill: aif-plan
 argument: "full add product search API"
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   allowed_tools_override:
     - Read

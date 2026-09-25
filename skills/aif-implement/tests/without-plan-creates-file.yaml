@@ -18,7 +18,6 @@ argument: '--without-plan create a file named test.txt at the repo root containi
 max_turns: 40
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   # Keep the test focused. No web, no handoff MCP, no subagent exploration.
   # TaskList/TaskCreate/TaskUpdate are intentionally wired so the test can

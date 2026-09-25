@@ -33,7 +33,6 @@ argument: "--list +check"
 max_turns: 30
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   # `Task` IS in the allowed list on purpose. The contract is that the
   # skill must not USE it in --list mode regardless of availability;

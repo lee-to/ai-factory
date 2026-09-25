@@ -7,7 +7,6 @@ argument: "full add product search"
 max_turns: 50
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
 
 fixtures:
@@ -53,7 +52,7 @@ assertions:
       file_path: "\\.ai-factory/plans/0003_add-product-search\\.md$"
     weight: 4
   - id: does-not-report-sequential-cap
-    type: output_not_contains
+    type: no_output_contains
     pattern: "(?i)sequential cap reached"
   - id: stay-in-sandbox
     type: no_path_escape

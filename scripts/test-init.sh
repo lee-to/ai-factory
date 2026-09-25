@@ -73,7 +73,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 
 const promptQueue = [
-  { selectedAgents: ['claude'], selectedSkills: ['aif'] },
+  { selectedAgents: ['claude'], selectedSkills: ['aif', 'aif-loop'] },
   { configureMcp: false },
 ];
 
@@ -125,6 +125,80 @@ fi
 EXPECTED_AGENT_FILES="$EXPECTED_AGENT_FILES" node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];const expected=Number(process.env.EXPECTED_AGENT_FILES);if(a.id!=='claude')process.exit(1);if(a.agentsDir!=='.claude/agents')process.exit(1);if(!Array.isArray(a.installedAgentFiles)||a.installedAgentFiles.length!==expected)process.exit(1);if(!a.installedAgentFiles.includes('best-practices-sidecar.md'))process.exit(1);if(!a.installedAgentFiles.includes('commit-preparer.md'))process.exit(1);if(!a.installedAgentFiles.includes('docs-auditor.md'))process.exit(1);if(!a.installedAgentFiles.includes('implement-worker.md'))process.exit(1);if(!a.installedAgentFiles.includes('loop-orchestrator.md'))process.exit(1);if(!a.installedAgentFiles.includes('plan-polisher.md'))process.exit(1);if(!a.installedAgentFiles.includes('review-sidecar.md'))process.exit(1);if(!a.installedAgentFiles.includes('rules-sidecar.md'))process.exit(1);if(!a.installedAgentFiles.includes('security-sidecar.md'))process.exit(1);if(!a.managedAgentFiles||Object.keys(a.managedAgentFiles).length!==expected)process.exit(1);if(!a.managedAgentFiles['rules-sidecar.md'])process.exit(1);" "$PROJECT_DIR/.ai-factory.json"
 
 echo "claude init smoke tests passed"
+
+AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$TMPDIR/init-smoke-skill-selection" node --input-type=module > "$TMPDIR/init-skill-selection.log" 2>&1 <<'EOF'
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import inquirer from 'inquirer';
+
+const { initCommand } = await import(pathToFileURL(path.join(process.env.AIF_TEST_ROOT_DIR, 'dist/cli/commands/init.js')));
+const projectDir = process.env.AIF_TEST_PROJECT_DIR;
+await mkdir(projectDir);
+process.chdir(projectDir);
+
+const originalPrompt = inquirer.prompt;
+const readConfig = async () => JSON.parse(await readFile('.ai-factory.json', 'utf8'));
+
+async function runInteractive(selectSkills) {
+  let promptCount = 0;
+  let selectedSkills;
+  inquirer.prompt = async questions => {
+    promptCount++;
+    if (promptCount === 1) {
+      assert.deepEqual(questions.map(question => question.name), ['selectedAgents', 'selectedSkills']);
+      const choices = questions[1].choices;
+      assert(choices.some(choice => choice.value === 'aif-loop'), 'Loop must be available for selection');
+      selectedSkills = selectSkills(choices.map(choice => choice.value));
+      return { selectedAgents: ['claude'], selectedSkills };
+    }
+    assert.equal(promptCount, 2, 'Unexpected extra prompt');
+    assert.equal(questions[0].name, 'configureMcp');
+    return { configureMcp: false };
+  };
+  try {
+    await initCommand();
+  } finally {
+    inquirer.prompt = originalPrompt;
+  }
+  assert.equal(promptCount, 2, 'Init must use the interactive wizard');
+  const agent = (await readConfig()).agents[0];
+  assert.deepEqual(agent.installedSkills, selectedSkills);
+  assert.deepEqual(Object.keys(agent.managedSkills).sort(), [...selectedSkills].sort());
+  const loopInstalled = selectedSkills.includes('aif-loop');
+  assert.equal(existsSync('.claude/agents/loop-orchestrator.md'), loopInstalled);
+  assert.equal(agent.installedAgentFiles.includes('loop-orchestrator.md'), loopInstalled);
+  assert.equal(Boolean(agent.agentFileSources['loop-orchestrator.md']), loopInstalled);
+  assert.equal(Boolean(agent.managedAgentFiles['loop-orchestrator.md']), loopInstalled);
+}
+
+// Fresh install: deselect only loop from the wizard's complete skill list.
+await runInteractive(skills => skills.filter(skill => skill !== 'aif-loop'));
+assert(!existsSync('.claude/skills/aif-loop'), 'Fresh init must not install deselected loop');
+assert.deepEqual((await readdir('.claude/skills')).sort(), (await readConfig()).agents[0].installedSkills.slice().sort());
+
+// Reconfiguration: selecting loop installs it; deselecting it removes its files and metadata.
+await mkdir('.claude/skills/custom-skill');
+await writeFile('.claude/skills/custom-skill/SKILL.md', 'User-owned custom skill\n');
+await runInteractive(() => ['aif', 'aif-loop']);
+assert(existsSync('.claude/skills/aif-loop/SKILL.md'), 'Selecting loop must install it');
+await runInteractive(() => ['aif']);
+assert(!existsSync('.claude/skills/aif-loop'), 'Reinit must remove deselected loop');
+await runInteractive(() => []);
+assert(!existsSync('.claude/skills/aif'), 'Empty selection must remove tracked base skills');
+assert.deepEqual(await readdir('.claude/skills'), ['custom-skill']);
+assert.equal(await readFile('.claude/skills/custom-skill/SKILL.md', 'utf8'), 'User-owned custom skill\n');
+EOF
+
+echo "interactive skill selection smoke tests passed"
+
+if ! node "$ROOT_DIR/scripts/test-loop-subagents.mjs" > "$TMPDIR/loop-subagents.log" 2>&1; then
+  cat "$TMPDIR/loop-subagents.log"
+  exit 1
+fi
+echo "claude and codex loop subagent selection smoke tests passed"
 
 PROJECT_DIR="$TMPDIR/init-smoke-codex"
 mkdir -p "$PROJECT_DIR"
