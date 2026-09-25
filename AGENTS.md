@@ -67,6 +67,15 @@ ai-factory/
 - **Agent transformer system**: `src/core/transformers/` adapts skill format per agent (e.g. Antigravity uses flat `.md`
   for workflow skills, KiloCode sanitizes dotted names)
 
+### Bundled loop subagents
+
+Bundled `loop-*` agent files require `aif-loop` in the selected/installed skill set for both Claude and Codex.
+`init` and `update` (including `--force`) skip these files when the skill is absent and remove previously tracked
+bundled loop files and their metadata. Preserve untracked user files and extension-owned helpers. Other bundled
+agents remain independent of skill selection. Keep package inventory discovery unfiltered for ownership checks;
+apply skill filtering only when installing/updating. Codex currently has no loop roles; smoke tests use isolated
+Markdown/TOML source fixtures to verify both runtimes.
+
 ### aif-build-automation (unified stack detection)
 
 `skills/aif-build-automation/SKILL.md` defines how to generate or enhance Makefile, Taskfile, Justfile, or Mage. **Repository analysis uses one ordered pipeline for every stack:** primary language → package manager / build entrypoints → frameworks → Docker → CI → migrations → tests → linters → monorepo, then `PROJECT_PROFILE`. **Java/Kotlin (JVM) is not a separate side path:** Gradle/Maven, wrappers (`gradlew`, `mvnw`), `java_build`, frameworks from build files, and JVM linters follow the same section structure as Node (`package.json`), Python (`pyproject.toml`), etc. (skill §2.1–§2.8). If both Gradle signals and `pom.xml` are present, set `java_build.mixed_maven_gradle`, append to `PROJECT_PROFILE.warnings`, and wire generated targets to Gradle (skill §2.2).

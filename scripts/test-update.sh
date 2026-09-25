@@ -410,7 +410,7 @@ cat > "$CLAUDE_PROJECT_DIR/.ai-factory.json" << 'EOF'
     {
       "id": "claude",
       "skillsDir": ".claude/skills",
-      "installedSkills": ["aif"],
+      "installedSkills": ["aif", "aif-loop"],
       "mcp": {
         "github": false,
         "filesystem": false,
@@ -451,6 +451,36 @@ assert_contains "$CLAUDE_SECOND_OUTPUT" "loop-orchestrator\\.md \(local drift\)"
 assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "name: loop-orchestrator" "reinstalled agent file content must be restored"
 
 echo "claude agent files smoke tests passed"
+
+# Removing the loop skill from the selected set also retires its managed agent
+# files, and --force must not bring them back. User-created loop roles survive.
+node --input-type=module - "$CLAUDE_PROJECT_DIR" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+const project = process.argv[2];
+const file = path.join(project, '.ai-factory.json');
+const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+config.agents[0].installedSkills = ['aif'];
+fs.writeFileSync(file, JSON.stringify(config));
+fs.writeFileSync(path.join(project, '.claude/agents/loop-custom.md'), 'user-owned loop role\n');
+EOF
+(cd "$CLAUDE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$TMPDIR/update-claude-without-loop.log" 2>&1)
+assert_contains "$TMPDIR/update-claude-without-loop.log" "loop-orchestrator\\.md \\(aif-loop not selected\\)" "update must explain removal of unselected loop subagents"
+(cd "$CLAUDE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update --force > "$TMPDIR/update-claude-without-loop-force.log" 2>&1)
+assert_not_exists "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "forced update must not restore unselected loop subagents"
+assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-custom.md" "user-owned loop role" "loop cleanup must preserve custom agents"
+node --input-type=module - "$CLAUDE_PROJECT_DIR" <<'EOF'
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const project = process.argv[2];
+const agent = JSON.parse(fs.readFileSync(path.join(project, '.ai-factory.json'), 'utf8')).agents[0];
+for (const files of [agent.installedAgentFiles, Object.keys(agent.agentFileSources), Object.keys(agent.managedAgentFiles)]) {
+  assert(!files.some(file => file.startsWith('loop-')), 'Loop metadata must be pruned');
+}
+assert.deepEqual(fs.readdirSync(path.join(project, '.claude/agents')).filter(file => file.startsWith('loop-')), ['loop-custom.md']);
+EOF
+echo "update preserves loop subagent selection smoke tests passed"
 
 # -------------------------------------------------------------------
 # Codex bundled agent files and config smoke
