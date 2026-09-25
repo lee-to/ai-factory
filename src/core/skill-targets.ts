@@ -27,6 +27,12 @@ export interface SkillTargetGroup {
   readonly context: SkillRenderContext;
 }
 
+export function usesSharedCodexProfile(targets: readonly Pick<EffectiveSkillTarget, 'id'>[]): boolean {
+  return targets.length > 1
+    && targets.some(target => ['codex', 'codex-app'].includes(target.id))
+    && targets.every(target => ['codex', 'codex-app', 'universal'].includes(target.id));
+}
+
 export function logSkillTarget(message: string, context: Record<string, unknown>): void {
   if (process.env.LOG_LEVEL?.toLowerCase() === 'debug') {
     console.log(`[skill-targets] ${message} ${JSON.stringify(context)}`);
@@ -139,9 +145,7 @@ export async function resolveSkillTargets(
   const groups = [...byPath].map(([physicalPath, members]) => {
     const ordered = [...members].sort((a, b) => a.id.localeCompare(b.id));
     assertCompatibleSkillTargets(members.map(member => ({ id: member.id, skillsDir: physicalPath })));
-    const sharedCodex = ordered.length > 1
-      && ordered.some(member => ['codex', 'codex-app'].includes(member.id))
-      && ordered.every(member => ['codex', 'codex-app', 'universal'].includes(member.id));
+    const sharedCodex = usesSharedCodexProfile(ordered);
     const skillsDir = ordered[0].skillsDir;
     const contexts = ordered.map(member => createSkillRenderContext(member.id, skillsDir, sharedCodex));
     if (contexts.some(context => context.hash !== contexts[0].hash)) {

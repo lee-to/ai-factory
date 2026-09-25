@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 // Regression coverage for #163: shared Codex app / Universal skills.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { assertCompatibleSkillTargets, getTransformer } from '../dist/core/transformer.js';
 import { getAgentChoices, getBuiltinAgentConfigs } from '../dist/core/agents.js';
+import { commitResolvedExtension } from '../dist/core/extension-ops.js';
+import { preflightSkillMigration } from '../dist/core/skills-migration.js';
+import { resolveSkillTargets } from '../dist/core/skill-targets.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = mkdtempSync(path.join(tmpdir(), 'aif-shared-skills-'));
@@ -19,6 +22,17 @@ function cli(project, ...args) {
   });
   assert.equal(result.status, 0, `${args.join(' ')} failed:\n${result.stdout}${result.stderr}`);
   return result.stdout;
+}
+
+function snapshot(directory) {
+  if (!existsSync(directory)) return null;
+  return Object.fromEntries(readdirSync(directory).sort().map(name => {
+    const file = path.join(directory, name);
+    const stat = statSync(file);
+    return [name, stat.isDirectory() ? snapshot(file) : {
+      bytes: readFileSync(file), mode: stat.mode & 0o7777,
+    }];
+  }));
 }
 
 try {
@@ -66,6 +80,104 @@ try {
     skills: extensionSkills.map(skill => `skills/${skill}`),
     replaces: { 'skills/shared-replacement': 'aif' },
   }));
+
+  for (const agents of ['codex,codex-app', 'codex-app,universal', 'codex,universal', 'codex,codex-app,universal']) {
+    const project = mkdtempSync(path.join(temp, 'rollback-'));
+    mkdirSync(path.join(project, '.agents'));
+    cli(project, 'init', '--agents', agents, '--skills', 'aif');
+    const configPath = path.join(project, '.ai-factory.json');
+    const configBefore = readFileSync(configPath);
+    const config = JSON.parse(configBefore);
+    const skillRoot = path.join(project, '.agents/skills/aif');
+    writeFileSync(path.join(skillRoot, 'executable.sh'), '#!/bin/sh\nexit 0\n');
+    writeFileSync(path.join(skillRoot, 'private.txt'), 'local content\n');
+    mkdirSync(path.join(skillRoot, 'empty'));
+    if (process.platform !== 'win32') {
+      chmodSync(path.join(skillRoot, 'SKILL.md'), 0o640);
+      chmodSync(path.join(skillRoot, 'executable.sh'), 0o755);
+      chmodSync(path.join(skillRoot, 'private.txt'), 0o600);
+    }
+    const before = snapshot(path.join(project, '.agents/skills'));
+    const manifest = {
+      name: 'aif-ext-shared-rollback', version: '1.0.0',
+      skills: ['skills/shared-replacement'], replaces: { 'skills/shared-replacement': 'aif' },
+      mcpServers: [{ key: 'broken', template: {} }],
+    };
+    await assert.rejects(commitResolvedExtension(project, {
+      config, source: extension,
+      resolved: { sourceDir: extension, manifest, cleanup: async () => {} },
+    }), error => {
+      assert.deepEqual(error.partialResult?.replacedSkills, ['aif'], 'Replacement must succeed before the next resource fails');
+      assert.match(error.message, /MCP/);
+      return true;
+    });
+    assert.deepEqual(snapshot(path.join(project, '.agents/skills')), before, `${agents}: failed first extension install must restore bytes, modes and directories`);
+    assert.deepEqual(readFileSync(configPath), configBefore);
+    console.log(`PASS rollback after successful replacement: ${agents}`);
+  }
+
+  for (const [from, to] of [
+    ['universal', 'universal,codex-app'], ['codex-app', 'universal,codex-app'],
+    ['universal,codex-app', 'universal'], ['universal,codex-app', 'codex-app'],
+  ]) {
+    const project = mkdtempSync(path.join(temp, 'registered-custom-'));
+    cli(project, 'init', '--agents', from, '--skills', 'aif');
+    const configPath = path.join(project, '.ai-factory.json');
+    const config = JSON.parse(readFileSync(configPath));
+    // Include a basename collision: custom/aif is not the managed root-level aif.
+    for (const name of ['custom/local-helper', 'custom/aif', 'local-helper']) {
+      const directory = path.join(project, '.agents/skills', name);
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(path.join(directory, 'SKILL.md'), `User-owned ${name}: /aif-plan\n`);
+      if (process.platform !== 'win32') chmodSync(path.join(directory, 'SKILL.md'), 0o600);
+      for (const agent of config.agents) agent.installedSkills.push(name);
+    }
+    writeFileSync(configPath, JSON.stringify(config));
+    const before = snapshot(path.join(project, '.agents/skills/custom'));
+    const flatBefore = snapshot(path.join(project, '.agents/skills/local-helper'));
+    cli(project, 'init', '--agents', to, '--skills', 'aif');
+    assert.deepEqual(snapshot(path.join(project, '.agents/skills/custom')), before, `${from} -> ${to}: custom skills must remain unchanged`);
+    assert.deepEqual(snapshot(path.join(project, '.agents/skills/local-helper')), flatBefore);
+    const saved = JSON.parse(readFileSync(configPath));
+    for (const agent of saved.agents.filter(agent => from.split(',').includes(agent.id))) {
+      assert.ok(agent.installedSkills.includes('custom/local-helper'));
+      assert.ok(agent.installedSkills.includes('custom/aif'));
+      assert.ok(agent.installedSkills.includes('local-helper'));
+    }
+    const content = readFileSync(path.join(project, '.agents/skills/aif/SKILL.md'), 'utf8');
+    assert.match(content, to === 'universal' ? /`\/aif-skill-generator`/ : /\$aif-skill-generator/);
+    console.log(`PASS registered custom skills: ${from} -> ${to}`);
+  }
+
+  for (const scenario of ['local-edit', 'missing-baseline', 'unknown-managed-source', 'physical-move']) {
+    const project = mkdtempSync(path.join(temp, 'custom-guards-'));
+    cli(project, 'init', '--agents', 'universal', '--skills', 'aif');
+    const config = JSON.parse(readFileSync(path.join(project, '.ai-factory.json')));
+    const agent = config.agents[0];
+    agent.installedSkills.push('custom/local-helper');
+    const skill = path.join(project, '.agents/skills/aif/SKILL.md');
+    let expected;
+    if (scenario === 'local-edit') {
+      writeFileSync(skill, readFileSync(skill, 'utf8') + '\nLocal changes\n');
+      expected = /Skill migration conflict/;
+    } else if (scenario === 'missing-baseline') {
+      delete agent.managedSkills.aif;
+      expected = /Missing or changed managed baseline/;
+    } else if (scenario === 'unknown-managed-source') {
+      agent.installedSkills.push('missing-managed');
+      agent.managedSkills['missing-managed'] = { ...agent.managedSkills.aif };
+      expected = /Unknown source for "missing-managed"/;
+    } else {
+      expected = /Unknown source for "local-helper"/;
+    }
+    const groups = await resolveSkillTargets(project, scenario === 'physical-move'
+      ? [{ id: 'universal', skillsDir: '.other/skills' }]
+      : [{ id: 'universal', skillsDir: '.agents/skills' }, { id: 'codex-app', skillsDir: '.agents/skills' }]);
+    const before = snapshot(path.join(project, '.agents/skills'));
+    await assert.rejects(preflightSkillMigration(project, config, groups), expected);
+    assert.deepEqual(snapshot(path.join(project, '.agents/skills')), before, 'Rejected preflight must not mutate skills');
+    console.log(`PASS managed migration guard: ${scenario}`);
+  }
 
   for (const agents of ['codex-app,universal', 'universal,codex-app']) {
     const project = mkdtempSync(path.join(temp, 'project-'));
