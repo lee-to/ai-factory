@@ -515,24 +515,11 @@ assert_exists "$UNIVERSAL_MCP_PROJECT_DIR/.mcp.json" "Universal MCP init must wr
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(!c.mcpServers?.filesystem||!c.mcpServers?.playwright)process.exit(1);" "$UNIVERSAL_MCP_PROJECT_DIR/.mcp.json"
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='universal')process.exit(1);if(a.mcp.filesystem!==true||a.mcp.playwright!==true)process.exit(1);" "$UNIVERSAL_MCP_PROJECT_DIR/.ai-factory.json"
 
-CONFLICT_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-universal-conflict"
-mkdir -p "$CONFLICT_PROJECT_DIR"
-if (cd "$CONFLICT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents universal,codex-app --skills aif > "$TMPDIR/init-codex-app-conflict.log" 2>&1); then
-  echo "Assertion failed: universal and codex-app must not be allowed to share .agents/skills"
-  cat "$TMPDIR/init-codex-app-conflict.log"
-  exit 1
-fi
-assert_contains "$TMPDIR/init-codex-app-conflict.log" "universal, codex-app" "conflict error must include both runtime ids"
-assert_contains "$TMPDIR/init-codex-app-conflict.log" "\.agents/skills" "conflict error must include the shared skillsDir"
-if grep -Eq '^[[:space:]]+at ' "$TMPDIR/init-codex-app-conflict.log"; then
-  echo "Assertion failed: conflict error must not print a stack trace"
-  cat "$TMPDIR/init-codex-app-conflict.log"
-  exit 1
-fi
+node "$ROOT_DIR/scripts/test-shared-skill-targets.mjs"
 
-INTERACTIVE_CONFLICT_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-universal-interactive-conflict"
-mkdir -p "$INTERACTIVE_CONFLICT_PROJECT_DIR"
-AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$INTERACTIVE_CONFLICT_PROJECT_DIR" node --input-type=module > "$TMPDIR/init-codex-app-interactive-conflict.log" 2>&1 <<'EOF'
+INTERACTIVE_SHARED_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-universal-interactive-shared"
+mkdir -p "$INTERACTIVE_SHARED_PROJECT_DIR"
+AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$INTERACTIVE_SHARED_PROJECT_DIR" node --input-type=module > "$TMPDIR/init-codex-app-interactive-shared.log" 2>&1 <<'EOF'
 import inquirer from 'inquirer';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -544,8 +531,6 @@ const promptQueue = [
 ];
 
 const originalPrompt = inquirer.prompt.bind(inquirer);
-const originalExit = process.exit;
-let exitCode = null;
 
 inquirer.prompt = async (questions) => {
   const next = promptQueue.shift();
@@ -553,10 +538,6 @@ inquirer.prompt = async (questions) => {
     throw new Error(`Unexpected prompt: ${JSON.stringify(questions)}`);
   }
   return next;
-};
-process.exit = (code = 0) => {
-  exitCode = code;
-  throw new Error(`PROCESS_EXIT:${code}`);
 };
 
 process.chdir(process.env.AIF_TEST_PROJECT_DIR);
@@ -566,26 +547,12 @@ const { initCommand } = await import(moduleUrl);
 
 try {
   await initCommand();
-  throw new Error('initCommand unexpectedly succeeded');
-} catch (error) {
-  if (!String(error.message).startsWith('PROCESS_EXIT:')) {
-    throw error;
-  }
-  if (exitCode !== 1) {
-    throw new Error(`Expected exit code 1, got ${exitCode}`);
-  }
 } finally {
   inquirer.prompt = originalPrompt;
-  process.exit = originalExit;
 }
 EOF
-assert_contains "$TMPDIR/init-codex-app-interactive-conflict.log" "universal, codex-app" "interactive conflict error must include both runtime ids"
-assert_contains "$TMPDIR/init-codex-app-interactive-conflict.log" "\.agents/skills" "interactive conflict error must include the shared skillsDir"
-if grep -Eq '^[[:space:]]+at ' "$TMPDIR/init-codex-app-interactive-conflict.log"; then
-  echo "Assertion failed: interactive conflict error must not print a stack trace"
-  cat "$TMPDIR/init-codex-app-interactive-conflict.log"
-  exit 1
-fi
+assert_contains "$TMPDIR/init-codex-app-interactive-shared.log" "Setup complete" "interactive shared init must succeed"
+assert_contains "$INTERACTIVE_SHARED_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skill-generator' "interactive shared init must use Codex invocations"
 
 echo "codex app init smoke tests passed"
 

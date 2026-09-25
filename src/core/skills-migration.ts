@@ -10,7 +10,7 @@ import { loadAllExtensions, type InstalledExtensionManifest } from './extensions
 import { getAvailableSkills, buildManagedSkillsState, renderSkillFiles } from './installer.js';
 import { getSkillsDir } from '../utils/fs.js';
 import { applyInjection } from './injections.js';
-import { logSkillTarget, physicalProjectPath, resolveSkillTargets, type SkillRenderContext, type SkillTargetGroup } from './skill-targets.js';
+import { logSkillTarget, physicalProjectPath, resolveSkillTargets, usesSharedCodexProfile, type SkillRenderContext, type SkillTargetGroup } from './skill-targets.js';
 
 interface SkillOwner {
   name: string;
@@ -257,7 +257,26 @@ export async function preflightSkillMigration(
     if (!needsMigration) continue;
     for (const agent of participants) provenRoots.set(agent.skillsDir, await physicalProjectPath(projectDir, agent.skillsDir));
     provenRoots.set(group.skillsDir, await physicalProjectPath(projectDir, group.skillsDir));
-    const names = new Set(participants.flatMap(agent => agent.installedSkills.map(name => path.posix.basename(name.replaceAll('\\', '/')))));
+    const profileOnly = group.targets.every(target => target.sourcePhysicalPath === group.physicalPath)
+      && participants.every(agent => provenRoots.get(agent.skillsDir) === group.physicalPath);
+    const names = new Set<string>();
+    for (const agent of participants) {
+      for (const installed of agent.installedSkills) {
+        const relative = installed.replaceAll('\\', '/');
+        if (!relative || path.posix.isAbsolute(relative) || /^[a-z]:/i.test(relative)
+          || relative.split('/').some(part => !part || part === '.' || part === '..')) {
+          throw new Error(`Unsafe installed skill name: ${installed}`);
+        }
+        // Profile-only changes do not move project-owned skills. Match the full
+        // registered path: custom/aif is not the managed root-level aif skill.
+        // Receipts still require proof even if their managed source disappeared.
+        if (profileOnly && !owners.has(relative) && !participants.some(participant => participant.managedSkills?.[relative])) {
+          logSkillTarget('[FIX:163] preflight:preserve-custom', { target: group.skillsDir, skill: relative });
+          continue;
+        }
+        names.add(path.posix.basename(relative));
+      }
+    }
     for (const owner of owners.values()) if (owner.extension) names.add(owner.name);
     for (const target of group.targets) {
       if (target.sourcePhysicalPath === group.physicalPath) continue;
@@ -711,7 +730,7 @@ export async function captureSharedSkillRollback(
   const snapshots: { relative: string; physical: string; tree: TreeInventory | null }[] = [];
   const flatFiles: { relative: string; physical: string; before: Buffer | null; mode: number | null }[] = [];
   for (const group of await resolveSkillTargets(projectDir, agents, { select: false })) {
-    if (!options.includeSingletons && (group.targets.length < 2 || !group.targets.every(target => ['codex', 'codex-app'].includes(target.id)))) continue;
+    if (!options.includeSingletons && !usesSharedCodexProfile(group.targets)) continue;
     for (const name of new Set(names.map(name => path.posix.basename(name.replaceAll('\\', '/'))))) {
       if (!name || name === '.' || name === '..') throw new Error('Unsafe shared rollback skill name.');
       const transformed = getTransformer(group.targets[0].id).transform(name, '');

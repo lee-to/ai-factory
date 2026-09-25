@@ -242,9 +242,9 @@ assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skil
 assert_exists "$CODEX_APP_PROJECT_DIR/.agents/skills/custom/local-helper/SKILL.md" "codex-app force update must preserve custom skills"
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='codex-app')process.exit(1);if(a.skillsDir!=='.agents/skills')process.exit(1);if(!Array.isArray(a.installedSkills)||!a.installedSkills.includes('custom/local-helper'))process.exit(1);if(!a.managedSkills||!a.managedSkills.aif||!a.managedSkills['aif-plan'])process.exit(1);" "$CODEX_APP_PROJECT_DIR/.ai-factory.json"
 
-CONFLICT_UPDATE_PROJECT_DIR="$TMPDIR/update-smoke-codex-app-universal-conflict"
-mkdir -p "$CONFLICT_UPDATE_PROJECT_DIR"
-cat > "$CONFLICT_UPDATE_PROJECT_DIR/.ai-factory.json" << 'EOF'
+SHARED_UPDATE_PROJECT_DIR="$TMPDIR/update-smoke-codex-app-universal-shared"
+mkdir -p "$SHARED_UPDATE_PROJECT_DIR"
+cat > "$SHARED_UPDATE_PROJECT_DIR/.ai-factory.json" << 'EOF'
 {
   "version": "2.4.0",
   "agents": [
@@ -277,13 +277,8 @@ cat > "$CONFLICT_UPDATE_PROJECT_DIR/.ai-factory.json" << 'EOF'
 }
 EOF
 
-if (cd "$CONFLICT_UPDATE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$TMPDIR/update-codex-app-conflict.log" 2>&1); then
-  echo "Assertion failed: update must reject universal and codex-app sharing .agents/skills"
-  cat "$TMPDIR/update-codex-app-conflict.log"
-  exit 1
-fi
-assert_contains "$TMPDIR/update-codex-app-conflict.log" "universal, codex-app" "update conflict error must include both runtime ids"
-assert_contains "$TMPDIR/update-codex-app-conflict.log" "\.agents/skills" "update conflict error must include the shared skillsDir"
+(cd "$SHARED_UPDATE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$TMPDIR/update-codex-app-shared.log" 2>&1)
+assert_contains "$SHARED_UPDATE_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skill-generator' "legacy shared config update must use Codex invocations"
 
 echo "codex app update smoke tests passed"
 

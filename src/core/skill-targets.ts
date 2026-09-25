@@ -7,6 +7,7 @@ import { buildTemplateVars } from './template.js';
 
 export interface SkillRenderContext {
   readonly agent: Readonly<AgentConfig & { homeSkillsDir?: string }>;
+  readonly transformerAgentId?: string;
   readonly hash: string;
 }
 
@@ -24,6 +25,12 @@ export interface SkillTargetGroup {
   readonly physicalPath: string;
   readonly targets: readonly EffectiveSkillTarget[];
   readonly context: SkillRenderContext;
+}
+
+export function usesSharedCodexProfile(targets: readonly Pick<EffectiveSkillTarget, 'id'>[]): boolean {
+  return targets.length > 1
+    && targets.some(target => ['codex', 'codex-app'].includes(target.id))
+    && targets.every(target => ['codex', 'codex-app', 'universal'].includes(target.id));
 }
 
 export function logSkillTarget(message: string, context: Record<string, unknown>): void {
@@ -84,10 +91,10 @@ export function createSkillRenderContext(agentId: string, skillsDir: string, sha
   if (sharedCodex) logSkillTarget('[FIX:155] render:shared-home', { skillsDir: agent.skillsDir, homeSkillsDir: buildTemplateVars(agent).home_skills_dir });
   const hash = createHash('sha256').update(JSON.stringify({
     version: 1,
-    transformer: getTransformerIdentity(agentId),
+    transformer: getTransformerIdentity(sharedCodex ? 'codex' : agentId),
     variables: buildTemplateVars(agent),
   })).digest('hex');
-  return Object.freeze({ agent, hash });
+  return Object.freeze({ agent, hash, ...(sharedCodex ? { transformerAgentId: 'codex' } : {}) });
 }
 
 export async function resolveSkillTargets(
@@ -138,7 +145,7 @@ export async function resolveSkillTargets(
   const groups = [...byPath].map(([physicalPath, members]) => {
     const ordered = [...members].sort((a, b) => a.id.localeCompare(b.id));
     assertCompatibleSkillTargets(members.map(member => ({ id: member.id, skillsDir: physicalPath })));
-    const sharedCodex = ordered.length > 1 && ordered.every(member => ['codex', 'codex-app'].includes(member.id));
+    const sharedCodex = usesSharedCodexProfile(ordered);
     const skillsDir = ordered[0].skillsDir;
     const contexts = ordered.map(member => createSkillRenderContext(member.id, skillsDir, sharedCodex));
     if (contexts.some(context => context.hash !== contexts[0].hash)) {
