@@ -243,30 +243,19 @@ ultra       → Ultra mode (first word)
 - If `git.enabled = false`, reject `--parallel`, `--list`, and `--cleanup` with a short explanation instead of trying git commands
 - If `--parallel` is set while `git.create_branches = false`, reject it with a short explanation because parallel mode requires branch creation
 
-**If the description is empty:**
-
-- If the configured `paths.research` file exists and its Active Summary has a non-empty `Topic:`, default the description to that topic (no extra user input required), set it as `selected_research_path`, and leave `original_user_request` empty.
-- Otherwise, if exactly one marked active ultra bundle exists and its linked `RESEARCH.md` has a non-empty `Topic:`, use that topic and file. If multiple marked active bundles exist, ask the user to select a topic/source.
-- Plans created from a selected `RESEARCH.md` without an explicit user request MUST NOT include an `Original Request` section.
-- Otherwise, ask the user for a short feature description. Preserve the user's answer verbatim as `original_user_request` and save it into the plan entrypoint later.
-
-**Original request contract:**
-
-- If the user explicitly supplied a planning request (for example `/aif-plan ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan full ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan ultra ТУТ ЗАПРОС НА ПЛАН`, or an answer to the description prompt), the generated plan entrypoint MUST include `## Original Request`.
-- `## Original Request` contains the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed. Do not rewrite, summarize, translate, or normalize its wording, even when `artifact_language` differs.
-- If the description was derived only from a selected `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
-- If the user supplied a request and selected research also influenced the plan, include both `## Original Request` and `## Research Context`.
-
 **If `--list` is present**, jump to [--list Subcommand](#--list-subcommand).
 **If `--cleanup` is present**, jump to [--cleanup Subcommand](#--cleanup-subcommand).
 
-**Mode selection:**
+**Mode selection (resolve once, independently of the description):**
 
 - An explicit leading `fast`, `full`, or `ultra` token wins over config.
 - Otherwise, `workflow.plan_mode: fast|full|ultra` selects that mode without a mode-selection question. Full/ultra preference questions and git restrictions still apply.
-- Otherwise (`ask`, missing, or invalid config), use `fast` in non-interactive Handoff mode; in normal mode ask only between full and fast below.
+- Otherwise (`ask`, missing, or invalid config), use `fast` in non-interactive Handoff mode; in an interactive session ask only between full and fast below.
 - Ultra is strictly opt-in. Select it through the leading `ultra` token or `workflow.plan_mode: ultra`; never infer it from task complexity.
+- Store the selected mode as `resolved_mode`. Description resolution below must not reopen mode selection or change `resolved_mode`.
 - `--list` and `--cleanup` keep their early-return behavior regardless of the configured mode.
+
+Ask this question only when no explicit mode was supplied, the configured preference resolves to `ask`, and the session is interactive:
 
 ```
 AskUserQuestion: Which planning mode?
@@ -276,12 +265,20 @@ Options:
 2. Fast – quick plan, no branch, saves to the resolved fast plan path
 ```
 
-If the user did not provide a description and a research source was selected:
+**If the description is empty:**
 
-- Mention that you will default the description to the `Active Summary` topic
-- Only ask for `full` vs `fast` (no description prompt needed)
-- Do not mention, recommend, or auto-select ultra unless the caller used the
-  explicit leading `ultra` token
+- If the configured `paths.research` file exists and its Active Summary has a non-empty `Topic:`, default the description to that topic (no extra user input required), set it as `selected_research_path`, and leave `original_user_request` empty.
+- Otherwise, if exactly one marked active ultra bundle exists and its linked `RESEARCH.md` has a non-empty `Topic:`, use that topic and file. If multiple marked active bundles exist, ask the user to select a topic/source.
+- When research supplies the description, mention the selected Active Summary topic and continue in `resolved_mode`, including configured ultra, without another mode question or a description prompt.
+- Plans created from a selected `RESEARCH.md` without an explicit user request MUST NOT include an `Original Request` section.
+- Otherwise, ask the user for a short feature description. Preserve the user's answer verbatim as `original_user_request` and save it into the plan entrypoint later.
+
+**Original request contract:**
+
+- If the user explicitly supplied a planning request (for example `/aif-plan ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan full ТУТ ЗАПРОС НА ПЛАН`, `/aif-plan ultra ТУТ ЗАПРОС НА ПЛАН`, or an answer to the description prompt), the generated plan entrypoint MUST include `## Original Request`.
+- `## Original Request` contains the exact user-provided request text after only recognized command tokens are removed and only outer whitespace is trimmed. Do not rewrite, summarize, translate, or normalize its wording, even when `artifact_language` differs.
+- If the description was derived only from a selected `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
+- If the user supplied a request and selected research also influenced the plan, include both `## Original Request` and `## Research Context`.
 
 For concrete parsing examples and expected behavior per command shape, read `references/EXAMPLES.md` (Argument Parsing).
 

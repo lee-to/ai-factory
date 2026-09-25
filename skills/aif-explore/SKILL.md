@@ -62,7 +62,7 @@ Apply `technical_terms_policy` while writing summaries and persisted artifacts:
 ## Artifact Ownership
 
 - Primary ownership in regular explore mode: the resolved research path (default: `.ai-factory/RESEARCH.md`) only.
-- Primary ownership in explicit ultra mode: one marked direct child bundle under `research_bundles_dir` only. Do not also update the legacy research file.
+- Primary ownership when the resolved mode is ultra (explicit token or config): one marked direct child bundle under `research_bundles_dir` only. Do not also update the legacy research file.
 - All other context artifacts (`paths.description`, `paths.architecture`, `paths.roadmap`, `paths.rules_file`, plan files) are read-only in this mode.
 - If a discovery should affect another artifact, capture it in the selected `RESEARCH.md` now and route follow-up to the owner command later.
 
@@ -256,7 +256,7 @@ If the user mentions a plan or you detect one is relevant:
    - "Want me to save this to the resolved research path so you can `/clear` and come back later?"
    - "That's an architecture decision — save it to RESEARCH now and we can migrate it to ARCHITECTURE during planning."
 
-4. **The user decides in regular mode** - Offer and move on. Don't pressure. In ultra, the explicit mode token already requests capture.
+4. **The user decides in regular mode** - Offer and move on. Don't pressure. When the resolved mode is ultra, the explicit token or configured default already requests capture. An explicit `regular` restores the save prompt.
 
 ### Persist exploration context
 
@@ -278,7 +278,7 @@ Delegate the read-only pass to a fresh-context subagent when supported, giving i
 
 #### Ultra mode: adaptive bundle
 
-For explicit ultra mode, follow `references/ULTRA-RESEARCH-FORMAT.md`:
+When the resolved mode is ultra (from the leading token or `workflow.explore_mode: ultra`), follow `references/ULTRA-RESEARCH-FORMAT.md`:
 
 1. Convert the meaningful topic to a concise English lowercase-kebab slug and resolve `<research_bundles_dir>/<slug>/`.
 2. If that directory exists, treat it as an existing ultra bundle only when `INDEX.md` has the exact marker. Reuse a semantically matching marked bundle; never overwrite an unmarked collision.
@@ -501,7 +501,7 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Don't fake understanding** - If something is unclear, dig deeper
 - **Don't rush** - Discovery is thinking time, not task time
 - **Don't force structure** - Let patterns emerge naturally
-- **Don't auto-capture in regular mode** - Offer to save insights, don't just do it. The explicit `ultra` token already requests bundle persistence.
+- **Don't auto-capture in regular mode** - Offer to save insights, don't just do it. A resolved ultra mode (explicit token or config) already requests bundle persistence; explicit `regular` restores the save prompt.
 - **Do visualize** - A good diagram is worth many paragraphs
 - **Do explore the codebase** - Ground discussions in reality
 - **Do question assumptions** - Including the user's and your own

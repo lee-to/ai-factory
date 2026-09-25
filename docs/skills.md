@@ -66,6 +66,8 @@ A leading mode token overrides `workflow.plan_mode` (`ask`, `fast`, `full`,
 `ultra`). With the default `ask`, a call without a mode keeps the full/fast
 question (fast in non-interactive Handoff mode). Ultra is opt-in via the token
 or config. See [Command defaults](config-reference.md#command-defaults).
+If the description comes from a research Active Summary, keep the resolved mode
+(including configured ultra) without asking for the mode again.
 
 All modes explore your codebase for patterns, create tasks with dependencies,
 and include commit checkpoints for 5+ tasks. In ultra, `index.md` is the only

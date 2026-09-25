@@ -1,0 +1,85 @@
+# Behavioral fixture for ai-tester; npm test does not execute model workflows.
+scenario: configured-ultra-research-topic
+description: |
+  Configured ultra must select a bundle without a mode question, including
+  when the description comes from research. Verify the actual plan writes.
+skill: aif-plan
+argument: ""
+max_turns: 60
+
+fixtures:
+  git_init: false
+  files_unstaged:
+    - path: package.json
+      content: '{"name":"demo-api","version":"0.1.0","type":"module"}'
+    - path: .ai-factory/config.yaml
+      content: |
+        language:
+          ui: en
+          artifacts: en
+        workflow:
+          plan_mode: ultra
+        git:
+          enabled: false
+          create_branches: false
+    - path: .ai-factory/RESEARCH.md
+      content: |
+        # Research
+        <!-- aif:active-summary:start -->
+        ## Active Summary (input for /aif-plan)
+        Topic: Add GET /health
+        Updated: 2026-09-25T00:00:00Z
+        Status: active
+        Add a Node HTTP endpoint that returns status 200 and body OK.
+        Keep the server dependency-free. No authentication or database is needed.
+        <!-- aif:active-summary:end -->
+        <!-- aif:sessions:start -->
+        ## Sessions
+        <!-- aif:sessions:end -->
+
+user_responses:
+  - match_question: "(?i)(test|log|doc|roadmap|milestone)"
+    choose: "Skip"
+
+assertions:
+  - id: creates-ultra-entrypoint
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/plans/[^/]+/index\.md$'
+      content: '<!-- aif:plan-mode:ultra -->'
+    weight: 4
+  - id: creates-ultra-phase
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/plans/[^/]+/phase-[0-9]+-[^/]+\.md$'
+  - id: does-not-write-fast-or-full-plan
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/(PLAN\.md|plans/[^/]+\.md)$'
+  - id: no-mode-question
+    type: no_tool_called
+    tool: AskUserQuestion
+    args_match:
+      questions: '(?i)(planning mode|full.{0,80}fast|fast.{0,80}full)'
+  - id: no-mode-question-alternate-tool
+    type: no_tool_called
+    tool: Questions
+    args_match:
+      questions: '(?i)(planning mode|full.{0,80}fast|fast.{0,80}full)'
+  - id: commits-research-context
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/plans/[^/]+/index\.md$'
+      content: '## Research Context[\s\S]*Source: `\.ai-factory/RESEARCH\.md`'
+  - id: no-invented-original-request
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/plans/[^/]+/index\.md$'
+      content: '## Original Request'
+  - id: stay-in-sandbox
+    type: no_path_escape

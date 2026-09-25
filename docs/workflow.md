@@ -291,6 +291,8 @@ A leading mode token overrides `workflow.plan_mode`. With its default `ask`,
 omitting the mode preserves the full/fast question (fast in non-interactive
 Handoff mode). Ultra requires a leading `ultra` token or `workflow.plan_mode: ultra`.
 See [Command defaults](config-reference.md#command-defaults).
+If the description comes from a research Active Summary, keep the resolved mode
+(including configured ultra) without asking for the mode again.
 Ultra discovery uses the exact untranslated
 `<!-- aif:plan-mode:ultra -->` entrypoint marker, so artifact localization cannot
 change bundle recognition.

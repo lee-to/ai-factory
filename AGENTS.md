@@ -118,7 +118,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `paths.architecture` (default: `.ai-factory/ARCHITECTURE.md`)                                 | `/aif-architecture`    | `/aif-implement` may update structure notes when structure changes                               |
 | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-roadmap`         | `/aif-implement` may mark completed milestones with evidence                                     |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules`           | top-level conventions plus area-rule files and registration                                      |
-| `paths.research` or derived `<parent>/research/<english-slug>/` bundle                        | `/aif-explore`         | regular single file; explicit ultra always owns `INDEX.md` + `RESEARCH.md`, supporting files are conditional |
+| `paths.research` or derived `<parent>/research/<english-slug>/` bundle                        | `/aif-explore`         | regular single file; ultra selected by token or config always owns `INDEX.md` + `RESEARCH.md`, supporting files are conditional |
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phase files                | `/aif-plan`            | fast/full/ultra artifacts; `/aif-improve` refines existing plans and bundles                     |
 | `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
 | `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
@@ -282,6 +282,8 @@ ROADMAP.md = strategic checklist of high-level goals
 /aif-plan [fast|full|ultra] <description>
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
+    ↓
+Resolve mode once, independently of description; reusing a research topic retains the selected mode, including configured ultra
     ↓
 Selects at most one relevant research source: explicit path → clearly matching marked ultra bundle → configured `paths.research`; if it informs the plan, writes a committed `Research Context` snapshot with the exact `RESEARCH.md` source plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
 If the user supplied an explicit planning request, saves it in the plan entrypoint as `Original Request`; strip only recognized command tokens (`fast`/`full`/`ultra` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
