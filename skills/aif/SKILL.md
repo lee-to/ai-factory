@@ -225,6 +225,7 @@ node ~/{{skills_dir}}/aif/references/update-config.mjs \
 - Preserve `language.technical_terms` from existing config when present; otherwise set it to `keep` when writing config.
 - In `set`, include only values explicitly resolved in the current run and that must be written now.
 - In `fillMissing`, include canonical defaults that should be backfilled only when the key or section is missing or incomplete.
+- Preserve existing command defaults (`workflow.explore_mode`, `workflow.plan_mode`, and `workflow.improve_check`) on reruns unless the user explicitly changes them. Backfill only missing/incomplete values with `regular`, `ask`, and `false`, respectively; do not infer preferences from prior command usage.
 - Managed keys for this helper are limited to:
   - `language.ui`
   - `language.artifacts`

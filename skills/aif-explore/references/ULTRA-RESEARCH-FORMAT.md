@@ -1,6 +1,6 @@
 # aif-explore Ultra Research Bundle
 
-Use this reference only for an explicit `/aif-explore ultra <topic>` request.
+Use this reference when ultra mode is selected by an explicit `/aif-explore ultra <topic>` request or `workflow.explore_mode: ultra`.
 Ultra research is a durable analysis bundle, not an implementation plan. Its
 purpose is to preserve evidence, system boundaries, decisions, and unresolved
 questions without forcing every topic through the same documentation set.

@@ -20,8 +20,9 @@ Ultra is intended for planning with a stronger model and implementation with a
 smaller model. The planner commits implementation decisions into a bundle:
 
 Ultra is additive and strictly opt-in. Updating AI Factory does not migrate
-existing plan files or change fast/full artifact shapes; only an explicit
-`/aif-plan ultra ...` creates a bundle.
+existing plan files or change fast/full artifact shapes. A leading `ultra` token
+or `workflow.plan_mode: ultra` selects a bundle; an explicit `fast` or `full`
+overrides the configured default.
 
 ```text
 .ai-factory/plans/feature-billing-ledger/
@@ -81,7 +82,7 @@ To avoid ownership conflicts, artifact writers are command-scoped:
 | `.ai-factory/ARCHITECTURE.md`                                             | `/aif-architecture`   | `/aif-implement` may update structure notes when implementation changes structure              |
 | `.ai-factory/ROADMAP.md`                                                  | `/aif-roadmap`        | `/aif-implement` may mark completed milestones with evidence                                   |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules` | top-level conventions plus area-rule files and registration                         |
-| `paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle | `/aif-explore` | regular single file or explicit ultra bundle with conditional supporting artifacts |
+| `paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle | `/aif-explore` | regular single file or ultra bundle (token or config) with conditional supporting artifacts |
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phases | `/aif-plan`          | `/aif-improve` refines existing single-file plans and ultra bundles                             |
 | `paths.fix_plan` and `paths.patches/*.md`                                 | `/aif-fix`            | defaults shown; actual paths come from `paths.fix_plan` and `paths.patches`                    |
 | `.ai-factory/skill-context/*`                                             | `/aif-evolve`         | project-specific skill overrides; `/aif-transfer` delegates approved anonymized inputs          |

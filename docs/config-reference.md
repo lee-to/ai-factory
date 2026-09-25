@@ -90,11 +90,41 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
+| `workflow.explore_mode` | `regular` | `/aif-explore` | Default mode: `regular` or `ultra`; a leading mode token overrides it. `ultra` opts into saving a named research bundle. |
+| `workflow.plan_mode` | `ask` | `/aif-plan` | Default mode: `ask`, `fast`, `full`, or `ultra`; a leading mode token overrides it. `ask` keeps the full/fast question, or fast in non-interactive Handoff mode. |
+| `workflow.improve_check` | `false` | `/aif-improve` | Boolean default for findings validation. `+check` enables it; `--no-check` disables it for one invocation; the last explicit flag wins. `--list` always skips validation. |
 | `workflow.auto_create_dirs` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for directory-management behavior |
 | `workflow.plan_id_format` | `slug` | `/aif-plan`, `/aif-implement`, `/aif-improve`, `/aif-explore`, `/aif-verify`, `/aif-rules-check`, `/aif-commit`, `/aif-archive`, `/aif-warmup` | Active values: `slug` (default), `sequential`; `timestamp` and `uuid` are reserved and fall back to `slug`. Sequential writes a full plan as `paths.plans/<NNNN>_<stem>.md` or an ultra bundle as `paths.plans/<NNNN>_<stem>/index.md`. Allocation counts numbered full files and only directories whose `index.md` has the exact ultra marker, uses max + 1, starts at `0001`, caps at `9999`, ignores unrelated numbered directories, and excludes the archive. Moving/deleting the highest active artifact can free its number. Force-disabled when `HANDOFF_BRANCH_PREPARED=1`. `/aif-warmup` only reports the configured preference. |
 | `workflow.analyze_updates_architecture` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for setup/update workflow control |
 | `workflow.architecture_updates_roadmap` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for architecture-to-roadmap automation |
 | `workflow.verify_mode` | `normal` | `/aif-verify`, `/aif-warmup` | Default strictness for verification runs; `/aif-warmup` only reports the configured preference |
+
+#### Command defaults
+
+Set the options you repeatedly type in `.ai-factory/config.yaml`:
+
+```yaml
+workflow:
+  explore_mode: ultra
+  plan_mode: full
+  improve_check: true
+```
+
+With these settings, `/aif-explore <topic>`, `/aif-plan <request>`, and
+`/aif-improve` behave like their explicit `ultra`, `full`, and `+check` forms.
+
+Explicit arguments win: `/aif-explore regular <topic>` restores regular
+exploration and its save prompt; `/aif-plan fast <request>` uses fast mode;
+`/aif-improve --no-check` skips validation once. Defaults do not become part
+of the topic, improvement prompt, or plan's verbatim `Original Request`.
+List/cleanup subcommands keep their early-return behavior. Other questions,
+permissions, git settings, and artifact ownership stay in effect.
+
+Missing values retain the previous behavior (`regular`, `ask`, `false`).
+Invalid values or types emit `WARN [config]` and fall back to those same defaults;
+`improve_check` must be a YAML boolean, not a quoted string. `/aif` setup reruns
+preserve existing values and comments and backfill only missing/incomplete keys.
+These settings support the three command options listed above.
 
 ### `git`
 
@@ -127,10 +157,10 @@ During setup, `/aif` resolves `language.ui` and `language.artifacts` immediately
 | Skill | Reads config | Writes config | Main sections used |
 |-------|--------------|---------------|--------------------|
 | `/aif-architecture` | Yes | No | `paths.description`, `paths.architecture`, `language.ui`, `language.artifacts` |
-| `/aif-plan` | Yes | No | `paths.*` for planning artifacts, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.*` |
-| `/aif-explore` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.rules`, `language.ui`, `language.artifacts`, `language.technical_terms` |
+| `/aif-plan` | Yes | No | `paths.*` for planning artifacts, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.*`, `workflow.plan_mode` |
+| `/aif-explore` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.rules`, `language.ui`, `language.artifacts`, `language.technical_terms`, `workflow.explore_mode` |
 | `/aif-roadmap` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.rules`, `language.ui`, `language.artifacts` |
-| `/aif-improve` | Yes | No | `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`, `git.base_branch`, `git.create_branches` |
+| `/aif-improve` | Yes | No | `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.patches`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`, `git.base_branch`, `git.create_branches`, `workflow.improve_check` |
 | `/aif-implement` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.patches`, `paths.rules`, `language.ui`, `language.artifacts`, `git.enabled`, `git.base_branch`, `git.create_branches`, `rules.base`, `rules.<area>` |
 | `/aif-verify` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.specs`, `paths.rules`, `workflow.verify_mode`, `language.ui`, `git.enabled`, `git.base_branch`, `git.create_branches`, `rules.base`, `rules.<area>` |
 | `/aif-rules-check` | Yes | No | `paths.rules_file`, `paths.rules`, `paths.plan`, `paths.plans`, `language.ui`, `git.enabled`, `git.base_branch`, `rules.base`, `rules.<area>` |

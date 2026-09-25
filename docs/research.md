@@ -6,13 +6,15 @@
 from implementation:
 
 ```text
-/aif-explore <topic>        optional single-file research
-/aif-explore ultra <topic>  adaptive topic bundle
+/aif-explore <topic>         configured mode (regular by default)
+/aif-explore regular <topic> optional single-file research
+/aif-explore ultra <topic>   adaptive topic bundle
 ```
 
-Ultra is explicit and additive. Existing projects keep using the configured
-`paths.research` file (default `.ai-factory/RESEARCH.md`) unless the command starts
-with `ultra`.
+Ultra is opt-in through a leading `ultra` token or `workflow.explore_mode: ultra`.
+Without that setting, existing projects keep using the configured `paths.research`
+file (default `.ai-factory/RESEARCH.md`). A leading `regular` overrides a configured
+ultra default and restores the save prompt. See [Command defaults](config-reference.md#command-defaults).
 
 ## Storage
 

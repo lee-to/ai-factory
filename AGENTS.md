@@ -118,7 +118,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `paths.architecture` (default: `.ai-factory/ARCHITECTURE.md`)                                 | `/aif-architecture`    | `/aif-implement` may update structure notes when structure changes                               |
 | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-roadmap`         | `/aif-implement` may mark completed milestones with evidence                                     |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules`           | top-level conventions plus area-rule files and registration                                      |
-| `paths.research` or derived `<parent>/research/<english-slug>/` bundle                        | `/aif-explore`         | regular single file; explicit ultra always owns `INDEX.md` + `RESEARCH.md`, supporting files are conditional |
+| `paths.research` or derived `<parent>/research/<english-slug>/` bundle                        | `/aif-explore`         | regular single file; ultra selected by token or config always owns `INDEX.md` + `RESEARCH.md`, supporting files are conditional |
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phase files                | `/aif-plan`            | fast/full/ultra artifacts; `/aif-improve` refines existing plans and bundles                     |
 | `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
 | `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
@@ -165,6 +165,7 @@ Current config keys in active use:
 - `language.ui` / `language.artifacts` / `language.technical_terms` - prompt/report language, generated artifact language, and terminology handling while preserving commands, paths, identifiers, config keys, and raw errors where required
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
 - `workflow.verify_mode` - default verification strictness
+- `workflow.explore_mode` / `workflow.plan_mode` / `workflow.improve_check` - command defaults (`regular` / `ask` / `false`); explicit arguments win, `/aif` reruns preserve values
 - `warmup.paths` - optional extra files/directories loaded recursively by `/aif-warmup`
 - `rules.base` plus named `rules.<area>` entries - rules hierarchy
 
@@ -253,11 +254,11 @@ Carries relevant language, git, and workflow preferences into a compact read-onl
     ↓
 Stops without implementation so the warmed session can continue or be forked
 
-/aif-explore [ultra] [topic or plan name]
+/aif-explore [regular|ultra] [topic or plan name]
     ↓
 Regular → thinking partner; optional save to configured `paths.research`; persisted updates pass a saved-content coherence gate before presentation/session append
     ↓
-Explicit ultra → derives `<parent(paths.research)>/research/<logical-english-slug>/`
+Ultra (leading token or workflow.explore_mode: ultra; regular overrides) → derives `<parent(paths.research)>/research/<logical-english-slug>/`
     ↓
 Always writes `INDEX.md` + compatible `RESEARCH.md`
     ↓
@@ -282,6 +283,8 @@ ROADMAP.md = strategic checklist of high-level goals
     ↓
 Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
     ↓
+Resolve mode once, independently of description; reusing a research topic retains the selected mode, including configured ultra
+    ↓
 Selects at most one relevant research source: explicit path → clearly matching marked ultra bundle → configured `paths.research`; if it informs the plan, writes a committed `Research Context` snapshot with the exact `RESEARCH.md` source plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
 If the user supplied an explicit planning request, saves it in the plan entrypoint as `Original Request`; strip only recognized command tokens (`fast`/`full`/`ultra` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
     ↓
@@ -293,8 +296,9 @@ full → creates richer plan, asks: tests? logging? docs?
         `<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential`)
     ↓
 ultra → uses full-mode preferences and optional branch/worktree flow
-        → is strictly opt-in via the leading `ultra` token; omitted mode keeps
-          the existing full/fast interactive choice
+        → is opt-in via the leading `ultra` token or workflow.plan_mode: ultra;
+          explicit mode wins; otherwise workflow.plan_mode selects ask/fast/full/ultra
+          (ask preserves the full/fast question, or fast in non-interactive Handoff mode)
         → saves `paths.plans/<id>/index.md` plus one `phase-NN-*.md` per phase
         → `index.md` contains the exact untranslated `<!-- aif:plan-mode:ultra -->` discovery marker
         → `index.md` owns scope/settings/context/TOC/task checkboxes/dependencies/commits
@@ -309,7 +313,9 @@ Creates tasks with TaskCreate
     ↓
 For 5+ tasks: includes commit checkpoints
 
-/aif-improve
+/aif-improve [+check|--no-check]
+    ↓
+Resolves validation: last explicit flag → workflow.improve_check → false; --list skips validation
     ↓
 Reads the active plan and treats `## Original Request` as the immutable original intent / scope anchor when present
     ↓

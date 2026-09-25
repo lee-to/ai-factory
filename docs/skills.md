@@ -25,7 +25,7 @@ Load the essential project context before starting work:
 - Summarizes active research bundles without loading unrelated supporting artifacts
 - Changes nothing and stops at a self-contained handoff, making the warmed session suitable for continuing or forking
 
-### `/aif-explore [ultra] [topic or plan name]`
+### `/aif-explore [regular|ultra] [topic or plan name]`
 Explore ideas, constraints, and trade-offs before planning:
 ```
 /aif-explore real-time collaboration
@@ -39,14 +39,14 @@ Explore ideas, constraints, and trade-offs before planning:
 - Does **not** implement code in this mode; when direction is clear, move to `/aif-plan`
 - Can optionally persist exploration context to `paths.research` (default: `.ai-factory/RESEARCH.md`) so you can `/clear` and still feed results into `/aif-plan`
 - Before presenting any persisted regular or ultra update, checks the saved research without relying on chat memory: the Active Summary must be self-contained, must not silently contradict durable research, and quoted mismatches must be resolved or made explicit in `Open questions`. Runtimes with fresh-context delegation use it; direct checking is the portable fallback.
-- Explicit `ultra` is opt-in and persists `<parent(paths.research)>/research/<english-topic-slug>/`. Every bundle has `INDEX.md` + compatible `RESEARCH.md`; C4 Context/Container/Component, ADR, and dependency graph files are added only when evidence meets their complexity signals.
+- A leading `ultra` or `workflow.explore_mode: ultra` opts into a persistent bundle; a leading `regular` overrides config. Ultra persists `<parent(paths.research)>/research/<english-topic-slug>/`. Every bundle has `INDEX.md` + compatible `RESEARCH.md`; C4 Context/Container/Component, ADR, and dependency graph files are added only when evidence meets their complexity signals.
 - Keeps `RESEARCH.md` Active Summary as the sole planning input. In ultra mode, summary claims need self-contained supporting passages, and supporting diagrams and decisions must promote material conclusions into that summary instead of silently expanding plan scope.
 - Best when the problem is still fuzzy: requirements unclear, trade-offs unresolved, or you want to inspect the codebase before choosing a direction
 
 ### `/aif-plan [fast|full|ultra] <description>`
 Plans implementation for a feature or task:
 ```
-/aif-plan Add user authentication with OAuth       # Asks which mode
+/aif-plan Add user authentication with OAuth       # Uses config, otherwise asks which mode
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
 /aif-plan ultra Rebuild billing around a ledger    # Exhaustive multi-file plan bundle
@@ -62,8 +62,12 @@ Three modes:
   Its entrypoint contains the stable untranslated
   `<!-- aif:plan-mode:ultra -->` discovery marker.
 
-Ultra is strictly opt-in: it is selected only by the explicit leading `ultra`
-token. A call without a mode keeps the pre-ultra full/fast question and defaults.
+A leading mode token overrides `workflow.plan_mode` (`ask`, `fast`, `full`,
+`ultra`). With the default `ask`, a call without a mode keeps the full/fast
+question (fast in non-interactive Handoff mode). Ultra is opt-in via the token
+or config. See [Command defaults](config-reference.md#command-defaults).
+If the description comes from a research Active Summary, keep the resolved mode
+(including configured ultra) without asking for the mode again.
 
 All modes explore your codebase for patterns, create tasks with dependencies,
 and include commit checkpoints for 5+ tasks. In ultra, `index.md` is the only
@@ -110,7 +114,7 @@ Creates or updates a strategic project roadmap:
 - Milestones are high-level goals (not granular tasks — that's `/aif-plan`)
 - `/aif-implement` automatically marks roadmap milestones done when work completes
 
-### `/aif-improve [--list] [+check] [@plan-file-or-directory] [prompt]`
+### `/aif-improve [--list] [+check|--no-check] [@plan-file-or-directory] [prompt]`
 Refine an existing plan with a second iteration:
 ```
 /aif-improve                                    # Auto-review: find gaps, missing tasks, wrong deps
@@ -136,10 +140,11 @@ Refine an existing plan with a second iteration:
 - If no plan found — suggests running `/aif-plan` (feature/task) or `/aif-fix` (bugfix) first
 
 **Optional validation (`+check`)**
+- `workflow.improve_check: true` enables validation by default; `--no-check` disables it for one invocation. Explicit flags override config; if both flags are supplied, the last one wins.
 - After Step 4 the skill dispatches a single fresh-context `general-purpose` subagent that re-reads cited files and judges each finding from the `missing`, `improvements`, `removals`, and `out_of_scope` groups
 - Invented findings disappear, partially-correct ones are rewritten in place, real findings stay untouched; the `🔗 Dependency Fixes` group is recomputed against the filtered task list afterwards and is not sent to the validator
 - The Step 5 Summary block gains two extra lines — `Hidden by +check: N` and `Adjusted by +check: M`; if the validator call fails entirely, no counters are printed and a single `WARN [+check]` line is appended instead
-- `+check` together with `--list` is silently ignored (no refinement to validate)
+- Validation flags and the configured default are silently ignored with `--list` (no refinement to validate)
 
 ### `/aif-loop [new|resume|status|stop|list|history|clean] [task or alias]`
 Runs a strict iterative Reflex Loop with phase-based execution and quality gates:

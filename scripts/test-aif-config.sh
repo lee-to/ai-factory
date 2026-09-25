@@ -243,4 +243,7 @@ fi
 assert_contains "$TMPDIR/unsafe.log" 'Unsupported target structure' "unsafe structure failure must explain the rejection"
 assert_not_contains "$MERGE_TARGET" '^  docs: docs/$' "merge fillMissing must not overwrite existing custom docs path"
 
+# Deterministic helper checks only. Skill behavior scenarios live under skills/*/tests/.
+node "$ROOT_DIR/scripts/test-workflow-defaults-config.mjs"
+
 echo "aif config helper regression tests passed"
