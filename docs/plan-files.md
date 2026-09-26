@@ -57,10 +57,10 @@ without the marker do not consume plan IDs.
 
 AI Factory supports two plan structure modes, controlled by `workflow.plan_structure` in `config.yaml`:
 
-|| Mode | Description | Commit Handling |
-||------|-------------|-----------------|
-|| `classic` (default) | Separate `## Commit Plan` section at the end of the plan | `/aif-implement` parses commit checkpoints and prompts for commits |
-|| `task-based` | Commits are explicit tasks in the plan, co-located with related work | `/aif-implement` recognizes commit tasks and invokes `/aif-commit` automatically |
+| Mode | Description | Commit Handling |
+|------|-------------|-----------------|
+| `classic` (default) | Separate `## Commit Plan` section at the end of the plan | `/aif-implement` parses commit checkpoints and prompts for commits |
+| `task-based` | Commits are explicit tasks in the plan, co-located with related work | `/aif-implement` recognizes commit tasks and invokes `/aif-commit` automatically |
 
 **Classic format** (backward compatible):
 ```markdown
@@ -92,11 +92,11 @@ AI Factory supports two plan structure modes, controlled by `workflow.plan_struc
 
 When using task-based plan structure, `/aif-plan` offers three commit strategies:
 
-|| Strategy | Description | Example |
-||----------|-------------|---------|
-|| `incremental` (default) | Commits at natural boundaries throughout implementation | Commit after each feature component |
-|| `incremental at end` | All commits created after implementation completes | Complete all work, then commit in logical groups |
-|| `single commit at end` | One commit after all implementation | Complete all work, then single final commit |
+| Strategy | Description | Example |
+|----------|-------------|---------|
+| `incremental` (default) | Commits at natural boundaries throughout implementation | Commit after each feature component |
+| `incremental at end` | All commits created after implementation completes | Complete all work, then commit in logical groups |
+| `single commit at end` | One commit after all implementation | Complete all work, then single final commit |
 
 The commit strategy is selected via preference questions during `/aif-plan` and affects how commit tasks are generated and placed in the plan.
 
@@ -104,10 +104,10 @@ The commit strategy is selected via preference questions during `/aif-plan` and 
 
 AI Factory supports Test-Driven Development (TDD) with two granularity options:
 
-|| Granularity | Description | Task Ordering |
-||-------------|-------------|---------------|
-|| `task-based` | Test before each implementation task | Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor |
-|| `feature-based` | All tests for a phase before implementation | Test batch → Implementation batch → Refactor |
+| Granularity | Description | Task Ordering |
+|-------------|-------------|---------------|
+| `task-based` | Test before each implementation task | Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor |
+| `feature-based` | All tests for a phase before implementation | Test batch → Implementation batch → Refactor |
 
 **Task-based TDD example:**
 ```markdown
