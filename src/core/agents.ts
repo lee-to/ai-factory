@@ -13,6 +13,7 @@ export interface AgentConfig {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: AgentFileExtension;
   settingsFile: string | null;
@@ -30,6 +31,7 @@ export interface RuntimeDefinitionInput {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: AgentFileExtension;
   settingsFile: string | null;
@@ -255,6 +257,7 @@ function normalizeRuntimeDefinition(
     displayName: definition.displayName,
     configDir: definition.configDir,
     skillsDir: definition.skillsDir,
+    homeSkillsDir: definition.homeSkillsDir,
     agentsDir: definition.agentsDir,
     agentFileExtension: definition.agentFileExtension,
     settingsFile: definition.settingsFile,
