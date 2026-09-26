@@ -5,6 +5,7 @@ export type AgentFileExtension = '.md' | '.toml';
 export const AGENT_IDS = {
   claude: 'claude',
   codex: 'codex',
+  devin: 'devin',
 } as const;
 
 export interface AgentConfig {
@@ -12,6 +13,7 @@ export interface AgentConfig {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: AgentFileExtension;
   settingsFile: string | null;
@@ -29,6 +31,7 @@ export interface RuntimeDefinitionInput {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: AgentFileExtension;
   settingsFile: string | null;
@@ -140,6 +143,17 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsCliAgent: 'windsurf',
     source: 'builtin',
   },
+  [AGENT_IDS.devin]: {
+    id: AGENT_IDS.devin,
+    displayName: 'Devin',
+    configDir: '.devin',
+    skillsDir: '.devin/skills',
+    homeSkillsDir: '.config/devin/skills',
+    settingsFile: null,
+    supportsMcp: false,
+    skillsCliAgent: 'devin',
+    source: 'builtin',
+  },
   warp: {
     id: 'warp',
     displayName: 'Warp',
@@ -243,6 +257,7 @@ function normalizeRuntimeDefinition(
     displayName: definition.displayName,
     configDir: definition.configDir,
     skillsDir: definition.skillsDir,
+    homeSkillsDir: definition.homeSkillsDir,
     agentsDir: definition.agentsDir,
     agentFileExtension: definition.agentFileExtension,
     settingsFile: definition.settingsFile,
