@@ -622,6 +622,28 @@ TaskUpdate(taskId, status: "in_progress")
   allowed later in this workflow, but those updates must not change behavioral
   requirements merely to match the implementation.
 
+**3.3.1: TDD-specific handling**
+
+When the plan's `## Settings` includes `Development methodology: tdd`:
+
+- **For test tasks**: Execute the test and verify it fails initially (TDD red-green-refactor cycle)
+  - Log test execution results
+  - Ensure test file is created and test is written
+  - Verify test fails as expected (no implementation yet)
+- **For implementation tasks**: 
+  - Before marking complete, run the related test(s) to verify they now pass
+  - Log test validation results
+  - Only mark implementation task complete when its corresponding test(s) pass
+  - If test fails, fix the implementation and re-run tests
+- **For refactoring tasks**:
+  - Run all related tests to ensure they still pass after refactoring
+  - Log refactoring changes and test validation
+  - Only mark refactoring task complete when all tests still pass
+- **Task dependency handling**: 
+  - When `TDD granularity: task-based`, ensure test tasks are completed before their dependent implementation tasks
+  - When `TDD granularity: feature-based`, ensure test batch is completed before implementation batch
+  - Use `TaskUpdate` to enforce these dependencies via `blockedBy` relationships
+
 **3.4: Verify implementation**
 
 - Check code compiles/runs
@@ -630,6 +652,27 @@ TaskUpdate(taskId, status: "in_progress")
 - Run the verification scenarios assigned to the task. When a representative
   repository artifact defines the contract, exercise that artifact through the
   primary path rather than relying only on synthetic fixtures.
+
+**3.4.1: TDD test execution verification**
+
+When `Development methodology: tdd` is in the plan settings:
+
+- **Before marking implementation tasks complete**: 
+  - Execute the test(s) associated with this implementation task
+  - Verify all tests pass
+  - Log test execution results with format: `[aif-implement.tdd] test execution {data}`
+  - If tests fail, do NOT mark the task complete — fix the implementation and re-run tests
+  - Only mark implementation task complete when its corresponding test(s) pass
+- **For refactoring tasks**:
+  - Execute all related tests to ensure refactoring didn't break anything
+  - Verify all tests still pass
+  - Log test validation results
+  - Only mark refactoring task complete when all tests still pass
+- **For test tasks**:
+  - Verify the test file was created
+  - Run the test to confirm it fails (TDD red phase)
+  - Log test failure as expected behavior
+  - Mark test task complete only after confirming test exists and fails as expected
 
 **3.5: Mark as completed**
 
@@ -697,7 +740,44 @@ If during implementation:
 
 **3.8: Check for commit checkpoint**
 
-If the plan has commit checkpoints and current task is at a checkpoint:
+**3.8.1: Handle commit tasks (task-based commit structure)**
+
+Resolve the plan's saved execution format before consulting the current config. The task file itself is authoritative for commit-task dispatch; config is a fallback only when the plan artifact cannot be read or is a legacy format.
+
+When the current task is a commit task, identified by the task marker `<!-- aif:task-kind:commit -->` immediately before the task line:
+
+- Recognize this as a commit task (task-based commit structure)
+- Extract the commit message from the task description, typically `Commit changes with message "<conventional commit message>"` or `Commit all changes with message "..."`
+- Reject or stop when the task is marked as a commit task but the commit message cannot be extracted without guessing
+- Invoke `/aif-commit` with the extracted commit message
+- Log the commit invocation with format: `[aif-implement.commit] invoking /aif-commit for task {taskId}`
+- After successful commit, mark the commit task as completed and persist the plan update before proceeding to the next task
+- If the commit fails or the user cancels, leave the task marked incomplete and do not advance completion state for the dependent work
+- Proceed to the next task only after the commit outcome is resolved
+
+**Commit task recognition rules:**
+- Canonical signal: `<!-- aif:task-kind:commit -->` immediately before the task checkbox line
+- Legacy fallback only: a task description starting with `Commit changes with message` is treated as a compatibility fallback when the plan does not include the stable marker
+- A task without the marker is a regular implementation task even if it contains the word "commit"
+- Commit tasks are dependency boundaries for their grouped implementation/test/doc tasks and are not ordinary implementation work
+
+**Handling all three commit strategies:**
+- **Incremental**: Commit tasks appear interspersed with implementation - invoke `/aif-commit` when each commit task is reached
+- **Incremental at end**: Commit tasks appear at the end - invoke `/aif-commit` for each commit task in sequence
+- **Single commit at end**: One commit task at the end - invoke `/aif-commit` once with the final commit message
+
+**Saved-plan resolution order:**
+1. Read the active plan artifact first and detect an explicit commit marker or a classic `## Commit Plan` section.
+2. If the plan is task-based and contains the commit marker, use commit-task recognition (this section).
+3. Else if the plan contains a classic `## Commit Plan` section, use classic parsing (see Step 3.8.2).
+4. Only if the plan cannot be resolved or is legacy/ambiguous, fall back to `workflow.plan_structure` from config.
+5. If neither the saved plan nor config yields a clear pattern, do not guess: treat it as a normal task flow and continue without dispatching `/aif-commit`.
+
+**Important:** `workflow.plan_structure` is the default shape for newly generated plans, not the source of truth for an existing saved plan. Existing plans must be honored as written.
+
+**3.8.2: Classic commit checkpoints (backward compatibility)**
+
+If the plan has a separate `## Commit Plan` section (classic format) and current task is at a checkpoint:
 
 ```
 AskUserQuestion: ✅ Tasks <first>-<last> completed. This is a commit checkpoint. Ready to commit? Suggested message: "<conventional commit message>"

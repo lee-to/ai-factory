@@ -1,0 +1,85 @@
+scenario: tdd-test-execution
+description: |
+  aif-implement should handle TDD task dependencies and ensure test execution
+  before marking TDD implementation tasks complete. This test verifies TDD
+  handling for both task-based and feature-based granularity.
+skill: aif-implement
+argument: ""
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/test-tdd
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo API
+
+        Tiny Node.js API skeleton.
+    - path: package.json
+      content: |
+        {
+          "name": "demo-api",
+          "version": "0.1.0",
+          "type": "module",
+          "dependencies": { "express": "^4.0.0" }
+        }
+    - path: .ai-factory/plans/feature-test-tdd.md
+      content: |
+        # Implementation Plan: Test TDD
+
+        Branch: feature/test-tdd
+        Created: 2026-09-20
+
+        ## Original Request
+
+        Test TDD handling
+
+        ## Settings
+        - Testing: yes
+        - Logging: verbose
+        - Docs: yes
+        - Commit strategy: incremental
+        - Development methodology: tdd
+        - TDD granularity: task-based
+
+        ## Tasks
+
+        ### Phase 1: Implementation
+        - [ ] Task 1: Write failing unit test for user login
+          Files: tests/login.test.ts
+        - [ ] Task 2: Implement user login to make test pass
+          Files: src/services/auth.ts
+          Depends on: 1
+
+user_responses: []
+
+assertions:
+  - id: handles-tdd-dependencies
+    type: tool_called
+    tool: TaskUpdate
+    args_match:
+      status: "in_progress"
+    weight: 2
+
+  - id: respects-tdd-task-ordering
+    type: tool_called
+    tool: TaskUpdate
+    weight: 2

@@ -192,6 +192,15 @@ workflow:
   # (`paths.fix_plan`) are single files and ignore this setting.
   plan_id_format: slug
 
+  # Plan structure mode
+  # Options: classic, task-based
+  # Default: classic
+  #
+  # `classic` keeps the separate `## Commit Plan` section.
+  # `task-based` writes explicit commit tasks inside the main task list and
+  # relies on `/aif-implement` to recognize them as commit checkpoints.
+  plan_structure: classic
+
   # Whether the setup/analyze flow updates ARCHITECTURE.md
   # Default: true
   analyze_updates_architecture: true

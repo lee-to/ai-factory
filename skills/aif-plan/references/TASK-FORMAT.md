@@ -39,6 +39,9 @@ Created: [date]
 - Testing: yes/no
 - Logging: verbose/standard/minimal
 - Docs: yes/no  # yes => mandatory docs checkpoint in /aif-implement, no/unset => WARN [docs] only
+- Commit strategy: incremental/incremental-at-end/single-commit  # how commits are structured
+- Development methodology: implementation-first/tdd  # implementation-first or test-driven development
+- TDD granularity: task-based/feature-based  # only shown when Development methodology: tdd
 
 ## Roadmap Linkage (optional)
 <!-- Only when .ai-factory/ROADMAP.md exists -->
@@ -70,6 +73,8 @@ Authority: [declared source priority, or "none declared"]
 
 ## Tasks
 
+### Classic Format (separate Commit Plan section)
+
 ### Phase 1: Setup
 - [ ] Task 1: [description]
 - [ ] Task 2: [description]
@@ -82,7 +87,74 @@ Authority: [declared source priority, or "none declared"]
 ### Phase 3: Integration
 - [ ] Task 5: [description] (depends on 3, 4)
 <!-- Commit checkpoint: tasks 5+ -->
+
+### Task-Based Format (commits as explicit tasks)
+
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service with login/logout
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+- [ ] <!-- aif:task-kind:commit -->
+- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 2,3)
+- [ ] Task 5: Implement auth middleware
+- [ ] Task 6: Write integration tests for auth flow (depends on 5)
+- [ ] Task 7: Document auth middleware usage (depends on 5)
+- [ ] <!-- aif:task-kind:commit -->
+- [ ] Task 8: Commit changes with message "feat: implement auth middleware" (depends on 6,7)
+
+### TDD Task-Based Format (test before each implementation task)
+
+### Phase 1: User Authentication System (TDD)
+- [ ] Task 1: Write failing unit test for user login functionality
+- [ ] Task 2: Implement user login to make test pass (depends on 1)
+- [ ] Task 3: Write failing unit test for user registration functionality
+- [ ] Task 4: Implement user registration to make test pass (depends on 3)
+- [ ] Task 5: Refactor authentication logic (ensure all tests still passing) (depends on 2,4)
+- [ ] Task 6: Write failing integration test for complete auth flow
+- [ ] Task 7: Implement auth middleware to make test pass (depends on 6)
+- [ ] Task 8: Commit changes with message "feat: implement user authentication with TDD" (depends on 5,7)
+
+### TDD Feature-Based Format (test batch before implementation)
+
+### Phase 1: User Authentication System (TDD)
+- [ ] Task 1: Write failing unit test for user login functionality
+- [ ] Task 2: Write failing unit test for user registration functionality
+- [ ] Task 3: Write failing integration test for complete auth flow
+- [ ] Task 4: Implement user login to make test pass (depends on 1)
+- [ ] Task 5: Implement user registration to make test pass (depends on 2)
+- [ ] Task 6: Implement auth middleware to make test pass (depends on 3)
+- [ ] Task 7: Refactor authentication logic (ensure all tests still passing) (depends on 4,5,6)
+- [ ] Task 8: Commit changes with message "feat: implement user authentication with TDD" (depends on 7)
+
+### Incremental at End Commit Strategy
+
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service with login/logout
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+- [ ] Task 4: Implement auth middleware
+- [ ] Task 5: Write integration tests for auth flow (depends on 4)
+- [ ] Task 6: Document auth middleware usage (depends on 4)
+- [ ] Task 7: Commit changes with message "feat: implement user service" (depends on 2,3)
+- [ ] Task 8: Commit changes with message "feat: implement auth middleware" (depends on 5,6)
+
+### Single Commit at End Strategy
+
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service with login/logout
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+- [ ] Task 4: Implement auth middleware
+- [ ] Task 5: Write integration tests for auth flow (depends on 4)
+- [ ] Task 6: Document auth middleware usage (depends on 4)
+- [ ] Task 7: Commit all changes with message "feat: implement user authentication system" (depends on 2,3,5,6)
 ```
+
+**Note:** The examples above show all three commit strategies and both TDD granularity options:
+- **Commit strategies**: incremental (commits interspersed), incremental at end (commits grouped at end), single commit at end (one final commit)
+- **TDD granularity**: task-based (test before each implementation task), feature-based (test batch before implementation per phase)
+- **Classic format**: preserved for backward compatibility with separate Commit Plan section
+- **Task-based format**: commits as explicit tasks with dependencies on related implementation/test/doc tasks
 
 ## TaskCreate Example
 
@@ -123,3 +195,82 @@ Every task description should specify:
 - Safety: production log level can be reduced without code edits
 
 Never create tasks without logging instructions.
+
+## TDD Task Pattern Examples
+
+**Task-Based TDD Pattern:**
+```text
+TaskCreate:
+  subject: "Write failing unit test for user login"
+  description: |
+    Write a unit test for the user login functionality that:
+    - Tests successful login with valid credentials
+    - Tests failed login with invalid credentials
+    - Tests edge cases (empty email, missing password)
+
+    LOGGING REQUIREMENTS:
+    - Log test file creation
+    - Log test execution results
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for test creation, DEBUG for test details
+
+    Files: tests/auth/login.test.ts
+  activeForm: "Writing failing unit test for user login"
+
+TaskCreate:
+  subject: "Implement user login to make test pass"
+  description: |
+    Implement the user login functionality to pass the login test:
+    - Implement authentication logic
+    - Handle valid credentials
+    - Handle invalid credentials with appropriate error response
+    - Ensure test from previous task passes
+
+    LOGGING REQUIREMENTS:
+    - Log implementation progress
+    - Log test validation
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for progress, DEBUG for validation
+
+    Files: src/services/auth.ts
+  activeForm: "Implementing user login"
+```
+
+**Feature-Based TDD Pattern:**
+```text
+TaskCreate:
+  subject: "Write failing unit tests for user authentication"
+  description: |
+    Write unit tests for the user authentication feature:
+    - Test user login functionality
+    - Test user registration functionality
+    - Test password validation
+    - Test session management
+
+    LOGGING REQUIREMENTS:
+    - Log test file creation
+    - Log test suite composition
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for test creation, DEBUG for test details
+
+    Files: tests/auth/user-auth.test.ts
+  activeForm: "Writing failing unit tests for user authentication"
+
+TaskCreate:
+  subject: "Implement user authentication to make tests pass"
+  description: |
+    Implement the user authentication feature to pass all tests:
+    - Implement user login
+    - Implement user registration
+    - Implement password validation
+    - Implement session management
+
+    LOGGING REQUIREMENTS:
+    - Log implementation progress
+    - Log test validation
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for progress, DEBUG for validation
+
+    Files: src/services/auth.ts, src/middleware/auth.ts
+  activeForm: "Implementing user authentication"
+```

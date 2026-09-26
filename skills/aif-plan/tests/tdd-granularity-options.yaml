@@ -1,0 +1,94 @@
+scenario: tdd-granularity-options
+description: |
+  Plan generation should support TDD with both task-based and feature-based
+  granularity options. When TDD is selected, a conditional follow-up question
+  should ask about TDD granularity.
+skill: aif-plan
+argument: "full add user authentication system"
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: main
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo API
+
+        Tiny Node.js API skeleton.
+    - path: package.json
+      content: |
+        {
+          "name": "demo-api",
+          "version": "0.1.0",
+          "type": "module",
+          "dependencies": { "express": "^4.0.0" }
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        workflow:
+          plan_structure: task-based
+
+user_responses:
+  - match_question: "(?i)(fast|full|ultra)"
+    choose: "Full"
+  - match_question: "(?i)test"
+    choose: "Yes, include tests"
+  - match_question: "(?i)commit strategy"
+    choose: "Incremental"
+  - match_question: "(?i)development methodology"
+    choose: "Test-driven development (TDD)"
+  - match_question: "(?i)TDD granularity"
+    choose: "Task-based"
+  - match_question: "(?i)(requirement|constraint|clarif)"
+    choose: "None"
+  - match_question: "(?i)(roadmap|milestone|linkage)"
+    choose: "Skip — no linkage"
+  - match_question: "(?i)(proceed|confirm|ready|start|approve)"
+    choose: "Yes"
+
+assertions:
+  - id: writes-full-mode-plan
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: "\\.ai-factory/plans/"
+    weight: 2
+
+  - id: plan-contains-test-tasks-before-implementation
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "Write failing unit test"
+    weight: 3
+
+  - id: plan-contains-tdd-tasks
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "Refactor"
+    weight: 2
+
+  - id: test-tasks-have-dependencies
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "depends on"
+    weight: 2

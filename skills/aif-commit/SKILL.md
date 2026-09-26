@@ -15,14 +15,14 @@ Generate commit messages following the [Conventional Commits](https://www.conven
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.rules`, `paths.plan`, and `paths.plans`
 - **Language:** `language.ui` for prompts and commit message conventions
-- **Workflow:** `workflow.plan_id_format` for read-only active plan discovery (`slug` default; `sequential` uses numbered full-plan lookup)
+- **Workflow:** `workflow.plan_id_format` for read-only active plan discovery (`slug` default; `sequential` uses numbered full-plan lookup) and `workflow.plan_structure` for commit-layout detection (`classic` default; `task-based` means commits are explicit tasks inside the main task list)
 - **Git preference:** `git.enabled`, `git.create_branches`, and `git.skip_push_after_commit` for active plan discovery and post-commit push behavior
 - **Rules hierarchy:** `rules.base` plus any named `rules.<area>` entries
 
 If config.yaml doesn't exist, use defaults:
 - Paths: `.ai-factory/` for context artifacts, `.ai-factory/PLAN.md` for `paths.plan`, `.ai-factory/plans/` for `paths.plans`
 - Language: `en` (English)
-- Workflow: `workflow.plan_id_format: slug`
+- Workflow: `workflow.plan_id_format: slug`, `workflow.plan_structure: classic`
 - Git: `git.enabled: true`, `git.create_branches: true`
 - Git preference: `skip_push_after_commit: false`
 
@@ -85,7 +85,12 @@ If any rule is violated — fix the output before presenting it to the user.
      `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
    - An automatically discovered directory entrypoint counts only when it
      contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
-   - If no active plan resolves or the active plan entrypoint has no `## Commit Plan`, keep current staged-diff behavior unchanged.
+   - If no active plan resolves, keep current staged-diff behavior unchanged.
+   - If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.
+   - If an active plan resolves, inspect it for both supported structures:
+     - classic `## Commit Plan` section
+     - task-based plan structure with explicit commit tasks such as `Commit changes with message "..."`
+   - If neither format is found, keep current staged-diff behavior unchanged.
    - Never modify the active plan from this command.
 
 3. **Use Commit Plan Grouping When Available**
@@ -93,6 +98,12 @@ If any rule is violated — fix the output before presenting it to the user.
      - commit group number/name
      - task range, such as `after tasks 1-3` or `tasks 4-6`
      - suggested conventional commit message
+   - Else if the active plan uses `workflow.plan_structure: task-based` or contains explicit commit tasks in `## Tasks`, parse task-based commit entries instead:
+     - detect commit tasks using the stable marker `<!-- aif:task-kind:commit -->` immediately before the task line
+     - treat the commit task as the commit boundary for the tasks it depends on
+     - extract the commit message from the task description, for example `Commit changes with message "feat: implement user service"`
+     - if the plan is legacy and lacks the marker, use the text fallback only when the task description clearly starts with `Commit changes with message`; do not treat ordinary "commit" wording elsewhere as a commit task
+     - use the dependent task chain as the grouped scope for commit intent when the commit task marker/message is clear
    - Read the plan's `## Tasks` or `## Implementation Tasks` section to map task ranges to task descriptions and any `Files:` hints.
    - For an ultra plan, resolve every task in the current commit group to its
      Phase Index/details link, read each corresponding phase file, and build the
@@ -114,7 +125,7 @@ If any rule is violated — fix the output before presenting it to the user.
    - When a usable grouping exists, ask:
 
      ```
-     AskUserQuestion: Active plan contains a Commit Plan. How should these staged changes be committed?
+     AskUserQuestion: Active plan contains a commit grouping. How should these staged changes be committed?
 
      Options:
      1. Follow Commit Plan
@@ -125,6 +136,8 @@ If any rule is violated — fix the output before presenting it to the user.
    - **Follow Commit Plan** → confirm the planned groups and messages, then proceed through user-confirmed multi-commit staging/commit flow.
    - **Commit everything together** → ignore plan grouping for this run and continue with the current single-message flow.
    - **Adjust grouping** → ask the user for the adjusted grouping, then validate it against staged files before committing.
+
+   - **Task-based commit plans** are treated as valid planning metadata when the user selected a task-based plan structure or when commit task patterns are present; they do not require a separate `## Commit Plan` section.
 
 4. **Run Context Gates (Read-Only)**
    - Check the resolved architecture and description artifacts (use paths from config) to catch obvious scope/boundary drift
@@ -197,7 +210,7 @@ When invoked:
 
 1. Check for staged changes
 2. Analyze the diff content
-3. Resolve optional active plan context and use `## Commit Plan` grouping when available
+3. Resolve optional active plan context and use either the classic `## Commit Plan` or explicit task-based commit entries when available
 4. Run read-only context gates and summarize findings as `WARN`/`ERROR`
 5. If commit type is `feat`/`fix`/`perf` and roadmap exists, check milestone linkage; if missing, warn and suggest adding linkage in commit body/footer
 6. Propose a commit message
@@ -252,7 +265,7 @@ If argument provided (e.g., `/aif-commit auth`):
 - Review large diffs carefully before committing
 - `/aif-commit` has no implicit strict mode — context gates are warning-first unless user explicitly requests blocking behavior
 - Treat the resolved architecture, roadmap, RULES.md, description, and plan artifacts as read-only context in this command
-- If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.
+- If no active plan resolves or the active plan has neither a `## Commit Plan` section nor explicit task-based commit tasks, keep current staged-diff behavior unchanged.
 - If staged changes contain unrelated work (e.g., a feature + a bugfix, or changes to independent modules), suggest splitting into separate commits:
   1. Show which files/hunks belong to which commit
   2. Confirm split plan with the user:

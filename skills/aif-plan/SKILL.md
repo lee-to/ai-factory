@@ -448,11 +448,25 @@ AskUserQuestion: Before we start, a few questions:
    a. Yes — mandatory docs checkpoint at completion (recommended)
    b. No — warn-only (`WARN [docs]`), no mandatory checkpoint
 
-4. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
+4. Commit strategy?
+   a. Incremental - commits at natural boundaries throughout implementation (default)
+   b. Incremental at end - all commits created after implementation completes
+   c. Single commit at end - one commit after all implementation
+
+5. Development methodology?
+   a. Implementation-first (default)
+   b. Test-driven development (TDD)
+
+[If TDD selected, ask conditional follow-up:]
+6. TDD granularity?
+   a. Task-based - test before each implementation task
+   b. Feature-based - all tests for phase before implementation
+
+7. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
    a. Link this plan to a milestone
    b. Skip — no linkage (allowed; `/aif-verify --strict` should report WARN, not fail, for missing linkage alone)
 
-5. Any specific requirements or constraints?
+8. Any specific requirements or constraints?
 ```
 
 **Default to verbose logging.** AI-generated code benefits greatly from extensive logging because:
@@ -462,6 +476,24 @@ AskUserQuestion: Before we start, a few questions:
 - Missing logs during development wastes debugging time
 
 Store all preferences — they will be used in the plan entrypoint and passed to `/aif-implement`.
+
+**New preferences explanation:**
+
+- **Commit strategy**: Controls how commits are structured in the plan
+  - `incremental`: Creates commit tasks at natural boundaries throughout implementation (default)
+  - `incremental-at-end`: Creates commit tasks at natural boundaries but places them after all implementation tasks
+  - `single-commit`: Creates one commit task at the very end depending on all implementation tasks
+  - This affects whether commits are interspersed with implementation or grouped at the end
+
+- **Development methodology**: Controls the order of implementation and testing
+  - `implementation-first`: Traditional approach where implementation comes before tests (default)
+  - `tdd`: Test-driven development where tests are written before implementation
+  - When TDD is selected, a follow-up question asks about TDD granularity
+
+- **TDD granularity**: Controls the granularity of test-first cycles (only shown when TDD is selected)
+  - `task-based`: Write a failing test before each individual implementation task, then implement to pass, then refactor
+  - `feature-based`: Write all tests for a phase/feature first, then implement all tasks in that phase, then refactor
+  - Both approaches produce comprehensive test coverage but with different task organization
 
 Docs policy semantics:
 
@@ -731,6 +763,110 @@ Create tasks using `TaskCreate` with clear, actionable items.
 - Be specific about what to implement, not vague
 - In ultra, keep TaskCreate descriptions concise but include the matching phase
   file link; the bundle remains the durable detailed source after context resets
+
+**Task Generation Based on Preferences:**
+
+When generating tasks, consider the user's preferences:
+
+- **Commit strategy preference**:
+  - `incremental`: Create commit tasks at natural boundaries throughout implementation (after related impl/test/doc groups)
+  - `incremental-at-end`: Create commit tasks at natural boundaries but place them after all implementation tasks
+  - `single-commit`: Create one commit task at the very end depending on all implementation tasks
+  - Commit tasks should be explicit tasks in the plan with dependencies on related implementation/test/doc tasks
+
+- **Development methodology preference**:
+  - `implementation-first`: Generate tasks in traditional order (implementation → tests → docs)
+  - `tdd`: Generate tasks with test-first ordering
+    - `task-based TDD`: Generate test task before each implementation task (test → implement → refactor cycle per task)
+    - `feature-based TDD`: Generate batch of test tasks at start of each phase before implementation tasks (test batch → implementation batch → refactor per phase)
+
+- **Task organization**:
+  - Co-locate related implementation, test, and documentation tasks together within feature-oriented phases
+  - Use task dependencies to ensure proper ordering (tests depend on implementation when implementation-first, implementation depends on tests when TDD)
+  - Group commits with their related implementation/test/doc tasks rather than in a separate section
+
+**TDD Task Generation Implementation:**
+
+When `Development methodology: tdd` is selected:
+
+1. **Task-based TDD** (when `TDD granularity: task-based`):
+   - For each implementation task, create a preceding test task
+   - Test task description: "Write failing unit test for [specific functionality]"
+   - Implementation task description: "Implement [functionality] to make test pass"
+   - After 2-3 implementation cycles, add a refactoring task: "Refactor [area] while keeping all tests passing"
+   - Dependencies: test task → implementation task → next test task (or refactor task)
+   - Example cycle: Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor
+
+2. **Feature-based TDD** (when `TDD granularity: feature-based`):
+   - For each phase/feature, create a batch of test tasks at the start
+   - Then create all implementation tasks for that phase
+   - Add a refactoring task at the end of the phase
+   - Dependencies: test batch → implementation batch → refactor task
+   - Example: Test #1, Test #2, Test #3 → Implement #1, Implement #2, Implement #3 → Refactor
+
+3. **TDD task descriptions**:
+   - Test tasks: Explicitly state "Write failing test for X"
+   - Implementation tasks: Reference the specific test they need to pass
+   - Refactoring tasks: Emphasize "keep all tests passing"
+   - Include logging requirements for each task type
+
+4. **TDD logging requirements**:
+   - Test tasks: Log test creation, test execution failures
+   - Implementation tasks: Log implementation progress, test validation
+   - Refactoring tasks: Log refactoring changes, test validation after refactoring
+
+**Commit Task Generation Implementation:**
+
+When generating tasks based on commit strategy preference:
+
+1. **Respect `workflow.plan_structure` config option**:
+   - If `plan_structure: classic` (default): Use separate `## Commit Plan` section
+   - If `plan_structure: task-based`: Use commit tasks as explicit tasks in the plan
+   - This config option is the default for new plans only; saved plans always resolve execution from their own artifact shape first
+   - Existing plans continue to use their original structure
+
+2. **Stable commit-task marker**:
+   - Every explicit commit task MUST include a stable, language-independent marker immediately before the task line:
+     `<!-- aif:task-kind:commit -->`
+   - The task still keeps a human-readable title such as `Commit changes with message "feat: ..."`, but the marker is the canonical signal for commit-task dispatch.
+   - A commit task without the marker is treated as a normal implementation task even if the prose contains the word "commit".
+   - Reject a marked commit task with no extractable commit message instead of guessing.
+
+3. **Incremental commit strategy** (default):
+   - Create commit tasks at natural boundaries throughout implementation
+   - Place commit tasks after related implementation/test/documentation groups
+   - Each commit task depends on the tasks it's committing
+   - Commit task description: "Commit changes with message '<conventional commit message>'"
+   - Example: After implementing user service, tests, and docs → commit task
+   - Dependencies: commit task depends on all related implementation/test/doc tasks
+
+4. **Incremental at end commit strategy**:
+   - Create commit tasks at natural boundaries but place them after all implementation tasks
+   - Identify logical groupings of implementation/test/doc work
+   - Create commit tasks for each grouping
+   - Place all commit tasks at the end of the plan after all implementation/test/doc tasks
+   - Each commit task depends on its related implementation/test/doc tasks
+   - Example: All implementation done → commit user service → commit auth middleware → commit API routes
+   - Dependencies: commit tasks depend on their related work, but appear at the end
+
+5. **Single commit at end strategy**:
+   - Create one commit task at the very end of the plan
+   - The commit task depends on all implementation/test/documentation tasks
+   - Commit task description: "Commit all changes with message '<conventional commit message>'"
+   - Example: All tasks complete → single commit task
+   - Dependencies: commit task depends on all implementation/test/doc tasks
+
+6. **Commit task naming**:
+   - Use self-descriptive task names: "Commit changes with message 'feat: ...'"
+   - Include the commit message in the task description
+   - Make it clear what is being committed
+   - The marker and task-id/dependency metadata are the authoritative dispatch signals; the prose remains human-facing only
+
+7. **Classic format compatibility**:
+   - Preserve the separate `## Commit Plan` section for backward compatibility
+   - Classic plans with `## Commit Plan` continue to work as before
+   - New plans use task-based commit structure when commit strategy is configured
+   - `/aif-implement` must resolve execution by saved-plan format first, then fall back to current config only when the plan is ambiguous or legacy (see Step 3.8.1)
 
 Use `TaskUpdate` to set `blockedBy` relationships:
 
