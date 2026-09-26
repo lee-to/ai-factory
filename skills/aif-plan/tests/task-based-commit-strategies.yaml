@@ -71,6 +71,13 @@ assertions:
       file_path: "\\.ai-factory/plans/"
     weight: 2
 
+  - id: plan-contains-commit-marker
+    type: tool_called
+    tool: Write
+    args_match:
+      content: "aif:task-kind:commit"
+    weight: 3
+
   - id: plan-contains-commit-tasks
     type: tool_called
     tool: Write
