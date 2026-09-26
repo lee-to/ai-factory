@@ -86,6 +86,7 @@ If any rule is violated — fix the output before presenting it to the user.
    - An automatically discovered directory entrypoint counts only when it
      contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
    - If no active plan resolves, keep current staged-diff behavior unchanged.
+   - If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.
    - If an active plan resolves, inspect it for both supported structures:
      - classic `## Commit Plan` section
      - task-based plan structure with explicit commit tasks such as `Commit changes with message "..."`
@@ -93,15 +94,16 @@ If any rule is violated — fix the output before presenting it to the user.
    - Never modify the active plan from this command.
 
 3. **Use Commit Plan Grouping When Available**
-   - If active plan contains a `## Commit Plan` section, parse:
+   - If active plan contains `## Commit Plan`, parse:
      - commit group number/name
      - task range, such as `after tasks 1-3` or `tasks 4-6`
      - suggested conventional commit message
    - Else if the active plan uses `workflow.plan_structure: task-based` or contains explicit commit tasks in `## Tasks`, parse task-based commit entries instead:
-     - detect commit tasks whose names/descriptions include `Commit` or `commit`
-     - extract the commit message from the task description, for example `Commit changes with message "feat: implement user service"`
+     - detect commit tasks using the stable marker `<!-- aif:task-kind:commit -->` immediately before the task line
      - treat the commit task as the commit boundary for the tasks it depends on
-     - use the dependent task chain as the grouped scope for commit intent when the commit task name/description is clear
+     - extract the commit message from the task description, for example `Commit changes with message "feat: implement user service"`
+     - if the plan is legacy and lacks the marker, use the text fallback only when the task description clearly starts with `Commit changes with message`; do not treat ordinary "commit" wording elsewhere as a commit task
+     - use the dependent task chain as the grouped scope for commit intent when the commit task marker/message is clear
    - Read the plan's `## Tasks` or `## Implementation Tasks` section to map task ranges to task descriptions and any `Files:` hints.
    - For an ultra plan, resolve every task in the current commit group to its
      Phase Index/details link, read each corresponding phase file, and build the

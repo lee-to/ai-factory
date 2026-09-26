@@ -83,8 +83,10 @@ AI Factory supports two plan structure modes, controlled by `workflow.plan_struc
 ## Tasks
 - [ ] Task 1: Create User model
 - [ ] Task 2: Add auth types
+- [ ] <!-- aif:task-kind:commit -->
 - [ ] Task 3: Commit changes with message "feat: add user model" (depends on 1,2)
 - [ ] Task 4: Implement registration
+- [ ] <!-- aif:task-kind:commit -->
 - [ ] Task 5: Commit changes with message "feat: implement auth service" (depends on 4)
 ```
 

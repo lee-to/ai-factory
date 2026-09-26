@@ -94,10 +94,12 @@ Authority: [declared source priority, or "none declared"]
 - [ ] Task 1: Implement user service with login/logout
 - [ ] Task 2: Write unit tests for user service (depends on 1)
 - [ ] Task 3: Document user service API (depends on 1)
+- [ ] <!-- aif:task-kind:commit -->
 - [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 2,3)
 - [ ] Task 5: Implement auth middleware
 - [ ] Task 6: Write integration tests for auth flow (depends on 5)
 - [ ] Task 7: Document auth middleware usage (depends on 5)
+- [ ] <!-- aif:task-kind:commit -->
 - [ ] Task 8: Commit changes with message "feat: implement auth middleware" (depends on 6,7)
 
 ### TDD Task-Based Format (test before each implementation task)

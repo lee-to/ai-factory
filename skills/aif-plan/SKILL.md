@@ -822,10 +822,17 @@ When generating tasks based on commit strategy preference:
 1. **Respect `workflow.plan_structure` config option**:
    - If `plan_structure: classic` (default): Use separate `## Commit Plan` section
    - If `plan_structure: task-based`: Use commit tasks as explicit tasks in the plan
-   - This config option overrides the default behavior for new plans
+   - This config option is the default for new plans only; saved plans always resolve execution from their own artifact shape first
    - Existing plans continue to use their original structure
 
-2. **Incremental commit strategy** (default):
+2. **Stable commit-task marker**:
+   - Every explicit commit task MUST include a stable, language-independent marker immediately before the task line:
+     `<!-- aif:task-kind:commit -->`
+   - The task still keeps a human-readable title such as `Commit changes with message "feat: ..."`, but the marker is the canonical signal for commit-task dispatch.
+   - A commit task without the marker is treated as a normal implementation task even if the prose contains the word "commit".
+   - Reject a marked commit task with no extractable commit message instead of guessing.
+
+3. **Incremental commit strategy** (default):
    - Create commit tasks at natural boundaries throughout implementation
    - Place commit tasks after related implementation/test/documentation groups
    - Each commit task depends on the tasks it's committing
@@ -833,7 +840,7 @@ When generating tasks based on commit strategy preference:
    - Example: After implementing user service, tests, and docs → commit task
    - Dependencies: commit task depends on all related implementation/test/doc tasks
 
-3. **Incremental at end commit strategy**:
+4. **Incremental at end commit strategy**:
    - Create commit tasks at natural boundaries but place them after all implementation tasks
    - Identify logical groupings of implementation/test/doc work
    - Create commit tasks for each grouping
@@ -842,24 +849,24 @@ When generating tasks based on commit strategy preference:
    - Example: All implementation done → commit user service → commit auth middleware → commit API routes
    - Dependencies: commit tasks depend on their related work, but appear at the end
 
-4. **Single commit at end strategy**:
+5. **Single commit at end strategy**:
    - Create one commit task at the very end of the plan
    - The commit task depends on all implementation/test/documentation tasks
    - Commit task description: "Commit all changes with message '<conventional commit message>'"
    - Example: All tasks complete → single commit task
    - Dependencies: commit task depends on all implementation/test/doc tasks
 
-5. **Commit task naming**:
+6. **Commit task naming**:
    - Use self-descriptive task names: "Commit changes with message 'feat: ...'"
    - Include the commit message in the task description
    - Make it clear what is being committed
-   - No metadata tags needed - task name and description are sufficient
+   - The marker and task-id/dependency metadata are the authoritative dispatch signals; the prose remains human-facing only
 
-6. **Classic format compatibility**:
+7. **Classic format compatibility**:
    - Preserve the separate `## Commit Plan` section for backward compatibility
    - Classic plans with `## Commit Plan` continue to work as before
    - New plans use task-based commit structure when commit strategy is configured
-   - `/aif-implement` must handle both formats (see Step 3.8.1)
+   - `/aif-implement` must resolve execution by saved-plan format first, then fall back to current config only when the plan is ambiguous or legacy (see Step 3.8.1)
 
 Use `TaskUpdate` to set `blockedBy` relationships:
 
