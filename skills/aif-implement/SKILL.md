@@ -742,29 +742,38 @@ If during implementation:
 
 **3.8.1: Handle commit tasks (task-based commit structure)**
 
-When the current task is a commit task (identified by task name/description containing "Commit" or "commit"):
+Resolve the plan's saved execution format before consulting the current config. The task file itself is authoritative for commit-task dispatch; config is a fallback only when the plan artifact cannot be read or is a legacy format.
+
+When the current task is a commit task, identified by the task marker `<!-- aif:task-kind:commit -->` immediately before the task line:
 
 - Recognize this as a commit task (task-based commit structure)
-- Extract the commit message from the task description
+- Extract the commit message from the task description, typically `Commit changes with message "<conventional commit message>"` or `Commit all changes with message "..."`
+- Reject or stop when the task is marked as a commit task but the commit message cannot be extracted without guessing
 - Invoke `/aif-commit` with the extracted commit message
 - Log the commit invocation with format: `[aif-implement.commit] invoking /aif-commit for task {taskId}`
-- After successful commit, mark the commit task as completed
-- Proceed to the next task
+- After successful commit, mark the commit task as completed and persist the plan update before proceeding to the next task
+- If the commit fails or the user cancels, leave the task marked incomplete and do not advance completion state for the dependent work
+- Proceed to the next task only after the commit outcome is resolved
 
-**Commit task recognition patterns:**
-- Task name contains "Commit" or "commit"
-- Task description starts with "Commit changes with message" or similar
-- Task is a dependency on implementation/test/doc tasks (not a regular implementation task)
+**Commit task recognition rules:**
+- Canonical signal: `<!-- aif:task-kind:commit -->` immediately before the task checkbox line
+- Legacy fallback only: a task description starting with `Commit changes with message` is treated as a compatibility fallback when the plan does not include the stable marker
+- A task without the marker is a regular implementation task even if it contains the word "commit"
+- Commit tasks are dependency boundaries for their grouped implementation/test/doc tasks and are not ordinary implementation work
 
 **Handling all three commit strategies:**
 - **Incremental**: Commit tasks appear interspersed with implementation - invoke `/aif-commit` when each commit task is reached
 - **Incremental at end**: Commit tasks appear at the end - invoke `/aif-commit` for each commit task in sequence
 - **Single commit at end**: One commit task at the end - invoke `/aif-commit` once with the final commit message
 
-**Respect `workflow.plan_structure` config option:**
-- If `plan_structure: classic` (default): Use classic `## Commit Plan` section parsing (see Step 3.8.2)
-- If `plan_structure: task-based`: Use commit task recognition (this section)
-- This config option determines which commit handling mode to use for the plan
+**Saved-plan resolution order:**
+1. Read the active plan artifact first and detect an explicit commit marker or a classic `## Commit Plan` section.
+2. If the plan is task-based and contains the commit marker, use commit-task recognition (this section).
+3. Else if the plan contains a classic `## Commit Plan` section, use classic parsing (see Step 3.8.2).
+4. Only if the plan cannot be resolved or is legacy/ambiguous, fall back to `workflow.plan_structure` from config.
+5. If neither the saved plan nor config yields a clear pattern, do not guess: treat it as a normal task flow and continue without dispatching `/aif-commit`.
+
+**Important:** `workflow.plan_structure` is the default shape for newly generated plans, not the source of truth for an existing saved plan. Existing plans must be honored as written.
 
 **3.8.2: Classic commit checkpoints (backward compatibility)**
 
