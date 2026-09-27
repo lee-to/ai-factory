@@ -84,6 +84,9 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
      highest-numbered matching artifact.
      `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
      Treat any unknown value as `slug`.
+   - `workflow.plan_structure` (default: `classic`) — `classic` or
+     `task-based`; use it only for unreadable or legacy plans. A readable plan's
+     markers and sections determine its execution structure.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)
@@ -163,7 +166,46 @@ Current task: #4 - Implement search service
 
 Before each plan-backed task, read [execution and requirement consistency](references/IMPLEMENT-TASK.md) and the full task/ultra phase. Resolve requirements against committed Research Context; live research remains drift-only. On clear conflicts emit `ERROR [requirement-conflict]`, leave the task pending, and STOP; autonomous Handoff returns `handoff_outcome: blocked_external` without a completion/review transition.
 
-Execute one task at a time: mark in progress, implement within scope, verify, mark completed, and immediately update the entrypoint checkbox. Never duplicate progress in phase files or mark unfinished work complete. Keep manual Handoff sync and commit checkpoints; do not call Handoff MCP in autonomous mode. Context artifacts remain read-only except the factual maintenance explicitly allowed by this workflow. Read [logging requirements](references/LOGGING-GUIDE.md) before editing implementation code.
+Before ordinary execution, check whether the actual task checkbox is marked with
+`<!-- aif:task-kind:commit -->` immediately above it. Route marked commit tasks
+to the commit-task handler below before marking them in progress; only ordinary
+tasks follow the implementation, verification, and generic completion flow.
+Execute one task at a time. Never duplicate progress in phase files or mark
+unfinished work complete. Keep manual Handoff sync and commit checkpoints; do
+not call Handoff MCP in autonomous mode. Context artifacts remain read-only
+except the factual maintenance explicitly allowed by this workflow. Read
+[logging requirements](references/LOGGING-GUIDE.md) before editing implementation
+code.
+
+### Task-based commit tasks
+
+For a marked commit task:
+
+- Extract its exact commit message from the task description; if it is unclear,
+  stop without guessing. A description-only fallback is allowed only for legacy
+  plans without the stable marker.
+- Read its dependency IDs and the associated task descriptions, `Files:` hints,
+  and complete ultra task specifications to identify the exact commit group.
+  If ownership is unclear, stop before invoking `/aif-commit`.
+- Invoke `/aif-commit` in task-bound mode with the exact plan path, marked task
+  ID and message, dependency task IDs/descriptions, planned files or hunk
+  ownership evidence, and `HANDOFF_MODE`. Commit only this group; preserve
+  unrelated staged and unstaged changes. If ownership is unclear or unrelated
+  staged work exists, stop without changing the index.
+- Log the invocation as `[aif-implement.commit] invoking /aif-commit for task
+  {taskId}`. After it returns, independently verify a new local commit has the
+  exact planned message and its diff belongs to this task's group. Only then
+  mark the commit task complete in TaskUpdate and the plan entrypoint, persist
+  the plan, and retain the commit hash before proceeding.
+- On failure, cancellation, or unverified commit, leave the task incomplete and
+  stop at the commit boundary. On resume, reconcile the checkbox, task status,
+  and local history. Repair completion only when exactly one matching commit
+  and group are proven; otherwise stop and report the mismatch.
+
+The canonical marker is a standalone comment immediately before the task
+checkbox; it is not itself a task. A task without the marker is ordinary even if
+its text mentions commits. Commit tasks are dependency boundaries, not
+implementation work.
 
 ### Session persistence
 

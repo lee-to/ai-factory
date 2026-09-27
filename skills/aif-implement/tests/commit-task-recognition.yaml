@@ -67,12 +67,13 @@ fixtures:
         - [ ] Task 2: Write unit tests for user service
           Files: tests/user.test.ts
           Depends on: 1
+        <!-- aif:task-kind:commit -->
         - [ ] Task 3: Commit changes with message "feat: implement user service"
-          Depends on: 2
+          Depends on: 1,2
 
 user_responses:
   - match_question: "(?i)commit"
-    choose: "Yes, commit now"
+    choose: "Commit this group"
 
 assertions:
   - id: recognizes-commit-task
