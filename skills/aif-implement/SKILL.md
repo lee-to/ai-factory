@@ -67,6 +67,7 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
      highest-numbered matching artifact.
      `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
      Treat any unknown value as `slug`.
+   - `workflow.plan_structure` (default: `classic`) — allowed values are `classic` and `task-based`. If absent, use `classic`; if the value has the wrong type or is unknown, emit `WARN [config] invalid workflow.plan_structure; falling back to classic` and use `classic`. It is only a fallback for unreadable or legacy saved plans; a readable plan's own markers/sections determine execution.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)
@@ -558,7 +559,11 @@ Current task: #4 - Implement search service
 
 ### Step 3: Execute Current Task
 
-For each task:
+For each task, first determine whether the actual task checkbox is a marked
+commit task. If it is, execute the commit-task handler in Step 3.8.1 before
+entering the ordinary implementation flow below; do not mark it in progress,
+implement it as code, or run the generic completion steps before the commit.
+Only non-commit tasks follow Steps 3.1–3.7.
 
 **3.1: Fetch full details**
 
@@ -630,7 +635,7 @@ When the plan's `## Settings` includes `Development methodology: tdd`:
   - Log test execution results
   - Ensure test file is created and test is written
   - Verify test fails as expected (no implementation yet)
-- **For implementation tasks**: 
+- **For implementation tasks**:
   - Before marking complete, run the related test(s) to verify they now pass
   - Log test validation results
   - Only mark implementation task complete when its corresponding test(s) pass
@@ -639,7 +644,7 @@ When the plan's `## Settings` includes `Development methodology: tdd`:
   - Run all related tests to ensure they still pass after refactoring
   - Log refactoring changes and test validation
   - Only mark refactoring task complete when all tests still pass
-- **Task dependency handling**: 
+- **Task dependency handling**:
   - When `TDD granularity: task-based`, ensure test tasks are completed before their dependent implementation tasks
   - When `TDD granularity: feature-based`, ensure test batch is completed before implementation batch
   - Use `TaskUpdate` to enforce these dependencies via `blockedBy` relationships
@@ -657,7 +662,7 @@ When the plan's `## Settings` includes `Development methodology: tdd`:
 
 When `Development methodology: tdd` is in the plan settings:
 
-- **Before marking implementation tasks complete**: 
+- **Before marking implementation tasks complete**:
   - Execute the test(s) associated with this implementation task
   - Verify all tests pass
   - Log test execution results with format: `[aif-implement.tdd] test execution {data}`
@@ -674,7 +679,7 @@ When `Development methodology: tdd` is in the plan settings:
   - Log test failure as expected behavior
   - Mark test task complete only after confirming test exists and fails as expected
 
-**3.5: Mark as completed**
+**3.5: Mark a non-commit task as completed**
 
 ```
 TaskUpdate(taskId, status: "completed")
@@ -702,6 +707,9 @@ TaskUpdate(taskId, status: "completed")
 - Even if deletion will be offered later
 - Plan entrypoint is the source of truth for progress
 - Never add or update duplicate progress checkboxes in ultra phase files
+- These generic steps apply only to implementation/test/documentation tasks.
+  A commit task is completed only by Step 3.8.1 after a successful local
+  commit has been verified.
 
 **Handoff sync (manual mode ONLY — skip when `HANDOFF_MODE` is `1`):** If a Handoff task ID was extracted in Step 0.2, call `handoff_push_plan` with `{ taskId: <id>, planContent: <full updated plan text> }` to sync the checklist progress. For ultra, use the bundle serialization defined in Step 0.2.
 
@@ -746,17 +754,49 @@ Resolve the plan's saved execution format before consulting the current config. 
 
 When the current task is a commit task, identified by the task marker `<!-- aif:task-kind:commit -->` immediately before the task line:
 
-- Recognize this as a commit task (task-based commit structure)
+- Route it here before generic implementation/completion steps; a commit task
+  is not an implementation task.
 - Extract the commit message from the task description, typically `Commit changes with message "<conventional commit message>"` or `Commit all changes with message "..."`
 - Reject or stop when the task is marked as a commit task but the commit message cannot be extracted without guessing
-- Invoke `/aif-commit` with the extracted commit message
+- Read the commit task's dependency IDs and the associated task descriptions,
+  `Files:` hints, and (for ultra plans) the complete task specifications to
+  define the exact group this task owns. If task dependencies or file/hunk
+  ownership do not identify a clear group, stop before invoking `/aif-commit`.
+- Invoke `/aif-commit` in task-bound mode, passing all of:
+  - the exact resolved plan path (for ultra, the entrypoint and relevant phase file)
+  - the marked commit task ID and exact commit message
+  - the IDs and descriptions of the tasks this commit depends on
+  - their planned files and any task-level hunk ownership evidence
+  - the current `HANDOFF_MODE` value
+  The task-bound request must explicitly say to commit only this group, never
+  offer "Commit everything together," and preserve unrelated staged and
+  unstaged changes. If unrelated staged changes are present or staging/hunk
+  ownership is unclear, stop without changing the index or committing.
 - Log the commit invocation with format: `[aif-implement.commit] invoking /aif-commit for task {taskId}`
-- After successful commit, mark the commit task as completed and persist the plan update before proceeding to the next task
-- If the commit fails or the user cancels, leave the task marked incomplete and do not advance completion state for the dependent work
+- After `/aif-commit` returns, independently verify a new local commit exists
+  with the exact planned message and that its committed diff belongs to this
+  task's group. Only then call `TaskUpdate(taskId, status: "completed")`, mark
+  the commit task checkbox complete, and persist the plan. Capture the
+  resulting commit hash in the execution context before proceeding.
+- If the commit fails, no new local commit is verified, or the user cancels,
+  leave the commit task incomplete, do not update its checkbox, and stop this
+  run without advancing past the commit boundary.
+- **Resume reconciliation:** Before skipping any commit task on resume,
+  reconcile its plan checkbox, TaskUpdate status, and local Git history,
+  including when the tool status says completed but the saved checkbox is
+  incomplete. Inspect local history for a commit with the exact planned message
+  whose committed diff matches the task's owned group. If exactly one such
+  commit is proven, call `TaskUpdate(taskId, status: "completed")`, mark the
+  checkbox complete, and persist the plan before continuing. If none is proven
+  and the task is incomplete, retry normally; if multiple or ambiguous matches
+  exist, or a checked/completed task has no proven commit, stop and report the
+  mismatch rather than guessing. Never infer success from the task
+  description or a `/aif-commit` invocation alone.
 - Proceed to the next task only after the commit outcome is resolved
 
 **Commit task recognition rules:**
 - Canonical signal: `<!-- aif:task-kind:commit -->` immediately before the task checkbox line
+- The marker is a standalone comment line; the checkbox/task line immediately follows it. A marker is never a checkbox or a task.
 - Legacy fallback only: a task description starting with `Commit changes with message` is treated as a compatibility fallback when the plan does not include the stable marker
 - A task without the marker is a regular implementation task even if it contains the word "commit"
 - Commit tasks are dependency boundaries for their grouped implementation/test/doc tasks and are not ordinary implementation work

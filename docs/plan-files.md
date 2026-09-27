@@ -60,8 +60,8 @@ AI Factory supports two plan structure modes, controlled by `workflow.plan_struc
 
 | Mode | Description | Commit Handling |
 |------|-------------|-----------------|
-| `classic` (default) | Separate `## Commit Plan` section at the end of the plan | `/aif-implement` parses commit checkpoints and prompts for commits |
-| `task-based` | Commits are explicit tasks in the plan, co-located with related work | `/aif-implement` recognizes commit tasks and invokes `/aif-commit` automatically |
+| `classic` (default) | Separate `## Commit Plan` section for commit checkpoints | `/aif-implement` parses commit checkpoints and prompts for commits |
+| `task-based` | Commits are explicit tasks in the plan, co-located with related work | `/aif-implement` recognizes marked tasks and invokes `/aif-commit` with that task's selected group |
 
 **Classic format** (backward compatible):
 ```markdown
@@ -75,7 +75,10 @@ AI Factory supports two plan structure modes, controlled by `workflow.plan_struc
 - [ ] Task 3: Implement registration
 ```
 
-**Task-based format** (new):
+`## Commit Plan` is only valid in classic plans. A plan uses exactly one layout;
+task-based plans omit that section and do not include classic checkpoints.
+
+**Task-based format**:
 ```markdown
 ## Settings
 - Commit strategy: incremental
@@ -84,12 +87,15 @@ AI Factory supports two plan structure modes, controlled by `workflow.plan_struc
 ## Tasks
 - [ ] Task 1: Create User model
 - [ ] Task 2: Add auth types
-- [ ] <!-- aif:task-kind:commit -->
+<!-- aif:task-kind:commit -->
 - [ ] Task 3: Commit changes with message "feat: add user model" (depends on 1,2)
 - [ ] Task 4: Implement registration
-- [ ] <!-- aif:task-kind:commit -->
+<!-- aif:task-kind:commit -->
 - [ ] Task 5: Commit changes with message "feat: implement auth service" (depends on 4)
 ```
+
+Each marker is a standalone comment immediately above the real commit-task
+checkbox. The comment is not itself a task or checkbox.
 
 ## Commit Strategies
 
@@ -143,7 +149,8 @@ The new task-based structure co-locates related implementation, testing, and doc
 - [ ] Task 1: Implement user service
 - [ ] Task 2: Write unit tests for user service (depends on 1)
 - [ ] Task 3: Document user service API (depends on 1)
-- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 2,3)
+<!-- aif:task-kind:commit -->
+- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 1,2,3)
 ```
 
 This organization reduces context switching during implementation and makes the relationship between implementation, tests, and documentation explicit.

@@ -49,7 +49,9 @@ If any rule is violated — fix the output before presenting it to the user.
 1. **Analyze Changes**
    - Run `git status` to see staged files
    - Run `git diff --cached` to see staged changes
-   - If nothing staged, show warning and suggest staging
+   - In ordinary mode, if nothing is staged, show a warning and suggest staging
+   - In task-bound mode, if nothing is staged, continue to map and selectively
+     stage only the supplied group's proven changes as described below
 
 2. **Resolve Active Plan Context (Read-Only, Optional)**
    - Resolve active plan using this read-only priority:
@@ -85,8 +87,7 @@ If any rule is violated — fix the output before presenting it to the user.
      `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
    - An automatically discovered directory entrypoint counts only when it
      contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
-   - If no active plan resolves, keep current staged-diff behavior unchanged.
-   - If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.
+   - If no active plan resolves, or the active plan has neither a classic `## Commit Plan` nor explicit task-based commit tasks, keep current staged-diff behavior unchanged.
    - If an active plan resolves, inspect it for both supported structures:
      - classic `## Commit Plan` section
      - task-based plan structure with explicit commit tasks such as `Commit changes with message "..."`
@@ -94,6 +95,27 @@ If any rule is violated — fix the output before presenting it to the user.
    - Never modify the active plan from this command.
 
 3. **Use Commit Plan Grouping When Available**
+   - If invoked by `/aif-implement` with an explicit task-bound commit request,
+     treat the supplied plan path, commit task ID, dependency task IDs, exact
+     message, and file/hunk map as the selected group. This mode takes
+     precedence over ordinary grouping prompts: do not offer "Commit everything
+     together" or expand the group to other plan tasks.
+   - Compare the selected group against both staged and unstaged changes.
+     Commit only changes proven to belong to that group. Leave unrelated
+     staged and unstaged changes untouched. Preserve unrelated staged and
+     unstaged changes. Do not run `git add .`, unstage
+     unrelated changes, or commit a pre-existing staged change outside the
+     selected group.
+   - If staged changes include unrelated work, the selected group overlaps
+     other task work in a way that cannot be separated confidently, or any
+     staged/unstaged hunk has unclear ownership, stop before changing the index
+     and report the exact ambiguity. The caller must leave the plan commit task
+     incomplete.
+   - When there are no staged changes, stage only the selected group's proven
+     files/hunks. Whole-file staging is allowed only for a disjoint group file
+     with no unrelated unstaged edits; otherwise use hunk-level staging or
+     stop. Verify the staged diff contains only the selected task group before
+     committing.
    - If active plan contains `## Commit Plan`, parse:
      - commit group number/name
      - task range, such as `after tasks 1-3` or `tasks 4-6`
@@ -121,8 +143,8 @@ If any rule is violated — fix the output before presenting it to the user.
    - Only use `git add <files>` when each planned group has a disjoint file set and no grouped file appears in `git diff --name-only`.
    - When one file spans multiple planned groups, use hunk-level staging (`git add -p` or `git apply --cached`) for each group.
    - If grouped files overlap unstaged worktree paths, preserve and apply the original cached patch per group (`git diff --cached` + `git apply --cached`), use hunk-level staging, or stop before changing staging.
-   - If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.
-   - When a usable grouping exists, ask:
+   - If hunk-level staging cannot be applied confidently, stop before changing staging. In ordinary mode, ask the user to adjust grouping or choose one commit; in task-bound mode, do not widen the selected group.
+   - When a usable grouping exists in ordinary (non-task-bound) mode, ask:
 
      ```
      AskUserQuestion: Active plan contains a commit grouping. How should these staged changes be committed?
@@ -216,6 +238,20 @@ When invoked:
 6. Propose a commit message
 7. Confirm with the user before committing:
 
+   - **Task-bound mode with `HANDOFF_MODE=1`:** the explicit commit task is
+     authorization to commit its selected group; do not prompt and use the
+     exact planned message.
+   - **Task-bound mode in a manual session:** show the exact planned message
+     and selected group, then offer only:
+
+     ```
+     Options:
+     1. Commit this group
+     2. Cancel
+     ```
+
+   - **Ordinary mode:** use the standard confirmation below:
+
    ```
    AskUserQuestion: Proposed commit message:
 
@@ -228,12 +264,21 @@ When invoked:
    ```
 
 8. Handle user response:
-   - **Commit as is** → proceed to step 9
-   - **Edit message** → ask the user for the corrected message via `AskUserQuestion`, then return to step 7 with the new message
-   - **Cancel** → stop, do NOT commit. End the workflow
+   - In task-bound `HANDOFF_MODE=1`, proceed to step 9 with the exact planned
+     message and no prompt.
+   - In task-bound manual mode, **Commit this group** → proceed to step 9 with
+     the exact planned message; **Cancel** → stop, do NOT commit.
+   - In ordinary mode, **Commit as is** → proceed to step 9; **Edit message**
+     → ask the user for the corrected message via `AskUserQuestion`, then
+     return to step 7; **Cancel** → stop, do NOT commit.
 
 9. Execute `git commit` with the confirmed message
+   - In task-bound mode, use the exact message supplied by `/aif-implement`;
+     return the resulting commit hash and success or
+     failure explicitly so `/aif-implement` can verify and persist task state.
 10. Post-commit push handling:
+   - In task-bound `HANDOFF_MODE=1`, do not prompt or push; finish after the
+     successful local commit.
    - If `git.skip_push_after_commit = true` in resolved config:
      - Skip push prompt entirely
      - End workflow after successful local commit
@@ -266,7 +311,7 @@ If argument provided (e.g., `/aif-commit auth`):
 - `/aif-commit` has no implicit strict mode — context gates are warning-first unless user explicitly requests blocking behavior
 - Treat the resolved architecture, roadmap, RULES.md, description, and plan artifacts as read-only context in this command
 - If no active plan resolves or the active plan has neither a `## Commit Plan` section nor explicit task-based commit tasks, keep current staged-diff behavior unchanged.
-- If staged changes contain unrelated work (e.g., a feature + a bugfix, or changes to independent modules), suggest splitting into separate commits:
+- For ordinary (non-task-bound) invocations only, if staged changes contain unrelated work (e.g., a feature + a bugfix, or changes to independent modules), suggest splitting into separate commits:
   1. Show which files/hunks belong to which commit
   2. Confirm split plan with the user:
 

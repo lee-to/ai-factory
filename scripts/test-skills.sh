@@ -1415,9 +1415,45 @@ else
     fail "/aif-commit Commit Plan grouping contract missing"
 fi
 
+if grep -Fq 'execute the commit-task handler' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'TaskUpdate(taskId, status: "completed")' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Resume reconciliation' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'exact resolved plan path' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'dependency task IDs' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Preserve unrelated staged and' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'do not offer' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'stop before changing the index' "$AIF_COMMIT_SKILL"; then
+    pass "/aif-implement dispatches and reconciles commits before task completion"
+else
+    fail "/aif-implement commit execution ordering or task-bound scope missing"
+fi
+
+if grep -Fq -- '- [ ] <!-- aif:task-kind:commit -->' "$AIF_PLAN_FORMAT_REF" "$PLAN_FILES_DOC"; then
+    fail "commit marker must not be rendered as an empty checkbox"
+elif grep -Fq '<!-- aif:task-kind:commit -->' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq '<!-- aif:task-kind:commit -->' "$PLAN_FILES_DOC" \
+   && grep -Fq 'Render exactly one commit layout' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq 'only valid in classic plans' "$PLAN_FILES_DOC" \
+   && grep -Fq 'immediately before the actual task checkbox' "$AIF_PLAN_FORMAT_REF" \
+   && awk '/^<!-- aif:task-kind:commit -->$/ { if (getline <= 0 || $0 !~ /^- \[ \] Task [0-9]+:/) exit 1; found++ } END { if (found == 0) exit 1 }' "$AIF_PLAN_FORMAT_REF" \
+   && awk '/^<!-- aif:task-kind:commit -->$/ { if (getline <= 0 || $0 !~ /^- \[ \] Task [0-9]+:/) exit 1; found++ } END { if (found == 0) exit 1 }' "$PLAN_FILES_DOC"; then
+    pass "plan templates use one selected commit layout and standalone markers"
+else
+    fail "plan template commit-layout or marker-placement contract missing"
+fi
+
+if grep -Fq '`workflow.plan_structure` (default: `classic`)' "$AIF_PLAN_SKILL" \
+   && grep -Fq '`workflow.plan_structure` (default: `classic`)' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'invalid workflow.plan_structure; falling back to classic' "$AIF_PLAN_SKILL" \
+   && grep -Fq '`workflow.plan_structure` selects the commit layout' "$CONFIGURATION_DOC"; then
+    pass "plan_structure is resolved and documented by both workflow skills"
+else
+    fail "plan_structure Step 0 contract or configuration documentation missing"
+fi
+
 if grep -Fq 'disjoint file set' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'When one file spans multiple planned groups, use hunk-level staging (`git add -p` or `git apply --cached`) for each group.' "$AIF_COMMIT_SKILL" \
-   && grep -Fq 'If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'If hunk-level staging cannot be applied confidently, stop before changing staging.' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'same file spans multiple groups' "$WORKFLOW_DOC" \
    && grep -Fq 'hunk-level staging' "$SKILLS_DOC"; then
     pass "/aif-commit prevents whole-file staging leakage across planned groups"
@@ -1435,7 +1471,7 @@ else
     fail "/aif-commit missing guard against staging unstaged WIP in grouped files"
 fi
 
-if grep -Fq 'If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.' "$AIF_COMMIT_SKILL"; then
+if grep -Fq 'active plan has neither a `## Commit Plan` section nor explicit task-based commit tasks' "$AIF_COMMIT_SKILL"; then
     pass "/aif-commit preserves fallback without Commit Plan"
 else
     fail "/aif-commit fallback without Commit Plan missing"
@@ -1464,7 +1500,7 @@ else
 fi
 
 if grep -Fq 'active plan contains `## Commit Plan`' "$WORKFLOW_DOC" \
-   && grep -Fq 'Unmapped staged files' "$WORKFLOW_DOC" \
+   && grep -Fq 'unclear or unrelated staged work stops the commit without changing staging' "$WORKFLOW_DOC" \
    && grep -Fq 'staged-diff behavior unchanged' "$WORKFLOW_DOC" \
    && grep -Fq 'reads the relevant phase files' "$WORKFLOW_DOC" \
    && grep -Fq 'active plan `## Commit Plan`' "$SKILLS_DOC" \

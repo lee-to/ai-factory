@@ -386,7 +386,12 @@ Optional `+check` runs a single fresh-context `review-validator` subagent — on
 
 ### `/aif-commit` — conventional commit with read-only context gates
 
-Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; for ultra plans it reads the relevant phase files and maps group tasks through `Files to Change` plus the task specifications. Unmapped staged files trigger a question before staging or committing, and no commit plan leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
+Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; task-based plans provide explicit commit tasks and groups. For ultra plans it reads the relevant phase files and maps group tasks through `Files to Change` plus the task specifications. In ordinary mode, unmapped staged files trigger a question before staging or committing; in task-bound mode, unclear or unrelated staged work stops the commit without changing staging. No active plan grouping leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
+
+For task-based plans, `/aif-implement` passes the exact marked commit task,
+dependency IDs, plan path, and file/hunk map. `/aif-commit` commits only that
+selected group, preserves unrelated staged and unstaged changes, and stops
+without changing the index when ownership is unclear.
 
 ### `/aif-fix [bug description]` — fix and learn
 

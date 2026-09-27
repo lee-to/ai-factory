@@ -96,6 +96,7 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 - **Language:** `language.ui` for AskUserQuestion prompts, `language.artifacts` for generated plan files, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`, and `git.branch_prefix`
 - **Workflow:** `workflow.plan_id_format` — controls the full/ultra plan identifier shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. Only `slug` and `sequential` are active; `timestamp` and `uuid` are **reserved** and currently behave like `slug` (with an `INFO` log). The `sequential` value writes a full plan as `<NNNN>_<plan_file_stem>.md` and an ultra bundle as `<NNNN>_<plan_file_stem>/index.md` (see Step 1.2 for the canonical stem and algorithm). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
+- **Workflow:** `workflow.plan_structure` (default: `classic`) — controls the commit layout of new plans. Allowed values are `classic` and `task-based`. If absent, use `classic`; if the value has the wrong type or is unknown, emit `WARN [config] invalid workflow.plan_structure; falling back to classic` and use `classic`. Saved plans remain authoritative during implementation.
 
 If config.yaml doesn't exist, use defaults:
 
@@ -104,7 +105,7 @@ If config.yaml doesn't exist, use defaults:
 - `artifact_language`: `en`
 - `technical_terms_policy`: `keep`
 - Git: `enabled: true`, `base_branch: main`, `create_branches: true`, `branch_prefix: feature/`
-- Workflow: `plan_id_format: slug`
+- Workflow: `plan_id_format: slug`, `plan_structure: classic`
 
 Resolved language values:
 - `ui_language = language.ui || "en"`
@@ -818,14 +819,16 @@ When `Development methodology: tdd` is selected:
 When generating tasks based on commit strategy preference:
 
 1. **Respect `workflow.plan_structure` config option**:
-   - If `plan_structure: classic` (default): Use separate `## Commit Plan` section
-   - If `plan_structure: task-based`: Use commit tasks as explicit tasks in the plan
+   - If `plan_structure: classic` (default): Use a separate `## Commit Plan` section; do not add explicit commit tasks.
+   - If `plan_structure: task-based`: Omit `## Commit Plan` and use marked commit tasks as explicit tasks in the plan.
    - This config option is the default for new plans only; saved plans always resolve execution from their own artifact shape first
    - Existing plans continue to use their original structure
+   - The strategy-specific commit-task rules below apply only to task-based plans. For classic plans, write the ordered commit groups only in `## Commit Plan`.
 
 2. **Stable commit-task marker**:
    - Every explicit commit task MUST include a stable, language-independent marker immediately before the task line:
      `<!-- aif:task-kind:commit -->`
+   - Render the marker as a standalone HTML comment line immediately before the real `- [ ] Task N: ...` checkbox. Never make the marker its own checkbox.
    - The task still keeps a human-readable title such as `Commit changes with message "feat: ..."`, but the marker is the canonical signal for commit-task dispatch.
    - A commit task without the marker is treated as a normal implementation task even if the prose contains the word "commit".
    - Reject a marked commit task with no extractable commit message instead of guessing.
@@ -833,17 +836,17 @@ When generating tasks based on commit strategy preference:
 3. **Incremental commit strategy** (default):
    - Create commit tasks at natural boundaries throughout implementation
    - Place commit tasks after related implementation/test/documentation groups
-   - Each commit task depends on the tasks it's committing
+   - Each commit task depends on every task it commits; those dependency IDs define its exact task group
    - Commit task description: "Commit changes with message '<conventional commit message>'"
    - Example: After implementing user service, tests, and docs → commit task
-   - Dependencies: commit task depends on all related implementation/test/doc tasks
+   - Give every implementation/test/doc task a `Files:` hint. Where multiple groups change the same file, specify task-level hunk/section ownership; if that cannot be defined, do not claim the groups can be committed independently.
 
 4. **Incremental at end commit strategy**:
    - Create commit tasks at natural boundaries but place them after all implementation tasks
    - Identify logical groupings of implementation/test/doc work
    - Create commit tasks for each grouping
    - Place all commit tasks at the end of the plan after all implementation/test/doc tasks
-   - Each commit task depends on its related implementation/test/doc tasks
+   - Each commit task depends on every task in its exact group; those dependency IDs define the group
    - Example: All implementation done → commit user service → commit auth middleware → commit API routes
    - Dependencies: commit tasks depend on their related work, but appear at the end
 
@@ -861,9 +864,9 @@ When generating tasks based on commit strategy preference:
    - The marker and task-id/dependency metadata are the authoritative dispatch signals; the prose remains human-facing only
 
 7. **Classic format compatibility**:
-   - Preserve the separate `## Commit Plan` section for backward compatibility
-   - Classic plans with `## Commit Plan` continue to work as before
-   - New plans use task-based commit structure when commit strategy is configured
+   - Include `## Commit Plan` only in classic plans; it must not appear in task-based plans.
+   - Classic plans with `## Commit Plan` continue to work as before.
+   - Render only the selected structure, never a template containing both alternatives.
    - `/aif-implement` must resolve execution by saved-plan format first, then fall back to current config only when the plan is ambiguous or legacy (see Step 3.8.1)
 
 Use `TaskUpdate` to set `blockedBy` relationships:
@@ -915,7 +918,7 @@ For ultra also create the resolved bundle directory before writing its files.
 - `Research Context` section (optional, only if research content influenced this plan)
 - `Requirements Reconciliation` section (conditional, when required by the gate in Step 2)
 - `Tasks` section grouped by phases; in ultra this is the only task-checkbox source
-- `Commit Plan` section when there are 5+ tasks
+- For `workflow.plan_structure: classic`, a `Commit Plan` section when commits are planned; never include this section in task-based plans.
 
 If `original_user_request` is non-empty:
 
@@ -944,10 +947,12 @@ task mapping, dependency, and phase file before completion.
 
 The canonical template defines the required sections and ordering only. Render all human-readable plan content in `artifact_language` before writing the file, applying `technical_terms_policy` and preserving stable tokens as described in Step 0.
 
-**Commit Plan Rules:**
+**Commit layout rules:**
 
-- **5+ tasks** → add commit checkpoints every 3-5 tasks
-- **Less than 5 tasks** → single commit at the end, no commit plan needed
+- **Classic** → use only the separate `## Commit Plan` section for planned commit checkpoints.
+- **Task-based** → use only marked commit tasks in `## Tasks`; provide each task's explicit owned group and dependencies.
+- **5+ tasks** → add commit checkpoints every 3-5 tasks when appropriate.
+- **Less than 5 tasks** → a final commit may be planned; include its description in the selected layout only.
 - Group logically related tasks into one commit
 - Suggest meaningful commit messages following conventional commits
 

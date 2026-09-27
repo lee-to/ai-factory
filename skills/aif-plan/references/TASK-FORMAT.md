@@ -66,14 +66,7 @@ Authority: [declared source priority, or "none declared"]
 |----------------------------------|-------------------------|-----------------------|
 | [material rule or combination] | `[path]` — [section] | [test, command, or manual check] |
 
-## Commit Plan
-<!-- For plans with 5+ tasks, define commit checkpoints -->
-- **Commit 1** (after tasks 1-3): "feat: add base models and types"
-- **Commit 2** (after tasks 4-6): "feat: implement core service logic"
-
 ## Tasks
-
-### Classic Format (separate Commit Plan section)
 
 ### Phase 1: Setup
 - [ ] Task 1: [description]
@@ -82,79 +75,48 @@ Authority: [declared source priority, or "none declared"]
 ### Phase 2: Core Implementation
 - [ ] Task 3: [description] (depends on 1, 2)
 - [ ] Task 4: [description]
-<!-- Commit checkpoint: tasks 1-4 -->
 
 ### Phase 3: Integration
 - [ ] Task 5: [description] (depends on 3, 4)
-<!-- Commit checkpoint: tasks 5+ -->
-
-### Task-Based Format (commits as explicit tasks)
-
-### Phase 1: User Authentication System
-- [ ] Task 1: Implement user service with login/logout
-- [ ] Task 2: Write unit tests for user service (depends on 1)
-- [ ] Task 3: Document user service API (depends on 1)
-- [ ] <!-- aif:task-kind:commit -->
-- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 2,3)
-- [ ] Task 5: Implement auth middleware
-- [ ] Task 6: Write integration tests for auth flow (depends on 5)
-- [ ] Task 7: Document auth middleware usage (depends on 5)
-- [ ] <!-- aif:task-kind:commit -->
-- [ ] Task 8: Commit changes with message "feat: implement auth middleware" (depends on 6,7)
-
-### TDD Task-Based Format (test before each implementation task)
-
-### Phase 1: User Authentication System (TDD)
-- [ ] Task 1: Write failing unit test for user login functionality
-- [ ] Task 2: Implement user login to make test pass (depends on 1)
-- [ ] Task 3: Write failing unit test for user registration functionality
-- [ ] Task 4: Implement user registration to make test pass (depends on 3)
-- [ ] Task 5: Refactor authentication logic (ensure all tests still passing) (depends on 2,4)
-- [ ] Task 6: Write failing integration test for complete auth flow
-- [ ] Task 7: Implement auth middleware to make test pass (depends on 6)
-- [ ] Task 8: Commit changes with message "feat: implement user authentication with TDD" (depends on 5,7)
-
-### TDD Feature-Based Format (test batch before implementation)
-
-### Phase 1: User Authentication System (TDD)
-- [ ] Task 1: Write failing unit test for user login functionality
-- [ ] Task 2: Write failing unit test for user registration functionality
-- [ ] Task 3: Write failing integration test for complete auth flow
-- [ ] Task 4: Implement user login to make test pass (depends on 1)
-- [ ] Task 5: Implement user registration to make test pass (depends on 2)
-- [ ] Task 6: Implement auth middleware to make test pass (depends on 3)
-- [ ] Task 7: Refactor authentication logic (ensure all tests still passing) (depends on 4,5,6)
-- [ ] Task 8: Commit changes with message "feat: implement user authentication with TDD" (depends on 7)
-
-### Incremental at End Commit Strategy
-
-### Phase 1: User Authentication System
-- [ ] Task 1: Implement user service with login/logout
-- [ ] Task 2: Write unit tests for user service (depends on 1)
-- [ ] Task 3: Document user service API (depends on 1)
-- [ ] Task 4: Implement auth middleware
-- [ ] Task 5: Write integration tests for auth flow (depends on 4)
-- [ ] Task 6: Document auth middleware usage (depends on 4)
-- [ ] Task 7: Commit changes with message "feat: implement user service" (depends on 2,3)
-- [ ] Task 8: Commit changes with message "feat: implement auth middleware" (depends on 5,6)
-
-### Single Commit at End Strategy
-
-### Phase 1: User Authentication System
-- [ ] Task 1: Implement user service with login/logout
-- [ ] Task 2: Write unit tests for user service (depends on 1)
-- [ ] Task 3: Document user service API (depends on 1)
-- [ ] Task 4: Implement auth middleware
-- [ ] Task 5: Write integration tests for auth flow (depends on 4)
-- [ ] Task 6: Document auth middleware usage (depends on 4)
-- [ ] Task 7: Commit all changes with message "feat: implement user authentication system" (depends on 2,3,5,6)
 ```
 
-**Note:** The examples above show all three commit strategies and both TDD granularity options:
-- **Commit strategies**: incremental (commits interspersed), incremental at end (commits grouped at end), single commit at end (one final commit)
-- **TDD granularity**: task-based (test before each implementation task), feature-based (test batch before implementation per phase)
-- **Classic format**: preserved for backward compatibility with separate Commit Plan section
-- **Task-based format**: commits as explicit tasks with dependencies on related implementation/test/doc tasks
+Render exactly one commit layout in a generated plan; never combine these
+formats. The common template above contains tasks and settings, but not the
+optional commit layout:
+
+- For `workflow.plan_structure: classic`, include a `## Commit Plan` section
+  with ordered task ranges and messages when commits are planned. Classic is
+  the only format that uses this section.
+- For `workflow.plan_structure: task-based`, omit `## Commit Plan` and add
+  explicit commit tasks to `## Tasks`. Put the stable marker on its own line
+  immediately before the actual task checkbox; never create a checkbox for the
+  marker itself.
+
+**Classic layout example:**
+
+```markdown
+## Commit Plan
+- **Commit 1** (after tasks 1-3): "feat: add user model"
+- **Commit 2** (after tasks 4-6): "feat: implement auth service"
+```
+
+**Task-based layout example:**
+
+```markdown
+## Tasks
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+<!-- aif:task-kind:commit -->
+- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 1,2,3)
+```
+
+For `incremental`, place each marked commit task after its related work. For
+`incremental-at-end`, place all marked commit tasks after implementation tasks,
+one per planned group. For `single-commit`, add one marked final task depending
+on all work. TDD granularity changes test/implementation ordering only; every
+commit task still uses the same marker placement and grouping contract.
 
 ## TaskCreate Example
 

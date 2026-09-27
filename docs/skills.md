@@ -509,12 +509,14 @@ Adds project-specific rules and conventions:
 ### `/aif-commit`
 Creates conventional commits:
 - Analyzes staged changes
-- Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping
+- Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping in ordinary mode
+- For `/aif-implement` task-bound calls, commits only the explicit commit task's dependency group and never expands it to "everything together"
 - For ultra plans, reads the relevant phase files and maps each commit-group task through its `Files to Change` table and task specification
 - Stops for user input when staged files or hunks cannot be mapped to planned commit groups
 - Uses hunk-level staging for planned groups that share a file, or stops before changing staging when hunks cannot be applied confidently
 - Avoids whole-file staging when there is unstaged worktree overlap with grouped files
-- Keeps current staged-diff behavior unchanged when no active plan or no `## Commit Plan` exists
+- Preserves unrelated staged and unstaged changes; stops without changing the index if selected-group ownership is unclear
+- Keeps current staged-diff behavior unchanged when no active plan grouping exists (neither classic `## Commit Plan` nor task-based commit tasks)
 - Generates meaningful commit message
 - Follows conventional commits format
 - Runs read-only architecture/roadmap/rules gate checks before commit proposal
