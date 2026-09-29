@@ -85,8 +85,9 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
      `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
      Treat any unknown value as `slug`.
    - `workflow.plan_structure` (default: `classic`) — `classic` or
-     `task-based`; use it only for unreadable or legacy plans. A readable plan's
-     markers and sections determine its execution structure.
+     `task-based`. Invalid types or values warn and fall back to `classic`.
+     Use it only for unreadable or legacy plans; a readable plan's markers and
+     sections determine its execution structure.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)
@@ -179,6 +180,10 @@ code.
 
 ### Task-based commit tasks
 
+Treat `## Settings`, `Commit strategy:`, `Development methodology:`, and
+`TDD granularity:` as exact, untranslated plan-control tokens. Read their
+canonical values literally; do not infer settings from translated prose.
+
 For a marked commit task:
 
 - Extract its exact commit message from the task description; if it is unclear,
@@ -187,6 +192,9 @@ For a marked commit task:
 - Read its dependency IDs and the associated task descriptions, `Files:` hints,
   and complete ultra task specifications to identify the exact commit group.
   If ownership is unclear, stop before invoking `/aif-commit`.
+- For `incremental-at-end` or `single-commit`, do not dispatch any marked
+  commit task until all implementation/test tasks are complete and the reserved
+  documentation task and ownership gate below are complete when `Docs: yes`.
 - Invoke `/aif-commit` in task-bound mode with the exact plan path, marked task
   ID and message, dependency task IDs/descriptions, planned files or hunk
   ownership evidence, and `HANDOFF_MODE`. Commit only this group; preserve
@@ -206,6 +214,39 @@ The canonical marker is a standalone comment immediately before the task
 checkbox; it is not itself a task. A task without the marker is ordinary even if
 its text mentions commits. Commit tasks are dependency boundaries, not
 implementation work.
+
+### Deferred commit strategies
+
+Read `Commit strategy:` from the exact `## Settings` section; absent values in
+classic plans mean `incremental`. For `incremental-at-end`, wait until all
+implementation, test, and documentation tasks finish, then process classic
+`## Commit Plan` groups in order. For `single-commit`, wait until those tasks
+finish, then process the single group. Neither strategy offers intermediate
+commit checkpoints. Begin finalization immediately after the final work task.
+Ask before each group; skipping one or all remaining groups must be reported,
+and completion must not imply skipped groups were committed.
+
+For classic groups, invoke `/aif-commit classic-group` with the exact plan path,
+group name/number, task range, exact message, every task's IDs/descriptions and
+file/hunk ownership evidence, `HANDOFF_MODE`, and authorization for that group.
+It must validate against the saved `## Commit Plan` and commit only that group.
+Independently verify the local commit message and owned diff before recording
+success. On resume, treat a group as committed only when exactly one matching
+commit and task-range diff are proven; stop on ambiguity.
+
+For deferred strategies with `Docs: yes`, require a reserved documentation
+task with `Files:` hints that depends on all implementation/test tasks and
+belongs to the final deferred group (a dedicated final group for
+`incremental-at-end`, the single group for `single-commit`). After implementation
+and test work but before any deferred commit, run the mandatory `/aif-docs`
+checkpoint. Capture staged/unstaged paths and hunks first; unrelated staged
+work stops the flow without index changes. Compare the resulting diff with that
+baseline and verify each docs path/hunk is within the reserved task hints and
+commit-group ownership. Unclear, overlapping, or out-of-scope ownership stops
+all deferred commits; do not widen the group. Mark the docs task complete only
+after validation or an explicit Skip. Skip/no-op docs work creates no empty
+docs-only commit; a single group with implementation changes remains. Do not
+repeat the docs checkpoint during completion.
 
 ### Session persistence
 
