@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import { loadAllExtensions } from './extensions.js';
 
 export type AgentFileExtension = '.md' | '.toml';
@@ -42,6 +44,26 @@ export interface RuntimeDefinitionInput {
 export interface RuntimeManifestInput {
   name: string;
   agents?: RuntimeDefinitionInput[];
+}
+
+export function resolveDevinHomeSkillsDir(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+  home = os.homedir(),
+): string {
+  if (platform === 'win32') {
+    const appData = env.APPDATA;
+    const configHome = appData && path.win32.isAbsolute(appData)
+      ? appData
+      : path.win32.join(home, 'AppData', 'Roaming');
+    return path.win32.join(configHome, 'devin', 'skills');
+  }
+
+  const xdgConfigHome = env.XDG_CONFIG_HOME;
+  const configHome = xdgConfigHome && path.isAbsolute(xdgConfigHome)
+    ? xdgConfigHome
+    : path.join(home, '.config');
+  return path.join(configHome, 'devin', 'skills');
 }
 
 const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
@@ -148,7 +170,7 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     displayName: 'Devin',
     configDir: '.devin',
     skillsDir: '.devin/skills',
-    homeSkillsDir: '.config/devin/skills',
+    homeSkillsDir: resolveDevinHomeSkillsDir(),
     settingsFile: null,
     supportsMcp: false,
     skillsCliAgent: 'devin',

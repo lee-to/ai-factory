@@ -11,12 +11,24 @@ export interface TemplateVars {
   skills_cli_agent_flag: string;
 }
 
-export function buildTemplateVars(agent: AgentConfig & { homeSkillsDir?: string }): TemplateVars {
+function resolveHomeSkillsPath(agent: AgentConfig): string {
+  const homeSkillsDir = ['.codex/skills', '.agents/skills'].includes(agent.skillsDir)
+    ? agent.skillsDir
+    : agent.homeSkillsDir ?? getAgentConfig(agent.id).skillsDir;
+
+  if (path.isAbsolute(homeSkillsDir) || path.win32.isAbsolute(homeSkillsDir)) {
+    return homeSkillsDir;
+  }
+  return homeSkillsDir.startsWith('~/') || homeSkillsDir.startsWith('~\\')
+    ? homeSkillsDir
+    : `~/${homeSkillsDir}`;
+}
+
+export function buildTemplateVars(agent: AgentConfig): TemplateVars {
   return {
     config_dir: agent.configDir,
     skills_dir: agent.skillsDir,
-    home_skills_dir: `~/${['.codex/skills', '.agents/skills'].includes(agent.skillsDir)
-      ? agent.skillsDir : agent.homeSkillsDir ?? getAgentConfig(agent.id).skillsDir}`,
+    home_skills_dir: resolveHomeSkillsPath(agent),
     settings_file: agent.settingsFile ?? '',
     agent_name: agent.displayName,
     skills_cli_agent_flag: agent.skillsCliAgent ? `--agent ${agent.skillsCliAgent}` : '',
