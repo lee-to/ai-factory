@@ -14,7 +14,7 @@ import { getExtensionsDir } from '../dist/core/extensions.js';
 import { applyInjection } from '../dist/core/injections.js';
 import { isUnmodifiedLegacySkillDir } from '../dist/cli/commands/upgrade.js';
 import { processTemplate, buildTemplateVars } from '../dist/core/template.js';
-import { getAgentConfig } from '../dist/core/agents.js';
+import { getAgentConfig, resolveDevinHomeSkillsDir } from '../dist/core/agents.js';
 import { replaceFrontmatterName } from '../dist/core/transformer.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -108,6 +108,37 @@ test('core', 'custom project overrides keep runtime home paths and singleton met
   await installExtensionSkills(project, installation('codex-app', '.team/skills'), path.dirname(source), ['demo']);
   const content = await fs.readFile(path.join(project, '.team/skills/demo/SKILL.md'), 'utf8');
   assert.ok(content.includes('.team/skills ~/.agents/skills ~/.agents/skills .agents  Codex app'));
+});
+
+test('core', 'Devin resolves platform-specific global paths without changing project targets', async project => {
+  assert.equal(
+    resolveDevinHomeSkillsDir('win32', { APPDATA: 'C:\\Users\\dev\\AppData\\Roaming' }, 'C:\\Users\\dev'),
+    'C:\\Users\\dev\\AppData\\Roaming\\devin\\skills',
+  );
+  assert.equal(
+    resolveDevinHomeSkillsDir('linux', { XDG_CONFIG_HOME: '/mnt/config' }, '/home/dev'),
+    '/mnt/config/devin/skills',
+  );
+  assert.equal(
+    resolveDevinHomeSkillsDir('linux', { XDG_CONFIG_HOME: 'relative-config' }, '/home/dev'),
+    '/home/dev/.config/devin/skills',
+  );
+
+  const devin = getAgentConfig('devin');
+  assert.equal(devin.skillsDir, '.devin/skills');
+  const windowsAgent = { ...devin, homeSkillsDir: 'C:\\Users\\dev\\AppData\\Roaming\\devin\\skills' };
+  const vars = buildTemplateVars(windowsAgent);
+  assert.equal(vars.home_skills_dir, 'C:\\Users\\dev\\AppData\\Roaming\\devin\\skills');
+  assert.equal(
+    processTemplate('~/{{skills_dir}} {{home_skills_dir}}', vars),
+    'C:\\Users\\dev\\AppData\\Roaming\\devin\\skills C:\\Users\\dev\\AppData\\Roaming\\devin\\skills',
+  );
+
+  assert.deepEqual(await installSkills({
+    projectDir: project, agentId: 'devin', skillsDir: devin.skillsDir, skills: ['aif'],
+  }), ['aif']);
+  const installedSkill = await fs.readFile(path.join(project, devin.skillsDir, 'aif/SKILL.md'), 'utf8');
+  assert.ok(installedSkill.includes(buildTemplateVars(devin).home_skills_dir));
 });
 
 test('core', 'shared CLI/App renders identically and receipts track profile changes', async project => {
