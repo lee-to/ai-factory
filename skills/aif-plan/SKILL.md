@@ -119,7 +119,7 @@ All AskUserQuestion prompts, progress updates, summaries, and next-step guidance
 Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
 For ultra this applies to `index.md` and every linked phase file.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Keep the plan-control tokens `## Settings`, `Commit strategy:`, `Development methodology:`, and `TDD granularity:` exact and untranslated; their values must use the canonical identifiers shown in the template. Apply `technical_terms_policy` to other human-readable terminology.
 
 Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
 
@@ -494,6 +494,12 @@ Store all preferences — they will be used in the plan entrypoint and passed to
   - `feature-based`: Write all tests for a phase/feature first, then implement all tasks in that phase, then refactor
   - Both approaches produce comprehensive test coverage but with different task organization
 
+The `## Settings` heading and the `Commit strategy:`, `Development methodology:`,
+and `TDD granularity:` labels are machine-readable plan-control tokens. Keep
+them exact and untranslated in every artifact language, and write their values
+using the canonical identifiers (`incremental`, `incremental-at-end`,
+`single-commit`, `implementation-first`, `tdd`, `task-based`, `feature-based`).
+
 Docs policy semantics:
 
 - `Docs: yes` → `/aif-implement` MUST show a mandatory documentation checkpoint and route docs changes through `/aif-docs`
@@ -823,7 +829,7 @@ When generating tasks based on commit strategy preference:
    - If `plan_structure: task-based`: Omit `## Commit Plan` and use marked commit tasks as explicit tasks in the plan.
    - This config option is the default for new plans only; saved plans always resolve execution from their own artifact shape first
    - Existing plans continue to use their original structure
-   - The strategy-specific commit-task rules below apply only to task-based plans. For classic plans, write the ordered commit groups only in `## Commit Plan`.
+   - The strategy-specific commit-task rules below apply only to task-based plans. For classic plans, write the ordered commit groups only in `## Commit Plan`, following the classic strategy behavior below.
 
 2. **Stable commit-task marker**:
    - Every explicit commit task MUST include a stable, language-independent marker immediately before the task line:
@@ -850,9 +856,18 @@ When generating tasks based on commit strategy preference:
    - Example: All implementation done → commit user service → commit auth middleware → commit API routes
    - Dependencies: commit tasks depend on their related work, but appear at the end
 
+   - When `Docs: yes`, reserve a final documentation task for the mandatory
+     `/aif-docs` checkpoint. Give it explicit documentation `Files:` hints and
+     make it depend on all implementation/test tasks. Place it in a dedicated
+     final commit group; other implementation groups must not claim those
+     documentation files. For task-based plans, the documentation commit task
+     depends on this documentation task.
+
 5. **Single commit at end strategy**:
    - Create one commit task at the very end of the plan
    - The commit task depends on all implementation/test/documentation tasks
+   - When `Docs: yes`, include the reserved `/aif-docs` documentation task in
+     this dependency group, with explicit documentation `Files:` hints
    - Commit task description: "Commit all changes with message '<conventional commit message>'"
    - Example: All tasks complete → single commit task
    - Dependencies: commit task depends on all implementation/test/doc tasks
@@ -865,7 +880,11 @@ When generating tasks based on commit strategy preference:
 
 7. **Classic format compatibility**:
    - Include `## Commit Plan` only in classic plans; it must not appear in task-based plans.
-   - Classic plans with `## Commit Plan` continue to work as before.
+   - For classic `incremental` plans, list ordered task-range checkpoints as before; each is eligible at its task-range boundary.
+   - For classic `incremental-at-end` plans, list one ordered entry per logical group, but mark every entry as deferred until all implementation/test/documentation tasks are complete. When `Docs: yes`, include a final documentation task in its own last group. `/aif-implement` must not offer or create these commits at intermediate task-range boundaries; it processes the groups in order after the docs checkpoint.
+   - For classic `single-commit` plans, list exactly one group covering all implementation/test/documentation tasks, including the reserved documentation task when `Docs: yes`, deferred until all such tasks are complete.
+   - For deferred plans with `Docs: yes`, reserve an explicit final documentation task with `Files:` hints for the `/aif-docs` checkpoint. These hints define the documentation group boundary; do not let other groups claim the same files. If the actual docs diff cannot be mapped to the reserved hints, `/aif-implement` must stop and ask to adjust grouping before any deferred commit.
+   - Classic plans with `## Commit Plan` continue to work as before when their strategy is absent or `incremental`.
    - Render only the selected structure, never a template containing both alternatives.
    - `/aif-implement` must resolve execution by saved-plan format first, then fall back to current config only when the plan is ambiguous or legacy (see Step 3.8.1)
 

@@ -100,6 +100,20 @@ If any rule is violated — fix the output before presenting it to the user.
      message, and file/hunk map as the selected group. This mode takes
      precedence over ordinary grouping prompts: do not offer "Commit everything
      together" or expand the group to other plan tasks.
+   - **Classic-group task-bound mode:** `/aif-implement` may invoke this mode
+     for exactly one group from a classic `## Commit Plan`, using the explicit
+     `classic-group` mode and supplying the exact resolved plan path, group
+     number/name as written, complete task range, exact planned commit message,
+     task IDs/descriptions and their `Files:`/hunk ownership evidence, plus the
+     current `HANDOFF_MODE` value. This is task-bound mode, not ordinary
+     plan-aware grouping. It does not require a commit-task ID or dependency
+     list. Resolve the supplied path and verify the selected group exists in
+     that plan; its group number/name, task range, and message must match the
+     plan exactly. Reject missing, duplicate, ambiguous, or mismatched group
+     metadata before changing the index. Re-read and map the exact task range
+     from the plan; caller-supplied task/file evidence is a scope hint, not
+     authority to expand the group. Never select adjacent groups or offer
+     "Commit everything together."
    - Compare the selected group against both staged and unstaged changes.
      Commit only changes proven to belong to that group. Leave unrelated
      staged and unstaged changes untouched. Preserve unrelated staged and
@@ -116,7 +130,11 @@ If any rule is violated — fix the output before presenting it to the user.
      with no unrelated unstaged edits; otherwise use hunk-level staging or
      stop. Verify the staged diff contains only the selected task group before
      committing.
-   - If active plan contains `## Commit Plan`, parse:
+   - If invoked in classic-group task-bound mode, resolve only the caller-
+     selected `## Commit Plan` entry and validate its group number/name, task
+     range, and exact message against the saved plan. Do not run the ordinary
+     multi-group flow.
+   - Otherwise, if active plan contains `## Commit Plan`, parse:
      - commit group number/name
      - task range, such as `after tasks 1-3` or `tasks 4-6`
      - suggested conventional commit message
@@ -236,13 +254,16 @@ When invoked:
 4. Run read-only context gates and summarize findings as `WARN`/`ERROR`
 5. If commit type is `feat`/`fix`/`perf` and roadmap exists, check milestone linkage; if missing, warn and suggest adding linkage in commit body/footer
 6. Propose a commit message
+   - In either task-bound mode, use the exact message verified against the
+     selected saved-plan entry; do not generate or edit a replacement message.
 7. Confirm with the user before committing:
 
-   - **Task-bound mode with `HANDOFF_MODE=1`:** the explicit commit task is
-     authorization to commit its selected group; do not prompt and use the
-     exact planned message.
+   - **Task-bound mode with `HANDOFF_MODE=1`:** `/aif-implement`'s explicit
+     authorization for the selected commit task or classic group authorizes
+     committing only that group; do not prompt and use the exact planned
+     message.
    - **Task-bound mode in a manual session:** show the exact planned message
-     and selected group, then offer only:
+     and selected task/group, then offer only:
 
      ```
      Options:
@@ -273,9 +294,10 @@ When invoked:
      return to step 7; **Cancel** → stop, do NOT commit.
 
 9. Execute `git commit` with the confirmed message
-   - In task-bound mode, use the exact message supplied by `/aif-implement`;
-     return the resulting commit hash and success or
-     failure explicitly so `/aif-implement` can verify and persist task state.
+   - In task-bound mode, use the exact message verified against the saved plan
+     and supplied by `/aif-implement`; return the resulting commit hash and
+     success or failure explicitly so `/aif-implement` can verify and persist
+     task/group state.
 10. Post-commit push handling:
    - In task-bound `HANDOFF_MODE=1`, do not prompt or push; finish after the
      successful local commit.
@@ -304,6 +326,11 @@ If argument provided (e.g., `/aif-commit auth`):
 - Use it as the scope
 - Or as context for the commit message
 
+`/aif-commit classic-group` is a reserved task-bound mode selector when the
+invocation also supplies the complete classic-group payload described in Step
+3. If that payload is missing or invalid, stop; do not reinterpret the mode
+token as an ordinary commit scope.
+
 ## Important
 
 - Never commit secrets or credentials
@@ -311,6 +338,7 @@ If argument provided (e.g., `/aif-commit auth`):
 - `/aif-commit` has no implicit strict mode — context gates are warning-first unless user explicitly requests blocking behavior
 - Treat the resolved architecture, roadmap, RULES.md, description, and plan artifacts as read-only context in this command
 - If no active plan resolves or the active plan has neither a `## Commit Plan` section nor explicit task-based commit tasks, keep current staged-diff behavior unchanged.
+- Classic-group task-bound mode requires one group validated against the exact saved `## Commit Plan`; never fall back to ordinary grouping when this mode was requested.
 - For ordinary (non-task-bound) invocations only, if staged changes contain unrelated work (e.g., a feature + a bugfix, or changes to independent modules), suggest splitting into separate commits:
   1. Show which files/hunks belong to which commit
   2. Confirm split plan with the user:

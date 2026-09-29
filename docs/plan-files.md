@@ -99,7 +99,7 @@ checkbox. The comment is not itself a task or checkbox.
 
 ## Commit Strategies
 
-When using task-based plan structure, `/aif-plan` offers three commit strategies:
+`/aif-plan` offers three commit strategies for either plan structure:
 
 | Strategy | Description | Example |
 |----------|-------------|---------|
@@ -107,7 +107,7 @@ When using task-based plan structure, `/aif-plan` offers three commit strategies
 | `incremental at end` | All commits created after implementation completes | Complete all work, then commit in logical groups |
 | `single commit at end` | One commit after all implementation | Complete all work, then single final commit |
 
-The commit strategy is selected via preference questions during `/aif-plan` and affects how commit tasks are generated and placed in the plan.
+The commit strategy is selected via preference questions during `/aif-plan` and affects how commit tasks are generated and placed in the plan. With `Docs: yes` and a deferred strategy (`incremental-at-end` or `single-commit`), the plan reserves a documentation task with explicit `Files:` hints. `/aif-implement` runs the mandatory `/aif-docs` checkpoint after implementation/test tasks but before deferred commits, then verifies its changed paths/hunks belong to the reserved task and group. An unclear or out-of-scope docs diff stops finalization until the user adjusts the grouping. `incremental-at-end` uses a dedicated final documentation group; `single-commit` includes the documentation task in its one group.
 
 ## TDD Support
 

@@ -532,6 +532,7 @@ ai-factory upgrade
 6. **No tests unless asked** - respect user's testing preference
 7. **Commit checkpoints** - for plans with 5+ tasks
 8. **ARCHITECTURE.md is architecture source of truth** - all skills follow its folder structure and dependency rules
+9. **Deferred commits** - with `Docs: yes`, reserve and validate the docs task/group before deferred commits; `/aif-implement` invokes `/aif-commit` once per selected classic `## Commit Plan` group using classic-group task-bound mode, and saved group/range/message/task ownership must match before committing
 
 ## Documentation Structure
 

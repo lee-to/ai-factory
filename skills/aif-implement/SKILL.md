@@ -629,6 +629,11 @@ TaskUpdate(taskId, status: "in_progress")
 
 **3.3.1: TDD-specific handling**
 
+Plan-control tokens `## Settings`, `Development methodology:`, `TDD granularity:`,
+and `Commit strategy:` are exact, untranslated compatibility tokens in every
+artifact language. Read these labels and their canonical values literally; do
+not infer a setting from translated prose.
+
 When the plan's `## Settings` includes `Development methodology: tdd`:
 
 - **For test tasks**: Execute the test and verify it fails initially (TDD red-green-refactor cycle)
@@ -803,8 +808,13 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
 
 **Handling all three commit strategies:**
 - **Incremental**: Commit tasks appear interspersed with implementation - invoke `/aif-commit` when each commit task is reached
-- **Incremental at end**: Commit tasks appear at the end - invoke `/aif-commit` for each commit task in sequence
-- **Single commit at end**: One commit task at the end - invoke `/aif-commit` once with the final commit message
+- **Incremental at end**: Commit tasks appear at the end - after completing any reserved documentation task and passing its ownership gate below, invoke `/aif-commit` for each commit task in sequence
+- **Single commit at end**: One commit task appears at the end - after completing any reserved documentation task and passing its ownership gate below, invoke `/aif-commit` once with the final commit message
+
+For either deferred strategy with `Docs: yes`, do not dispatch the first marked
+commit task until the reserved documentation task and the Step 3.8.2 ownership
+gate are complete. If ownership validation fails, leave every deferred commit
+task incomplete and stop.
 
 **Saved-plan resolution order:**
 1. Read the active plan artifact first and detect an explicit commit marker or a classic `## Commit Plan` section.
@@ -817,7 +827,119 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
 
 **3.8.2: Classic commit checkpoints (backward compatibility)**
 
-If the plan has a separate `## Commit Plan` section (classic format) and current task is at a checkpoint:
+Read the canonical `Commit strategy:` value from the exact `## Settings` section
+when available. If it is absent, treat the classic plan as `incremental` for
+backward compatibility.
+
+- For `incremental` (or an absent strategy), if the plan has a separate
+  `## Commit Plan` section and the current task is at a checkpoint, use the
+  checkpoint prompt and choices below.
+- For `incremental-at-end`, do not prompt or commit at intermediate task-range
+  checkpoints. Once every implementation, test, and documentation task is
+  complete, process the classic `## Commit Plan` groups in their listed order.
+- For `single-commit`, do not prompt or commit at intermediate checkpoints.
+  Once every implementation, test, and documentation task is complete, process
+  the single classic commit group covering all such work.
+
+For either deferred strategy when `Docs: yes`, the plan must contain a reserved
+documentation task with `Files:` hints. After all implementation/test tasks and
+before any deferred commit, run the mandatory documentation checkpoint for that
+task (see Step 5). This checkpoint is part of plan execution, not post-commit
+cleanup. Do not mark the documentation task complete until `/aif-docs` returns
+and its resulting diff has been checked against the reserved task and commit
+group.
+
+For either deferred strategy, ask at finalization before each planned commit,
+using a finalization prompt such as:
+
+```
+AskUserQuestion: All planned work is complete. Ready to commit deferred group
+Tasks <first>-<last>? Suggested message: "<conventional commit message>"
+
+Options:
+1. Yes, commit this group (/aif-commit)
+2. Skip this group
+3. Skip all remaining commit groups
+```
+
+Pass only that group's task range and ownership evidence to `/aif-commit`, and
+use the existing resume reconciliation to verify the local commit before marking
+the group complete. Do not report implementation complete while planned
+deferred groups remain. Start finalization as soon as the final
+implementation/test/documentation task is complete, even if no task-range
+checkpoint coincides with that final task.
+
+Invoke `/aif-commit` in **classic-group task-bound mode** for each deferred
+classic group. Pass all of:
+
+- the exact resolved plan path
+- the explicit `classic-group` task-bound mode and exact group number/name as
+  written in `## Commit Plan`
+- the complete task range and exact planned commit message
+- every task ID/description in the range and its `Files:` hints or task-level
+  hunk ownership evidence
+- the current `HANDOFF_MODE` value and the user's authorization for this group
+
+Use an explicit invocation payload, not the ordinary grouping prompt:
+
+```text
+/aif-commit classic-group
+plan_path: <exact resolved plan path>
+group: <exact group number/name from ## Commit Plan>
+task_range: <complete range>
+message: <exact planned commit message>
+tasks: <IDs, descriptions, Files hints, and hunk ownership>
+HANDOFF_MODE: <current value>
+authorized: <yes only after this group was authorized>
+```
+
+`/aif-commit` must verify this metadata against the saved `## Commit Plan`,
+commit only that one group, and reject ambiguity or mismatch without changing
+the index. After return, independently verify the exact local commit message
+and that its diff belongs only to the selected group before recording the group
+as committed. Never use ordinary multi-group `Follow Commit Plan` mode for
+deferred finalization.
+
+Classic groups have no plan checkbox. On resume, reconcile every deferred group
+against local Git history using its exact planned message and owned task-range
+diff: if exactly one matching commit proves the group, treat it as committed;
+if none proves it, process it normally; if multiple or ambiguous matches exist,
+stop and report the mismatch. Do not infer group completion from a prior
+invocation alone.
+
+**Deferred documentation task execution and ownership gate:**
+
+1. Locate the reserved documentation task in the plan. It must depend on all
+   implementation/test tasks and be included in the planned deferred group
+   (dedicated final group for `incremental-at-end`; the final commit group for
+   `single-commit`).
+2. After those implementation/test tasks are complete, run the `Docs: yes`
+   checkpoint from Step 5 before dispatching any deferred commit task or
+   classic group. Do not repeat this checkpoint during completion.
+3. Before invoking `/aif-docs`, capture the staged and unstaged diff paths and
+   hunks. If unrelated staged work exists, stop without changing the index.
+   If the user chooses Update or Create, invoke `/aif-docs` as specified in
+   Step 5. Compare the post-docs staged and unstaged diffs to the baseline to
+   identify the docs changes made by this checkpoint. Verify every new docs
+   path/hunk against the reserved task's `Files:` hints and exact commit group.
+   Pre-existing or newly changed docs hunks with unclear ownership, a path/hunk
+   outside the hints, or overlap with another group's ownership requires
+   stopping before any deferred commit and asking the user to adjust the task
+   hints/grouping; do not widen the group or proceed with other deferred
+   commits.
+4. If the user chooses Skip, record the documentation outcome as skipped and
+   resolve the reserved task as skipped. Do not create a documentation-only
+   commit for an empty group; omit that group from dispatch while retaining the
+   user-visible skipped outcome. If `/aif-docs` makes no changes, similarly
+   resolve the documentation task and omit an empty docs-only group. For
+   `single-commit`, keep the single group when it also contains implementation
+   changes; only the docs task contributes no files.
+5. Only after validation, update the task checkbox/status and continue deferred
+   commit finalization. If ownership validation stops the run, keep the
+   documentation task and all affected commit tasks incomplete.
+
+For `incremental` only, when the current task range ends at a planned
+checkpoint:
 
 ```
 AskUserQuestion: ✅ Tasks <first>-<last> completed. This is a commit checkpoint. Ready to commit? Suggested message: "<conventional commit message>"
@@ -831,8 +953,12 @@ Options:
 **Based on choice:**
 
 - Yes, commit now → invoke `/aif-commit` with the suggested message, then continue to next task
-- No, continue to next task → proceed to the next task without committing
+- No, continue to next task → proceed without committing
 - Skip all commit checkpoints → for all subsequent checkpoints within this `/aif-implement` run, skip the prompt automatically and proceed directly to the next task (as if user selected "No, continue to next task" each time). This is in-context memory — resets on `/clear` or new session
+
+During deferred finalization, "Skip this group" leaves it uncommitted and moves
+to the next group; "Skip all remaining commit groups" skips every subsequent
+group in this run. In either case, report skipped groups explicitly.
 
 **3.9: Move to next task or pause**
 
@@ -935,11 +1061,21 @@ Options:
 2. No — skip
 ```
 
-**Documentation policy checkpoint (after completion, before plan cleanup):**
+**Documentation policy checkpoint:**
 
 Read the plan entrypoint setting `Docs: yes/no`.
 
 If plan setting is `Docs: yes`:
+
+- For `incremental-at-end` and `single-commit`, run this checkpoint after all
+  implementation/test tasks but before deferred commit finalization, as
+  specified in Step 3.8.2. Do not wait until after the commits.
+- The planner reserves an explicit docs task for these deferred strategies
+  when `Docs: yes`; resolve that task only after this checkpoint and the
+  ownership gate pass (or the user chooses Skip).
+- For `incremental`, preserve the existing completion-time checkpoint behavior.
+- If deferred finalization already ran this checkpoint in the current
+  execution, do not ask or invoke `/aif-docs` again.
 
 ```
 AskUserQuestion: Documentation checkpoint — how should we document this feature?

@@ -1404,7 +1404,7 @@ else
     fail "/aif-commit active plan discovery priority missing"
 fi
 
-if grep -Fq 'If active plan contains `## Commit Plan`' "$AIF_COMMIT_SKILL" \
+if grep -Fq 'Otherwise, if active plan contains `## Commit Plan`' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Compare staged files/hunks with planned groups' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Follow Commit Plan' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Commit everything together' "$AIF_COMMIT_SKILL" \
@@ -1413,6 +1413,26 @@ if grep -Fq 'If active plan contains `## Commit Plan`' "$AIF_COMMIT_SKILL" \
     pass "/aif-commit documents Commit Plan grouping prompt and unmapped-file behavior"
 else
     fail "/aif-commit Commit Plan grouping contract missing"
+fi
+
+if grep -Fq 'Classic-group task-bound mode' "$AIF_COMMIT_SKILL" \
+   && grep -Fq '`classic-group` mode and supplying' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Reject missing, duplicate, ambiguous, or mismatched group' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Never use ordinary multi-group' "$AIF_IMPLEMENT_SKILL"; then
+    pass "/aif-commit supports isolated classic-group task-bound commits"
+else
+    fail "/aif-commit classic-group task-bound contract missing"
+fi
+
+if grep -Fq 'reserve a final documentation task' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'before any deferred commit' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Deferred documentation task execution and ownership gate' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Compare the post-docs staged and unstaged diffs to the baseline' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'adjust the task' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'runs `/aif-docs` before deferred commits' "$WORKFLOW_DOC"; then
+    pass "deferred docs checkpoint precedes commits and enforces planned ownership"
+else
+    fail "deferred docs checkpoint ordering or ownership gate missing"
 fi
 
 if grep -Fq 'execute the commit-task handler' "$AIF_IMPLEMENT_SKILL" \

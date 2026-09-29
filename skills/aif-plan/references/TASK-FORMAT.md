@@ -80,6 +80,11 @@ Authority: [declared source priority, or "none declared"]
 - [ ] Task 5: [description] (depends on 3, 4)
 ```
 
+Keep `## Settings` and the `Commit strategy:`, `Development methodology:`,
+and `TDD granularity:` labels exactly as shown in every artifact language;
+these are untranslated control tokens read by `/aif-implement`. Keep values
+canonical and untranslated as well.
+
 Render exactly one commit layout in a generated plan; never combine these
 formats. The common template above contains tasks and settings, but not the
 optional commit layout:
@@ -92,7 +97,7 @@ optional commit layout:
   immediately before the actual task checkbox; never create a checkbox for the
   marker itself.
 
-**Classic layout example:**
+**Classic layout example (`incremental`):**
 
 ```markdown
 ## Commit Plan
@@ -117,6 +122,25 @@ For `incremental`, place each marked commit task after its related work. For
 one per planned group. For `single-commit`, add one marked final task depending
 on all work. TDD granularity changes test/implementation ordering only; every
 commit task still uses the same marker placement and grouping contract.
+
+For classic plans, `Commit strategy: incremental-at-end` means list each logical
+group in `## Commit Plan` as deferred until all implementation/test/documentation
+tasks are complete. Keep the task-range syntax and make deferral explicit, e.g.
+`- **Commit 1** (after tasks 1-3; defer until all tasks complete): "feat: ..."`
+`/aif-implement` commits those groups in listed order only during finalization.
+`single-commit` means exactly one deferred group covering all
+implementation/test/documentation tasks. Neither deferred strategy may commit
+at an intermediate task-range boundary.
+
+For either deferred strategy with `Docs: yes`, include a final documentation
+task for the mandatory `/aif-docs` checkpoint and give it explicit `Files:`
+hints. In classic `incremental-at-end`, place this task in a dedicated final
+commit group; in `single-commit`, include it in the one group. In task-based
+plans, the corresponding commit task must depend on the documentation task.
+After `/aif-docs`, `/aif-implement` verifies every changed documentation
+path/hunk is covered by that task's hints and selected group. If the diff
+escapes the reserved scope or overlaps another group ambiguously, stop before
+committing and ask the user to adjust the plan grouping.
 
 ## TaskCreate Example
 

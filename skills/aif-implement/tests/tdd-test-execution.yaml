@@ -41,16 +41,21 @@ fixtures:
           "type": "module",
           "dependencies": { "express": "^4.0.0" }
         }
+    - path: .ai-factory/config.yaml
+      content: |
+        language:
+          ui: es
+          artifacts: es
     - path: .ai-factory/plans/feature-test-tdd.md
       content: |
-        # Implementation Plan: Test TDD
+        # Plan de implementación: prueba TDD
 
         Branch: feature/test-tdd
         Created: 2026-09-20
 
         ## Original Request
 
-        Test TDD handling
+        Verificar el manejo TDD
 
         ## Settings
         - Testing: yes
@@ -62,10 +67,10 @@ fixtures:
 
         ## Tasks
 
-        ### Phase 1: Implementation
-        - [ ] Task 1: Write failing unit test for user login
+        ### Fase 1: Implementación
+        - [ ] Task 1: Escribir una prueba unitaria fallida para el inicio de sesión
           Files: tests/login.test.ts
-        - [ ] Task 2: Implement user login to make test pass
+        - [ ] Task 2: Implementar el inicio de sesión para hacer pasar la prueba
           Files: src/services/auth.ts
           Depends on: 1
 
