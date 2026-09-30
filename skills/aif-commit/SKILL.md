@@ -114,22 +114,33 @@ If any rule is violated — fix the output before presenting it to the user.
      from the plan; caller-supplied task/file evidence is a scope hint, not
      authority to expand the group. Never select adjacent groups or offer
      "Commit everything together."
+   - Before changing the index, capture the complete outstanding change set
+     against `HEAD` for the selected group, including staged, unstaged, and
+     untracked changes. Use `git status --porcelain -uall` and
+     `git ls-files --others --exclude-standard` to enumerate untracked paths;
+     inspect each candidate's content and prove its ownership before staging.
+     Map changes at hunk level when files overlap groups. This captured set is
+     the completeness baseline for both task-based and classic-group
+     task-bound execution.
    - Compare the selected group against both staged and unstaged changes.
      Commit only changes proven to belong to that group. Leave unrelated
      staged and unstaged changes untouched. Preserve unrelated staged and
-     unstaged changes. Do not run `git add .`, unstage
-     unrelated changes, or commit a pre-existing staged change outside the
-     selected group.
+     unstaged changes. Do not run `git add .`, unstage unrelated changes, or
+     commit a pre-existing staged change outside the selected group.
    - If staged changes include unrelated work, the selected group overlaps
      other task work in a way that cannot be separated confidently, or any
      staged/unstaged hunk has unclear ownership, stop before changing the index
      and report the exact ambiguity. The caller must leave the plan commit task
      incomplete.
-   - When there are no staged changes, stage only the selected group's proven
-     files/hunks. Whole-file staging is allowed only for a disjoint group file
-     with no unrelated unstaged edits; otherwise use hunk-level staging or
-     stop. Verify the staged diff contains only the selected task group before
-     committing.
+   - Stage every remaining proven change in the captured selected-group set,
+     whether the index started empty or partially staged. Whole-file staging
+     is allowed only for a disjoint group file with no unrelated unstaged
+     edits; otherwise use hunk-level staging or stop. Explicitly stage
+     selected, proven untracked files and verify they are no longer untracked.
+     Before committing, verify that the staged diff contains the complete
+     captured selected-group set, including the contents of originally
+     untracked files, and no changes outside it. If either scope or
+     completeness cannot be proven, stop without committing.
    - If invoked in classic-group task-bound mode, resolve only the caller-
      selected `## Commit Plan` entry and validate its group number/name, task
      range, and exact message against the saved plan. Do not run the ordinary
@@ -298,6 +309,13 @@ When invoked:
      and supplied by `/aif-implement`; return the resulting commit hash and
      success or failure explicitly so `/aif-implement` can verify and persist
      task/group state.
+   - For task-bound mode, verify after committing that the commit's complete
+     diff equals the captured selected-group change set: no captured group
+     change is missing and no unrelated change is included. Check paths and
+     hunks/content, not only that committed paths are a subset of planned
+     paths. Leave unrelated changes in the index or worktree untouched. If
+     equality cannot be proven, report failure and do not report the group as
+     committed.
 10. Post-commit push handling:
    - In task-bound `HANDOFF_MODE=1`, do not prompt or push; finish after the
      successful local commit.

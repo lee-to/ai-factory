@@ -713,8 +713,9 @@ TaskUpdate(taskId, status: "completed")
 - Plan entrypoint is the source of truth for progress
 - Never add or update duplicate progress checkboxes in ultra phase files
 - These generic steps apply only to implementation/test/documentation tasks.
-  A commit task is completed only by Step 3.8.1 after a successful local
-  commit has been verified.
+  A commit task is completed only by Step 3.8.1 after either a successful
+  complete-group local commit has been verified or its valid persisted
+  documentation no-op outcome has been recorded.
 
 **Handoff sync (manual mode ONLY — skip when `HANDOFF_MODE` is `1`):** If a Handoff task ID was extracted in Step 0.2, call `handoff_push_plan` with `{ taskId: <id>, planContent: <full updated plan text> }` to sync the checklist progress. For ultra, use the bundle serialization defined in Step 0.2.
 
@@ -767,11 +768,21 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
   `Files:` hints, and (for ultra plans) the complete task specifications to
   define the exact group this task owns. If task dependencies or file/hunk
   ownership do not identify a clear group, stop before invoking `/aif-commit`.
+- Before invoking `/aif-commit`, capture the complete outstanding change set
+  for this group from the current index and worktree, including staged,
+  unstaged, and untracked changes. Enumerate untracked paths with
+  `git status --porcelain -uall` and `git ls-files --others --exclude-standard`,
+  inspect their content, and prove ownership before staging. Resolve ownership
+  at hunk/content level when a file overlaps other work. Pass this captured
+  baseline with the task-bound request; do not derive completion later from
+  planned paths alone.
 - Invoke `/aif-commit` in task-bound mode, passing all of:
   - the exact resolved plan path (for ultra, the entrypoint and relevant phase file)
   - the marked commit task ID and exact commit message
   - the IDs and descriptions of the tasks this commit depends on
   - their planned files and any task-level hunk ownership evidence
+  - the captured outstanding group changes, including staged/unstaged state
+    and the exact hunk/content evidence to verify after committing
   - the current `HANDOFF_MODE` value
   The task-bound request must explicitly say to commit only this group, never
   offer "Commit everything together," and preserve unrelated staged and
@@ -779,22 +790,46 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
   ownership is unclear, stop without changing the index or committing.
 - Log the commit invocation with format: `[aif-implement.commit] invoking /aif-commit for task {taskId}`
 - After `/aif-commit` returns, independently verify a new local commit exists
-  with the exact planned message and that its committed diff belongs to this
-  task's group. Only then call `TaskUpdate(taskId, status: "completed")`, mark
-  the commit task checkbox complete, and persist the plan. Capture the
-  resulting commit hash in the execution context before proceeding.
+  with the exact planned message and that its committed diff exactly covers
+  the complete outstanding change set captured for this task group before
+  dispatch. Verify both scope isolation and completeness at path and hunk/
+  content level; a subset of planned paths or hunks is not sufficient. Only
+  then call `TaskUpdate(taskId, status: "completed")`, mark the commit task
+  checkbox complete, and persist the plan. Capture the resulting commit hash
+  in the execution context before proceeding.
 - If the commit fails, no new local commit is verified, or the user cancels,
   leave the commit task incomplete, do not update its checkbox, and stop this
   run without advancing past the commit boundary.
 - **Resume reconciliation:** Before skipping any commit task on resume,
   reconcile its plan checkbox, TaskUpdate status, and local Git history,
   including when the tool status says completed but the saved checkbox is
-  incomplete. Inspect local history for a commit with the exact planned message
-  whose committed diff matches the task's owned group. If exactly one such
-  commit is proven, call `TaskUpdate(taskId, status: "completed")`, mark the
-  checkbox complete, and persist the plan before continuing. If none is proven
-  and the task is incomplete, retry normally; if multiple or ambiguous matches
-  exist, or a checked/completed task has no proven commit, stop and report the
+  incomplete. First recognize a persisted
+  `<!-- aif:commit-outcome:skipped-no-op reason="documentation-skipped" -->`
+  or `<!-- aif:commit-outcome:skipped-no-op reason="documentation-unchanged" -->`
+  on the commit task line. Accept that as a terminal no-op only when it is the
+  docs-only group omitted by the deferred documentation gate, its reason
+  matches the reserved documentation task's corresponding
+  `aif:task-outcome:skipped` marker, and the plan checkbox is complete. Do not
+  look for a commit hash or dispatch `/aif-commit` for this marked outcome.
+  Before accepting it, inspect live staged, unstaged, and untracked changes
+  against the reserved documentation task's `Files:` hints and owned
+  paths/hunks. The docs-only group must still have no outstanding changes:
+  any current change attributable to that group makes the persisted no-op
+  marker stale. Stop with an integrity error, leave the marker and task state
+  unchanged, and require the user to resolve the conflict; do not silently
+  clear the marker, recommit, or absorb new work. Changes proven unrelated to
+  this group do not invalidate the no-op result and must remain untouched.
+  Retain and report the no-op reason only after this live-state check passes.
+  An absent/malformed marker, mismatch in reason, or no-op marker on a group
+  containing implementation changes is an integrity error, not a skipped
+  result.
+  Otherwise inspect local history for a commit with the exact planned message
+  whose committed diff exactly covers the complete captured owned group,
+  with neither omissions nor unrelated changes. If exactly one such commit is
+  proven, call `TaskUpdate(taskId, status: "completed")`, mark the checkbox
+  complete, and persist the plan before continuing. If none is proven and the
+  task is incomplete, retry normally; if multiple or ambiguous matches exist,
+  or a checked/completed task has no proven commit, stop and report the
   mismatch rather than guessing. Never infer success from the task
   description or a `/aif-commit` invocation alone.
 - Proceed to the next task only after the commit outcome is resolved
@@ -891,18 +926,22 @@ message: <exact planned commit message>
 tasks: <IDs, descriptions, Files hints, and hunk ownership>
 HANDOFF_MODE: <current value>
 authorized: <yes only after this group was authorized>
+captured_changes: <complete selected-group staged/unstaged/untracked changes>
 ```
 
 `/aif-commit` must verify this metadata against the saved `## Commit Plan`,
 commit only that one group, and reject ambiguity or mismatch without changing
-the index. After return, independently verify the exact local commit message
-and that its diff belongs only to the selected group before recording the group
-as committed. Never use ordinary multi-group `Follow Commit Plan` mode for
-deferred finalization.
+the index. Before dispatch, capture the complete outstanding selected-group
+changes (staged, unstaged, and untracked); after return, independently verify
+the exact local commit message and that its diff exactly covers that captured
+set, with no missing selected-group change and no unrelated change, before
+recording the group as committed. Never use ordinary multi-group `Follow
+Commit Plan` mode for deferred finalization.
 
 Classic groups have no plan checkbox. On resume, reconcile every deferred group
-against local Git history using its exact planned message and owned task-range
-diff: if exactly one matching commit proves the group, treat it as committed;
+against local Git history using its exact planned message and complete owned
+task-range change set: if exactly one matching commit proves the group's full
+captured change set with no extra changes, treat it as committed;
 if none proves it, process it normally; if multiple or ambiguous matches exist,
 stop and report the mismatch. Do not infer group completion from a prior
 invocation alone.
@@ -934,9 +973,24 @@ invocation alone.
    resolve the documentation task and omit an empty docs-only group. For
    `single-commit`, keep the single group when it also contains implementation
    changes; only the docs task contributes no files.
-5. Only after validation, update the task checkbox/status and continue deferred
-   commit finalization. If ownership validation stops the run, keep the
-   documentation task and all affected commit tasks incomplete.
+   Persist the terminal result in the plan before continuing. On the reserved
+   documentation task line, add
+   `<!-- aif:task-outcome:skipped reason="documentation-skipped" -->` when
+   skipped by the user, or
+   `<!-- aif:task-outcome:skipped reason="documentation-unchanged" -->` when
+   `/aif-docs` makes no changes. For an omitted docs-only commit task, keep its
+   `<!-- aif:task-kind:commit -->` marker and add the matching terminal marker
+   to its task line:
+   `<!-- aif:commit-outcome:skipped-no-op reason="documentation-skipped" -->`
+   or `<!-- aif:commit-outcome:skipped-no-op reason="documentation-unchanged" -->`.
+   Mark both resolved tasks complete in TaskUpdate and use `[x]` checkboxes;
+   these explicit outcome markers distinguish a skipped terminal task from an
+   executed commit, cancellation, failure, or pending work. For a
+   `single-commit` group that also contains implementation changes, do not
+   mark its commit task skipped; the ordinary commit remains required.
+5. Only after validation and persistence, update the task checkbox/status and
+   continue deferred commit finalization. If ownership validation stops the
+   run, keep the documentation task and all affected commit tasks incomplete.
 
 For `incremental` only, when the current task range ends at a planned
 checkpoint:
