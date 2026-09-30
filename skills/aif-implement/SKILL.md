@@ -195,20 +195,33 @@ For a marked commit task:
 - For `incremental-at-end` or `single-commit`, do not dispatch any marked
   commit task until all implementation/test tasks are complete and the reserved
   documentation task and ownership gate below are complete when `Docs: yes`.
+- Before dispatch, capture the complete outstanding group changes from index
+  and worktree, including untracked paths/content. Enumerate untracked files
+  with `git status --porcelain -uall` and
+  `git ls-files --others --exclude-standard`; prove ownership at path and
+  hunk/content level before staging, especially for files overlapping other
+  work. Pass this baseline with the task-bound request.
 - Invoke `/aif-commit` in task-bound mode with the exact plan path, marked task
   ID and message, dependency task IDs/descriptions, planned files or hunk
-  ownership evidence, and `HANDOFF_MODE`. Commit only this group; preserve
-  unrelated staged and unstaged changes. If ownership is unclear or unrelated
-  staged work exists, stop without changing the index.
+  ownership evidence, captured outstanding changes, and `HANDOFF_MODE`. Commit
+  only this group; preserve unrelated staged and unstaged changes. If ownership
+  is unclear or unrelated staged work exists, stop without changing the index.
 - Log the invocation as `[aif-implement.commit] invoking /aif-commit for task
   {taskId}`. After it returns, independently verify a new local commit has the
-  exact planned message and its diff belongs to this task's group. Only then
-  mark the commit task complete in TaskUpdate and the plan entrypoint, persist
-  the plan, and retain the commit hash before proceeding.
+  exact planned message and its diff exactly covers the complete captured
+  group, at path and hunk/content level, with no omissions or unrelated
+  changes. Only then mark the commit task complete in TaskUpdate and the plan
+  entrypoint, persist the plan, and retain the commit hash before proceeding.
 - On failure, cancellation, or unverified commit, leave the task incomplete and
   stop at the commit boundary. On resume, reconcile the checkbox, task status,
-  and local history. Repair completion only when exactly one matching commit
-  and group are proven; otherwise stop and report the mismatch.
+  and local history. A persisted no-op marker is accepted only for an omitted
+  docs-only group, with matching documentation outcome markers and a complete
+  checkbox; inspect live staged, unstaged, and untracked changes to confirm the
+  group still has no outstanding changes. A stale/malformed marker or any
+  current change attributable to that group is an integrity error; do not
+  clear it, recommit, or absorb new work. Otherwise repair completion only
+  when exactly one matching commit exactly covers the captured group; stop on
+  ambiguity or mismatch.
 
 The canonical marker is a standalone comment immediately before the task
 checkbox; it is not itself a task. A task without the marker is ordinary even if
@@ -229,10 +242,13 @@ and completion must not imply skipped groups were committed.
 For classic groups, invoke `/aif-commit classic-group` with the exact plan path,
 group name/number, task range, exact message, every task's IDs/descriptions and
 file/hunk ownership evidence, `HANDOFF_MODE`, and authorization for that group.
-It must validate against the saved `## Commit Plan` and commit only that group.
-Independently verify the local commit message and owned diff before recording
-success. On resume, treat a group as committed only when exactly one matching
-commit and task-range diff are proven; stop on ambiguity.
+Capture the complete outstanding selected-group change set, including staged,
+unstaged, and untracked changes, before dispatch. It must validate against the
+saved `## Commit Plan` and commit only that group. Independently verify the
+local commit message and that its diff exactly covers the captured group with
+no omissions or unrelated changes before recording success. On resume, treat a
+group as committed only when exactly one matching commit proves the complete
+task-range change set; stop on ambiguity.
 
 For deferred strategies with `Docs: yes`, require a reserved documentation
 task with `Files:` hints that depends on all implementation/test tasks and
@@ -243,10 +259,20 @@ checkpoint. Capture staged/unstaged paths and hunks first; unrelated staged
 work stops the flow without index changes. Compare the resulting diff with that
 baseline and verify each docs path/hunk is within the reserved task hints and
 commit-group ownership. Unclear, overlapping, or out-of-scope ownership stops
-all deferred commits; do not widen the group. Mark the docs task complete only
-after validation or an explicit Skip. Skip/no-op docs work creates no empty
-docs-only commit; a single group with implementation changes remains. Do not
-repeat the docs checkpoint during completion.
+all deferred commits; do not widen the group.
+
+Persist terminal documentation outcomes before proceeding. On the documentation
+task line, use
+`<!-- aif:task-outcome:skipped reason="documentation-skipped" -->` for user
+Skip or `<!-- aif:task-outcome:skipped reason="documentation-unchanged" -->`
+when `/aif-docs` makes no changes. For an omitted docs-only commit task, retain
+its commit-kind marker and add the matching
+`<!-- aif:commit-outcome:skipped-no-op reason="..." -->` marker to the task
+line; mark both tasks complete in TaskUpdate and with `[x]` checkboxes. This
+explicit outcome is distinct from a commit, cancellation, failure, or pending
+work. Do not emit a no-op marker for a `single-commit` group containing
+implementation changes. If the docs checkpoint was already run during
+finalization, do not repeat it at completion.
 
 ### Session persistence
 

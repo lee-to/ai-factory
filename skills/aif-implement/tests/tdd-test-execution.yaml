@@ -15,6 +15,7 @@ runner:
     - Glob
     - Grep
     - Bash(git *)
+    - Bash(npm *)
     - Bash(mkdir *)
     - Bash(basename *)
     - Bash(cd *)
@@ -39,7 +40,7 @@ fixtures:
           "name": "demo-api",
           "version": "0.1.0",
           "type": "module",
-          "dependencies": { "express": "^4.0.0" }
+          "scripts": { "test": "node --test tests/login.test.js" }
         }
     - path: .ai-factory/config.yaml
       content: |
@@ -68,23 +69,45 @@ fixtures:
         ## Tasks
 
         ### Fase 1: Implementación
-        - [ ] Task 1: Escribir una prueba unitaria fallida para el inicio de sesión
-          Files: tests/login.test.ts
-        - [ ] Task 2: Implementar el inicio de sesión para hacer pasar la prueba
-          Files: src/services/auth.ts
+        - [ ] Task 1: Escribir una prueba fallida: login('demo', 'secret') debe devolver true
+          Files: tests/login.test.js
+        - [ ] Task 2: Implementar login para hacer pasar la prueba
+          Files: src/services/auth.js
           Depends on: 1
 
 user_responses: []
 
 assertions:
-  - id: handles-tdd-dependencies
-    type: tool_called
-    tool: TaskUpdate
-    args_match:
-      status: "in_progress"
-    weight: 2
+  - id: runs-red-before-completing-test-task
+    type: tool_call_sequence
+    sequence:
+      - tool: Bash
+        args_match:
+          command: "^npm test"
+      - tool: TaskUpdate
+        args_match:
+          taskId: "(?i)^(?:1|task[-_ ]?1)$"
+          status: "completed"
+    weight: 3
 
-  - id: respects-tdd-task-ordering
-    type: tool_called
-    tool: TaskUpdate
-    weight: 2
+  - id: implements-between-red-and-green-runs
+    type: tool_call_sequence
+    sequence:
+      - tool: Bash
+        args_match:
+          command: "^npm test"
+      - tool: Write
+        args_match:
+          file_path: "(^|/)src/services/auth\\.js$"
+      - tool: Bash
+        args_match:
+          command: "^npm test"
+      - tool: TaskUpdate
+        args_match:
+          taskId: "(?i)^(?:2|task[-_ ]?2)$"
+          status: "completed"
+    weight: 4
+
+  - id: reports-red-green-results
+    type: output_contains
+    pattern: "(?i)(initially failed|failed before|red.*(green|pass)|falló.*(pasó|correcta))"

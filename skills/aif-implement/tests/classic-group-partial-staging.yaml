@@ -1,0 +1,126 @@
+scenario: classic-group-partial-staging
+description: |
+  Classic-group task-bound execution must commit every selected-group change
+  when the index already contains only one hunk and remaining same-file and
+  test-file changes are unstaged.
+skill: aif-implement
+argument: ""
+
+runner:
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(mkdir *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/classic-partial-commit
+  files_committed:
+    - path: .ai-factory/plans/feature-classic-partial-commit.md
+      content: |
+        # Implementation Plan: Complete classic group
+
+        ## Settings
+        - Testing: yes
+        - Logging: verbose
+        - Docs: no
+        - Commit strategy: incremental-at-end
+
+        ## Tasks
+        - [x] Task 1: Implement both service behaviors
+          Files: src/service.js
+        - [x] Task 2: Add service regression coverage
+          Files: tests/service.test.js
+          Depends on: 1
+
+        ## Commit Plan
+        - **Commit 1** (after tasks 1-2; defer until all tasks complete): "feat: complete service behavior"
+    - path: src/service.js
+      content: |
+        export function health() {
+          return "ok";
+        }
+
+        export function status() {
+          return "pending";
+        }
+    - path: tests/service.test.js
+      content: |
+        throw new Error("regression coverage not added");
+  files_staged:
+    - path: src/service.js
+      content: |
+        export function health() {
+          return "ready";
+        }
+
+        export function status() {
+          return "pending";
+        }
+  files_unstaged:
+    - path: src/service.js
+      content: |
+        export function health() {
+          return "ready";
+        }
+
+        export function status() {
+          return "active";
+        }
+    - path: tests/service.test.js
+      content: |
+        import { health, status } from "../src/service.js";
+        if (health() !== "ready" || status() !== "active") {
+          throw new Error("service behavior mismatch");
+        }
+
+user_responses:
+  - match_question: "(?i)commit"
+    choose: "Commit this group"
+  - match_question: "(?i)push"
+    choose: "Skip push"
+
+assertions:
+  - id: captures-entire-classic-group-before-commit
+    type: tool_call_sequence
+    sequence:
+      - tool: Bash
+        args_match:
+          command: "^git diff --cached"
+      - tool: Bash
+        args_match:
+          command: "^git diff HEAD"
+      - tool: Bash
+        args_match:
+          command: "(?i)^git (add -p|apply --cached)"
+      - tool: Bash
+        args_match:
+          command: "^git diff --cached"
+      - tool: Bash
+        args_match:
+          command: "^git commit .*feat: complete service behavior"
+      - tool: Bash
+        args_match:
+          command: "(?i)^git (show|diff-tree|diff)"
+    weight: 5
+  - id: reports-whole-group-committed
+    type: output_contains
+    pattern: "(?i)(complete.*(group|change set|changes)|all.*(hunks|changes).*(committed|included))"
+  - id: reports-verified-commit-hash
+    type: output_contains
+    pattern: "(?is)(commit|committed).{0,100}[0-9a-f]{7,40}"
+  - id: does-not-stage-unrelated-work
+    type: no_tool_called
+    tool: Bash
+    args_match:
+      command: "^git add (\\.|-A|--all)"
