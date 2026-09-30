@@ -12,7 +12,7 @@ import { preflightSkillMigration, collectSkillOwners, applySkillMigration, recov
 import { commitResolvedExtension, composeInstalledExtensionSkills, installExtensionAssetsForAllAgents, stripInjectionsForAllAgents } from '../dist/core/extension-ops.js';
 import { getExtensionsDir } from '../dist/core/extensions.js';
 import { applyInjection } from '../dist/core/injections.js';
-import { getAgentConfig, resolveDevinHomeSkillsDir } from '../dist/core/agents.js';
+import { getAgentConfig, registerRuntimeDefinitions, resetExtensionAgentRegistry, resolveDevinHomeSkillsDir } from '../dist/core/agents.js';
 import { buildTemplateVars, processTemplate } from '../dist/core/template.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -87,6 +87,7 @@ test('core', 'direct installer renders the actual override in helper paths', asy
   const content = await fs.readFile(path.join(project, '.agents/skills/aif/SKILL.md'), 'utf8');
   assert.ok(content.includes('.agents/skills/'), 'effective skill paths missing');
   assert.ok(!content.includes('.codex/skills/'), 'legacy helper path remains');
+  assert.ok(!content.includes('{{shell_home_skills_dir}}'), 'shell-specific template variable remains unresolved');
   assert.ok(content.includes('$aif-'), 'Codex invocation syntax lost');
 });
 
@@ -131,12 +132,52 @@ test('core', 'Devin resolves platform-specific global paths without changing pro
     processTemplate('~/{{skills_dir}} {{home_skills_dir}}', vars),
     'C:\\Users\\dev\\AppData\\Roaming\\devin\\skills C:\\Users\\dev\\AppData\\Roaming\\devin\\skills',
   );
+  assert.equal(processTemplate('{{shell_home_skills_dir}}', vars), vars.shell_home_skills_dir);
 
   assert.deepEqual(await installSkills({
     projectDir: project, agentId: 'devin', skillsDir: devin.skillsDir, skills: ['aif'],
   }), ['aif']);
   const installedSkill = await fs.readFile(path.join(project, devin.skillsDir, 'aif/SKILL.md'), 'utf8');
   assert.ok(installedSkill.includes(buildTemplateVars(devin).home_skills_dir));
+});
+
+test('core', 'rendered home helper commands execute with spaces and preserve Windows paths', async project => {
+  const helperPath = 'aif-skill-generator/scripts/security-scan.py';
+  const scriptContents = 'import sys\nprint(sys.argv[1])\n';
+  const fixture = async skillsDir => {
+    const helper = path.join(skillsDir, helperPath);
+    await fs.mkdir(path.dirname(helper), { recursive: true });
+    await fs.writeFile(helper, scriptContents);
+  };
+  const runRenderedCommand = (command, env) => spawnSync('bash', ['-c', command], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
+
+  const absoluteSkillsDir = path.join(project, 'config with spaces', 'devin', 'skills');
+  await fixture(absoluteSkillsDir);
+  const absoluteVars = buildTemplateVars({ ...getAgentConfig('devin'), homeSkillsDir: absoluteSkillsDir });
+  const absoluteCommand = processTemplate(`python3 {{shell_home_skills_dir}}/${helperPath} absolute-fixture`, absoluteVars);
+  const absoluteResult = runRenderedCommand(absoluteCommand, { HOME: path.join(project, 'unused home') });
+  assert.equal(absoluteResult.status, 0, absoluteResult.stderr);
+  assert.equal(absoluteResult.stdout.trim(), 'absolute-fixture');
+
+  const home = path.join(project, 'home with spaces');
+  const relativeSkillsDir = '.config/devin tools/skills';
+  await fixture(path.join(home, relativeSkillsDir));
+  const relativeVars = buildTemplateVars({ ...getAgentConfig('devin'), homeSkillsDir: relativeSkillsDir });
+  const relativeCommand = processTemplate(`python3 {{shell_home_skills_dir}}/${helperPath} relative-fixture`, relativeVars);
+  const relativeResult = runRenderedCommand(relativeCommand, { HOME: home });
+  assert.equal(relativeResult.status, 0, relativeResult.stderr);
+  assert.equal(relativeResult.stdout.trim(), 'relative-fixture');
+
+  const windowsSkillsDir = 'C:\\Users\\Dev User\\AppData\\Roaming\\devin\\skills';
+  const windowsVars = buildTemplateVars({ ...getAgentConfig('devin'), homeSkillsDir: windowsSkillsDir });
+  const windowsCommand = processTemplate(`printf '%s' {{shell_home_skills_dir}}/${helperPath}`, windowsVars);
+  const windowsResult = runRenderedCommand(windowsCommand, {});
+  assert.equal(windowsResult.status, 0, windowsResult.stderr);
+  assert.equal(windowsResult.stdout, `${windowsSkillsDir}/${helperPath}`);
+  assert.equal(windowsVars.home_skills_dir, windowsSkillsDir);
 });
 
 test('core', 'shared CLI/App renders identically and receipts track profile changes', async project => {

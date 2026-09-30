@@ -126,6 +126,10 @@
           "type": "string",
           "description": "Directory where skills are installed for this runtime."
         },
+        "homeSkillsDir": {
+          "type": "string",
+          "description": "Optional global skills directory used when rendering home skill paths."
+        },
         "agentsDir": {
           "type": "string",
           "description": "Runtime-local directory for custom agent files."

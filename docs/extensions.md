@@ -403,7 +403,7 @@ Extensions can declare new runtime configurations. Once the extension is install
 | `displayName` | Human-readable name shown in prompts. |
 | `configDir` | Directory for agent configuration (e.g. `.my-agent`). |
 | `skillsDir` | Where skills are installed (e.g. `.my-agent/skills`). |
-| `homeSkillsDir` | Optional global skills path used by `{{home_skills_dir}}` and `~/{{skills_dir}}`. A relative path is relative to the user's home directory and renders with `~/`; an absolute POSIX or Windows path is rendered unchanged. |
+| `homeSkillsDir` | Optional global skills filesystem path exposed unchanged as `{{home_skills_dir}}`. Use `{{shell_home_skills_dir}}` in Bash commands: relative paths retain home expansion and absolute paths are quoted as needed. |
 | `settingsFile` | Path to the agent's MCP settings file, or `null`. |
 | `supportsMcp` | Whether this agent supports MCP server configuration. |
 | `skillsCliAgent` | Value for `--agent` flag in skills CLI, or `null`. |
