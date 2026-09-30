@@ -27,6 +27,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Core regression tests
+        run: node scripts/test-codex-skill-targets.mjs --group=core
+
       - name: Lint
         run: npm run lint
 
