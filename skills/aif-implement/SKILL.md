@@ -846,11 +846,15 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
   An absent/malformed marker, mismatch in reason, or no-op marker on a group
   containing implementation changes is an integrity error, not a skipped
   result.
-  If no receipt exists and the task is incomplete/unchecked with no local
-  candidate commit using its planned message, treat this as a first dispatch:
-  capture and persist the manifest before invoking `/aif-commit`. A missing
-  receipt when the task is checked/completed or a candidate commit exists is an
-  integrity error; do not guess or create a replacement receipt.
+  If no receipt exists and the task is incomplete/unchecked, treat this as a
+  first dispatch: capture and persist the manifest, including the pre-commit
+  `HEAD`, before invoking `/aif-commit`. Do not search arbitrary earlier
+  history for the planned message; a matching commit without a persisted
+  execution boundary cannot be attributed to this task and does not block a
+  fresh dispatch. A missing receipt when the task is checked/completed is an
+  integrity error; do not guess or create a replacement receipt. Once a
+  captured receipt exists, consider only a commit that can be verified against
+  that receipt's pre-commit `HEAD`, message, and exact manifest.
   Otherwise validate its persisted change-capture receipt: require an intact
   canonical manifest and matching digest. A verified receipt must name exactly
   one local commit with the planned message, the recorded pre-commit `HEAD` as
@@ -975,9 +979,15 @@ recording the group as committed. Persist the same durable capture receipt
 described above before dispatch, keyed by the exact classic group name/number;
 after verification, persist its pre-commit `HEAD`, canonical manifest, and
 verified commit hash in the plan before continuing. If a group has no receipt
-and no local candidate commit with its exact planned message, capture and
-persist its baseline before first dispatch. A candidate commit without a
-receipt is an integrity error; never synthesize a receipt after the fact.
+and no durable group state indicating that it was already dispatched or
+completed (such as a valid verified receipt), treat it as a first dispatch:
+capture and persist its baseline before searching for or dispatching a commit.
+Do not treat an arbitrary older commit with the same message as a candidate
+for this group. Once the receipt exists, reconcile only commits verifiable
+against its recorded pre-commit `HEAD`, message, and exact manifest. A missing
+or invalid receipt is an integrity error when durable plan state says the
+group was already dispatched or completed; never synthesize a receipt after
+the fact.
 Never use ordinary multi-group
 `Follow Commit Plan` mode for deferred finalization.
 
@@ -1020,16 +1030,23 @@ dispatch an empty commit or infer a no-op from missing history.
    checkpoint from Step 5 before dispatching any deferred commit task or
    classic group. Do not repeat this checkpoint during completion.
 3. Before invoking `/aif-docs`, capture the staged and unstaged diff paths and
-   hunks. If unrelated staged work exists, stop without changing the index.
+   hunks, plus every untracked path and its content. Enumerate untracked paths
+   with `git status --porcelain -uall` and
+   `git ls-files --others --exclude-standard`; inspect and snapshot their
+   content. If unrelated staged work exists, stop without changing the index.
    If the user chooses Update or Create, invoke `/aif-docs` as specified in
-   Step 5. Compare the post-docs staged and unstaged diffs to the baseline to
-   identify the docs changes made by this checkpoint. Verify every new docs
-   path/hunk against the reserved task's `Files:` hints and exact commit group.
-   Pre-existing or newly changed docs hunks with unclear ownership, a path/hunk
-   outside the hints, or overlap with another group's ownership requires
-   stopping before any deferred commit and asking the user to adjust the task
-   hints/grouping; do not widen the group or proceed with other deferred
-   commits.
+   Step 5. Compare the post-docs staged and unstaged diffs to the baseline,
+   together with untracked paths and contents, to identify all changes made by
+   this checkpoint, including newly created, modified, and removed untracked
+   files.
+   Before any deferred commit, validate the complete docs change set—both
+   checkpoint changes and pre-existing outstanding docs changes—against the
+   reserved task's `Files:` hints and exact commit group. Verify every added
+   or changed docs path/hunk and untracked file content. Pre-existing or newly
+   changed docs hunks/files with unclear ownership, a path/hunk outside the
+   hints, or overlap with another group's ownership requires stopping before
+   any deferred commit and asking the user to adjust the task hints/grouping;
+   do not widen the group or proceed with other deferred commits.
 4. If the user chooses Skip, record the documentation outcome as skipped and
    resolve the reserved task as skipped. Do not create a documentation-only
    commit for an empty group; omit that group from dispatch while retaining the
