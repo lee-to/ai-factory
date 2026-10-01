@@ -96,6 +96,7 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 - **Language:** `language.ui` for AskUserQuestion prompts, `language.artifacts` for generated plan files, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`, and `git.branch_prefix`
 - **Workflow:** `workflow.plan_id_format` — controls the full/ultra plan identifier shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. Only `slug` and `sequential` are active; `timestamp` and `uuid` are **reserved** and currently behave like `slug` (with an `INFO` log). The `sequential` value writes a full plan as `<NNNN>_<plan_file_stem>.md` and an ultra bundle as `<NNNN>_<plan_file_stem>/index.md` (see Step 1.2 for the canonical stem and algorithm). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
+- **Workflow:** `workflow.plan_structure` (default: `classic`) — controls the commit layout of new plans. Allowed values are `classic` and `task-based`. If absent, use `classic`; if the value has the wrong type or is unknown, emit `WARN [config] invalid workflow.plan_structure; falling back to classic` and use `classic`. Saved plans remain authoritative during implementation.
 
 If config.yaml doesn't exist, use defaults:
 
@@ -104,7 +105,7 @@ If config.yaml doesn't exist, use defaults:
 - `artifact_language`: `en`
 - `technical_terms_policy`: `keep`
 - Git: `enabled: true`, `base_branch: main`, `create_branches: true`, `branch_prefix: feature/`
-- Workflow: `plan_id_format: slug`
+- Workflow: `plan_id_format: slug`, `plan_structure: classic`
 
 Resolved language values:
 - `ui_language = language.ui || "en"`
@@ -118,7 +119,7 @@ All AskUserQuestion prompts, progress updates, summaries, and next-step guidance
 Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
 For ultra this applies to `index.md` and every linked phase file.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Keep the plan-control tokens `## Settings`, `Commit strategy:`, `Development methodology:`, and `TDD granularity:` exact and untranslated; their values must use the canonical identifiers shown in the template. Apply `technical_terms_policy` to other human-readable terminology.
 
 Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
 
@@ -446,11 +447,25 @@ AskUserQuestion: Before we start, a few questions:
    a. Yes — mandatory docs checkpoint at completion (recommended)
    b. No — warn-only (`WARN [docs]`), no mandatory checkpoint
 
-4. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
+4. Commit strategy?
+   a. Incremental - commits at natural boundaries throughout implementation (default)
+   b. Incremental at end - all commits created after implementation completes
+   c. Single commit at end - one commit after all implementation
+
+5. Development methodology?
+   a. Implementation-first (default)
+   b. Test-driven development (TDD)
+
+[If TDD selected, ask conditional follow-up:]
+6. TDD granularity?
+   a. Task-based - test before each implementation task
+   b. Feature-based - all tests for phase before implementation
+
+7. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
    a. Link this plan to a milestone
    b. Skip — no linkage (allowed; `/aif-verify --strict` should report WARN, not fail, for missing linkage alone)
 
-5. Any specific requirements or constraints?
+8. Any specific requirements or constraints?
 ```
 
 **Default to verbose logging.** AI-generated code benefits greatly from extensive logging because:
@@ -460,6 +475,30 @@ AskUserQuestion: Before we start, a few questions:
 - Missing logs during development wastes debugging time
 
 Store all preferences — they will be used in the plan entrypoint and passed to `/aif-implement`.
+
+**New preferences explanation:**
+
+- **Commit strategy**: Controls how commits are structured in the plan
+  - `incremental`: Creates commit tasks at natural boundaries throughout implementation (default)
+  - `incremental-at-end`: Creates commit tasks at natural boundaries but places them after all implementation tasks
+  - `single-commit`: Creates one commit task at the very end depending on all implementation tasks
+  - This affects whether commits are interspersed with implementation or grouped at the end
+
+- **Development methodology**: Controls the order of implementation and testing
+  - `implementation-first`: Traditional approach where implementation comes before tests (default)
+  - `tdd`: Test-driven development where tests are written before implementation
+  - When TDD is selected, a follow-up question asks about TDD granularity
+
+- **TDD granularity**: Controls the granularity of test-first cycles (only shown when TDD is selected)
+  - `task-based`: Write a failing test before each individual implementation task, then implement to pass, then refactor
+  - `feature-based`: Write all tests for a phase/feature first, then implement all tasks in that phase, then refactor
+  - Both approaches produce comprehensive test coverage but with different task organization
+
+The `## Settings` heading and the `Commit strategy:`, `Development methodology:`,
+and `TDD granularity:` labels are machine-readable plan-control tokens. Keep
+them exact and untranslated in every artifact language, and write their values
+using the canonical identifiers (`incremental`, `incremental-at-end`,
+`single-commit`, `implementation-first`, `tdd`, `task-based`, `feature-based`).
 
 Docs policy semantics:
 
@@ -730,6 +769,125 @@ Create tasks using `TaskCreate` with clear, actionable items.
 - In ultra, keep TaskCreate descriptions concise but include the matching phase
   file link; the bundle remains the durable detailed source after context resets
 
+**Task Generation Based on Preferences:**
+
+When generating tasks, consider the user's preferences:
+
+- **Commit strategy preference**:
+  - `incremental`: Create commit tasks at natural boundaries throughout implementation (after related impl/test/doc groups)
+  - `incremental-at-end`: Create commit tasks at natural boundaries but place them after all implementation tasks
+  - `single-commit`: Create one commit task at the very end depending on all implementation tasks
+  - Commit tasks should be explicit tasks in the plan with dependencies on related implementation/test/doc tasks
+
+- **Development methodology preference**:
+  - `implementation-first`: Generate tasks in traditional order (implementation → tests → docs)
+  - `tdd`: Generate tasks with test-first ordering
+    - `task-based TDD`: Generate test task before each implementation task (test → implement → refactor cycle per task)
+    - `feature-based TDD`: Generate batch of test tasks at start of each phase before implementation tasks (test batch → implementation batch → refactor per phase)
+
+- **Task organization**:
+  - Co-locate related implementation, test, and documentation tasks together within feature-oriented phases
+  - Use task dependencies to ensure proper ordering (tests depend on implementation when implementation-first, implementation depends on tests when TDD)
+  - Group commits with their related implementation/test/doc tasks rather than in a separate section
+
+**TDD Task Generation Implementation:**
+
+When `Development methodology: tdd` is selected:
+
+1. **Task-based TDD** (when `TDD granularity: task-based`):
+   - For each implementation task, create a preceding test task
+   - Test task description: "Write failing unit test for [specific functionality]"
+   - Implementation task description: "Implement [functionality] to make test pass"
+   - After 2-3 implementation cycles, add a refactoring task: "Refactor [area] while keeping all tests passing"
+   - Dependencies: test task → implementation task → next test task (or refactor task)
+   - Example cycle: Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor
+
+2. **Feature-based TDD** (when `TDD granularity: feature-based`):
+   - For each phase/feature, create a batch of test tasks at the start
+   - Then create all implementation tasks for that phase
+   - Add a refactoring task at the end of the phase
+   - Dependencies: test batch → implementation batch → refactor task
+   - Example: Test #1, Test #2, Test #3 → Implement #1, Implement #2, Implement #3 → Refactor
+
+3. **TDD task descriptions**:
+   - Test tasks: Explicitly state "Write failing test for X"
+   - Implementation tasks: Reference the specific test they need to pass
+   - Refactoring tasks: Emphasize "keep all tests passing"
+   - Include logging requirements for each task type
+
+4. **TDD logging requirements**:
+   - Test tasks: Log test creation, test execution failures
+   - Implementation tasks: Log implementation progress, test validation
+   - Refactoring tasks: Log refactoring changes, test validation after refactoring
+
+**Commit Task Generation Implementation:**
+
+When generating tasks based on commit strategy preference:
+
+1. **Respect `workflow.plan_structure` config option**:
+   - If `plan_structure: classic` (default): Use a separate `## Commit Plan` section; do not add explicit commit tasks.
+   - If `plan_structure: task-based`: Omit `## Commit Plan` and use marked commit tasks as explicit tasks in the plan.
+   - This config option is the default for new plans only; saved plans always resolve execution from their own artifact shape first
+   - Existing plans continue to use their original structure
+   - The strategy-specific commit-task rules below apply only to task-based plans. For classic plans, write the ordered commit groups only in `## Commit Plan`, following the classic strategy behavior below.
+
+2. **Stable commit-task marker**:
+   - Every explicit commit task MUST include a stable, language-independent marker immediately before the task line:
+     `<!-- aif:task-kind:commit -->`
+   - Render the marker as a standalone HTML comment line immediately before the real `- [ ] Task N: ...` checkbox. Never make the marker its own checkbox.
+   - The task still keeps a human-readable title such as `Commit changes with message "feat: ..."`, but the marker is the canonical signal for commit-task dispatch.
+   - A commit task without the marker is treated as a normal implementation task even if the prose contains the word "commit".
+   - Reject a marked commit task with no extractable commit message instead of guessing.
+
+3. **Incremental commit strategy** (default):
+   - Create commit tasks at natural boundaries throughout implementation
+   - Place commit tasks after related implementation/test/documentation groups
+   - Each commit task depends on every task it commits; those dependency IDs define its exact task group
+   - Commit task description: "Commit changes with message '<conventional commit message>'"
+   - Example: After implementing user service, tests, and docs → commit task
+   - Give every implementation/test/doc task a `Files:` hint. Where multiple groups change the same file, specify task-level hunk/section ownership; if that cannot be defined, do not claim the groups can be committed independently.
+
+4. **Incremental at end commit strategy**:
+   - Create commit tasks at natural boundaries but place them after all implementation tasks
+   - Identify logical groupings of implementation/test/doc work
+   - Create commit tasks for each grouping
+   - Place all commit tasks at the end of the plan after all implementation/test/doc tasks
+   - Each commit task depends on every task in its exact group; those dependency IDs define the group
+   - Example: All implementation done → commit user service → commit auth middleware → commit API routes
+   - Dependencies: commit tasks depend on their related work, but appear at the end
+
+   - When `Docs: yes`, reserve a final documentation task for the mandatory
+     `/aif-docs` checkpoint. Give it explicit documentation `Files:` hints and
+     make it depend on all implementation/test tasks. Place it in a dedicated
+     final commit group; other implementation groups must not claim those
+     documentation files. For task-based plans, the documentation commit task
+     depends on this documentation task.
+
+5. **Single commit at end strategy**:
+   - Create one commit task at the very end of the plan
+   - The commit task depends on all implementation/test/documentation tasks
+   - When `Docs: yes`, include the reserved `/aif-docs` documentation task in
+     this dependency group, with explicit documentation `Files:` hints
+   - Commit task description: "Commit all changes with message '<conventional commit message>'"
+   - Example: All tasks complete → single commit task
+   - Dependencies: commit task depends on all implementation/test/doc tasks
+
+6. **Commit task naming**:
+   - Use self-descriptive task names: "Commit changes with message 'feat: ...'"
+   - Include the commit message in the task description
+   - Make it clear what is being committed
+   - The marker and task-id/dependency metadata are the authoritative dispatch signals; the prose remains human-facing only
+
+7. **Classic format compatibility**:
+   - Include `## Commit Plan` only in classic plans; it must not appear in task-based plans.
+   - For classic `incremental` plans, list ordered task-range checkpoints as before; each is eligible at its task-range boundary.
+   - For classic `incremental-at-end` plans, list one ordered entry per logical group, but mark every entry as deferred until all implementation/test/documentation tasks are complete. When `Docs: yes`, include a final documentation task in its own last group. `/aif-implement` must not offer or create these commits at intermediate task-range boundaries; it processes the groups in order after the docs checkpoint.
+   - For classic `single-commit` plans, list exactly one group covering all implementation/test/documentation tasks, including the reserved documentation task when `Docs: yes`, deferred until all such tasks are complete.
+   - For deferred plans with `Docs: yes`, reserve an explicit final documentation task with `Files:` hints for the `/aif-docs` checkpoint. These hints define the documentation group boundary; do not let other groups claim the same files. If the actual docs diff cannot be mapped to the reserved hints, `/aif-implement` must stop and ask to adjust grouping before any deferred commit.
+   - Classic plans with `## Commit Plan` continue to work as before when their strategy is absent or `incremental`.
+   - Render only the selected structure, never a template containing both alternatives.
+   - `/aif-implement` must resolve execution by saved-plan format first, then fall back to current config only when the plan is ambiguous or legacy (see Step 3.8.1)
+
 Use `TaskUpdate` to set `blockedBy` relationships:
 
 - Task 2 blocked by Task 1 if it depends on Task 1's output
@@ -779,7 +937,7 @@ For ultra also create the resolved bundle directory before writing its files.
 - `Research Context` section (optional, only if research content influenced this plan)
 - `Requirements Reconciliation` section (conditional, when required by the gate in Step 2)
 - `Tasks` section grouped by phases; in ultra this is the only task-checkbox source
-- `Commit Plan` section when there are 5+ tasks
+- For `workflow.plan_structure: classic`, a `Commit Plan` section when commits are planned; never include this section in task-based plans.
 
 If `original_user_request` is non-empty:
 
@@ -808,10 +966,12 @@ task mapping, dependency, and phase file before completion.
 
 The canonical template defines the required sections and ordering only. Render all human-readable plan content in `artifact_language` before writing the file, applying `technical_terms_policy` and preserving stable tokens as described in Step 0.
 
-**Commit Plan Rules:**
+**Commit layout rules:**
 
-- **5+ tasks** → add commit checkpoints every 3-5 tasks
-- **Less than 5 tasks** → single commit at the end, no commit plan needed
+- **Classic** → use only the separate `## Commit Plan` section for planned commit checkpoints.
+- **Task-based** → use only marked commit tasks in `## Tasks`; provide each task's explicit owned group and dependencies.
+- **5+ tasks** → add commit checkpoints every 3-5 tasks when appropriate.
+- **Less than 5 tasks** → a final commit may be planned; include its description in the selected layout only.
 - Group logically related tasks into one commit
 - Suggest meaningful commit messages following conventional commits
 

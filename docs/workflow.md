@@ -302,6 +302,17 @@ symbols, ordered edits, contracts, errors/logging, test policy, acceptance
 criteria, verification, and bundle-integrity checks so a smaller model does not
 have to reconstruct architecture. See [Plan Files](plan-files.md).
 
+Full and ultra plans also capture commit strategy (`incremental`,
+`incremental-at-end`, or `single-commit`) and development methodology
+(`implementation-first` or TDD with task-/feature-based granularity).
+Task-based layout encodes commits as marked plan tasks; classic layout uses
+`## Commit Plan`. Deferred strategies in either layout commit only after all
+implementation, test, and documentation tasks are complete.
+When `Docs: yes`, the planner reserves a documentation task/group; `/aif-implement`
+runs `/aif-docs` before deferred commits and checks the resulting diff against
+that reserved ownership. If it cannot be mapped safely, finalization stops for
+a grouping adjustment.
+
 ### `/aif-improve [--list] [+check|--no-check] [@plan-file-or-directory] [prompt]` — refine the plan
 
 ```
@@ -352,7 +363,14 @@ For full contracts and state transition rules, see [Reflex Loop](loop.md).
 ```
 
 Reads skill-context rules first, then uses limited recent patch fallback when
-needed. Executes tasks one by one with commit checkpoints. Discovery supports an
+needed. Executes tasks one by one with strategy-aware commit checkpoints.
+Incremental commits run at their planned boundaries; `incremental-at-end` runs
+its ordered commit groups only after all implementation/test/documentation tasks,
+while `single-commit` creates one final commit. TDD plans preserve test-first
+ordering and require the relevant tests to pass before implementation tasks
+complete. For deferred strategies with `Docs: yes`, the docs checkpoint runs
+before commits and its changes must fit the reserved docs task/group.
+Discovery supports an
 explicit plan file or ultra directory, branch/single named full or ultra
 artifact, fast plan, then fix-plan redirect. For ultra, it reads the complete
 phase file before executing a task and updates progress only in `index.md`.
@@ -386,7 +404,12 @@ Optional `+check` runs a single fresh-context `review-validator` subagent — on
 
 ### `/aif-commit` — conventional commit with read-only context gates
 
-Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; for ultra plans it reads the relevant phase files and maps group tasks through `Files to Change` plus the task specifications. Unmapped staged files trigger a question before staging or committing, and no commit plan leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
+Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; task-based plans provide explicit commit tasks and groups. For ultra plans it reads the relevant phase files and maps group tasks through `Files to Change` plus the task specifications. In ordinary mode, unmapped staged files trigger a question before staging or committing; in task-bound mode, unclear or unrelated staged work stops the commit without changing staging. No active plan grouping leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
+
+For task-based plans, `/aif-implement` passes the exact marked commit task,
+dependency IDs, plan path, and file/hunk map. `/aif-commit` commits only that
+selected group, preserves unrelated staged and unstaged changes, and stops
+without changing the index when ownership is unclear.
 
 ### `/aif-fix [bug description]` — fix and learn
 

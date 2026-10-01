@@ -39,6 +39,9 @@ Created: [date]
 - Testing: yes/no
 - Logging: verbose/standard/minimal
 - Docs: yes/no  # yes => mandatory docs checkpoint in /aif-implement, no/unset => WARN [docs] only
+- Commit strategy: incremental/incremental-at-end/single-commit  # how commits are structured
+- Development methodology: implementation-first/tdd  # implementation-first or test-driven development
+- TDD granularity: task-based/feature-based  # only shown when Development methodology: tdd
 
 ## Roadmap Linkage (optional)
 <!-- Only when .ai-factory/ROADMAP.md exists -->
@@ -63,11 +66,6 @@ Authority: [declared source priority, or "none declared"]
 |----------------------------------|-------------------------|-----------------------|
 | [material rule or combination] | `[path]` — [section] | [test, command, or manual check] |
 
-## Commit Plan
-<!-- For plans with 5+ tasks, define commit checkpoints -->
-- **Commit 1** (after tasks 1-3): "feat: add base models and types"
-- **Commit 2** (after tasks 4-6): "feat: implement core service logic"
-
 ## Tasks
 
 ### Phase 1: Setup
@@ -77,12 +75,72 @@ Authority: [declared source priority, or "none declared"]
 ### Phase 2: Core Implementation
 - [ ] Task 3: [description] (depends on 1, 2)
 - [ ] Task 4: [description]
-<!-- Commit checkpoint: tasks 1-4 -->
 
 ### Phase 3: Integration
 - [ ] Task 5: [description] (depends on 3, 4)
-<!-- Commit checkpoint: tasks 5+ -->
 ```
+
+Keep `## Settings` and the `Commit strategy:`, `Development methodology:`,
+and `TDD granularity:` labels exactly as shown in every artifact language;
+these are untranslated control tokens read by `/aif-implement`. Keep values
+canonical and untranslated as well.
+
+Render exactly one commit layout in a generated plan; never combine these
+formats. The common template above contains tasks and settings, but not the
+optional commit layout:
+
+- For `workflow.plan_structure: classic`, include a `## Commit Plan` section
+  with ordered task ranges and messages when commits are planned. Classic is
+  the only format that uses this section.
+- For `workflow.plan_structure: task-based`, omit `## Commit Plan` and add
+  explicit commit tasks to `## Tasks`. Put the stable marker on its own line
+  immediately before the actual task checkbox; never create a checkbox for the
+  marker itself.
+
+**Classic layout example (`incremental`):**
+
+```markdown
+## Commit Plan
+- **Commit 1** (after tasks 1-3): "feat: add user model"
+- **Commit 2** (after tasks 4-6): "feat: implement auth service"
+```
+
+**Task-based layout example:**
+
+```markdown
+## Tasks
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+<!-- aif:task-kind:commit -->
+- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 1,2,3)
+```
+
+For `incremental`, place each marked commit task after its related work. For
+`incremental-at-end`, place all marked commit tasks after implementation tasks,
+one per planned group. For `single-commit`, add one marked final task depending
+on all work. TDD granularity changes test/implementation ordering only; every
+commit task still uses the same marker placement and grouping contract.
+
+For classic plans, `Commit strategy: incremental-at-end` means list each logical
+group in `## Commit Plan` as deferred until all implementation/test/documentation
+tasks are complete. Keep the task-range syntax and make deferral explicit, e.g.
+`- **Commit 1** (after tasks 1-3; defer until all tasks complete): "feat: ..."`
+`/aif-implement` commits those groups in listed order only during finalization.
+`single-commit` means exactly one deferred group covering all
+implementation/test/documentation tasks. Neither deferred strategy may commit
+at an intermediate task-range boundary.
+
+For either deferred strategy with `Docs: yes`, include a final documentation
+task for the mandatory `/aif-docs` checkpoint and give it explicit `Files:`
+hints. In classic `incremental-at-end`, place this task in a dedicated final
+commit group; in `single-commit`, include it in the one group. In task-based
+plans, the corresponding commit task must depend on the documentation task.
+After `/aif-docs`, `/aif-implement` verifies every changed documentation
+path/hunk is covered by that task's hints and selected group. If the diff
+escapes the reserved scope or overlaps another group ambiguously, stop before
+committing and ask the user to adjust the plan grouping.
 
 ## TaskCreate Example
 
@@ -123,3 +181,82 @@ Every task description should specify:
 - Safety: production log level can be reduced without code edits
 
 Never create tasks without logging instructions.
+
+## TDD Task Pattern Examples
+
+**Task-Based TDD Pattern:**
+```text
+TaskCreate:
+  subject: "Write failing unit test for user login"
+  description: |
+    Write a unit test for the user login functionality that:
+    - Tests successful login with valid credentials
+    - Tests failed login with invalid credentials
+    - Tests edge cases (empty email, missing password)
+
+    LOGGING REQUIREMENTS:
+    - Log test file creation
+    - Log test execution results
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for test creation, DEBUG for test details
+
+    Files: tests/auth/login.test.ts
+  activeForm: "Writing failing unit test for user login"
+
+TaskCreate:
+  subject: "Implement user login to make test pass"
+  description: |
+    Implement the user login functionality to pass the login test:
+    - Implement authentication logic
+    - Handle valid credentials
+    - Handle invalid credentials with appropriate error response
+    - Ensure test from previous task passes
+
+    LOGGING REQUIREMENTS:
+    - Log implementation progress
+    - Log test validation
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for progress, DEBUG for validation
+
+    Files: src/services/auth.ts
+  activeForm: "Implementing user login"
+```
+
+**Feature-Based TDD Pattern:**
+```text
+TaskCreate:
+  subject: "Write failing unit tests for user authentication"
+  description: |
+    Write unit tests for the user authentication feature:
+    - Test user login functionality
+    - Test user registration functionality
+    - Test password validation
+    - Test session management
+
+    LOGGING REQUIREMENTS:
+    - Log test file creation
+    - Log test suite composition
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for test creation, DEBUG for test details
+
+    Files: tests/auth/user-auth.test.ts
+  activeForm: "Writing failing unit tests for user authentication"
+
+TaskCreate:
+  subject: "Implement user authentication to make tests pass"
+  description: |
+    Implement the user authentication feature to pass all tests:
+    - Implement user login
+    - Implement user registration
+    - Implement password validation
+    - Implement session management
+
+    LOGGING REQUIREMENTS:
+    - Log implementation progress
+    - Log test validation
+    - Use format: [aif-plan.tdd] message {data}
+    - Use log levels: INFO for progress, DEBUG for validation
+
+    Files: src/services/auth.ts, src/middleware/auth.ts
+  activeForm: "Implementing user authentication"
+```

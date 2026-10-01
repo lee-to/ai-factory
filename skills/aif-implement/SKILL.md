@@ -67,6 +67,7 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
      highest-numbered matching artifact.
      `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
      Treat any unknown value as `slug`.
+   - `workflow.plan_structure` (default: `classic`) — allowed values are `classic` and `task-based`. If absent, use `classic`; if the value has the wrong type or is unknown, emit `WARN [config] invalid workflow.plan_structure; falling back to classic` and use `classic`. It is only a fallback for unreadable or legacy saved plans; a readable plan's own markers/sections determine execution.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)
@@ -558,7 +559,11 @@ Current task: #4 - Implement search service
 
 ### Step 3: Execute Current Task
 
-For each task:
+For each task, first determine whether the actual task checkbox is a marked
+commit task. If it is, execute the commit-task handler in Step 3.8.1 before
+entering the ordinary implementation flow below; do not mark it in progress,
+implement it as code, or run the generic completion steps before the commit.
+Only non-commit tasks follow Steps 3.1–3.7.
 
 **3.1: Fetch full details**
 
@@ -622,6 +627,33 @@ TaskUpdate(taskId, status: "in_progress")
   allowed later in this workflow, but those updates must not change behavioral
   requirements merely to match the implementation.
 
+**3.3.1: TDD-specific handling**
+
+Plan-control tokens `## Settings`, `Development methodology:`, `TDD granularity:`,
+and `Commit strategy:` are exact, untranslated compatibility tokens in every
+artifact language. Read these labels and their canonical values literally; do
+not infer a setting from translated prose.
+
+When the plan's `## Settings` includes `Development methodology: tdd`:
+
+- **For test tasks**: Execute the test and verify it fails initially (TDD red-green-refactor cycle)
+  - Log test execution results
+  - Ensure test file is created and test is written
+  - Verify test fails as expected (no implementation yet)
+- **For implementation tasks**:
+  - Before marking complete, run the related test(s) to verify they now pass
+  - Log test validation results
+  - Only mark implementation task complete when its corresponding test(s) pass
+  - If test fails, fix the implementation and re-run tests
+- **For refactoring tasks**:
+  - Run all related tests to ensure they still pass after refactoring
+  - Log refactoring changes and test validation
+  - Only mark refactoring task complete when all tests still pass
+- **Task dependency handling**:
+  - When `TDD granularity: task-based`, ensure test tasks are completed before their dependent implementation tasks
+  - When `TDD granularity: feature-based`, ensure test batch is completed before implementation batch
+  - Use `TaskUpdate` to enforce these dependencies via `blockedBy` relationships
+
 **3.4: Verify implementation**
 
 - Check code compiles/runs
@@ -631,7 +663,28 @@ TaskUpdate(taskId, status: "in_progress")
   repository artifact defines the contract, exercise that artifact through the
   primary path rather than relying only on synthetic fixtures.
 
-**3.5: Mark as completed**
+**3.4.1: TDD test execution verification**
+
+When `Development methodology: tdd` is in the plan settings:
+
+- **Before marking implementation tasks complete**:
+  - Execute the test(s) associated with this implementation task
+  - Verify all tests pass
+  - Log test execution results with format: `[aif-implement.tdd] test execution {data}`
+  - If tests fail, do NOT mark the task complete — fix the implementation and re-run tests
+  - Only mark implementation task complete when its corresponding test(s) pass
+- **For refactoring tasks**:
+  - Execute all related tests to ensure refactoring didn't break anything
+  - Verify all tests still pass
+  - Log test validation results
+  - Only mark refactoring task complete when all tests still pass
+- **For test tasks**:
+  - Verify the test file was created
+  - Run the test to confirm it fails (TDD red phase)
+  - Log test failure as expected behavior
+  - Mark test task complete only after confirming test exists and fails as expected
+
+**3.5: Mark a non-commit task as completed**
 
 ```
 TaskUpdate(taskId, status: "completed")
@@ -659,6 +712,10 @@ TaskUpdate(taskId, status: "completed")
 - Even if deletion will be offered later
 - Plan entrypoint is the source of truth for progress
 - Never add or update duplicate progress checkboxes in ultra phase files
+- These generic steps apply only to implementation/test/documentation tasks.
+  A commit task is completed only by Step 3.8.1 after either a successful
+  complete-group local commit has been verified or its valid persisted
+  documentation no-op outcome has been recorded.
 
 **Handoff sync (manual mode ONLY — skip when `HANDOFF_MODE` is `1`):** If a Handoff task ID was extracted in Step 0.2, call `handoff_push_plan` with `{ taskId: <id>, planContent: <full updated plan text> }` to sync the checklist progress. For ultra, use the bundle serialization defined in Step 0.2.
 
@@ -697,7 +754,331 @@ If during implementation:
 
 **3.8: Check for commit checkpoint**
 
-If the plan has commit checkpoints and current task is at a checkpoint:
+**3.8.1: Handle commit tasks (task-based commit structure)**
+
+Resolve the plan's saved execution format before consulting the current config. The task file itself is authoritative for commit-task dispatch; config is a fallback only when the plan artifact cannot be read or is a legacy format.
+
+When the current task is a commit task, identified by the task marker `<!-- aif:task-kind:commit -->` immediately before the task line:
+
+- Route it here before generic implementation/completion steps; a commit task
+  is not an implementation task.
+- Extract the commit message from the task description, typically `Commit changes with message "<conventional commit message>"` or `Commit all changes with message "..."`
+- Reject or stop when the task is marked as a commit task but the commit message cannot be extracted without guessing
+- Read the commit task's dependency IDs and the associated task descriptions,
+  `Files:` hints, and (for ultra plans) the complete task specifications to
+  define the exact group this task owns. If task dependencies or file/hunk
+  ownership do not identify a clear group, stop before invoking `/aif-commit`.
+- Before invoking `/aif-commit`, capture the complete outstanding change set
+  for this group from the current index and worktree, including staged,
+  unstaged, and untracked changes. Enumerate untracked paths with
+  `git status --porcelain -uall` and `git ls-files --others --exclude-standard`,
+  inspect their content, and prove ownership before staging. Resolve ownership
+  at hunk/content level when a file overlaps other work. Pass this captured
+  baseline with the task-bound request; do not derive completion later from
+  planned paths alone. Before dispatch, persist a receipt block adjacent to
+  the commit task in the plan. The block must contain the task ID, exact
+  pre-commit `HEAD`, capture state, and a SHA-256 digest plus the complete
+  canonical owned-change manifest. The manifest records the expected
+  pre-commit blob/mode and exact resulting bytes or owned patch content for
+  every path/hunk, including untracked files and staged/unstaged state; store
+  the content losslessly (for example, base64-encoded canonical JSON), not
+  only a digest or path list. Treat this block as plan control data, not as
+  part of the captured implementation group unless the plan explicitly
+  assigns the plan file to that group.
+  Persist the receipt in this form, using `task-<task-id>` for task groups and
+  `classic-<group-number>` for classic groups; keep the exact classic group
+  name in the JSON as well:
+
+  ```markdown
+  <!-- aif:commit-receipt:start id="task-<task-id>" -->
+  {"state":"captured","pre_head":"<full HEAD>","manifest_sha256":"<sha256>","manifest_b64":"<base64 canonical manifest>"}
+  <!-- aif:commit-receipt:end id="task-<task-id>" -->
+  ```
+
+  Replace the matching JSON body after verification with
+  `{"state":"verified",...,"commit":"<full commit hash>"}` while preserving
+  the original capture fields. Do not duplicate receipt IDs.
+- Invoke `/aif-commit` in task-bound mode, passing all of:
+  - the exact resolved plan path (for ultra, the entrypoint and relevant phase file)
+  - the marked commit task ID and exact commit message
+  - the IDs and descriptions of the tasks this commit depends on
+  - their planned files and any task-level hunk ownership evidence
+  - the captured outstanding group changes, including staged/unstaged state
+    and the exact hunk/content evidence to verify after committing
+  - the current `HANDOFF_MODE` value
+  The task-bound request must explicitly say to commit only this group, never
+  offer "Commit everything together," and preserve unrelated staged and
+  unstaged changes. If unrelated staged changes are present or staging/hunk
+  ownership is unclear, stop without changing the index or committing.
+- Log the commit invocation with format: `[aif-implement.commit] invoking /aif-commit for task {taskId}`
+- After `/aif-commit` returns, independently verify a new local commit exists
+  with the exact planned message, its parent is the persisted pre-commit
+  `HEAD`, and its committed tree delta exactly matches the persisted manifest.
+  Verify both scope isolation and completeness at path and hunk/content level;
+  a subset of planned paths or hunks is not sufficient. Update the receipt
+  with the verified commit hash and `state="verified"` and persist it before
+  calling `TaskUpdate(taskId, status: "completed")`, marking the commit task
+  checkbox complete, and persisting the plan. The saved receipt, not
+  execution-context memory, is the durable source for resume reconciliation.
+- If the commit fails, no new local commit is verified, or the user cancels,
+  leave the commit task incomplete, do not update its checkbox, and stop this
+  run without advancing past the commit boundary.
+- **Resume reconciliation:** Before skipping any commit task on resume,
+  reconcile its plan checkbox, TaskUpdate status, and local Git history,
+  including when the tool status says completed but the saved checkbox is
+  incomplete. First recognize a persisted
+  `<!-- aif:commit-outcome:skipped-no-op reason="documentation-skipped" -->`
+  or `<!-- aif:commit-outcome:skipped-no-op reason="documentation-unchanged" -->`
+  on the commit task line. Accept that as a terminal no-op only when it is the
+  docs-only group omitted by the deferred documentation gate, its reason
+  matches the reserved documentation task's corresponding
+  `aif:task-outcome:skipped` marker, and the plan checkbox is complete. Do not
+  look for a commit hash or dispatch `/aif-commit` for this marked outcome.
+  Before accepting it, inspect live staged, unstaged, and untracked changes
+  against the reserved documentation task's `Files:` hints and owned
+  paths/hunks. The docs-only group must still have no outstanding changes:
+  any current change attributable to that group makes the persisted no-op
+  marker stale. Stop with an integrity error, leave the marker and task state
+  unchanged, and require the user to resolve the conflict; do not silently
+  clear the marker, recommit, or absorb new work. Changes proven unrelated to
+  this group do not invalidate the no-op result and must remain untouched.
+  Retain and report the no-op reason only after this live-state check passes.
+  An absent/malformed marker, mismatch in reason, or no-op marker on a group
+  containing implementation changes is an integrity error, not a skipped
+  result.
+  If no receipt exists and the task is incomplete/unchecked, treat this as a
+  first dispatch: capture and persist the manifest, including the pre-commit
+  `HEAD`, before invoking `/aif-commit`. Do not search arbitrary earlier
+  history for the planned message; a matching commit without a persisted
+  execution boundary cannot be attributed to this task and does not block a
+  fresh dispatch. A missing receipt when the task is checked/completed is an
+  integrity error; do not guess or create a replacement receipt. Once a
+  captured receipt exists, consider only a commit that can be verified against
+  that receipt's pre-commit `HEAD`, message, and exact manifest.
+  Otherwise validate its persisted change-capture receipt: require an intact
+  canonical manifest and matching digest. A verified receipt must name exactly
+  one local commit with the planned message, the recorded pre-commit `HEAD` as
+  its parent, and a tree delta exactly equal to the recorded manifest. If the
+  commit succeeded but the receipt still has `state="captured"` (for example,
+  context was cleared between commit and receipt finalization), find and verify
+  that commit against the durable manifest, then persist its hash and verified
+  state before marking the task complete. If no commit proves a captured
+  receipt, compare the current outstanding owned changes to that saved manifest
+  before retrying; any mismatch, invalid/missing receipt for a commit already
+  believed complete, or multiple candidate commits is an integrity error and
+  must stop without guessing or replacing the capture. Never substitute a
+  newly captured baseline for the one whose commit outcome is being
+  reconciled. If exactly one commit is proven, call
+  `TaskUpdate(taskId, status: "completed")`, mark the checkbox complete, and
+  persist the plan before continuing. Never infer success from the task
+  description or a `/aif-commit` invocation alone.
+- Proceed to the next task only after the commit outcome is resolved
+
+**Commit task recognition rules:**
+- Canonical signal: `<!-- aif:task-kind:commit -->` immediately before the task checkbox line
+- The marker is a standalone comment line; the checkbox/task line immediately follows it. A marker is never a checkbox or a task.
+- Legacy fallback only: a task description starting with `Commit changes with message` is treated as a compatibility fallback when the plan does not include the stable marker
+- A task without the marker is a regular implementation task even if it contains the word "commit"
+- Commit tasks are dependency boundaries for their grouped implementation/test/doc tasks and are not ordinary implementation work
+
+**Handling all three commit strategies:**
+- **Incremental**: Commit tasks appear interspersed with implementation - invoke `/aif-commit` when each commit task is reached
+- **Incremental at end**: Commit tasks appear at the end - after completing any reserved documentation task and passing its ownership gate below, invoke `/aif-commit` for each commit task in sequence
+- **Single commit at end**: One commit task appears at the end - after completing any reserved documentation task and passing its ownership gate below, invoke `/aif-commit` once with the final commit message
+
+For either deferred strategy with `Docs: yes`, do not dispatch the first marked
+commit task until the reserved documentation task and the Step 3.8.2 ownership
+gate are complete. If ownership validation fails, leave every deferred commit
+task incomplete and stop.
+
+**Saved-plan resolution order:**
+1. Read the active plan artifact first and detect an explicit commit marker or a classic `## Commit Plan` section.
+2. If the plan is task-based and contains the commit marker, use commit-task recognition (this section).
+3. Else if the plan contains a classic `## Commit Plan` section, use classic parsing (see Step 3.8.2).
+4. Only if the plan cannot be resolved or is legacy/ambiguous, fall back to `workflow.plan_structure` from config.
+5. If neither the saved plan nor config yields a clear pattern, do not guess: treat it as a normal task flow and continue without dispatching `/aif-commit`.
+
+**Important:** `workflow.plan_structure` is the default shape for newly generated plans, not the source of truth for an existing saved plan. Existing plans must be honored as written.
+
+**3.8.2: Classic commit checkpoints (backward compatibility)**
+
+Read the canonical `Commit strategy:` value from the exact `## Settings` section
+when available. If it is absent, treat the classic plan as `incremental` for
+backward compatibility.
+
+- For `incremental` (or an absent strategy), if the plan has a separate
+  `## Commit Plan` section and the current task is at a checkpoint, use the
+  checkpoint prompt and choices below.
+- For `incremental-at-end`, do not prompt or commit at intermediate task-range
+  checkpoints. Once every implementation, test, and documentation task is
+  complete, process the classic `## Commit Plan` groups in their listed order.
+- For `single-commit`, do not prompt or commit at intermediate checkpoints.
+  Once every implementation, test, and documentation task is complete, process
+  the single classic commit group covering all such work.
+
+For either deferred strategy when `Docs: yes`, the plan must contain a reserved
+documentation task with `Files:` hints. After all implementation/test tasks and
+before any deferred commit, run the mandatory documentation checkpoint for that
+task (see Step 5). This checkpoint is part of plan execution, not post-commit
+cleanup. Do not mark the documentation task complete until `/aif-docs` returns
+and its resulting diff has been checked against the reserved task and commit
+group.
+
+For either deferred strategy, ask at finalization before each planned commit,
+using a finalization prompt such as:
+
+```
+AskUserQuestion: All planned work is complete. Ready to commit deferred group
+Tasks <first>-<last>? Suggested message: "<conventional commit message>"
+
+Options:
+1. Yes, commit this group (/aif-commit)
+2. Skip this group
+3. Skip all remaining commit groups
+```
+
+Pass only that group's task range and ownership evidence to `/aif-commit`, and
+use the existing resume reconciliation to verify the local commit before marking
+the group complete. Do not report implementation complete while planned
+deferred groups remain. Start finalization as soon as the final
+implementation/test/documentation task is complete, even if no task-range
+checkpoint coincides with that final task.
+
+Invoke `/aif-commit` in **classic-group task-bound mode** for each deferred
+classic group. Pass all of:
+
+- the exact resolved plan path
+- the explicit `classic-group` task-bound mode and exact group number/name as
+  written in `## Commit Plan`
+- the complete task range and exact planned commit message
+- every task ID/description in the range and its `Files:` hints or task-level
+  hunk ownership evidence
+- the current `HANDOFF_MODE` value and the user's authorization for this group
+
+Use an explicit invocation payload, not the ordinary grouping prompt:
+
+```text
+/aif-commit classic-group
+plan_path: <exact resolved plan path>
+group: <exact group number/name from ## Commit Plan>
+task_range: <complete range>
+message: <exact planned commit message>
+tasks: <IDs, descriptions, Files hints, and hunk ownership>
+HANDOFF_MODE: <current value>
+authorized: <yes only after this group was authorized>
+captured_changes: <complete selected-group staged/unstaged/untracked changes>
+```
+
+`/aif-commit` must verify this metadata against the saved `## Commit Plan`,
+commit only that one group, and reject ambiguity or mismatch without changing
+the index. Before dispatch, capture the complete outstanding selected-group
+changes (staged, unstaged, and untracked); after return, independently verify
+the exact local commit message and that its diff exactly covers that captured
+set, with no missing selected-group change and no unrelated change, before
+recording the group as committed. Persist the same durable capture receipt
+described above before dispatch, keyed by the exact classic group name/number;
+after verification, persist its pre-commit `HEAD`, canonical manifest, and
+verified commit hash in the plan before continuing. If a group has no receipt
+and no durable group state indicating that it was already dispatched or
+completed (such as a valid verified receipt), treat it as a first dispatch:
+capture and persist its baseline before searching for or dispatching a commit.
+Do not treat an arbitrary older commit with the same message as a candidate
+for this group. Once the receipt exists, reconcile only commits verifiable
+against its recorded pre-commit `HEAD`, message, and exact manifest. A missing
+or invalid receipt is an integrity error when durable plan state says the
+group was already dispatched or completed; never synthesize a receipt after
+the fact.
+Never use ordinary multi-group
+`Follow Commit Plan` mode for deferred finalization.
+
+Classic groups have no plan checkbox. On resume, reconcile every deferred group
+from its persisted receipt and local Git history, not from execution context or
+a newly inferred task-range change set. Verify the exact planned message,
+recorded pre-commit `HEAD`, and complete captured manifest against the commit
+tree delta. If a captured receipt has no proving commit, compare live owned
+changes to that exact manifest before retrying; mismatch or multiple/ambiguous
+matches is an integrity error. Do not infer group completion from a prior
+invocation alone.
+
+For a classic docs-only group omitted because the reserved documentation task
+was skipped or `/aif-docs` made no changes, persist a group-level terminal
+marker immediately after that exact `## Commit Plan` entry:
+
+```markdown
+<!-- aif:classic-group-outcome:skipped-no-op group="<exact group name or number>" reason="documentation-skipped" -->
+```
+
+Use `reason="documentation-unchanged"` for the unchanged-docs outcome. Persist
+the matching reserved-task outcome marker and complete checkbox/status in the
+same plan update. On resume, recognize and validate this group-level marker
+before searching Git history. Accept it only for a docs-only group, with a
+matching reserved documentation task outcome and a complete task checkbox.
+Then inspect staged, unstaged, and untracked changes against that task's
+`Files:` hints and owned paths/hunks. Any live change attributable to the group
+makes the marker stale: stop with an integrity error and leave the marker and
+task state unchanged. Proven unrelated changes remain untouched. An absent,
+malformed, mismatched, or non-docs-only marker is an integrity error; do not
+dispatch an empty commit or infer a no-op from missing history.
+
+**Deferred documentation task execution and ownership gate:**
+
+1. Locate the reserved documentation task in the plan. It must depend on all
+   implementation/test tasks and be included in the planned deferred group
+   (dedicated final group for `incremental-at-end`; the final commit group for
+   `single-commit`).
+2. After those implementation/test tasks are complete, run the `Docs: yes`
+   checkpoint from Step 5 before dispatching any deferred commit task or
+   classic group. Do not repeat this checkpoint during completion.
+3. Before invoking `/aif-docs`, capture the staged and unstaged diff paths and
+   hunks, plus every untracked path and its content. Enumerate untracked paths
+   with `git status --porcelain -uall` and
+   `git ls-files --others --exclude-standard`; inspect and snapshot their
+   content. If unrelated staged work exists, stop without changing the index.
+   If the user chooses Update or Create, invoke `/aif-docs` as specified in
+   Step 5. Compare the post-docs staged and unstaged diffs to the baseline,
+   together with untracked paths and contents, to identify all changes made by
+   this checkpoint, including newly created, modified, and removed untracked
+   files.
+   Before any deferred commit, validate the complete docs change set—both
+   checkpoint changes and pre-existing outstanding docs changes—against the
+   reserved task's `Files:` hints and exact commit group. Verify every added
+   or changed docs path/hunk and untracked file content. Pre-existing or newly
+   changed docs hunks/files with unclear ownership, a path/hunk outside the
+   hints, or overlap with another group's ownership requires stopping before
+   any deferred commit and asking the user to adjust the task hints/grouping;
+   do not widen the group or proceed with other deferred commits.
+4. If the user chooses Skip, record the documentation outcome as skipped and
+   resolve the reserved task as skipped. Do not create a documentation-only
+   commit for an empty group; omit that group from dispatch while retaining the
+   user-visible skipped outcome. If `/aif-docs` makes no changes, similarly
+   resolve the documentation task and omit an empty docs-only group. For
+   `single-commit`, keep the single group when it also contains implementation
+   changes; only the docs task contributes no files.
+   Persist the terminal result in the plan before continuing. On the reserved
+   documentation task line, add
+   `<!-- aif:task-outcome:skipped reason="documentation-skipped" -->` when
+   skipped by the user, or
+   `<!-- aif:task-outcome:skipped reason="documentation-unchanged" -->` when
+   `/aif-docs` makes no changes. For an omitted docs-only commit task, keep its
+   `<!-- aif:task-kind:commit -->` marker and add the matching terminal marker
+   to its task line:
+   `<!-- aif:commit-outcome:skipped-no-op reason="documentation-skipped" -->`
+   or `<!-- aif:commit-outcome:skipped-no-op reason="documentation-unchanged" -->`.
+   Mark both resolved tasks complete in TaskUpdate and use `[x]` checkboxes;
+   these explicit outcome markers distinguish a skipped terminal task from an
+   executed commit, cancellation, failure, or pending work. For a
+   `single-commit` group that also contains implementation changes, do not
+   mark its commit task skipped; the ordinary commit remains required.
+   For classic plans with a dedicated docs-only commit group, persist the
+   matching group-level `aif:classic-group-outcome:skipped-no-op` marker
+   described in Step 3.8.2 instead of a task-based commit marker. Do not add
+   that marker to a classic group containing implementation or test changes.
+5. Only after validation and persistence, update the task checkbox/status and
+   continue deferred commit finalization. If ownership validation stops the
+   run, keep the documentation task and all affected commit tasks incomplete.
+
+For `incremental` only, when the current task range ends at a planned
+checkpoint:
 
 ```
 AskUserQuestion: ✅ Tasks <first>-<last> completed. This is a commit checkpoint. Ready to commit? Suggested message: "<conventional commit message>"
@@ -711,8 +1092,12 @@ Options:
 **Based on choice:**
 
 - Yes, commit now → invoke `/aif-commit` with the suggested message, then continue to next task
-- No, continue to next task → proceed to the next task without committing
+- No, continue to next task → proceed without committing
 - Skip all commit checkpoints → for all subsequent checkpoints within this `/aif-implement` run, skip the prompt automatically and proceed directly to the next task (as if user selected "No, continue to next task" each time). This is in-context memory — resets on `/clear` or new session
+
+During deferred finalization, "Skip this group" leaves it uncommitted and moves
+to the next group; "Skip all remaining commit groups" skips every subsequent
+group in this run. In either case, report skipped groups explicitly.
 
 **3.9: Move to next task or pause**
 
@@ -815,11 +1200,21 @@ Options:
 2. No — skip
 ```
 
-**Documentation policy checkpoint (after completion, before plan cleanup):**
+**Documentation policy checkpoint:**
 
 Read the plan entrypoint setting `Docs: yes/no`.
 
 If plan setting is `Docs: yes`:
+
+- For `incremental-at-end` and `single-commit`, run this checkpoint after all
+  implementation/test tasks but before deferred commit finalization, as
+  specified in Step 3.8.2. Do not wait until after the commits.
+- The planner reserves an explicit docs task for these deferred strategies
+  when `Docs: yes`; resolve that task only after this checkpoint and the
+  ownership gate pass (or the user chooses Skip).
+- For `incremental`, preserve the existing completion-time checkpoint behavior.
+- If deferred finalization already ran this checkpoint in the current
+  execution, do not ask or invoke `/aif-docs` again.
 
 ```
 AskUserQuestion: Documentation checkpoint — how should we document this feature?
