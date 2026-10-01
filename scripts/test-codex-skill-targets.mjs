@@ -130,7 +130,7 @@ test('core', 'Devin resolves platform-specific global paths without changing pro
   assert.equal(vars.home_skills_dir, 'C:\\Users\\dev\\AppData\\Roaming\\devin\\skills');
   assert.equal(
     processTemplate('~/{{skills_dir}} {{home_skills_dir}}', vars),
-    'C:\\Users\\dev\\AppData\\Roaming\\devin\\skills C:\\Users\\dev\\AppData\\Roaming\\devin\\skills',
+    '.devin/skills C:\\Users\\dev\\AppData\\Roaming\\devin\\skills',
   );
   assert.equal(processTemplate('{{shell_home_skills_dir}}', vars), vars.shell_home_skills_dir);
 
@@ -138,10 +138,42 @@ test('core', 'Devin resolves platform-specific global paths without changing pro
     projectDir: project, agentId: 'devin', skillsDir: devin.skillsDir, skills: ['aif'],
   }), ['aif']);
   const installedSkill = await fs.readFile(path.join(project, devin.skillsDir, 'aif/SKILL.md'), 'utf8');
-  assert.ok(installedSkill.includes(buildTemplateVars(devin).home_skills_dir));
+  assert.ok(installedSkill.includes('.devin/skills/aif/'));
+  assert.ok(!installedSkill.includes(devin.homeSkillsDir));
 });
 
-test('core', 'rendered home helper commands execute with spaces and preserve Windows paths', async project => {
+test('core', 'Devin project helper commands work from another home directory', async project => {
+  const helperPath = 'aif-skill-generator/scripts/security-scan.py';
+  const scriptContents = 'import sys\nprint(sys.argv[1])\n';
+  const fixture = async skillsDir => {
+    const helper = path.join(skillsDir, helperPath);
+    await fs.mkdir(path.dirname(helper), { recursive: true });
+    await fs.writeFile(helper, scriptContents);
+  };
+  const runRenderedCommand = (command, env) => spawnSync('bash', ['-c', command], {
+    encoding: 'utf8',
+    cwd: project,
+    env: { ...process.env, ...env },
+  });
+
+  const projectSkillsDir = '.devin/skills';
+  await fixture(path.join(project, projectSkillsDir));
+  const devinVars = buildTemplateVars({
+    ...getAgentConfig('devin'),
+    homeSkillsDir: path.join(project, 'alice config', 'devin', 'skills'),
+  });
+  assert.equal(devinVars.shell_home_skills_dir, projectSkillsDir);
+  const projectCommand = processTemplate(`python3 {{shell_home_skills_dir}}/${helperPath} bob-fixture`, devinVars);
+  const projectResult = runRenderedCommand(projectCommand, {
+    HOME: path.join(project, 'bob home'),
+    XDG_CONFIG_HOME: path.join(project, 'bob config'),
+    APPDATA: path.join(project, 'bob appdata'),
+  });
+  assert.equal(projectResult.status, 0, projectResult.stderr);
+  assert.equal(projectResult.stdout.trim(), 'bob-fixture');
+});
+
+test('core', 'rendered global helper commands quote spaces and preserve Windows paths', async project => {
   const helperPath = 'aif-skill-generator/scripts/security-scan.py';
   const scriptContents = 'import sys\nprint(sys.argv[1])\n';
   const fixture = async skillsDir => {
@@ -156,7 +188,7 @@ test('core', 'rendered home helper commands execute with spaces and preserve Win
 
   const absoluteSkillsDir = path.join(project, 'config with spaces', 'devin', 'skills');
   await fixture(absoluteSkillsDir);
-  const absoluteVars = buildTemplateVars({ ...getAgentConfig('devin'), homeSkillsDir: absoluteSkillsDir });
+  const absoluteVars = buildTemplateVars({ ...getAgentConfig('devin'), id: 'custom-devin', homeSkillsDir: absoluteSkillsDir });
   const absoluteCommand = processTemplate(`python3 {{shell_home_skills_dir}}/${helperPath} absolute-fixture`, absoluteVars);
   const absoluteResult = runRenderedCommand(absoluteCommand, { HOME: path.join(project, 'unused home') });
   assert.equal(absoluteResult.status, 0, absoluteResult.stderr);
@@ -165,14 +197,14 @@ test('core', 'rendered home helper commands execute with spaces and preserve Win
   const home = path.join(project, 'home with spaces');
   const relativeSkillsDir = '.config/devin tools/skills';
   await fixture(path.join(home, relativeSkillsDir));
-  const relativeVars = buildTemplateVars({ ...getAgentConfig('devin'), homeSkillsDir: relativeSkillsDir });
+  const relativeVars = buildTemplateVars({ ...getAgentConfig('devin'), id: 'custom-devin', homeSkillsDir: relativeSkillsDir });
   const relativeCommand = processTemplate(`python3 {{shell_home_skills_dir}}/${helperPath} relative-fixture`, relativeVars);
   const relativeResult = runRenderedCommand(relativeCommand, { HOME: home });
   assert.equal(relativeResult.status, 0, relativeResult.stderr);
   assert.equal(relativeResult.stdout.trim(), 'relative-fixture');
 
   const windowsSkillsDir = 'C:\\Users\\Dev User\\AppData\\Roaming\\devin\\skills';
-  const windowsVars = buildTemplateVars({ ...getAgentConfig('devin'), homeSkillsDir: windowsSkillsDir });
+  const windowsVars = buildTemplateVars({ ...getAgentConfig('devin'), id: 'custom-devin', homeSkillsDir: windowsSkillsDir });
   const windowsCommand = processTemplate(`printf '%s' {{shell_home_skills_dir}}/${helperPath}`, windowsVars);
   const windowsResult = runRenderedCommand(windowsCommand, {});
   assert.equal(windowsResult.status, 0, windowsResult.stderr);
