@@ -200,7 +200,23 @@ For a marked commit task:
   with `git status --porcelain -uall` and
   `git ls-files --others --exclude-standard`; prove ownership at path and
   hunk/content level before staging, especially for files overlapping other
-  work. Pass this baseline with the task-bound request.
+  work. Persist a receipt adjacent to the task in the plan before dispatch.
+  Use the unique ID `task-<task-id>` and store the task ID, full pre-commit
+  `HEAD`, `state: captured`, and a SHA-256 digest plus the complete canonical
+  owned-change manifest. The lossless manifest must encode each path's
+  pre-commit blob/mode, exact resulting bytes or owned patch, result mode, and
+  staged/unstaged state, including untracked content; a digest or path list
+  alone is insufficient. Store it losslessly (for example, base64 canonical
+  JSON). Treat the receipt as plan control data, not part of the commit group
+  unless explicitly assigned. Do not duplicate receipt IDs.
+
+  ```markdown
+  <!-- aif:commit-receipt:start id="task-<task-id>" -->
+  {"task_id":"<task-id>","state":"captured","pre_head":"<full HEAD>","manifest_sha256":"<sha256>","manifest_b64":"<base64 canonical manifest>"}
+  <!-- aif:commit-receipt:end id="task-<task-id>" -->
+  ```
+  After verification, retain all capture fields and add
+  `"state":"verified","commit":"<full commit hash>"`.
 - Invoke `/aif-commit` in task-bound mode with the exact plan path, marked task
   ID and message, dependency task IDs/descriptions, planned files or hunk
   ownership evidence, captured outstanding changes, and `HANDOFF_MODE`. Commit
@@ -210,8 +226,10 @@ For a marked commit task:
   {taskId}`. After it returns, independently verify a new local commit has the
   exact planned message and its diff exactly covers the complete captured
   group, at path and hunk/content level, with no omissions or unrelated
-  changes. Only then mark the commit task complete in TaskUpdate and the plan
-  entrypoint, persist the plan, and retain the commit hash before proceeding.
+  changes; its parent must be the receipt's pre-commit `HEAD`. Update the
+  receipt to `state: verified` with the full commit hash while preserving the
+  captured fields, and persist it before marking the commit task complete in
+  TaskUpdate and the plan entrypoint. The receipt is the durable resume source.
 - On failure, cancellation, or unverified commit, leave the task incomplete and
   stop at the commit boundary. On resume, reconcile the checkbox, task status,
   and local history. A persisted no-op marker is accepted only for an omitted
@@ -219,9 +237,19 @@ For a marked commit task:
   checkbox; inspect live staged, unstaged, and untracked changes to confirm the
   group still has no outstanding changes. A stale/malformed marker or any
   current change attributable to that group is an integrity error; do not
-  clear it, recommit, or absorb new work. Otherwise repair completion only
-  when exactly one matching commit exactly covers the captured group; stop on
-  ambiguity or mismatch.
+  clear it, recommit, or absorb new work.
+  If there is no receipt and the task is unchecked/incomplete with no candidate
+  commit using its planned message, capture and persist a receipt before first
+  dispatch. A missing receipt when the task is complete or a candidate commit
+  exists is an integrity error. Otherwise validate the canonical manifest and
+  digest. A verified receipt must match exactly one commit with the planned
+  message, the recorded `pre_head` as parent, and a tree delta exactly matching
+  the manifest. If the receipt remains captured after a commit, prove the
+  commit from that receipt, then persist its verified state/hash before task
+  completion. If no commit proves it, compare current owned changes to the
+  saved manifest before retrying; any mismatch or multiple candidates stops
+  without replacing the receipt. Otherwise mark completion only when exactly
+  one matching commit exactly covers the captured group.
 
 The canonical marker is a standalone comment immediately before the task
 checkbox; it is not itself a task. A task without the marker is ordinary even if
@@ -244,11 +272,20 @@ group name/number, task range, exact message, every task's IDs/descriptions and
 file/hunk ownership evidence, `HANDOFF_MODE`, and authorization for that group.
 Capture the complete outstanding selected-group change set, including staged,
 unstaged, and untracked changes, before dispatch. It must validate against the
-saved `## Commit Plan` and commit only that group. Independently verify the
-local commit message and that its diff exactly covers the captured group with
-no omissions or unrelated changes before recording success. On resume, treat a
-group as committed only when exactly one matching commit proves the complete
-task-range change set; stop on ambiguity.
+saved `## Commit Plan` and commit only that group. Persist the same durable
+capture receipt before dispatch, keyed by the exact classic group name/number;
+after verification, persist the pre-commit `HEAD`, canonical manifest, and
+verified commit hash before continuing. A group without a receipt and without a
+candidate commit using its exact message may capture one before first dispatch;
+a candidate commit without a receipt is an integrity error. Independently
+verify that the local commit has the exact message and parent and its diff
+exactly covers the captured group with no omissions or unrelated changes
+before recording success. On resume, reconcile from the saved receipt and local
+history, never a newly inferred baseline. If no commit proves a captured
+receipt, compare live owned changes to that exact manifest before retrying;
+mismatch or multiple/ambiguous matches stops without guessing.
+Use receipt ID `classic-<group-number>` and include the exact classic group
+name in its canonical manifest/receipt data.
 
 For deferred strategies with `Docs: yes`, require a reserved documentation
 task with `Files:` hints that depends on all implementation/test tasks and
@@ -273,6 +310,24 @@ explicit outcome is distinct from a commit, cancellation, failure, or pending
 work. Do not emit a no-op marker for a `single-commit` group containing
 implementation changes. If the docs checkpoint was already run during
 finalization, do not repeat it at completion.
+
+For a classic docs-only group omitted because docs were skipped or unchanged,
+place a group-level marker immediately after the exact `## Commit Plan` entry:
+
+```markdown
+<!-- aif:classic-group-outcome:skipped-no-op group="<exact group name or number>" reason="documentation-skipped" -->
+```
+
+Use `reason="documentation-unchanged"` when `/aif-docs` made no changes, and
+persist the matching documentation outcome and completed checkbox/status in
+the same plan update. On resume, validate this marker before searching Git
+history; accept it only for a docs-only group with the matching documentation
+outcome and completed task. Check live staged, unstaged, and untracked changes
+against the docs task's hints and owned paths/hunks. Any group-owned live
+change makes the marker stale and requires stopping without changing the
+marker/task state. An absent, malformed, mismatched, or non-docs-only marker is
+an integrity error; never dispatch an empty commit or infer a no-op from
+missing history.
 
 ### Session persistence
 
