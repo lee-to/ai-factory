@@ -214,6 +214,12 @@ Executes the plan:
 - Executes tasks one by one and enforces TDD test-first/pass checks when selected
 - Honors incremental commit checkpoints; defers `incremental-at-end` groups and a
   `single-commit` until all implementation/test/documentation tasks are complete
+- Persists each task-bound or classic commit group's exact captured change
+  manifest and pre-commit `HEAD` in the plan, then binds the verified receipt
+  to the commit hash so `/clear` resume can prove earlier groups independently
+- Persists classic docs-only Skip/unchanged outcomes at group level and accepts
+  them on resume only when the matching docs-task marker and live ownership
+  check still prove the group has no changes
 - Runs the required docs checkpoint before deferred commits when `Docs: yes`, then checks docs changes against the planned group
 - Docs policy after completion (plan-backed modes):
   - `Docs: yes` → mandatory documentation checkpoint (update docs / create feature page / skip)

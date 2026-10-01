@@ -775,7 +775,29 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
   inspect their content, and prove ownership before staging. Resolve ownership
   at hunk/content level when a file overlaps other work. Pass this captured
   baseline with the task-bound request; do not derive completion later from
-  planned paths alone.
+  planned paths alone. Before dispatch, persist a receipt block adjacent to
+  the commit task in the plan. The block must contain the task ID, exact
+  pre-commit `HEAD`, capture state, and a SHA-256 digest plus the complete
+  canonical owned-change manifest. The manifest records the expected
+  pre-commit blob/mode and exact resulting bytes or owned patch content for
+  every path/hunk, including untracked files and staged/unstaged state; store
+  the content losslessly (for example, base64-encoded canonical JSON), not
+  only a digest or path list. Treat this block as plan control data, not as
+  part of the captured implementation group unless the plan explicitly
+  assigns the plan file to that group.
+  Persist the receipt in this form, using `task-<task-id>` for task groups and
+  `classic-<group-number>` for classic groups; keep the exact classic group
+  name in the JSON as well:
+
+  ```markdown
+  <!-- aif:commit-receipt:start id="task-<task-id>" -->
+  {"state":"captured","pre_head":"<full HEAD>","manifest_sha256":"<sha256>","manifest_b64":"<base64 canonical manifest>"}
+  <!-- aif:commit-receipt:end id="task-<task-id>" -->
+  ```
+
+  Replace the matching JSON body after verification with
+  `{"state":"verified",...,"commit":"<full commit hash>"}` while preserving
+  the original capture fields. Do not duplicate receipt IDs.
 - Invoke `/aif-commit` in task-bound mode, passing all of:
   - the exact resolved plan path (for ultra, the entrypoint and relevant phase file)
   - the marked commit task ID and exact commit message
@@ -790,13 +812,14 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
   ownership is unclear, stop without changing the index or committing.
 - Log the commit invocation with format: `[aif-implement.commit] invoking /aif-commit for task {taskId}`
 - After `/aif-commit` returns, independently verify a new local commit exists
-  with the exact planned message and that its committed diff exactly covers
-  the complete outstanding change set captured for this task group before
-  dispatch. Verify both scope isolation and completeness at path and hunk/
-  content level; a subset of planned paths or hunks is not sufficient. Only
-  then call `TaskUpdate(taskId, status: "completed")`, mark the commit task
-  checkbox complete, and persist the plan. Capture the resulting commit hash
-  in the execution context before proceeding.
+  with the exact planned message, its parent is the persisted pre-commit
+  `HEAD`, and its committed tree delta exactly matches the persisted manifest.
+  Verify both scope isolation and completeness at path and hunk/content level;
+  a subset of planned paths or hunks is not sufficient. Update the receipt
+  with the verified commit hash and `state="verified"` and persist it before
+  calling `TaskUpdate(taskId, status: "completed")`, marking the commit task
+  checkbox complete, and persisting the plan. The saved receipt, not
+  execution-context memory, is the durable source for resume reconciliation.
 - If the commit fails, no new local commit is verified, or the user cancels,
   leave the commit task incomplete, do not update its checkbox, and stop this
   run without advancing past the commit boundary.
@@ -823,14 +846,27 @@ When the current task is a commit task, identified by the task marker `<!-- aif:
   An absent/malformed marker, mismatch in reason, or no-op marker on a group
   containing implementation changes is an integrity error, not a skipped
   result.
-  Otherwise inspect local history for a commit with the exact planned message
-  whose committed diff exactly covers the complete captured owned group,
-  with neither omissions nor unrelated changes. If exactly one such commit is
-  proven, call `TaskUpdate(taskId, status: "completed")`, mark the checkbox
-  complete, and persist the plan before continuing. If none is proven and the
-  task is incomplete, retry normally; if multiple or ambiguous matches exist,
-  or a checked/completed task has no proven commit, stop and report the
-  mismatch rather than guessing. Never infer success from the task
+  If no receipt exists and the task is incomplete/unchecked with no local
+  candidate commit using its planned message, treat this as a first dispatch:
+  capture and persist the manifest before invoking `/aif-commit`. A missing
+  receipt when the task is checked/completed or a candidate commit exists is an
+  integrity error; do not guess or create a replacement receipt.
+  Otherwise validate its persisted change-capture receipt: require an intact
+  canonical manifest and matching digest. A verified receipt must name exactly
+  one local commit with the planned message, the recorded pre-commit `HEAD` as
+  its parent, and a tree delta exactly equal to the recorded manifest. If the
+  commit succeeded but the receipt still has `state="captured"` (for example,
+  context was cleared between commit and receipt finalization), find and verify
+  that commit against the durable manifest, then persist its hash and verified
+  state before marking the task complete. If no commit proves a captured
+  receipt, compare the current outstanding owned changes to that saved manifest
+  before retrying; any mismatch, invalid/missing receipt for a commit already
+  believed complete, or multiple candidate commits is an integrity error and
+  must stop without guessing or replacing the capture. Never substitute a
+  newly captured baseline for the one whose commit outcome is being
+  reconciled. If exactly one commit is proven, call
+  `TaskUpdate(taskId, status: "completed")`, mark the checkbox complete, and
+  persist the plan before continuing. Never infer success from the task
   description or a `/aif-commit` invocation alone.
 - Proceed to the next task only after the commit outcome is resolved
 
@@ -935,16 +971,44 @@ the index. Before dispatch, capture the complete outstanding selected-group
 changes (staged, unstaged, and untracked); after return, independently verify
 the exact local commit message and that its diff exactly covers that captured
 set, with no missing selected-group change and no unrelated change, before
-recording the group as committed. Never use ordinary multi-group `Follow
-Commit Plan` mode for deferred finalization.
+recording the group as committed. Persist the same durable capture receipt
+described above before dispatch, keyed by the exact classic group name/number;
+after verification, persist its pre-commit `HEAD`, canonical manifest, and
+verified commit hash in the plan before continuing. If a group has no receipt
+and no local candidate commit with its exact planned message, capture and
+persist its baseline before first dispatch. A candidate commit without a
+receipt is an integrity error; never synthesize a receipt after the fact.
+Never use ordinary multi-group
+`Follow Commit Plan` mode for deferred finalization.
 
 Classic groups have no plan checkbox. On resume, reconcile every deferred group
-against local Git history using its exact planned message and complete owned
-task-range change set: if exactly one matching commit proves the group's full
-captured change set with no extra changes, treat it as committed;
-if none proves it, process it normally; if multiple or ambiguous matches exist,
-stop and report the mismatch. Do not infer group completion from a prior
+from its persisted receipt and local Git history, not from execution context or
+a newly inferred task-range change set. Verify the exact planned message,
+recorded pre-commit `HEAD`, and complete captured manifest against the commit
+tree delta. If a captured receipt has no proving commit, compare live owned
+changes to that exact manifest before retrying; mismatch or multiple/ambiguous
+matches is an integrity error. Do not infer group completion from a prior
 invocation alone.
+
+For a classic docs-only group omitted because the reserved documentation task
+was skipped or `/aif-docs` made no changes, persist a group-level terminal
+marker immediately after that exact `## Commit Plan` entry:
+
+```markdown
+<!-- aif:classic-group-outcome:skipped-no-op group="<exact group name or number>" reason="documentation-skipped" -->
+```
+
+Use `reason="documentation-unchanged"` for the unchanged-docs outcome. Persist
+the matching reserved-task outcome marker and complete checkbox/status in the
+same plan update. On resume, recognize and validate this group-level marker
+before searching Git history. Accept it only for a docs-only group, with a
+matching reserved documentation task outcome and a complete task checkbox.
+Then inspect staged, unstaged, and untracked changes against that task's
+`Files:` hints and owned paths/hunks. Any live change attributable to the group
+makes the marker stale: stop with an integrity error and leave the marker and
+task state unchanged. Proven unrelated changes remain untouched. An absent,
+malformed, mismatched, or non-docs-only marker is an integrity error; do not
+dispatch an empty commit or infer a no-op from missing history.
 
 **Deferred documentation task execution and ownership gate:**
 
@@ -988,6 +1052,10 @@ invocation alone.
    executed commit, cancellation, failure, or pending work. For a
    `single-commit` group that also contains implementation changes, do not
    mark its commit task skipped; the ordinary commit remains required.
+   For classic plans with a dedicated docs-only commit group, persist the
+   matching group-level `aif:classic-group-outcome:skipped-no-op` marker
+   described in Step 3.8.2 instead of a task-based commit marker. Do not add
+   that marker to a classic group containing implementation or test changes.
 5. Only after validation and persistence, update the task checkbox/status and
    continue deferred commit finalization. If ownership validation stops the
    run, keep the documentation task and all affected commit tasks incomplete.
