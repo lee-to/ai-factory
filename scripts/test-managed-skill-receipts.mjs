@@ -111,7 +111,7 @@ test('flat workflow receipts cover their actual installed files', async project 
 for (const [id, skill, installedFile] of [
   ['claude', 'aif-loop', '.claude/skills/aif-loop/SKILL.md'],
   ['codex', 'aif-loop', '.agents/skills/aif-loop/SKILL.md'],
-  ['antigravity', 'aif-plan', '.agent/workflows/aif-plan.md'],
+  ['antigravity', 'aif-plan', '.agents/skills/aif-plan/SKILL.md'],
   ['kilocode', 'aif-plan', '.kilocode/workflows/aif-plan.md'],
 ]) {
   for (const scenario of ['clean', 'modified', 'missing-raw-receipt', 'missing-managed-state']) {

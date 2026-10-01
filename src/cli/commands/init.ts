@@ -6,6 +6,7 @@ import {
   buildExtensionAgentFileSources,
   buildManagedConfigFilesState,
   buildManagedSkillsState,
+  hashManagedFile,
   installConfigFiles,
   installSkills,
   installSubagents,
@@ -20,7 +21,7 @@ import { configureMcp, getMcpInstructions } from '../../core/mcp.js';
 import { getAgentConfig, getAvailableAgentIds, hydrateProjectAgentRegistry } from '../../core/agents.js';
 import { cleanupAgentSetup, getAgentOnboarding } from '../../core/transformer.js';
 import { removeFile, copyFile, fileExists, getSkillsDir } from '../../utils/fs.js';
-import { hasSurvivingConfigConsumer, resolveSkillTargets } from '../../core/skill-targets.js';
+import { hasSurvivingAgentFileConsumer, hasSurvivingConfigConsumer, resolveSkillTargets } from '../../core/skill-targets.js';
 import { prepareSkillTargets, recoverSkillMigration, withSkillProjectLock } from '../../core/skills-migration.js';
 import {
   assertNoAgentFileConflicts,
@@ -123,7 +124,31 @@ async function removeAgentSetup(
 
     for (const relPath of managedFiles) {
       try {
-        await removeFile(resolveInstalledAgentFileTargetPath(projectDir, agentsDir, relPath));
+        const targetFile = resolveInstalledAgentFileTargetPath(projectDir, agentsDir, relPath);
+        if (!(await fileExists(targetFile))) continue;
+
+        if (await hasSurvivingAgentFileConsumer(projectDir, path.relative(projectDir, targetFile), survivingAgents)) {
+          continue;
+        }
+
+        const currentHash = await hashManagedFile(targetFile, relPath);
+        const previousState = agent.managedAgentFiles?.[relPath];
+
+        if (
+          !previousState ||
+          !currentHash ||
+          previousState.installedHash !== currentHash ||
+          previousState.sourceHash !== previousState.installedHash
+        ) {
+          console.log(
+            chalk.yellow(
+              `  [${agent.id}] Preserving modified or untracked native agent file: ${relPath} (dropping managed ownership)`,
+            ),
+          );
+          continue;
+        }
+
+        await removeFile(targetFile);
       } catch (error) {
         console.log(
           chalk.yellow(
@@ -138,7 +163,29 @@ async function removeAgentSetup(
   for (const relPath of configFiles) {
     try {
       const { targetFile } = resolveManagedConfigFilePaths(projectDir, agent.id, relPath);
-      if (await hasSurvivingConfigConsumer(projectDir, path.relative(projectDir, targetFile), survivingAgents)) continue;
+      if (!(await fileExists(targetFile))) continue;
+
+      if (await hasSurvivingConfigConsumer(projectDir, path.relative(projectDir, targetFile), survivingAgents)) {
+        continue;
+      }
+
+      const currentHash = await hashManagedFile(targetFile, relPath);
+      const previousState = agent.managedConfigFiles?.[relPath];
+
+      if (
+        !previousState ||
+        !currentHash ||
+        previousState.installedHash !== currentHash ||
+        previousState.sourceHash !== previousState.installedHash
+      ) {
+        console.log(
+          chalk.yellow(
+            `  [${agent.id}] Preserving modified or untracked config file: ${relPath} (dropping managed ownership)`,
+          ),
+        );
+        continue;
+      }
+
       await removeFile(targetFile);
     } catch (error) {
       console.log(
@@ -263,6 +310,8 @@ async function initLocked(options: InitOptions): Promise<void> {
           previousInstallation: existingAgent,
           agentId: agentSelection.id,
           agentsDir: agentConfig.agentsDir,
+          installedAgentFiles: existingAgent?.installedAgentFiles,
+          managedAgentFiles: existingAgent?.managedAgentFiles,
         })
         : [];
       const installedConfigFiles = agentConfig.configFiles?.length

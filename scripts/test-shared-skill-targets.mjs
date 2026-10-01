@@ -40,20 +40,29 @@ try {
   for (const id of ['codex', 'codex-app', 'universal']) {
     assert.ok(choices.some(choice => choice.value === id), `${id} must remain selectable in the wizard`);
   }
-  const builtins = getBuiltinAgentConfigs();
-  assertCompatibleSkillTargets(builtins);
+  const codexBuiltins = getBuiltinAgentConfigs().filter(agent => agent.id !== 'antigravity');
+  assertCompatibleSkillTargets(codexBuiltins);
   const targetsByDir = new Map();
-  for (const agent of builtins) {
+  for (const agent of codexBuiltins) {
     const dir = path.normalize(agent.skillsDir);
     targetsByDir.set(dir, [...(targetsByDir.get(dir) ?? []), agent]);
   }
   for (const [dir, agents] of targetsByDir) {
     if (agents.length < 2) continue;
-    const output = agents.map(agent => getTransformer(agent.id, builtins).transform('aif', 'Run /aif-plan.'));
+    const output = agents.map(agent => getTransformer(agent.id, codexBuiltins).transform('aif', 'Run /aif-plan.'));
     for (const result of output.slice(1)) {
       assert.deepEqual(result, output[0], `Agents sharing ${dir} must produce compatible skills`);
     }
   }
+
+  const agBuiltins = getBuiltinAgentConfigs().filter(agent => agent.id !== 'codex-app');
+  assertCompatibleSkillTargets(agBuiltins);
+
+  assert.throws(
+    () => assertCompatibleSkillTargets(getBuiltinAgentConfigs()),
+    /Incompatible agent skill targets/,
+    'Antigravity and Codex app sharing .agents/skills must be rejected as incompatible',
+  );
 
   const separateTargets = [
     { id: 'universal', skillsDir: '.other/skills' },

@@ -114,14 +114,16 @@ export async function resolveSkillTargets(
   for (const runtime of runtimes) {
     const registry = getAgentConfig(runtime.id);
     const previousSkillsDir = normalizeRelative(runtime.skillsDir || registry.skillsDir);
+    const hasAntigravity = runtimes.some(r => r.id === 'antigravity');
     const preferShared = options.select !== false && runtime.id === 'codex'
-      && previousSkillsDir === '.codex/skills' && hasAgentsDirectory;
-    const skillsDir = preferShared ? '.agents/skills' : previousSkillsDir;
+      && previousSkillsDir === '.codex/skills' && hasAgentsDirectory && !hasAntigravity;
+    const isAntigravityLegacy = options.select !== false && runtime.id === 'antigravity' && previousSkillsDir === '.agent/skills';
+    const skillsDir = (preferShared || isAntigravityLegacy) ? '.agents/skills' : previousSkillsDir;
     const target = Object.freeze({
       id: runtime.id, previousSkillsDir, skillsDir,
       physicalPath: await physicalProjectPath(projectDir, skillsDir),
       sourcePhysicalPath: await physicalProjectPath(projectDir, previousSkillsDir),
-      reason: preferShared ? 'existing-agents-directory' as const : runtime.skillsDir ? 'persisted' as const : 'default' as const,
+      reason: preferShared ? 'existing-agents-directory' as const : isAntigravityLegacy ? 'default' as const : runtime.skillsDir ? 'persisted' as const : 'default' as const,
     });
     targets.push(target);
     const assets = [registry.agentsDir, runtime.agentsDir, registry.settingsFile,
@@ -166,6 +168,24 @@ export async function hasSurvivingConfigConsumer(
     const paths = [runtime.settingsFile, ...new Set([...(runtime.configFiles ?? []), ...(survivor.configFiles ?? [])].map(file => `${runtime.configDir}/${file}`))]
       .filter((file): file is string => !!file);
     for (const file of paths) if (await physicalProjectPath(projectDir, file) === target) return true;
+  }
+  return false;
+}
+
+export async function hasSurvivingAgentFileConsumer(
+  projectDir: string,
+  relativePath: string,
+  survivors: readonly SkillTargetRuntime[],
+): Promise<boolean> {
+  const target = await physicalProjectPath(projectDir, relativePath);
+  for (const survivor of survivors) {
+    const runtime = getAgentConfig(survivor.id);
+    const agentsDir = survivor.agentsDir ?? runtime.agentsDir;
+    if (!agentsDir) continue;
+    const installedAgentFiles = survivor.installedAgentFiles ?? [];
+    for (const relPath of installedAgentFiles) {
+      if ((await physicalProjectPath(projectDir, path.join(agentsDir, relPath))) === target) return true;
+    }
   }
   return false;
 }

@@ -66,7 +66,6 @@ _BUILTIN_AGENT_SKILLS_DIRS = (
     '.zencoder/skills',
     '.roo/skills',
     '.kilocode/skills',
-    '.agent/skills',
     '.opencode/skills',
 )
 

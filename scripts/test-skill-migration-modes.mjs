@@ -237,14 +237,14 @@ test('singleton skill rollback restores bytes and mode independently', async pro
 });
 
 test('flat rollback preserves sibling workflows and restores references', async project => {
-  const workflow = path.join(project, '.agent/workflows');
+  const workflow = path.join(project, '.kilocode/workflows');
   await fs.mkdir(path.join(workflow, 'references'), { recursive: true });
   await fs.writeFile(path.join(workflow, 'aif.md'), 'original main');
   await fs.chmod(path.join(workflow, 'aif.md'), 0o600);
   await fs.writeFile(path.join(workflow, 'unrelated.md'), 'unrelated workflow');
   await fs.writeFile(path.join(workflow, 'references/helper.txt'), 'original helper');
   await fs.chmod(path.join(workflow, 'references/helper.txt'), 0o640);
-  const agent = { id: 'antigravity', skillsDir: '.agent/skills', installedSkills: ['aif'],
+  const agent = { id: 'kilocode', skillsDir: '.kilocode/skills', installedSkills: ['aif'],
     mcp: { github: false, filesystem: false, postgres: false, chromeDevtools: false, playwright: false } };
   const restore = await captureSharedSkillRollback(project, [agent], ['aif'], { includeSingletons: true });
   await fs.writeFile(path.join(workflow, 'aif.md'), 'partial main');
@@ -263,11 +263,11 @@ test('flat rollback preserves sibling workflows and restores references', async 
 
 test('unmodified singleton and flat snapshots need no write access', async project => {
   const config = await fixture(project);
-  const workflow = path.join(project, '.agent/workflows');
+  const workflow = path.join(project, '.kilocode/workflows');
   await fs.mkdir(path.join(workflow, 'references'), { recursive: true });
   await fs.writeFile(path.join(workflow, 'aif.md'), 'unchanged main');
   await fs.writeFile(path.join(workflow, 'references/helper.txt'), 'unchanged helper');
-  const agents = [...config.agents, { ...config.agents[0], id: 'antigravity', skillsDir: '.agent/skills' }];
+  const agents = [...config.agents, { ...config.agents[0], id: 'kilocode', skillsDir: '.kilocode/skills' }];
   const restore = await captureSharedSkillRollback(project, agents, ['demo', 'aif'], { includeSingletons: true });
   const originalOpen = fs.open;
   let writeAttempts = 0;

@@ -56,6 +56,16 @@ try {
       assertNoLoopMetadata(await readAgent());
       assert.equal(await readFile(target(customFile), 'utf8'), 'user-owned loop role\n');
 
+      // Modifying a bundled loop role must preserve it on deselection (Zero Data Loss)
+      await initCommand({ agents: agentId, skills: 'aif,aif-loop' });
+      assert(existsSync(target(loopFile)), `${agentId}: selected loop subagent must be installed`);
+      await writeFile(target(loopFile), 'user-modified loop role\n');
+      await initCommand({ agents: agentId, skills: 'aif' });
+      assert(existsSync(target(loopFile)), `${agentId}: modified loop subagent must be preserved on deselection`);
+      assert.equal(await readFile(target(loopFile), 'utf8'), 'user-modified loop role\n');
+      assertNoLoopMetadata(await readAgent());
+      await rm(target(loopFile));
+
       for (const force of [false, true]) {
         agent = await readAgent();
         const result = await updateSubagents(agent, projectDir, { force });

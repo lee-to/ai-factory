@@ -20,10 +20,11 @@ Tracked agent files with unavailable source metadata can be preserved with a war
 
 ## Why This Exists
 
-AI Factory supports many coding agents, but only a subset expose a native agent/subagent system with project-local agent files and predictable orchestration contracts. Today AI Factory ships two such bundles:
+AI Factory supports many coding agents, but only a subset expose a native agent/subagent system with project-local agent files and predictable orchestration contracts. Today AI Factory ships three such bundles:
 
 - **Claude Code** — markdown subagents under `.claude/agents/`
 - **Codex CLI** — TOML agent definitions under `.codex/agents/` plus `.codex/config.toml`
+- **Google Antigravity 2.0** — markdown agents under `.agents/agents/`
 
 This repository uses that feature for six narrow purposes:
 - splitting `/aif-loop` into small, single-responsibility roles so the Reflex Loop stays predictable, cheaper to run, and easier to reason about
@@ -73,6 +74,33 @@ When those agents are used from `aif-handoff`, the bundle is also **handoff-awar
 - top-level coordinators understand explicit `HANDOFF_MODE`, `HANDOFF_TASK_ID`, and `HANDOFF_SKIP_REVIEW` context passed by the parent runtime
 - autonomous Handoff runs stay non-interactive and do not perform Handoff MCP sync from inside the Codex agent itself
 - worker and sidecar agents explicitly keep Handoff sync coordinator-owned
+
+## Google Antigravity 2.0 Bundled Agents
+
+Antigravity 2.0 receives native markdown agent files in `.agents/agents/` with YAML frontmatter, model tiers (`pro`, `flash`, `inherit`), autonomy configuration (`permissionMode: acceptEdits`, `commandExecutionPolicy: auto`), worktree isolation (`Workspace: "branch"`), tool access, and `send_message` IPC with Reactive Wakeup:
+
+| Agent | Purpose | Model | Autonomy & Frontmatter | Tools |
+|---|---|---|---|---|
+| `plan-coordinator` | own parent planning session and coordinate plan polish passes | `inherit` | `mainAgent: true, subagent: true, permissionMode: acceptEdits, commandExecutionPolicy: auto` | `invoke_subagent, send_message, manage_subagents, view_file, grep_search, find_by_name, list_dir` |
+| `plan-polisher` | explore codebase, refine plan, and critique tasks | `inherit` | `subagent: true` | `view_file, write_to_file, replace_file_content, grep_search, find_by_name, list_dir, run_command, send_message` |
+| `implement-coordinator` | orchestrate parallel task execution, worker delegation, and sidecars | `inherit` | `mainAgent: true, subagent: true, permissionMode: acceptEdits, commandExecutionPolicy: auto` | `invoke_subagent, send_message, manage_subagents, view_file, write_to_file, replace_file_content, grep_search, find_by_name, list_dir, run_command` |
+| `implement-worker` | execute bounded implementation task in isolated workspace (`Workspace: "branch"`) | `inherit` | `subagent: true` | `view_file, write_to_file, replace_file_content, grep_search, find_by_name, list_dir, run_command, send_message` |
+| `best-practices-sidecar` | read-only maintainability and architecture audit | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `commit-preparer` | read-only inspection of git diff and atomic commit messages | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, run_command, send_message` |
+| `docs-auditor` | read-only documentation drift audit | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `review-sidecar` | read-only correctness and regression review | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `rules-sidecar` | read-only project rules compliance audit | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `security-sidecar` | read-only security and secret leak review | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+
+### Antigravity 2.0 CLI Invocation
+Coordinators can be invoked directly from the terminal with native CLI flags:
+```bash
+# Start plan coordinator
+agy --agent plan-coordinator "implement oauth login"
+
+# Start implementation coordinator
+agy --agent implement-coordinator
+```
 
 ## Current Bundled Agents
 

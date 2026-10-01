@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'node:fs/promises';
 import { existsSync, lstatSync } from 'fs';
 import { createHash } from 'crypto';
+import chalk from 'chalk';
 import {
   copyDirectory,
   copyFile,
@@ -108,6 +109,8 @@ export interface InstallSubagentsOptions {
   agentId?: string;
   agentsDir?: string;
   subagentsDir?: string;
+  installedAgentFiles?: string[];
+  managedAgentFiles?: Record<string, ManagedArtifactState>;
 }
 
 export interface InstallConfigFilesOptions {
@@ -217,7 +220,7 @@ async function hashManagedDirectory(dirPath: string, raw = false): Promise<strin
   return hashManagedFiles(mapped, raw);
 }
 
-async function hashManagedFile(filePath: string, relPath: string): Promise<string | null> {
+export async function hashManagedFile(filePath: string, relPath: string): Promise<string | null> {
   return hashManagedFiles([{ absPath: filePath, relPath }]);
 }
 
@@ -361,6 +364,9 @@ function getBundledAgentFilesSourceDir(agentId: string): string | null {
   }
 
   if (agentConfig.agentsSourceDir) {
+    if (path.isAbsolute(agentConfig.agentsSourceDir)) {
+      return agentConfig.agentsSourceDir;
+    }
     return getPackagePath(agentConfig.agentsSourceDir);
   }
 
@@ -966,14 +972,59 @@ export async function installSubagents(options: InstallSubagentsOptions): Promis
   const selectedSubagents = availableSubagents.filter(relPath => isSubagentSelected(relPath, options.installedSkills));
 
   if (options.previousInstallation) {
-    const deselected = getTrackedBundledSubagents(options.previousInstallation, new Set(availableSubagents))
+    const candidateDeselected = getTrackedBundledSubagents(options.previousInstallation, new Set(availableSubagents))
       .filter(relPath => !isSubagentSelected(relPath, options.installedSkills));
-    const removed = await removeSubagentsByName(projectDir, options.previousInstallation, deselected);
-    for (const relPath of removed) {
-      console.log(`  [${agentId}] Removed agent file: ${relPath} (aif-loop not selected)`);
+
+    const cleanDeselected: string[] = [];
+    const previousManaged = options.managedAgentFiles ?? options.previousInstallation.managedAgentFiles ?? {};
+    const effectiveAgentsDir = options.previousInstallation.agentsDir ?? agentsDir;
+
+    for (const relPath of candidateDeselected) {
+      try {
+        const paths = resolveManagedSubagentPaths(projectDir, agentId, effectiveAgentsDir, relPath);
+        const targetExists = await fileExists(paths.targetFile);
+        if (!targetExists) continue;
+
+        const installedHash = await hashManagedFile(paths.targetFile, relPath);
+        const previousState = previousManaged[relPath];
+
+        if (
+          previousState &&
+          installedHash &&
+          previousState.installedHash === installedHash &&
+          previousState.sourceHash === previousState.installedHash
+        ) {
+          cleanDeselected.push(relPath);
+        } else {
+          console.warn(
+            chalk.yellow(
+              `  [${agentId}] Preserved modified agent file: ${relPath} (aif-loop deselected, local modifications preserved)`,
+            ),
+          );
+        }
+      } catch (error) {
+        console.warn(
+          chalk.yellow(
+            `  [${agentId}] Preserved agent file with unverified path "${relPath}": ${(error as Error).message}`,
+          ),
+        );
+      }
     }
-    if (removed.length !== deselected.length) {
-      throw new Error(`Could not remove deselected loop agent files for ${agentId}`);
+
+    if (cleanDeselected.length > 0) {
+      const removed = await removeSubagentsByName(projectDir, options.previousInstallation, cleanDeselected);
+      const removedSet = new Set(removed);
+      for (const relPath of cleanDeselected) {
+        if (removedSet.has(relPath)) {
+          console.log(`  [${agentId}] Removed agent file: ${relPath} (aif-loop not selected)`);
+        } else {
+          console.warn(
+            chalk.yellow(
+              `  [${agentId}] Could not remove deselected loop agent file: ${relPath}`,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -984,12 +1035,53 @@ export async function installSubagents(options: InstallSubagentsOptions): Promis
   const targetRoot = path.join(projectDir, agentsDir);
   await ensureDir(targetRoot);
 
+  const previousInstalledSet = new Set(options.installedAgentFiles ?? []);
+  const previousManaged = options.managedAgentFiles ?? {};
+  const installed: string[] = [];
+
   for (const relPath of selectedSubagents) {
     const paths = resolveManagedSubagentPaths(projectDir, agentId, agentsDir, relPath);
+    const targetExists = await fileExists(paths.targetFile);
+
+    if (targetExists) {
+      const sourceHash = await hashManagedFile(paths.sourceFile, relPath);
+      const installedHash = await hashManagedFile(paths.targetFile, relPath);
+      const previousState = previousManaged[relPath];
+
+      if (!previousInstalledSet.has(relPath)) {
+        if (installedHash && sourceHash && installedHash === sourceHash) {
+          installed.push(relPath);
+          continue;
+        }
+        console.log(chalk.yellow(`  [${agentId}] Preserved untracked native agent file: ${relPath}`));
+        continue;
+      }
+
+      if (previousState && installedHash && previousState.installedHash !== installedHash) {
+        console.log(chalk.yellow(`  [${agentId}] Preserved modified native agent file: ${relPath}`));
+        installed.push(relPath);
+        continue;
+      }
+      if (previousState && installedHash && previousState.installedHash === installedHash && previousState.installedHash !== previousState.sourceHash) {
+        installed.push(relPath);
+        continue;
+      }
+      if (!previousState && installedHash && sourceHash && installedHash !== sourceHash) {
+        console.log(chalk.yellow(`  [${agentId}] Preserved modified native agent file: ${relPath}`));
+        installed.push(relPath);
+        continue;
+      }
+      if (!sourceHash && installedHash) {
+        installed.push(relPath);
+        continue;
+      }
+    }
+
     await copyFile(paths.sourceFile, paths.targetFile);
+    installed.push(relPath);
   }
 
-  return selectedSubagents;
+  return installed;
 }
 
 export async function installConfigFiles(options: InstallConfigFilesOptions): Promise<string[]> {
@@ -1417,16 +1509,76 @@ export async function updateSubagents(
     (subagent: string) => !availableSet.has(subagent),
   );
   if (removedSubagents.length > 0) {
-    const removed = await removeSubagentsByName(projectDir, agentInstallation, removedSubagents);
-    if (removed.length !== removedSubagents.length) {
-      throw new Error(`Could not remove managed agent files for ${agentInstallation.id}`);
-    }
-    for (const subagent of removedSubagents) {
+    const cleanRemovedSubagents: string[] = [];
+
+    for (const relPath of removedSubagents) {
+      if (!isSubagentSelected(relPath, agentInstallation.installedSkills)) {
+        cleanRemovedSubagents.push(relPath);
+        continue;
+      }
+
+      const previousState = previousManaged[relPath];
+      let installedHash: string | null = null;
+
+      try {
+        const targetFile = resolveInstalledAgentFileTargetPath(projectDir, agentInstallation.agentsDir, relPath);
+        installedHash = await hashManagedFile(targetFile, relPath);
+      } catch {
+        console.warn(
+          chalk.yellow(
+            `Warning: Agent file "${relPath}" was removed from the package, but its target path could not be verified — preserving existing file and dropping managed ownership.`,
+          ),
+        );
+        entries.push({
+          subagent: relPath,
+          status: 'skipped',
+          reason: 'local-modifications-preserved',
+        });
+        continue;
+      }
+
+      if (!installedHash) {
+        entries.push({
+          subagent: relPath,
+          status: 'removed',
+          reason: isSubagentSelected(relPath, agentInstallation.installedSkills) ? 'package-removed' : 'skill-not-selected',
+        });
+        continue;
+      }
+
+      if (previousState && previousState.installedHash === installedHash && previousState.sourceHash === previousState.installedHash) {
+        cleanRemovedSubagents.push(relPath);
+        continue;
+      }
+
+      const warningSuffix = previousState
+        ? 'local changes exist'
+        : 'managed state is missing';
+      console.warn(
+        chalk.yellow(
+          `Warning: Agent file "${relPath}" was removed from the package, but ${warningSuffix} — preserving existing file and dropping managed ownership.`,
+        ),
+      );
       entries.push({
-        subagent,
-        status: 'removed',
-        reason: isSubagentSelected(subagent, agentInstallation.installedSkills) ? 'package-removed' : 'skill-not-selected',
+        subagent: relPath,
+        status: 'skipped',
+        reason: 'local-modifications-preserved',
       });
+    }
+
+    if (cleanRemovedSubagents.length > 0) {
+      const removed = await removeSubagentsByName(projectDir, agentInstallation, cleanRemovedSubagents);
+      const removedSet = new Set(removed);
+
+      for (const relPath of cleanRemovedSubagents) {
+        entries.push({
+          subagent: relPath,
+          status: removedSet.has(relPath) ? 'removed' : 'skipped',
+          reason: removedSet.has(relPath)
+            ? (isSubagentSelected(relPath, agentInstallation.installedSkills) ? 'package-removed' : 'skill-not-selected')
+            : 'local-modifications-preserved',
+        });
+      }
     }
   }
 
@@ -1438,13 +1590,58 @@ export async function updateSubagents(
     const installedHash = await hashManagedFile(paths.targetFile, relPath);
     const previousState = previousManaged[relPath];
 
-    if (force) {
-      shouldInstall.set(relPath, { install: true, reason: 'force-clean-reinstall' });
+    if (!previousInstalledSet.has(relPath)) {
+      const targetExists = await fileExists(paths.targetFile);
+      if (targetExists) {
+        console.log(chalk.yellow(`  [${agentInstallation.id}] Preserved untracked native agent file: ${relPath}`));
+        shouldInstall.set(relPath, { install: false, reason: 'untracked-target-exists' });
+        continue;
+      }
+      shouldInstall.set(relPath, { install: true, reason: 'new-in-package' });
       continue;
     }
 
-    if (!previousInstalledSet.has(relPath)) {
-      shouldInstall.set(relPath, { install: true, reason: 'new-in-package' });
+    const hasLocalCustomization = Boolean(
+      previousState &&
+      installedHash &&
+      previousState.installedHash === installedHash &&
+      previousState.installedHash !== previousState.sourceHash,
+    );
+
+    if (hasLocalCustomization) {
+      if (force) {
+        console.warn(
+          chalk.yellow(`  [${agentInstallation.id}] Previously preserved local customization detected in agent file "${relPath}" — preserving existing file. --force does not overwrite local agent changes.`),
+        );
+      }
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
+      continue;
+    }
+
+    if (previousState && installedHash && previousState.installedHash !== installedHash) {
+      const forceNote = force ? ' --force does not overwrite local agent changes.' : '';
+      console.warn(chalk.yellow(`  [${agentInstallation.id}] Local modifications detected in agent file "${relPath}" — preserving existing file.${forceNote}`));
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
+      continue;
+    }
+
+    if (previousInstalledSet.has(relPath) && !previousState && installedHash) {
+      console.warn(chalk.yellow(`  [${agentInstallation.id}] Pre-existing agent file "${relPath}" has no tracking state — preserving existing file.`));
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
+      continue;
+    }
+
+    if (force) {
+      shouldInstall.set(relPath, { install: true, reason: 'force-clean-reinstall' });
       continue;
     }
 
@@ -1465,12 +1662,6 @@ export async function updateSubagents(
 
     if (previousState.sourceHash !== sourceHash) {
       shouldInstall.set(relPath, { install: true, reason: 'source-hash-changed' });
-      continue;
-    }
-
-    if (previousState.installedHash !== installedHash) {
-      console.warn(`Warning: Local modifications detected in agent file "${relPath}" — will be overwritten by update.`);
-      shouldInstall.set(relPath, { install: true, reason: 'installed-hash-drift' });
       continue;
     }
 
@@ -1514,7 +1705,16 @@ export async function updateSubagents(
     });
   }
 
-  const syncedSubagents = availableSubagents.filter(relPath => installedSet.has(relPath) || previousInstalledSet.has(relPath));
+  const syncedSubagents = availableSubagents.filter(relPath => {
+    if (installedSet.has(relPath)) {
+      return true;
+    }
+    const decision = shouldInstall.get(relPath);
+    if (!decision || decision.install) {
+      return false;
+    }
+    return previousInstalledSet.has(relPath);
+  });
   const syncedInstalledAgentFiles = Array.from(new Set([...previousNonBundledInstalled, ...syncedSubagents])).sort();
   const syncedAgentFileSources: Record<string, AgentFileSource> = {};
 

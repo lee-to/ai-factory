@@ -1,7 +1,7 @@
 import path from 'path';
 import { createRequire } from 'module';
 import { readJsonFile, writeJsonFile, fileExists, getPackagePath, listFilesRecursive } from '../utils/fs.js';
-import { findAgentConfig, getAgentConfig } from './agents.js';
+import { AGENT_IDS, findAgentConfig, getAgentConfig } from './agents.js';
 import { loadAllExtensions, type InstalledExtensionManifest } from './extensions.js';
 
 const require = createRequire(import.meta.url);
@@ -216,31 +216,30 @@ function buildExtensionAgentFileSourceIndex(
   return extensionSourceIndex;
 }
 
-let bundledClaudeAgentFilesCache: Set<string> | null = null;
+const bundledAgentFilesCache = new Map<string, Set<string>>();
 
 async function getBundledAgentFileTargets(agentId: string): Promise<Set<string>> {
-  if (agentId !== 'claude') {
-    return new Set<string>();
+  const cached = bundledAgentFilesCache.get(agentId);
+  if (cached) {
+    return cached;
   }
 
-  // Package-bundled Claude agent files are static for the lifetime of a single
-  // CLI process, so a module-level cache avoids repeated directory walks.
-  if (!bundledClaudeAgentFilesCache) {
-    const claudeConfig = getAgentConfig('claude');
-    const sourceDir = claudeConfig.agentsSourceDir
-      ? getPackagePath(claudeConfig.agentsSourceDir)
-      : null;
-    if (!sourceDir) {
-      bundledClaudeAgentFilesCache = new Set();
-      return bundledClaudeAgentFilesCache;
-    }
-    const files = await listFilesRecursive(sourceDir);
-    bundledClaudeAgentFilesCache = new Set(
-      files.map(filePath => path.relative(sourceDir, filePath).replaceAll('\\', '/')),
-    );
+  const agentConfig = findAgentConfig(agentId);
+  const sourceDir = agentConfig?.agentsSourceDir
+    ? getPackagePath(agentConfig.agentsSourceDir)
+    : null;
+  if (!sourceDir) {
+    const empty = new Set<string>();
+    bundledAgentFilesCache.set(agentId, empty);
+    return empty;
   }
 
-  return bundledClaudeAgentFilesCache;
+  const files = await listFilesRecursive(sourceDir);
+  const targets = new Set(
+    files.map(filePath => path.relative(sourceDir, filePath).replaceAll('\\', '/')),
+  );
+  bundledAgentFilesCache.set(agentId, targets);
+  return targets;
 }
 
 export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | null> {
@@ -264,9 +263,12 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
         );
       }
 
-      const agentsDir = legacyAgent.agentsDir
+      let agentsDir = legacyAgent.agentsDir
         || legacyAgent.subagentsDir
         || agentConfig?.agentsDir;
+      if (agent.id === AGENT_IDS.antigravity && agentsDir === '.agents/subagents') {
+        agentsDir = '.agents/agents';
+      }
       const installedAgentFiles = Array.isArray(legacyAgent.installedAgentFiles)
         ? legacyAgent.installedAgentFiles
         : Array.isArray(legacyAgent.installedSubagents)

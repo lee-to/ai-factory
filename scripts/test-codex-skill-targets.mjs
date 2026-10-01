@@ -12,6 +12,10 @@ import { preflightSkillMigration, collectSkillOwners, applySkillMigration, recov
 import { commitResolvedExtension, composeInstalledExtensionSkills, installExtensionAssetsForAllAgents, stripInjectionsForAllAgents } from '../dist/core/extension-ops.js';
 import { getExtensionsDir } from '../dist/core/extensions.js';
 import { applyInjection } from '../dist/core/injections.js';
+import { isUnmodifiedLegacySkillDir } from '../dist/cli/commands/upgrade.js';
+import { processTemplate, buildTemplateVars } from '../dist/core/template.js';
+import { getAgentConfig } from '../dist/core/agents.js';
+import { replaceFrontmatterName } from '../dist/core/transformer.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const groups = new Set((process.argv.find(arg => arg.startsWith('--group='))?.slice(8) ?? 'control,targets,core,cli').split(','));
@@ -268,7 +272,7 @@ let failures = 0;
 test('upgrade', 'v1 Codex upgrade selects .agents before legacy cleanup', async project => {
   await fs.mkdir(path.join(project, '.agents'));
   await fs.mkdir(path.join(project, '.codex/skills/commit'), { recursive: true });
-  await fs.writeFile(path.join(project, '.codex/skills/commit/SKILL.md'), 'legacy commit');
+  await fs.copyFile(path.join(root, 'skills/aif-commit/SKILL.md'), path.join(project, '.codex/skills/commit/SKILL.md'));
   await fs.mkdir(path.join(project, '.codex/skills/user'));
   await fs.writeFile(path.join(project, '.codex/skills/user/SKILL.md'), 'user skill');
   await fs.writeFile(path.join(project, '.codex/config.toml'), 'user native config');
@@ -299,6 +303,115 @@ test('upgrade', 'incompatible upgrade fails before legacy file/directory changes
   assert.deepEqual(await snapshot(path.join(project, '.agents')), before);
   assert.deepEqual(await fs.readFile(path.join(project, '.ai-factory.json')), configBefore);
   await fs.access(path.join(project, '.ai-factory/changes/task.md'));
+});
+
+test('upgrade', 'isUnmodifiedLegacySkillDir recognizes rendered template variables and rejects user modifications', async project => {
+  const pkgDir = path.join(root, 'skills/aif-distillation');
+  const claudeVars = buildTemplateVars(getAgentConfig('claude'));
+
+  async function copyWithTemplating(srcDir, destDir, vars, bareName) {
+    const entries = await fs.readdir(srcDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name === 'tests') continue;
+      const srcPath = path.join(srcDir, entry.name);
+      const destPath = path.join(destDir, entry.name);
+      if (entry.isDirectory()) {
+        await fs.mkdir(destPath, { recursive: true });
+        await copyWithTemplating(srcPath, destPath, vars, bareName);
+      } else if (entry.isFile()) {
+        if (entry.name.endsWith('.md')) {
+          let content = await fs.readFile(srcPath, 'utf8');
+          if (entry.name === 'SKILL.md') {
+            content = replaceFrontmatterName(content, bareName);
+          }
+          content = processTemplate(content, vars);
+          await fs.writeFile(destPath, content, 'utf8');
+        } else {
+          await fs.copyFile(srcPath, destPath);
+        }
+      }
+    }
+  }
+
+  // 1. Claude legacy skill directory with rendered template variables (.claude/skills/distillation)
+  const claudeDistillationDir = path.join(project, '.claude/skills/distillation');
+  await fs.mkdir(claudeDistillationDir, { recursive: true });
+  await copyWithTemplating(pkgDir, claudeDistillationDir, claudeVars, 'distillation');
+
+  assert.equal(
+    await isUnmodifiedLegacySkillDir(claudeDistillationDir, 'distillation'),
+    true,
+    'Legacy skill with Claude rendered template variables should be recognized as unmodified'
+  );
+
+  // 2. Antigravity 1.0 legacy skill directory with legacy template variables (.agent/skills/distillation)
+  const agDistillationDir = path.join(project, '.agent/skills/distillation');
+  await fs.mkdir(agDistillationDir, { recursive: true });
+  const agLegacyVars = {
+    config_dir: '.agent',
+    skills_dir: '.agent/skills',
+    home_skills_dir: '~/.agent/skills',
+    settings_file: '',
+    agent_name: 'Antigravity',
+    skills_cli_agent_flag: '--agent antigravity',
+  };
+  await copyWithTemplating(pkgDir, agDistillationDir, agLegacyVars, 'distillation');
+
+  assert.equal(
+    await isUnmodifiedLegacySkillDir(agDistillationDir, 'distillation'),
+    true,
+    'Legacy skill with Antigravity 1.0 rendered template variables should be recognized as unmodified'
+  );
+
+  // 3. Obsolete prefixed directory name with bare frontmatter name (ai-factory-distillation)
+  const prefixedDistillationDir = path.join(project, '.claude/skills/ai-factory-distillation');
+  await fs.mkdir(prefixedDistillationDir, { recursive: true });
+  await copyWithTemplating(pkgDir, prefixedDistillationDir, claudeVars, 'distillation');
+
+  assert.equal(
+    await isUnmodifiedLegacySkillDir(prefixedDistillationDir, 'ai-factory-distillation'),
+    true,
+    'Legacy skill with ai-factory- prefix and bare frontmatter name should be recognized as unmodified'
+  );
+
+  // 4. Obsolete aif-feature directory with bare feature name in frontmatter
+  const aifFeatureDir = path.join(project, '.claude/skills/aif-feature');
+  await fs.mkdir(aifFeatureDir, { recursive: true });
+  await copyWithTemplating(path.join(root, 'skills/aif-plan'), aifFeatureDir, claudeVars, 'feature');
+
+  assert.equal(
+    await isUnmodifiedLegacySkillDir(aifFeatureDir, 'aif-feature'),
+    true,
+    'Legacy aif-feature directory with name: feature should be recognized as unmodified'
+  );
+
+  // 5. User-modified legacy skill directory (negative test)
+  const modifiedDir = path.join(project, '.claude/skills/modified-distillation');
+  await fs.mkdir(modifiedDir, { recursive: true });
+  await copyWithTemplating(pkgDir, modifiedDir, claudeVars, 'distillation');
+  const skillFile = path.join(modifiedDir, 'SKILL.md');
+  const originalContent = await fs.readFile(skillFile, 'utf8');
+  await fs.writeFile(skillFile, originalContent + '\n# Custom User Modification\n', 'utf8');
+
+  assert.equal(
+    await isUnmodifiedLegacySkillDir(modifiedDir, 'distillation'),
+    false,
+    'User-modified legacy skill must return false'
+  );
+
+  // 6. Zero Data Loss protection: user-modified reference file with a name: property (negative test)
+  const ciDir = path.join(project, '.claude/skills/ci');
+  await fs.mkdir(ciDir, { recursive: true });
+  await copyWithTemplating(path.join(root, 'skills/aif-ci'), ciDir, claudeVars, 'ci');
+  const bpFile = path.join(ciDir, 'references/BEST-PRACTICES.md');
+  const bpContent = await fs.readFile(bpFile, 'utf8');
+  await fs.writeFile(bpFile, bpContent.replace('name: CI', 'name: ci'), 'utf8');
+
+  assert.equal(
+    await isUnmodifiedLegacySkillDir(ciDir, 'ci'),
+    false,
+    'Legacy skill with user-modified reference file (matching bare skill name) must be preserved'
+  );
 });
 
 test('ownership', 'removing either runtime preserves surviving skills and shared native config', async project => {

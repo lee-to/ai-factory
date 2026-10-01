@@ -29,6 +29,7 @@ export interface SkillTargetRuntime {
   skillsDir: string;
   agentsDir?: string;
   configFiles?: string[];
+  installedAgentFiles?: string[];
 }
 
 export const WORKFLOW_SKILLS = new Set([
@@ -55,19 +56,6 @@ export function extractFrontmatterName(content: string): string | null {
 
 export function replaceFrontmatterName(content: string, newName: string): string {
   return content.replace(/^name:\s*.+$/m, `name: ${newName}`);
-}
-
-export function simplifyFrontmatter(content: string): string {
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return content;
-
-  const frontmatter = fmMatch[1];
-  const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
-
-  if (!descMatch) return content;
-
-  const newFrontmatter = `---\ndescription: ${descMatch[1].trim()}\n---`;
-  return content.replace(/^---\n[\s\S]*?\n---/, newFrontmatter);
 }
 
 export function removeFrontmatter(content: string): string {
@@ -112,7 +100,7 @@ const registry: Record<string, TransformerRegistration> = {
   },
   antigravity: {
     create: () => new AntigravityTransformer(),
-    identity: 'antigravity',
+    identity: 'default',
   },
 };
 
