@@ -19,7 +19,7 @@ Generate interactive visualization for $ARGUMENTS.
 ## Usage
 
 ```bash
-python ~/{{skills_dir}}/{{SKILL_NAME}}/scripts/visualize.py $ARGUMENTS
+python {{shell_home_skills_dir}}/{{SKILL_NAME}}/scripts/visualize.py $ARGUMENTS
 ```
 
 ## Output
