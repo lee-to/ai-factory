@@ -4,6 +4,7 @@ import path from 'node:path';
 export interface TemplateVars {
   config_dir: string;
   skills_dir: string;
+  skill_reference_dir: string;
   home_skills_dir: string;
   shell_home_skills_dir: string;
   settings_file: string;
@@ -43,13 +44,21 @@ function resolveShellHomeSkillsPath(homeSkillsPath: string): string {
   return /^[A-Za-z0-9_./-]+$/.test(homeSkillsPath) ? homeSkillsPath : shellQuote(homeSkillsPath);
 }
 
+function resolveShellProjectSkillsPath(skillsDir: string): string {
+  const normalized = skillsDir.replaceAll('\\', '/');
+  return /^[A-Za-z0-9_./-]+$/.test(normalized) ? normalized : shellQuote(normalized);
+}
+
 export function buildTemplateVars(agent: AgentConfig): TemplateVars {
   const homeSkillsDir = resolveHomeSkillsPath(agent);
   return {
     config_dir: agent.configDir,
     skills_dir: agent.skillsDir,
+    skill_reference_dir: agent.id === 'devin' ? agent.skillsDir : homeSkillsDir,
     home_skills_dir: homeSkillsDir,
-    shell_home_skills_dir: resolveShellHomeSkillsPath(homeSkillsDir),
+    shell_home_skills_dir: agent.id === 'devin'
+      ? resolveShellProjectSkillsPath(agent.skillsDir)
+      : resolveShellHomeSkillsPath(homeSkillsDir),
     settings_file: agent.settingsFile ?? '',
     agent_name: agent.displayName,
     skills_cli_agent_flag: agent.skillsCliAgent ? `--agent ${agent.skillsCliAgent}` : '',
@@ -57,7 +66,7 @@ export function buildTemplateVars(agent: AgentConfig): TemplateVars {
 }
 
 export function processTemplate(content: string, vars: TemplateVars): string {
-  return content.replaceAll('~/{{skills_dir}}', vars.home_skills_dir).replace(/\{\{(config_dir|skills_dir|home_skills_dir|shell_home_skills_dir|settings_file|agent_name|skills_cli_agent_flag)\}\}/g, (_, key: string) => {
+  return content.replaceAll('~/{{skills_dir}}', vars.skill_reference_dir).replace(/\{\{(config_dir|skills_dir|home_skills_dir|shell_home_skills_dir|settings_file|agent_name|skills_cli_agent_flag)\}\}/g, (_, key: string) => {
     return vars[key as keyof TemplateVars];
   });
 }
