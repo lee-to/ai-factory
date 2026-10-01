@@ -238,18 +238,21 @@ For a marked commit task:
   group still has no outstanding changes. A stale/malformed marker or any
   current change attributable to that group is an integrity error; do not
   clear it, recommit, or absorb new work.
-  If there is no receipt and the task is unchecked/incomplete with no candidate
-  commit using its planned message, capture and persist a receipt before first
-  dispatch. A missing receipt when the task is complete or a candidate commit
-  exists is an integrity error. Otherwise validate the canonical manifest and
-  digest. A verified receipt must match exactly one commit with the planned
-  message, the recorded `pre_head` as parent, and a tree delta exactly matching
-  the manifest. If the receipt remains captured after a commit, prove the
-  commit from that receipt, then persist its verified state/hash before task
-  completion. If no commit proves it, compare current owned changes to the
-  saved manifest before retrying; any mismatch or multiple candidates stops
-  without replacing the receipt. Otherwise mark completion only when exactly
-  one matching commit exactly covers the captured group.
+  If there is no receipt and the task is unchecked/incomplete, treat it as a
+  first dispatch: capture and persist the manifest, including pre-commit
+  `HEAD`, before invoking `/aif-commit`. Do not search arbitrary earlier
+  history for the planned message; without a persisted execution boundary such
+  a commit cannot be attributed to this task and does not block dispatch. A
+  missing receipt when the task is checked/completed is an integrity error.
+  Once a receipt exists, validate its canonical manifest and digest. A verified
+  receipt must match exactly one commit with the planned message, the recorded
+  `pre_head` as parent, and a tree delta exactly matching the manifest. If the
+  receipt remains captured after a commit, prove the commit from that receipt,
+  then persist its verified state/hash before task completion. If no commit
+  proves it, compare current owned changes to the saved manifest before
+  retrying; any mismatch or multiple candidates stops without replacing the
+  receipt. Otherwise mark completion only when exactly one matching commit
+  exactly covers the captured group.
 
 The canonical marker is a standalone comment immediately before the task
 checkbox; it is not itself a task. A task without the marker is ordinary even if
@@ -275,9 +278,14 @@ unstaged, and untracked changes, before dispatch. It must validate against the
 saved `## Commit Plan` and commit only that group. Persist the same durable
 capture receipt before dispatch, keyed by the exact classic group name/number;
 after verification, persist the pre-commit `HEAD`, canonical manifest, and
-verified commit hash before continuing. A group without a receipt and without a
-candidate commit using its exact message may capture one before first dispatch;
-a candidate commit without a receipt is an integrity error. Independently
+verified commit hash before continuing. If there is no receipt and no durable
+group state indicating prior dispatch or completion, capture and persist the
+baseline before searching for or dispatching a commit. Do not treat arbitrary
+older commits with the same message as candidates. Once the receipt exists,
+reconcile only commits verifiable against its recorded pre-commit `HEAD`,
+message, and exact manifest. A missing or invalid receipt is an integrity error
+when durable plan state says the group was already dispatched or completed;
+never synthesize one after the fact. Independently
 verify that the local commit has the exact message and parent and its diff
 exactly covers the captured group with no omissions or unrelated changes
 before recording success. On resume, reconcile from the saved receipt and local
@@ -292,11 +300,18 @@ task with `Files:` hints that depends on all implementation/test tasks and
 belongs to the final deferred group (a dedicated final group for
 `incremental-at-end`, the single group for `single-commit`). After implementation
 and test work but before any deferred commit, run the mandatory `/aif-docs`
-checkpoint. Capture staged/unstaged paths and hunks first; unrelated staged
-work stops the flow without index changes. Compare the resulting diff with that
-baseline and verify each docs path/hunk is within the reserved task hints and
-commit-group ownership. Unclear, overlapping, or out-of-scope ownership stops
-all deferred commits; do not widen the group.
+checkpoint. Capture staged/unstaged paths and hunks and every untracked path
+and its content first. Enumerate untracked files with
+`git status --porcelain -uall` and `git ls-files --others --exclude-standard`;
+inspect and snapshot their content. Unrelated staged work stops the flow without
+index changes. Compare post-checkpoint staged/unstaged diffs and untracked
+paths/content with that baseline to identify all checkpoint changes, including
+created, modified, and removed files. Validate the complete docs change set
+(checkpoint changes and pre-existing outstanding docs changes) against the
+reserved task's `Files:` hints and commit-group ownership, including every
+added/changed docs path, hunk, and untracked file's content. Unclear,
+overlapping, or out-of-scope ownership stops all deferred commits; do not widen
+the group.
 
 Persist terminal documentation outcomes before proceeding. On the documentation
 task line, use
