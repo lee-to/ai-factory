@@ -107,6 +107,11 @@ superseded in the index/file, or ask before removing it.
   in the `RESEARCH.md` Active Summary before `/aif-plan` consumes it.
 - Do not duplicate full findings across files; link to the owning artifact.
 
+When explicitly requested, source-linked hypothesis cards and observations stay
+inside `RESEARCH.md` according to `PROJECT-HYPOTHESES.md`. No sidecar is added.
+Their material planning conclusions follow the same Active Summary promotion
+and saved-content coherence contract; details outside the summary are not hashed.
+
 ## `INDEX.md` Template
 
 ```markdown
