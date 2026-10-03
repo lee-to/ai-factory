@@ -258,6 +258,18 @@ If the user mentions a plan or you detect one is relevant:
 
 4. **The user decides in regular mode** - Offer and move on. Don't pressure. When the resolved mode is ultra, the explicit token or configured default already requests capture. An explicit `regular` restores the save prompt.
 
+### Optional source-linked hypotheses
+
+Only when the user asks to formulate or track a project hypothesis from source
+material, read `references/PROJECT-HYPOTHESES.md`. Use its card template inside
+the selected `RESEARCH.md`; `examples/RETRY-HYPOTHESIS.md` shows one local
+synthetic example. Ultra mode alone does not enable hypothesis tracking.
+
+Keep source claims, project inferences, planning acceptance, and observed
+outcomes distinct. Recording a card does not authorize running an experiment;
+explore mode records analysis and supplied evidence, not experiment execution.
+Do not add a command, runner, sidecar, config key, or mandatory workflow gate.
+
 ### Persist exploration context
 
 #### Research Coherence Gate (all persisted modes)
@@ -271,6 +283,10 @@ Before presenting the save or appending its session entry, verify:
 3. Claims distinguish source evidence from inference and unknowns.
 4. Each mismatch quotes verbatim both the affected summary claim and the
    conflicting or qualifying durable passage; a bare assertion is not a finding.
+
+When hypothesis tracking is enabled, also apply the saved-card checks in
+`references/PROJECT-HYPOTHESES.md` as part of this gate. Other research keeps
+the existing criteria.
 
 Correct or qualify mismatches, record insufficient evidence in `Open questions`, then re-run. Append a session with a short pass note only after success; an Active-Summary-only regular save runs the gate without adding a session.
 
@@ -310,6 +326,9 @@ Options:
 3. No
 ```
 
+When hypothesis tracking is enabled, name the card updates in both save options
+(option 2 still omits a new Session) so the user sees what will be persisted.
+
 If user selects (1) or (2):
 - Ensure the parent directory of the resolved research path exists (`mkdir -p "$(dirname "<resolved research path>")"`)
 - If the resolved research path does not exist, create it with this skeleton, localized to `artifact_language` before saving:
@@ -338,6 +357,7 @@ Next step:
 
 - Update the `Updated:` timestamp
 - Replace only the content inside `aif:active-summary:start/end`, written in `artifact_language`
+- If hypothesis tracking was explicitly requested, also insert/update its optional section before `## Sessions` according to `references/PROJECT-HYPOTHESES.md`; preserve prior hypothesis revisions and observation records. Otherwise leave all content outside the summary/session markers unchanged.
 - Run the Research Coherence Gate against the updated file
 - If user selected option (1), append a new session entry just before `<!-- aif:sessions:end -->`:
 

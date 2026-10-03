@@ -235,6 +235,14 @@ Before either regular or ultra research is saved as current context,
 `/aif-explore` runs its content-coherence gate. The later SHA256 in a plan detects
 revision drift; it does not replace this earlier semantic check.
 
+Opt-in [project hypothesis cards](research.md#optional-project-hypotheses) stay
+outside the summary markers in `RESEARCH.md`. Only explicitly accepted actions
+or experiments become tasks. Their material planning facts, including exact
+hypothesis/source/experiment revisions and current outcome, must be promoted
+into a self-contained Active Summary before planning. The hash tracks that
+summary, not all observations; implementation completion does not confirm the
+hypothesis or silently update the plan's committed Research Context.
+
 ## Original Request
 
 When the user supplies a request to `/aif-plan`, the plan includes `## Original Request` with the request preserved as raw source input.

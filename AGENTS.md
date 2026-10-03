@@ -258,6 +258,8 @@ Stops without implementation so the warmed session can continue or be forked
     ↓
 Regular → thinking partner; optional save to configured `paths.research`; persisted updates pass a saved-content coherence gate before presentation/session append
     ↓
+Explicit source-linked hypothesis request → optional cards in selected `RESEARCH.md`; preserve source conditions/redaction and exact hypothesis/experiment revisions; record supplied observations separately from implementation completion, retain negative/inconclusive history, and promote accepted planning inputs/material changes through Active Summary (not whole-card hashing); execution remains outside explore in separately authorized tasks
+    ↓
 Ultra (leading token or workflow.explore_mode: ultra; regular overrides) → derives `<parent(paths.research)>/research/<logical-english-slug>/`
     ↓
 Always writes `INDEX.md` + compatible `RESEARCH.md`

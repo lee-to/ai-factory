@@ -126,6 +126,16 @@ Do not save distilled skills into the package `skills/` directory unless the use
    - Generated quality-gate skills must follow the `aif-gate-result` contract from `/aif-verify` references.
    - In split mode, every child skill must have a distinct activation trigger. If two children would activate for the same request and tell the agent to do the same work, merge them before finishing.
 
+## Optional project application handoff
+
+If the user wants to evaluate a distilled practice in a specific project,
+suggest `/aif-explore` to formulate a source-linked hypothesis. Preserve source
+conditions and carry forward disclosure restrictions, including
+`--redact-source-map`; do not reintroduce restricted identifiers in the handoff.
+Distillation still writes only the selected skill outputs, does not write
+RESEARCH/PLAN/RULES/config, and does not authorize a separate installation or
+experiment run.
+
 ## Required Supporting Guidance
 
 Read these before generating or updating a distilled skill:
