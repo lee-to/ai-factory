@@ -54,6 +54,107 @@ Sequential allocation counts both numbered full-plan files and numbered ultra
 directories whose `index.md` contains the stable marker. Numbered directories
 without the marker do not consume plan IDs.
 
+## Plan Structure Modes
+
+AI Factory supports two plan structure modes, controlled by `workflow.plan_structure` in `config.yaml`:
+
+| Mode | Description | Commit Handling |
+|------|-------------|-----------------|
+| `classic` (default) | Separate `## Commit Plan` section for commit checkpoints | `/aif-implement` parses commit checkpoints and prompts for commits |
+| `task-based` | Commits are explicit tasks in the plan, co-located with related work | `/aif-implement` recognizes marked tasks and invokes `/aif-commit` with that task's selected group |
+
+**Classic format** (backward compatible):
+```markdown
+## Commit Plan
+- **Commit 1** (tasks 1-3): "feat: add user model"
+- **Commit 2** (tasks 4-6): "feat: implement auth service"
+
+## Tasks
+- [ ] Task 1: Create User model
+- [ ] Task 2: Add auth types
+- [ ] Task 3: Implement registration
+```
+
+`## Commit Plan` is only valid in classic plans. A plan uses exactly one layout;
+task-based plans omit that section and do not include classic checkpoints.
+
+**Task-based format**:
+```markdown
+## Settings
+- Commit strategy: incremental
+- Development methodology: implementation-first
+
+## Tasks
+- [ ] Task 1: Create User model
+- [ ] Task 2: Add auth types
+<!-- aif:task-kind:commit -->
+- [ ] Task 3: Commit changes with message "feat: add user model" (depends on 1,2)
+- [ ] Task 4: Implement registration
+<!-- aif:task-kind:commit -->
+- [ ] Task 5: Commit changes with message "feat: implement auth service" (depends on 4)
+```
+
+Each marker is a standalone comment immediately above the real commit-task
+checkbox. The comment is not itself a task or checkbox.
+
+## Commit Strategies
+
+`/aif-plan` offers three commit strategies for either plan structure:
+
+| Strategy | Description | Example |
+|----------|-------------|---------|
+| `incremental` (default) | Commits at natural boundaries throughout implementation | Commit after each feature component |
+| `incremental at end` | All commits created after implementation completes | Complete all work, then commit in logical groups |
+| `single commit at end` | One commit after all implementation | Complete all work, then single final commit |
+
+The commit strategy is selected via preference questions during `/aif-plan` and affects how commit tasks are generated and placed in the plan. With `Docs: yes` and a deferred strategy (`incremental-at-end` or `single-commit`), the plan reserves a documentation task with explicit `Files:` hints. `/aif-implement` runs the mandatory `/aif-docs` checkpoint after implementation/test tasks but before deferred commits, then verifies its changed paths/hunks belong to the reserved task and group. An unclear or out-of-scope docs diff stops finalization until the user adjusts the grouping. `incremental-at-end` uses a dedicated final documentation group; `single-commit` includes the documentation task in its one group.
+
+## TDD Support
+
+AI Factory supports Test-Driven Development (TDD) with two granularity options:
+
+| Granularity | Description | Task Ordering |
+|-------------|-------------|---------------|
+| `task-based` | Test before each implementation task | Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor |
+| `feature-based` | All tests for a phase before implementation | Test batch → Implementation batch → Refactor |
+
+**Task-based TDD example:**
+```markdown
+- [ ] Task 1: Write failing unit test for user login
+- [ ] Task 2: Implement user login to make test pass (depends on 1)
+- [ ] Task 3: Write failing unit test for user registration
+- [ ] Task 4: Implement user registration to make test pass (depends on 3)
+- [ ] Task 5: Refactor authentication logic (depends on 2,4)
+```
+
+**Feature-based TDD example:**
+```markdown
+- [ ] Task 1: Write failing unit test for user login
+- [ ] Task 2: Write failing unit test for user registration
+- [ ] Task 3: Write failing integration test for auth flow
+- [ ] Task 4: Implement user login (depends on 1)
+- [ ] Task 5: Implement user registration (depends on 2)
+- [ ] Task 6: Implement auth flow (depends on 3)
+- [ ] Task 7: Refactor authentication logic (depends on 4,5,6)
+```
+
+When TDD is selected, `/aif-implement` ensures test execution before marking implementation tasks complete and validates that all tests still pass after refactoring.
+
+## Co-located Task Organization
+
+The new task-based structure co-locates related implementation, testing, and documentation tasks within feature-oriented phases:
+
+```markdown
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+<!-- aif:task-kind:commit -->
+- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 1,2,3)
+```
+
+This organization reduces context switching during implementation and makes the relationship between implementation, tests, and documentation explicit.
+
 ## Archive Lifecycle
 
 When plans accumulate, `/aif-archive` moves completed plans to `paths.archive/plans/` (default: `.ai-factory/archive/plans/`):

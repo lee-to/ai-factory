@@ -61,6 +61,8 @@ Created: [date]
 - Testing: yes/no
 - Logging: verbose/standard/minimal
 - Docs: yes/no
+- Commit strategy: incremental/incremental-at-end/single-commit
+- Development methodology: implementation-first/tdd
 
 ## Roadmap Linkage (optional)
 Milestone: "[milestone name or none]"
@@ -96,12 +98,42 @@ Authority: [declared source priority, or "none declared"]
 ### Phase 2: Integration
 - [ ] Task 3: [deliverable] ([details](phase-02-integration.md#task-3-deliverable)) (depends on 1, 2)
 
-## Commit Plan
-- **Commit 1** (after tasks 1-2): "feat: ..."
-- **Commit 2** (after task 3): "feat: ..."
-
 ## Definition of Done
 - [Non-task, non-checkbox completion criteria]
+```
+
+The three plan-control labels `Commit strategy:`, `Development methodology:`,
+and `TDD granularity:` are exact, untranslated compatibility tokens in every
+artifact language; keep their values canonical and untranslated. Include
+`TDD granularity:` in `## Settings` only when
+`Development methodology: tdd`:
+
+```markdown
+- TDD granularity: task-based/feature-based
+```
+
+Render exactly one commit layout, matching the selected
+`workflow.plan_structure`:
+
+- **classic:** Include `## Commit Plan` only when commits are planned, using
+  the selected strategy and task ranges. Omit task-based commit markers and
+  commit tasks.
+- **task-based:** Omit `## Commit Plan` entirely. Put each planned commit in
+  `## Tasks`, with the standalone marker immediately before its checkbox:
+
+  ```markdown
+  <!-- aif:task-kind:commit -->
+  - [ ] Task 4: Commit changes with message "feat: ..." (depends on 1, 2, 3)
+  ```
+
+  Apply the selected commit strategy to the ordering and dependencies of these
+  tasks as defined in `skills/aif-plan/references/TASK-FORMAT.md`.
+
+The classic-only section has this form:
+
+```markdown
+## Commit Plan
+- **Commit 1** (after tasks 1-2): "feat: ..."
 ```
 
 Omit the first Handoff line unless `HANDOFF_MODE=1` and `HANDOFF_TASK_ID` is
@@ -112,9 +144,9 @@ The source example may instead be a selected ultra research file such as
 `.ai-factory/research/<slug>/RESEARCH.md`; always record the exact source.
 
 Apply the standard `Original Request`, `Research Context`, roadmap, settings,
-language, Handoff annotation, and commit-plan contracts from `SKILL.md`. Keep
-`## Tasks` checkbox lines concise: they are the durable progress ledger and link
-to the detailed execution procedure.
+language, Handoff annotation, and selected commit-layout contracts from
+`SKILL.md`. Keep `## Tasks` checkbox lines concise: they are the durable
+progress ledger and link to the detailed execution procedure.
 
 ## Phase File Template
 

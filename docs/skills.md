@@ -83,6 +83,16 @@ If a relevant configured or marked ultra-bundle `RESEARCH.md` exists, `/aif-plan
 
 If the resolved roadmap artifact exists, `/aif-plan` may also capture a `Roadmap Linkage` section (milestone name + brief rationale) to make milestone alignment explicit.
 
+Full and ultra plans ask for commit strategy and development methodology,
+including TDD granularity. Commits use either classic `## Commit Plan` groups or
+explicit marked tasks according to `workflow.plan_structure`; deferred
+strategies are executed only after implementation, test, and documentation work
+is complete. Machine-readable settings labels stay untranslated so
+`/aif-implement` can enforce TDD across localized plans.
+With deferred commits and `Docs: yes`, the plan reserves a documentation task;
+`/aif-implement` runs `/aif-docs` before commits and stops if its diff falls
+outside the reserved group.
+
 Plan prompts and summaries use `language.ui`; saved plan artifacts use `language.artifacts` and preserve commands, paths, branch names, identifiers, config keys, and raw errors according to `language.technical_terms`.
 
 **Parallel mode** — work on multiple features simultaneously using `git worktree`:
@@ -201,8 +211,16 @@ Executes the plan:
   - Redirects to `/aif-plan fast <description>` when the description looks too broad for a one-shot task
   - Optional `--docs=yes|no|warn` (default: `warn`) — `yes` runs the docs checkpoint via `/aif-docs`, `no` silences the warn line, `warn` emits `WARN [docs]` only
   - Supports Handoff via `HANDOFF_TASK_ID` env var with a synthetic `- [ ] <description>` plan pushed through `handoff_push_plan`; when `HANDOFF_TASK_ID` is unset, MCP sync is skipped entirely
-- Executes tasks one by one
-- Prompts for commits at checkpoints
+- Executes tasks one by one and enforces TDD test-first/pass checks when selected
+- Honors incremental commit checkpoints; defers `incremental-at-end` groups and a
+  `single-commit` until all implementation/test/documentation tasks are complete
+- Persists each task-bound or classic commit group's exact captured change
+  manifest and pre-commit `HEAD` in the plan, then binds the verified receipt
+  to the commit hash so `/clear` resume can prove earlier groups independently
+- Persists classic docs-only Skip/unchanged outcomes at group level and accepts
+  them on resume only when the matching docs-task marker and live ownership
+  check still prove the group has no changes
+- Runs the required docs checkpoint before deferred commits when `Docs: yes`, then checks docs changes against the planned group
 - Docs policy after completion (plan-backed modes):
   - `Docs: yes` → mandatory documentation checkpoint (update docs / create feature page / skip)
   - `Docs: no` or unset → `WARN [docs]` only (no mandatory checkpoint)
@@ -509,12 +527,15 @@ Adds project-specific rules and conventions:
 ### `/aif-commit`
 Creates conventional commits:
 - Analyzes staged changes
-- Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping
+- Uses active plan `## Commit Plan` groups when available and asks whether to `Follow Commit Plan`, commit everything together, or adjust grouping in ordinary mode
+- For `/aif-implement` task-bound calls, commits only the explicit commit task's dependency group and never expands it to "everything together"
+- For deferred classic plans, accepts one explicitly selected group in classic-group task-bound mode and validates its group, task range, and message against the saved plan
 - For ultra plans, reads the relevant phase files and maps each commit-group task through its `Files to Change` table and task specification
 - Stops for user input when staged files or hunks cannot be mapped to planned commit groups
 - Uses hunk-level staging for planned groups that share a file, or stops before changing staging when hunks cannot be applied confidently
 - Avoids whole-file staging when there is unstaged worktree overlap with grouped files
-- Keeps current staged-diff behavior unchanged when no active plan or no `## Commit Plan` exists
+- Preserves unrelated staged and unstaged changes; stops without changing the index if selected-group ownership is unclear
+- Keeps current staged-diff behavior unchanged when no active plan grouping exists (neither classic `## Commit Plan` nor task-based commit tasks)
 - Generates meaningful commit message
 - Follows conventional commits format
 - Runs read-only architecture/roadmap/rules gate checks before commit proposal
