@@ -130,6 +130,28 @@ List/status routes do not discover or execute commands.
 
 For plan-backed resumption after a break or lost context, or when discovery finds no active plan, read [recovery and reconciliation](references/IMPLEMENT-RECOVERY.md) before continuing. Preserve uncommitted work, reconcile code/task/checklist evidence, redirect fix plans to `/aif-fix`, and use the no-plan choices when needed. Inline and list routes never enter recovery; status stays read-only and does not enter the interactive no-plan flow.
 
+Before generic uncommitted-change recovery, resolve the active plan using the
+normal discovery rules and inspect its commit tasks, `## Commit Plan`, and all
+adjacent `aif:commit-receipt` blocks. Never offer an ordinary commit or stash
+while a captured receipt is unresolved:
+
+- Reconcile every pending task-based or classic-group receipt using its saved
+  manifest and the receipt-bound flow above, including deferred groups not
+  next in task order.
+- If a receipt proves a commit, persist its verified state and task/group
+  completion. If no commit is proven but the exact captured changes remain,
+  retry only via that receipt-bound group-specific `/aif-commit` path; never
+  recapture the baseline.
+- If changes overlap a pending receipt or ownership cannot be proven outside
+  every pending receipt, stop with an integrity error and leave them untouched.
+- Only after all receipts are resolved may changes proven outside saved groups
+  enter generic recovery. Any commit or stash must be limited to those changes
+  and abort if they cannot be isolated; never use an unrestricted commit or
+  stash while saved-group ownership is unresolved.
+
+If there is no active plan or pending receipt, retain the existing generic
+uncommitted-change recovery behavior.
+
 ### Project context
 
 Before executing plan-backed tasks, read [project context and past experience](references/IMPLEMENT-CONTEXT.md). Load configured description, architecture, and the rules hierarchy; more specific rules override general ones. Read `.ai-factory/skill-context/aif-implement/SKILL.md` when present; it overrides general guidance and governs every output. Only use the limited recent-patch fallback when skill-context is missing.
