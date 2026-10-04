@@ -1438,6 +1438,11 @@ fi
 if grep -Fq 'execute the commit-task handler' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'TaskUpdate(taskId, status: "completed")' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'Resume reconciliation' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Before generic uncommitted-change recovery, resolve the active plan' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'For each pending task-based or classic-group receipt' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'This also covers deferred classic groups' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Only after all pending receipts are resolved' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'outside the saved commit groups' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'exact resolved plan path' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'dependency task IDs' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Preserve unrelated staged and' "$AIF_COMMIT_SKILL" \

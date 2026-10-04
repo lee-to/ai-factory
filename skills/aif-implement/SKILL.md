@@ -293,21 +293,49 @@ Then reconcile plan/task state:
     - If code changes for a task appear already implemented but the task is not marked completed, verify quickly and then `TaskUpdate(..., status: "completed")` and update the plan checkbox.
     - If a task is marked completed but the corresponding code is missing (rebase/reset happened), mark it back to pending and discuss with the user.
 
-**If uncommitted changes exist:**
+**Before generic uncommitted-change recovery, resolve the active plan** using
+the same precedence and discovery rules as Step 1, then inspect its commit
+tasks / `## Commit Plan` and every adjacent `aif:commit-receipt` block. Do not
+offer an ordinary `/aif-commit` or stash while a captured receipt is unresolved:
+
+- For each pending task-based or classic-group receipt, run the corresponding
+  receipt-bound resume reconciliation in Step 3.8.1 or Step 3.8.2 first,
+  including commit verification, manifest integrity, and outstanding-change
+  comparison. This also covers deferred classic groups, even if the interrupted
+  commit group is not the next task.
+- If the receipt proves a commit, finalize its saved receipt/task state under
+  that reconciliation before continuing. If the commit is not proven but the
+  exact captured group changes remain, retry only through the receipt-bound,
+  group-specific `/aif-commit` path. Do not recapture a baseline.
+- Changes overlapping a pending receipt, or whose path/hunk ownership cannot
+  be proven outside every pending receipt, are not eligible for generic
+  recovery. Stop with an integrity error and leave them untouched.
+- Only after all pending receipts are resolved may remaining changes proven
+  outside the saved commit groups enter generic recovery. Any generic commit
+  must be explicitly limited to those outside changes and abort if they cannot
+  be isolated; any stash must likewise exclude saved-group changes. Never use
+  an unrestricted commit or stash while saved-group ownership is unresolved.
+
+If no active plan or pending receipt exists, retain the existing generic
+uncommitted-change recovery behavior.
+
+**If eligible uncommitted changes remain after receipt reconciliation:**
 
 ```
 AskUserQuestion: You have uncommitted changes. Commit them first?
 
 Options:
-1. Yes, commit now (/aif-commit)
-2. No, stash and continue
+1. Yes, commit only changes proven outside saved commit groups (/aif-commit)
+2. No, stash only changes proven outside saved commit groups and continue
 3. Cancel
 ```
 
 **Based on choice:**
 
-- Yes → run `/aif-commit`, then continue to plan discovery
-- No → `git stash push -m "aif-implement: stash before plan execution"`, then continue
+- Yes → run `/aif-commit` with explicit outside-group scope; if it cannot
+  preserve and exclude all saved commit groups, stop without committing
+- No → stash only the proven outside-group changes; do not run an unrestricted
+  `git stash push` when any saved-group changes remain
 - Cancel → inform the user: "Implementation cancelled." → **STOP**
 
 **If NO plan file exists but the resolved fix plan exists:**
