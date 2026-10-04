@@ -403,7 +403,7 @@ Extensions can declare new runtime configurations. Once the extension is install
 | `displayName` | Human-readable name shown in prompts. |
 | `configDir` | Directory for agent configuration (e.g. `.my-agent`). |
 | `skillsDir` | Where skills are installed (e.g. `.my-agent/skills`). |
-| `homeSkillsDir` | Optional global skills filesystem path exposed unchanged as `{{home_skills_dir}}`. Use `{{shell_home_skills_dir}}` in Bash commands: relative paths retain home expansion and absolute paths are quoted as needed. Built-in Devin skills instead resolve project skill references and helper commands against the project skill directory, so committed project skills do not retain the installer's home or config path. |
+| `homeSkillsDir` | Optional global skills filesystem path exposed as `{{home_skills_dir}}` (relative paths are prefixed with `~/`; absolute paths are preserved). Use `{{shell_home_skills_dir}}` in Bash commands: relative paths retain home expansion and absolute paths are quoted as needed. Built-in Devin skills instead resolve project skill references and helper commands against the project skill directory, so committed project skills do not retain the installer's home or config path. |
 | `settingsFile` | Path to the agent's MCP settings file, or `null`. |
 | `supportsMcp` | Whether this agent supports MCP server configuration. |
 | `skillsCliAgent` | Value for `--agent` flag in skills CLI, or `null`. |

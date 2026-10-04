@@ -140,6 +140,13 @@ test('core', 'Devin resolves platform-specific global paths without changing pro
   const installedSkill = await fs.readFile(path.join(project, devin.skillsDir, 'aif/SKILL.md'), 'utf8');
   assert.ok(installedSkill.includes('.devin/skills/aif/'));
   assert.ok(!installedSkill.includes(devin.homeSkillsDir));
+
+  const generatorSkill = processTemplate(
+    await fs.readFile(path.join(root, 'skills/aif-skill-generator/SKILL.md'), 'utf8'),
+    buildTemplateVars(devin),
+  );
+  assert.ok(generatorSkill.includes(`1. **Local**: Keep in \`${devin.homeSkillsDir}/\` for personal use`));
+  assert.ok(generatorSkill.includes('2. **Project**: Add to `.devin/skills/` and commit'));
 });
 
 test('core', 'Devin project helper commands work from another home directory', async project => {

@@ -529,7 +529,7 @@ Available variables in skill content:
 
 To share your skill:
 
-1. **Local**: Keep in `~/{{skills_dir}}/` for personal use
+1. **Local**: Keep in `{{home_skills_dir}}/` for personal use
 2. **Project**: Add to `{{skills_dir}}/` and commit
 3. **Community**: Publish to skills.sh:
    ```bash
