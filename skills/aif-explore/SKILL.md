@@ -262,7 +262,7 @@ If the user mentions a plan or you detect one is relevant:
 
 Only when the user asks to formulate or track a project hypothesis from source
 material, read `references/PROJECT-HYPOTHESES.md`. Use its card template inside
-the selected `RESEARCH.md`; `examples/RETRY-HYPOTHESIS.md` shows one local
+the selected `RESEARCH.md`; `references/RETRY-HYPOTHESIS.md` shows one local
 synthetic example. Ultra mode alone does not enable hypothesis tracking.
 
 Keep source claims, project inferences, planning acceptance, and observed

@@ -180,7 +180,7 @@ linked plans retain their committed Research Context and warn on summary drift.
 SHA256 still hashes only Active Summary, not the whole card. An observation
 append with no planning impact need not change that hash.
 
-The [local retry example](../skills/aif-explore/examples/RETRY-HYPOTHESIS.md)
+The [local retry example](../skills/aif-explore/references/RETRY-HYPOTHESIS.md)
 demonstrates a synthetic source, an unproven hypothesis, and an in-memory recipe
 that drops a reply after an action. Its independent effect count exposes the
 negative result of naive retries; a revised deduplication hypothesis starts

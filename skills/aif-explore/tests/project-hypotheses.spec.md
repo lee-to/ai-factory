@@ -2,7 +2,7 @@
 
 These are manual instruction/behavior scenarios. `npm test` does not execute
 a model against them. Use isolated local projects, no external writes or paid
-evaluator, and the source/recipe in `../examples/RETRY-HYPOTHESIS.md`.
+evaluator, and the source/recipe in `../references/RETRY-HYPOTHESIS.md`.
 Inspect saved artifacts and tool calls, not only the final answer. Existing
 coherence/drift checks remain the mechanism being exercised.
 
@@ -13,6 +13,7 @@ explicitly select ultra. Expected writes stay within that file or its marked
 
 | Scenario / supplied evidence | Expected behavior |
 |------------------------------|-------------------|
+| Install/reinstall aif-explore for Claude, Antigravity, and Kilo Code using the built installSkills API | Both advertised references/PROJECT-HYPOTHESES.md and references/RETRY-HYPOTHESIS.md exist relative to the installed skill/workflow; flat workflows can open the same recipe |
 | Ordinary source comparison; no hypothesis request (regular and ultra) | Existing workflow only; no card, new gate, sidecar, config key, or runner |
 | Explicitly request a hypothesis from SYN-001 section 1; accept regular save | One card in the configured RESEARCH.md, outside Active Summary, with actual source revision and qualifier; interpretation is distinct, baseline unknown, outcome not_evaluated |
 | Same request but decline regular save | No research or other project writes |
