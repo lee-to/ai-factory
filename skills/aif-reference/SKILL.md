@@ -255,6 +255,14 @@ To make a skill aware of a specific reference, mention it in the resolved RULES.
 - For <topic> details, see `<resolved references dir>/<name>.md`
 ```
 
+## Optional project application handoff
+
+When a user wants to test a source idea in their project, suggest `/aif-explore`
+for an opt-in hypothesis card. Preserve the actual source revision, conditions,
+and disclosure restrictions; distinguish source claims from project inference.
+This command continues to write only its configured references and index, not
+research or plans, and the handoff does not authorize running an experiment.
+
 ## Artifact Ownership
 
 - **Primary ownership:** the resolved references directory (default: `.ai-factory/references/`)

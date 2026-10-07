@@ -140,6 +140,52 @@ fallback for older linked plans without a hash.
 source path for drift checks. They continue to execute against the committed
 Research Context; newer diagrams or ADR notes do not expand an older plan.
 
+## Optional Project Hypotheses
+
+When you explicitly ask `/aif-explore` to formulate or track a hypothesis from
+a source, it can add a card inside the selected `RESEARCH.md`, before Sessions
+and outside the Active Summary markers. Selecting ultra alone does not enable
+cards. Regular mode keeps its save prompt; ultra keeps its two-file minimum.
+No command, runner, sidecar, config key, or mandatory workflow stage is added.
+
+The [card template and rules](../skills/aif-explore/references/PROJECT-HYPOTHESES.md)
+connect the source actually read to an agent's project interpretation, a causal
+hypothesis, baseline evidence (or `unknown`), decision criterion/window,
+balancing constraints, plan/task references, and revision-bound observations.
+Source conditions remain explicit. Restricted source identifiers, including
+those removed by `--redact-source-map`, must not reappear through a new card or
+summary; public provenance is marked `redacted` when it cannot be disclosed.
+
+Planning status and outcome are independent. An `accepted` experiment is an
+approved planning input, not a confirmed claim. Outcome remains `not_evaluated`
+after implementation or green tests unless actual evaluation evidence measures
+the agreed criterion. Valid observations can produce `supported`,
+`not_supported`, or `inconclusive`, with limits on the conclusion. Observations
+record exact hypothesis/experiment revisions and target identity. Changed
+claims or recipes get new revisions; old negative and inconclusive results stay
+intact instead of being reassigned to a new experiment.
+
+`/aif-explore` owns the cards and records supplied observations; experiment
+execution belongs to a separately authorized task using an existing runner.
+Saving a recipe grants no additional execution permissions. Missing access or
+a runner is `not_run`/`blocked`, not evidence of success or failure.
+`/aif-distillation` and `/aif-reference` may suggest this handoff while retaining
+their existing artifact ownership.
+
+Only explicitly accepted actions/experiments become planning requirements.
+Material planning facts are promoted into a self-contained Active Summary with
+their hypothesis/source/experiment revisions, criterion, conditions, status,
+and outcome. Existing coherence checks compare the summary with the card;
+linked plans retain their committed Research Context and warn on summary drift.
+SHA256 still hashes only Active Summary, not the whole card. An observation
+append with no planning impact need not change that hash.
+
+The [local retry example](../skills/aif-explore/references/RETRY-HYPOTHESIS.md)
+demonstrates a synthetic source, an unproven hypothesis, and an in-memory recipe
+that drops a reply after an action. Its independent effect count exposes the
+negative result of naive retries; a revised deduplication hypothesis starts
+unevaluated. Expected output becomes evidence only after an actual run.
+
 ## Example
 
 ```text

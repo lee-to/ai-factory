@@ -252,6 +252,13 @@ Ultra additionally checks that Active Summary claims have self-contained bundle
 support and material supporting conclusions are reflected back into the summary.
 When direction is clear, transition to `/aif-plan fast`, `full`, or `ultra`.
 
+On explicit request, exploration can also track source-linked project
+hypotheses inside `RESEARCH.md`. Accepted experiment inputs pass through the
+same Active Summary and Research Context; implementation completion remains
+separate from measured outcomes. Execution uses a separately authorized task
+and existing runner. See [Optional Project Hypotheses](research.md#optional-project-hypotheses)
+for cards, provenance, and revision-bound results.
+
 ### `/aif-grounded [question or task]` — certainty before action
 
 ```
