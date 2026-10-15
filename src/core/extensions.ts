@@ -374,6 +374,7 @@ export interface ExtensionAgentDef {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: '.md' | '.toml';
   settingsFile: string | null;
