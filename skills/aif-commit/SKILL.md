@@ -15,14 +15,14 @@ Generate commit messages following the [Conventional Commits](https://www.conven
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.rules`, `paths.plan`, and `paths.plans`
 - **Language:** `language.ui` for prompts and commit message conventions
-- **Workflow:** `workflow.plan_id_format` for read-only active plan discovery (`slug` default; `sequential` uses numbered full-plan lookup)
+- **Workflow:** `workflow.plan_id_format` for read-only active plan discovery (`slug` default; `sequential` uses numbered full-plan lookup) and `workflow.plan_structure` for commit-layout detection (`classic` default; `task-based` means commits are explicit tasks inside the main task list)
 - **Git preference:** `git.enabled`, `git.create_branches`, and `git.skip_push_after_commit` for active plan discovery and post-commit push behavior
 - **Rules hierarchy:** `rules.base` plus any named `rules.<area>` entries
 
 If config.yaml doesn't exist, use defaults:
 - Paths: `.ai-factory/` for context artifacts, `.ai-factory/PLAN.md` for `paths.plan`, `.ai-factory/plans/` for `paths.plans`
 - Language: `en` (English)
-- Workflow: `workflow.plan_id_format: slug`
+- Workflow: `workflow.plan_id_format: slug`, `workflow.plan_structure: classic`
 - Git: `git.enabled: true`, `git.create_branches: true`
 - Git preference: `skip_push_after_commit: false`
 
@@ -49,7 +49,9 @@ If any rule is violated — fix the output before presenting it to the user.
 1. **Analyze Changes**
    - Run `git status` to see staged files
    - Run `git diff --cached` to see staged changes
-   - If nothing staged, show warning and suggest staging
+   - In ordinary mode, if nothing is staged, show a warning and suggest staging
+   - In task-bound mode, if nothing is staged, continue to map and selectively
+     stage only the supplied group's proven changes as described below
 
 2. **Resolve Active Plan Context (Read-Only, Optional)**
    - Resolve active plan using this read-only priority:
@@ -85,14 +87,74 @@ If any rule is violated — fix the output before presenting it to the user.
      `<!-- aif:plan-mode:ultra -->`; otherwise STOP with a plan-integrity error.
    - An automatically discovered directory entrypoint counts only when it
      contains `<!-- aif:plan-mode:ultra -->`; ignore unrelated `*/index.md` files.
-   - If no active plan resolves or the active plan entrypoint has no `## Commit Plan`, keep current staged-diff behavior unchanged.
+   - If no active plan resolves, or the active plan has neither a classic `## Commit Plan` nor explicit task-based commit tasks, keep current staged-diff behavior unchanged.
+   - If an active plan resolves, inspect it for both supported structures:
+     - classic `## Commit Plan` section
+     - task-based plan structure with explicit commit tasks such as `Commit changes with message "..."`
+   - If neither format is found, keep current staged-diff behavior unchanged.
    - Never modify the active plan from this command.
 
 3. **Use Commit Plan Grouping When Available**
-   - If active plan contains `## Commit Plan`, parse:
+   - If invoked by `/aif-implement` with an explicit task-bound commit request,
+     treat the supplied plan path, commit task ID, dependency task IDs, exact
+     message, and file/hunk map as the selected group. This mode takes
+     precedence over ordinary grouping prompts: do not offer "Commit everything
+     together" or expand the group to other plan tasks.
+   - **Classic-group task-bound mode:** `/aif-implement` may invoke this mode
+     for exactly one group from a classic `## Commit Plan`, using the explicit
+     `classic-group` mode and supplying the exact resolved plan path, group
+     number/name as written, complete task range, exact planned commit message,
+     task IDs/descriptions and their `Files:`/hunk ownership evidence, plus the
+     current `HANDOFF_MODE` value. This is task-bound mode, not ordinary
+     plan-aware grouping. It does not require a commit-task ID or dependency
+     list. Resolve the supplied path and verify the selected group exists in
+     that plan; its group number/name, task range, and message must match the
+     plan exactly. Reject missing, duplicate, ambiguous, or mismatched group
+     metadata before changing the index. Re-read and map the exact task range
+     from the plan; caller-supplied task/file evidence is a scope hint, not
+     authority to expand the group. Never select adjacent groups or offer
+     "Commit everything together."
+   - Before changing the index, capture the complete outstanding change set
+     against `HEAD` for the selected group, including staged, unstaged, and
+     untracked changes. Use `git status --porcelain -uall` and
+     `git ls-files --others --exclude-standard` to enumerate untracked paths;
+     inspect each candidate's content and prove its ownership before staging.
+     Map changes at hunk level when files overlap groups. This captured set is
+     the completeness baseline for both task-based and classic-group
+     task-bound execution.
+   - Compare the selected group against both staged and unstaged changes.
+     Commit only changes proven to belong to that group. Leave unrelated
+     staged and unstaged changes untouched. Preserve unrelated staged and
+     unstaged changes. Do not run `git add .`, unstage unrelated changes, or
+     commit a pre-existing staged change outside the selected group.
+   - If staged changes include unrelated work, the selected group overlaps
+     other task work in a way that cannot be separated confidently, or any
+     staged/unstaged hunk has unclear ownership, stop before changing the index
+     and report the exact ambiguity. The caller must leave the plan commit task
+     incomplete.
+   - Stage every remaining proven change in the captured selected-group set,
+     whether the index started empty or partially staged. Whole-file staging
+     is allowed only for a disjoint group file with no unrelated unstaged
+     edits; otherwise use hunk-level staging or stop. Explicitly stage
+     selected, proven untracked files and verify they are no longer untracked.
+     Before committing, verify that the staged diff contains the complete
+     captured selected-group set, including the contents of originally
+     untracked files, and no changes outside it. If either scope or
+     completeness cannot be proven, stop without committing.
+   - If invoked in classic-group task-bound mode, resolve only the caller-
+     selected `## Commit Plan` entry and validate its group number/name, task
+     range, and exact message against the saved plan. Do not run the ordinary
+     multi-group flow.
+   - Otherwise, if active plan contains `## Commit Plan`, parse:
      - commit group number/name
      - task range, such as `after tasks 1-3` or `tasks 4-6`
      - suggested conventional commit message
+   - Else if the active plan uses `workflow.plan_structure: task-based` or contains explicit commit tasks in `## Tasks`, parse task-based commit entries instead:
+     - detect commit tasks using the stable marker `<!-- aif:task-kind:commit -->` immediately before the task line
+     - treat the commit task as the commit boundary for the tasks it depends on
+     - extract the commit message from the task description, for example `Commit changes with message "feat: implement user service"`
+     - if the plan is legacy and lacks the marker, use the text fallback only when the task description clearly starts with `Commit changes with message`; do not treat ordinary "commit" wording elsewhere as a commit task
+     - use the dependent task chain as the grouped scope for commit intent when the commit task marker/message is clear
    - Read the plan's `## Tasks` or `## Implementation Tasks` section to map task ranges to task descriptions and any `Files:` hints.
    - For an ultra plan, resolve every task in the current commit group to its
      Phase Index/details link, read each corresponding phase file, and build the
@@ -110,11 +172,11 @@ If any rule is violated — fix the output before presenting it to the user.
    - Only use `git add <files>` when each planned group has a disjoint file set and no grouped file appears in `git diff --name-only`.
    - When one file spans multiple planned groups, use hunk-level staging (`git add -p` or `git apply --cached`) for each group.
    - If grouped files overlap unstaged worktree paths, preserve and apply the original cached patch per group (`git diff --cached` + `git apply --cached`), use hunk-level staging, or stop before changing staging.
-   - If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.
-   - When a usable grouping exists, ask:
+   - If hunk-level staging cannot be applied confidently, stop before changing staging. In ordinary mode, ask the user to adjust grouping or choose one commit; in task-bound mode, do not widen the selected group.
+   - When a usable grouping exists in ordinary (non-task-bound) mode, ask:
 
      ```
-     AskUserQuestion: Active plan contains a Commit Plan. How should these staged changes be committed?
+     AskUserQuestion: Active plan contains a commit grouping. How should these staged changes be committed?
 
      Options:
      1. Follow Commit Plan
@@ -125,6 +187,8 @@ If any rule is violated — fix the output before presenting it to the user.
    - **Follow Commit Plan** → confirm the planned groups and messages, then proceed through user-confirmed multi-commit staging/commit flow.
    - **Commit everything together** → ignore plan grouping for this run and continue with the current single-message flow.
    - **Adjust grouping** → ask the user for the adjusted grouping, then validate it against staged files before committing.
+
+   - **Task-based commit plans** are treated as valid planning metadata when the user selected a task-based plan structure or when commit task patterns are present; they do not require a separate `## Commit Plan` section.
 
 4. **Run Context Gates (Read-Only)**
    - Check the resolved architecture and description artifacts (use paths from config) to catch obvious scope/boundary drift
@@ -197,11 +261,28 @@ When invoked:
 
 1. Check for staged changes
 2. Analyze the diff content
-3. Resolve optional active plan context and use `## Commit Plan` grouping when available
+3. Resolve optional active plan context and use either the classic `## Commit Plan` or explicit task-based commit entries when available
 4. Run read-only context gates and summarize findings as `WARN`/`ERROR`
 5. If commit type is `feat`/`fix`/`perf` and roadmap exists, check milestone linkage; if missing, warn and suggest adding linkage in commit body/footer
 6. Propose a commit message
+   - In either task-bound mode, use the exact message verified against the
+     selected saved-plan entry; do not generate or edit a replacement message.
 7. Confirm with the user before committing:
+
+   - **Task-bound mode with `HANDOFF_MODE=1`:** `/aif-implement`'s explicit
+     authorization for the selected commit task or classic group authorizes
+     committing only that group; do not prompt and use the exact planned
+     message.
+   - **Task-bound mode in a manual session:** show the exact planned message
+     and selected task/group, then offer only:
+
+     ```
+     Options:
+     1. Commit this group
+     2. Cancel
+     ```
+
+   - **Ordinary mode:** use the standard confirmation below:
 
    ```
    AskUserQuestion: Proposed commit message:
@@ -215,12 +296,29 @@ When invoked:
    ```
 
 8. Handle user response:
-   - **Commit as is** → proceed to step 9
-   - **Edit message** → ask the user for the corrected message via `AskUserQuestion`, then return to step 7 with the new message
-   - **Cancel** → stop, do NOT commit. End the workflow
+   - In task-bound `HANDOFF_MODE=1`, proceed to step 9 with the exact planned
+     message and no prompt.
+   - In task-bound manual mode, **Commit this group** → proceed to step 9 with
+     the exact planned message; **Cancel** → stop, do NOT commit.
+   - In ordinary mode, **Commit as is** → proceed to step 9; **Edit message**
+     → ask the user for the corrected message via `AskUserQuestion`, then
+     return to step 7; **Cancel** → stop, do NOT commit.
 
 9. Execute `git commit` with the confirmed message
+   - In task-bound mode, use the exact message verified against the saved plan
+     and supplied by `/aif-implement`; return the resulting commit hash and
+     success or failure explicitly so `/aif-implement` can verify and persist
+     task/group state.
+   - For task-bound mode, verify after committing that the commit's complete
+     diff equals the captured selected-group change set: no captured group
+     change is missing and no unrelated change is included. Check paths and
+     hunks/content, not only that committed paths are a subset of planned
+     paths. Leave unrelated changes in the index or worktree untouched. If
+     equality cannot be proven, report failure and do not report the group as
+     committed.
 10. Post-commit push handling:
+   - In task-bound `HANDOFF_MODE=1`, do not prompt or push; finish after the
+     successful local commit.
    - If `git.skip_push_after_commit = true` in resolved config:
      - Skip push prompt entirely
      - End workflow after successful local commit
@@ -246,14 +344,20 @@ If argument provided (e.g., `/aif-commit auth`):
 - Use it as the scope
 - Or as context for the commit message
 
+`/aif-commit classic-group` is a reserved task-bound mode selector when the
+invocation also supplies the complete classic-group payload described in Step
+3. If that payload is missing or invalid, stop; do not reinterpret the mode
+token as an ordinary commit scope.
+
 ## Important
 
 - Never commit secrets or credentials
 - Review large diffs carefully before committing
 - `/aif-commit` has no implicit strict mode — context gates are warning-first unless user explicitly requests blocking behavior
 - Treat the resolved architecture, roadmap, RULES.md, description, and plan artifacts as read-only context in this command
-- If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.
-- If staged changes contain unrelated work (e.g., a feature + a bugfix, or changes to independent modules), suggest splitting into separate commits:
+- If no active plan resolves or the active plan has neither a `## Commit Plan` section nor explicit task-based commit tasks, keep current staged-diff behavior unchanged.
+- Classic-group task-bound mode requires one group validated against the exact saved `## Commit Plan`; never fall back to ordinary grouping when this mode was requested.
+- For ordinary (non-task-bound) invocations only, if staged changes contain unrelated work (e.g., a feature + a bugfix, or changes to independent modules), suggest splitting into separate commits:
   1. Show which files/hunks belong to which commit
   2. Confirm split plan with the user:
 

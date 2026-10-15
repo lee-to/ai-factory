@@ -224,6 +224,7 @@ workflow:
   improve_check: false             # true enables +check; --no-check overrides once
   auto_create_dirs: true           # Create .ai-factory/ directories when missing
   plan_id_format: slug             # full filename / ultra directory ID: slug | sequential
+  plan_structure: classic          # classic | task-based commit layout
   analyze_updates_architecture: true
   architecture_updates_roadmap: true
   verify_mode: normal              # strict | normal | lenient
@@ -246,8 +247,11 @@ rules:
 ```
 
 For repeated command options, set `workflow.explore_mode: ultra`,
-`workflow.plan_mode: full`, or `workflow.improve_check: true`. Explicit command
-arguments override these defaults; absent settings preserve existing behavior.
+`workflow.plan_mode: full`, `workflow.improve_check: true`, or
+`workflow.plan_structure: task-based` to put commit tasks inline rather than in
+a classic `## Commit Plan` section. Explicit command arguments override these
+defaults where an explicit override exists; `plan_structure` is config-only.
+Missing settings use their documented defaults.
 See [Command defaults](config-reference.md#command-defaults) for precedence and
 one-invocation overrides.
 
@@ -279,6 +283,14 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
 - `paths.docs` controls where `/aif-docs` writes the detailed documentation pages. `README.md` remains the landing page in the project root.
 - `warmup.paths` is an ordered list of extra files or directories for `/aif-warmup`. Entries resolve from and must stay inside project root; directories are scanned recursively for readable text files. Missing config is equivalent to an empty list.
 - `paths.qa` controls where `/aif-qa` and `/aif-qa-check` store QA artifacts. A derived branch slug is appended automatically: `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`, `qa-check.md`, and browser replay scripts under `browser-replay/`. Agent-mode `/aif-qa-check` also uses root-level `<paths.qa>/agent-context.md` and `<paths.qa>/agent-history.md` to reuse non-sensitive cross-QA setup facts and recurring learnings, including stable browser routes/selectors and safe command/test-filter patterns. Run-specific details such as branch names, QA target paths, summary counts, assertion totals, and one-off command transcripts stay in `<paths.qa>/<branch-slug>/qa-check.md`. The slug is a deterministic, filesystem-safe, stable derived value with mandatory 40-character safe-slug truncation and a short hash suffix for collision resistance — see `skills/aif-qa/SKILL.md` for the full algorithm. `/aif-qa-check` binds results to the tested commit plus working tree digest, or to a manual build identifier when git is unavailable, plus deterministic test-case, target, and proven replay-script digests. Replaced replay files are preserved under `browser-replay/history/`.
+
+`workflow.plan_structure` selects the commit layout for newly generated plans:
+`classic` (default) uses a separate `## Commit Plan` section, while
+`task-based` places explicit, marked commit tasks in the task list and omits
+`## Commit Plan`. The value must be `classic` or `task-based`; a missing value
+defaults to `classic`, and an invalid value/type produces a warning and falls
+back to `classic`. During implementation, a readable saved plan's own layout
+takes precedence over the current setting. See [Plan Files](plan-files.md).
 
 **Current schema limits:** `config.yaml` still leaves `.ai-factory/skill-context/` fixed by command contract. `README.md` and `docs-html/` remain fixed by current documentation workflow.
 
