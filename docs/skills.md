@@ -4,7 +4,7 @@
 
 **Config-aware skills read `.ai-factory/config.yaml` at startup** to resolve paths, language settings, workflow preferences, and rules hierarchy.
 
-The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-skills-audit`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`, and `/aif-warmup`.
+The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-skills-audit`, `/aif-quality-setup`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`, and `/aif-warmup`.
 
 `/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
@@ -587,6 +587,48 @@ After completion, suggests `/aif-build-automation` and `/aif-docs`.
 Supports Go, Node.js, Python, and PHP with framework-specific configurations.
 
 - Config policy: config-agnostic; Docker artifacts and deploy scripts are driven by repo detection and explicit infrastructure choices, not `config.yaml`
+
+### `/aif-quality-setup [audit|setup|enhance] [paths...]`
+
+Sets up quality checks and Git hooks from the project's actual stack and existing
+configuration. Discovery comes first: manifests, runtime/framework versions,
+environments, current tools/commands, hooks and CI. Then it explains suitable
+options and their tradeoffs before applying the user's selected changes.
+
+```text
+/aif-quality-setup                            # Read-only audit and recommendations
+/aif-quality-setup setup                       # Propose, choose, configure and verify
+/aif-quality-setup enhance "./backend"         # Complement an existing setup
+/aif-quality-setup audit "../api" "../worker"  # Inspect explicitly selected repositories
+```
+
+- Baseline profiles cover JS/TS, PHP, Python and Rust; mixed monorepos load every
+  relevant component profile. Other stacks require evidence and a compatible recipe.
+- Existing tools, scripts, prepare tasks, lockfiles and hook order are preserved.
+  Versions follow target runtime/framework constraints; another stack does not gain
+  a Node requirement merely to install hooks.
+- Default mode is audit. Setup/enhance resolves repository/component scope, checks,
+  hook manager/events, strictness and autofix. Full/partial selection and cancellation
+  are supported; no writes, installs or project command execution during audit.
+- Autofix starts at check-only. Fix-and-stop and fix-and-stage are separate choices
+  requiring verified staging support; unrelated unstaged hunks must remain intact.
+  Fresh setup selects tools and authorizes disposable validation first, then activates
+  only a mode verified for the chosen versions, platform and checkout policy.
+- Monorepos share repository hooks with component CWD; multirepos have independent
+  context, rules, artifact language and Git preferences as well as hooks. Missing
+  context in one repository never inherits a sibling's settings. Cross-repository
+  invocation is an explicit choice. Without Git or with `git.enabled:false`, that
+  repository receives checks-only setup.
+- Native quality configs/manifests/hooks belong to this skill. Requested CI/build
+  edits go through `/aif-ci` and `/aif-build-automation` using the selected commands.
+  `/aif-commit` re-analyzes stopped hook changes and inspects successful auto-stage
+  commits before offering push; it does not run setup automatically.
+- Results distinguish configured, verified, not_run and failed per command/CWD and
+  coverage. Missing required execution never counts as verified success.
+
+Config policy: read-only context/rules/language and `git.enabled`; no new keys or
+automatic report artifact. See [config consumers](config-reference.md#config-readers)
+and [runtime acceptance](../skills/aif-quality-setup/tests/README.md).
 
 ### `/aif-build-automation [makefile|taskfile|justfile|mage]`
 Generates or enhances build automation files:

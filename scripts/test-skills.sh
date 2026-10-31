@@ -2210,6 +2210,14 @@ else
     fail "skills audit installation and documentation tests"
 fi
 
+echo -e "\n${BOLD}=== Quality setup packaging and installation ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-quality-setup.mjs"; then
+    pass "quality setup discovery, installation, rendering and package inventory"
+else
+    fail "quality setup packaging or installation"
+fi
+
 echo -e "\n${BOLD}=== Results ===${NC}"
 echo -e "  Total:    $TOTAL"
 echo -e "  Passed:   ${GREEN}$PASSED${NC}"

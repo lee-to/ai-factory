@@ -232,6 +232,22 @@ When invoked:
    - **Cancel** → stop, do NOT commit. End the workflow
 
 9. Execute `git commit` with the confirmed message
+   - Before running Git, retain the analyzed staged scope/content and parent HEAD
+     (or unborn state), including unrelated unstaged work. Do not reconfigure or
+     manually duplicate quality checks here; Git runs the installed hooks.
+   - A failed hook or selected fix-and-stop mode stops the commit workflow. Inspect
+     current HEAD, index and working tree before retrying: determine whether a commit
+     was actually created, preserve fixes and unrelated hunks, then re-analyze the
+     current staged diff. Update the message/confirmation if content or scope changed;
+     reuse existing authorization only when it still covers the actual changes.
+   - Successful selected fix-and-stage may allow the commit to finish. Inspect the
+     actual created commit against the analyzed scope, report hook changes and check
+     that the message still fits before push handling, even when push is disabled.
+     Unexpected changes require a user decision; never automatically amend, reset,
+     repeat a successful commit or push it to repair the mismatch.
+   - Never auto-bypass hooks with `--no-verify`, disable their environment, or use
+     blanket staging to make a failed hook pass. Suggest `/aif-quality-setup` only
+     when the user wants checks/hooks configured; ordinary commits do not run setup.
 10. Post-commit push handling:
    - If `git.skip_push_after_commit = true` in resolved config:
      - Skip push prompt entirely

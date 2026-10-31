@@ -39,3 +39,20 @@ coverage/
 .ai-factory.json
 .codex/
 .mcp.json
+
+# Keep fixture context closed except for the reviewed A06 inputs.
+/skills/aif-quality-setup/tests/fixtures/multirepo/*/.ai-factory/**
+!/skills/aif-quality-setup/tests/fixtures/multirepo/api/.ai-factory/
+!/skills/aif-quality-setup/tests/fixtures/multirepo/api/.ai-factory/skill-context/
+!/skills/aif-quality-setup/tests/fixtures/multirepo/api/.ai-factory/skill-context/aif-quality-setup/
+!/skills/aif-quality-setup/tests/fixtures/multirepo/api/.ai-factory/config.yaml
+!/skills/aif-quality-setup/tests/fixtures/multirepo/api/.ai-factory/skill-context/global-skill-context.md
+!/skills/aif-quality-setup/tests/fixtures/multirepo/api/.ai-factory/skill-context/aif-quality-setup/SKILL.md
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/skill-context/
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/skill-context/aif-quality-setup/
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/config.yaml
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/DESCRIPTION.md
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/RULES.md
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/skill-context/global-skill-context.md
+!/skills/aif-quality-setup/tests/fixtures/multirepo/worker/.ai-factory/skill-context/aif-quality-setup/SKILL.md
