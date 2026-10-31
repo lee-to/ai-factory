@@ -274,7 +274,10 @@ For a marked commit task:
   proves it, compare current owned changes to the saved manifest before
   retrying; any mismatch or multiple candidates stops without replacing the
   receipt. Otherwise mark completion only when exactly one matching commit
-  exactly covers the captured group.
+  exactly covers the captured group. Before accepting a verified receipt or
+  captured candidate, require
+  `git merge-base --is-ancestor <commit-hash> HEAD`; failure is an integrity
+  error, not a retry. Later descendants remain valid.
 
 The canonical marker is a standalone comment immediately before the task
 checkbox; it is not itself a task. A task without the marker is ordinary even if
@@ -310,7 +313,11 @@ when durable plan state says the group was already dispatched or completed;
 never synthesize one after the fact. Independently
 verify that the local commit has the exact message and parent and its diff
 exactly covers the captured group with no omissions or unrelated changes
-before recording success. On resume, reconcile from the saved receipt and local
+before recording success. Before accepting a verified receipt or captured
+candidate, require
+`git merge-base --is-ancestor <commit-hash> HEAD`; failure is an integrity
+error, not a retry. Later descendants remain valid. On resume,
+reconcile from the saved receipt and local
 history, never a newly inferred baseline. If no commit proves a captured
 receipt, compare live owned changes to that exact manifest before retrying;
 mismatch or multiple/ambiguous matches stops without guessing.

@@ -1483,32 +1483,34 @@ fi
 if grep -Fq 'Classic-group task-bound mode' "$AIF_COMMIT_SKILL" \
    && grep -Fq '`classic-group` mode and supplying' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Reject missing, duplicate, ambiguous, or mismatched group' "$AIF_COMMIT_SKILL" \
-   && grep -Fq 'Never use ordinary multi-group' "$AIF_IMPLEMENT_SKILL"; then
+   && grep -Fq 'For classic groups, invoke `/aif-commit classic-group`' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Do not run the ordinary' "$AIF_COMMIT_SKILL"; then
     pass "/aif-commit supports isolated classic-group task-bound commits"
 else
     fail "/aif-commit classic-group task-bound contract missing"
 fi
 
-if grep -Fq 'reserve a final documentation task' "$AIF_PLAN_SKILL" \
+if grep -Fq 'reserve an explicit final documentation task' "$AIF_PLAN_SKILL" \
    && grep -Fq 'before any deferred commit' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'Deferred documentation task execution and ownership gate' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'Compare the post-docs staged and unstaged diffs to the baseline' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'adjust the task' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Compare post-checkpoint staged/unstaged diffs and untracked' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'reserved task' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'do not widen' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'runs `/aif-docs` before deferred commits' "$WORKFLOW_DOC"; then
     pass "deferred docs checkpoint precedes commits and enforces planned ownership"
 else
     fail "deferred docs checkpoint ordering or ownership gate missing"
 fi
 
-if grep -Fq 'execute the commit-task handler' "$AIF_IMPLEMENT_SKILL" \
+if grep -Fq 'Route marked commit tasks' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'TaskUpdate(taskId, status: "completed")' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'Resume reconciliation' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'On resume, reconcile the checkbox, task status,' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'Before generic uncommitted-change recovery, resolve the active plan' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'For each pending task-based or classic-group receipt' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'This also covers deferred classic groups' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'Only after all pending receipts are resolved' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'outside the saved commit groups' "$AIF_IMPLEMENT_SKILL" \
-   && grep -Fq 'exact resolved plan path' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Reconcile every pending task-based or classic-group receipt' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'including deferred groups not' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Only after all receipts are resolved may changes proven' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'git merge-base --is-ancestor <commit-hash> HEAD' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'outside saved groups' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'exact plan path' "$AIF_IMPLEMENT_SKILL" \
    && grep -Fq 'dependency task IDs' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Preserve unrelated staged and' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'do not offer' "$AIF_COMMIT_SKILL" \
