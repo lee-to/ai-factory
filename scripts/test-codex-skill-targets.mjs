@@ -147,7 +147,7 @@ test('core', 'Devin resolves platform-specific global paths without changing pro
     await fs.readFile(path.join(root, 'skills/aif-skill-generator/SKILL.md'), 'utf8'),
     buildTemplateVars(devin),
   );
-  assert.ok(generatorSkill.includes(`1. **Local**: Keep in \`${devin.homeSkillsDir}/\` for personal use`));
+  assert.ok(generatorSkill.includes('1. **Local**: Keep in your personal skills directory for machine-local use'));
   assert.ok(generatorSkill.includes('2. **Project**: Add to `.devin/skills/` and commit'));
 });
 
