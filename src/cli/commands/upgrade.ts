@@ -260,7 +260,9 @@ export async function isUnmodifiedLegacySkillDir(oldDir: string, skillName: stri
   varsList.push({
     config_dir: '.agent',
     skills_dir: '.agent/skills',
+    skill_reference_dir: '~/.agent/skills',
     home_skills_dir: '~/.agent/skills',
+    shell_home_skills_dir: '~/.agent/skills',
     settings_file: '',
     agent_name: 'Antigravity',
     skills_cli_agent_flag: '--agent antigravity',

@@ -7,6 +7,7 @@ export type AgentFileExtension = '.md' | '.toml';
 export const AGENT_IDS = {
   claude: 'claude',
   codex: 'codex',
+  devin: 'devin',
   antigravity: 'antigravity',
 } as const;
 
