@@ -1,0 +1,4 @@
+[package]
+name = "quality-fixture-gateway"
+version = "0.0.0"
+edition = "2021"

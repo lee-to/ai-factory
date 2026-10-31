@@ -7,7 +7,7 @@
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (33 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
+2. **Built-in skills** (34 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
@@ -52,6 +52,7 @@ ai-factory/
 │   ├── aif-rules-check/        # Standalone rules compliance gate
 │   ├── aif-qa/                 # QA workflow: change summary → test plan → test cases
 │   ├── aif-qa-check/           # Execute QA cases in human/automated-agent mode
+│   ├── aif-quality-setup/      # Stack-driven quality checks and Git hooks setup
 │   ├── aif-security-checklist/ # Security audit
 │   ├── aif-skill-generator/    # Generate new skills
 │   └── aif-verify/             # Verify implementation against plan
@@ -129,6 +130,22 @@ Markdown/TOML source fixtures to verify both runtimes.
 
 `skills/aif-build-automation/SKILL.md` defines how to generate or enhance Makefile, Taskfile, Justfile, or Mage. **Repository analysis uses one ordered pipeline for every stack:** primary language → package manager / build entrypoints → frameworks → Docker → CI → migrations → tests → linters → monorepo, then `PROJECT_PROFILE`. **Java/Kotlin (JVM) is not a separate side path:** Gradle/Maven, wrappers (`gradlew`, `mvnw`), `java_build`, frameworks from build files, and JVM linters follow the same section structure as Node (`package.json`), Python (`pyproject.toml`), etc. (skill §2.1–§2.8). If both Gradle signals and `pom.xml` are present, set `java_build.mixed_maven_gradle`, append to `PROJECT_PROFILE.warnings`, and wire generated targets to Gradle (skill §2.2).
 
+### aif-quality-setup
+
+`skills/aif-quality-setup/SKILL.md` routes discovery → audit → explained options →
+user selection → setup → verification. Load profiles only after actual stack
+detection; baseline recipes cover JS/TS, PHP, Python and Rust, including mixed
+monorepos and explicit multirepo roots. Preserve existing tools/scripts/hooks.
+The skill reads context/rules/language and `git.enabled`, introduces no config keys
+and owns only selected native quality configs/manifests/hooks. CI/build/rules/docs
+changes go through their existing owners. Autofix modes require verified staging
+support; configured and verified results remain distinct. Offline installation
+coverage is `npm run test:quality-setup`; runtime cases are specified separately.
+`npm run test:quality-setup:native -- --run` is an opt-in native staging/EOL
+regression with pinned tools in disposable repositories. Select existing
+dependencies or explicitly request their installation; it is absent from `npm test`
+and does not establish agent behavior or untested platform coverage.
+
 ### Working Directory
 
 All AI Factory files in user projects go to `.ai-factory/` by default. `config.yaml` can relocate many workflow
@@ -174,6 +191,7 @@ Artifact writers are command-scoped to prevent ownership conflicts:
 | `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
 | `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
 | Explicit new audit report (`--output` only) | `/aif-skills-audit` | Chat by default; installed skills, injections, overrides and settings stay read-only |
+| Selected native quality configs, manifest/script entries, dev-dependency lockfiles and hook configuration/installation | `/aif-quality-setup` | Context/config stay read-only; source fixes follow selected autofix mode; CI/build/rules/docs edits go through their owners |
 | Verified user-owned skill target files | `/aif-evolve` | Exact resolved destinations after candidate validation/approval; existing globals require `--global`; managed package/extension files remain read-only |
 | `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills; `/aif-transfer` delegates approved writes here       |
 | `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor; `/aif-transfer` delegates logs but never the cursor  |
@@ -211,7 +229,7 @@ Context gate policy for quality commands:
 - Core workflow and quality: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`,
   `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-warmup`
 - Read-only planning advisors: `/aif-plan-overview`, `/aif-roadmap-next`
-- Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-skills-audit`, `/aif-transfer`, `/aif-reference`,
+- Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-skills-audit`, `/aif-quality-setup`, `/aif-transfer`, `/aif-reference`,
   `/aif-distillation`,
   `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
 
@@ -635,7 +653,7 @@ docs/
 ├── research.md              # Regular and ultra research, adaptive C4/ADR/dependency bundles
 ├── loop.md                  # Reflex loop protocol: phases, rules, state, stop conditions
 ├── subagents.md             # Claude-only bundled subagents and runtime-local agent-file boundaries
-├── skills.md                # Full reference: Workflow Skills + Utility Skills
+├── skills.md                # Workflow/utility reference, including stack-driven quality setup
 ├── evolve.md                # Patch-driven skill evolution and skill-context learning loop
 ├── plan-files.md            # Plan files, self-improvement patches, skill acquisition strategy
 ├── security.md              # Two-level security scanning system

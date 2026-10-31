@@ -1,0 +1,4 @@
+{
+  "compilerOptions": { "strict": true, "noEmit": true },
+  "include": ["src/**/*.ts"]
+}

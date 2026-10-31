@@ -14,6 +14,13 @@ Run once per project. Sets up context files that all workflow skills depend on.
 
 During `/aif`, the initial `.ai-factory/config.yaml` is created from the commented template, and setup reruns refresh only the managed keys so manual comments and unrelated customizations survive.
 
+For local quality tooling, use [`/aif-quality-setup`](skills.md#aif-quality-setup-auditsetupenhance-paths).
+It detects the current stack and existing checks, explains suitable options, then
+configures the user's selection. Audit is read-only; setup supports JS/TS, PHP,
+Python, Rust and mixed/multiple repositories. Requested CI/build changes go through
+their owner skills with the selected native commands. Normal commits use installed
+hooks; quality setup is not an automatic stage of every feature or commit.
+
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                     PROJECT CONFIGURATION                                      │
@@ -194,6 +201,7 @@ project artifacts. Planning begins only after the user selects a scope and start
 | Command | Use Case | Creates Branch? | Creates Plan? |
 |---------|----------|-----------------|---------------|
 | `/aif-warmup` | Load essential project context at session start or before a fork | No | No |
+| `/aif-quality-setup` | Detect stack, propose and configure selected code checks and Git hooks | No | No (audit reports in chat; setup writes selected native configs/hooks) |
 | `/aif-explore` | Discovery, option comparison, and requirements clarification before planning | No | No (optional `paths.research` on request) |
 | `/aif-explore ultra` | Durable system analysis with adaptive C4/ADR/dependency coverage | No | No (creates `<parent(paths.research)>/research/<english-slug>/`) |
 | `/aif-grounded` | Evidence-only answers, strict verification, and high-stakes questions where guessing is unacceptable | No | No |
