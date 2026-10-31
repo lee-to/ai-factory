@@ -151,6 +151,14 @@ console.log('pass: sequential allocation ignores numbered non-ultra directories'
 const ultraReference = read('skills/aif-plan/references/ULTRA-FORMAT.md');
 const canonicalIndex = extractIndexTemplate(ultraReference);
 assert.equal(isUltraIndex(canonicalIndex), true, 'canonical ultra index must contain the marker exactly once');
+assert(canonicalIndex.includes('- Commit strategy:'));
+assert(canonicalIndex.includes('- Development methodology:'));
+assert(!canonicalIndex.includes('- TDD granularity:'), 'TDD granularity must be conditional');
+assert(!canonicalIndex.includes('## Commit Plan'), 'classic commit plan must not be unconditional');
+assert(ultraReference.includes('`TDD granularity:` in `## Settings` only when'));
+assert(ultraReference.includes('**task-based:** Omit `## Commit Plan` entirely.'));
+assert(ultraReference.includes('**classic:** Include `## Commit Plan` only when commits are planned'));
+assert(ultraReference.includes('exact, untranslated compatibility tokens'));
 validateBundle(canonicalIndex, {
   'phase-01-foundation.md': '# Phase 1\n## Task 1: One\n## Task 2: Two\n',
   'phase-02-integration.md': '# Phase 2\n## Task 3: Three\n',

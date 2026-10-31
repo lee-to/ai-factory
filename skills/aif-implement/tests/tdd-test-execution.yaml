@@ -1,0 +1,113 @@
+scenario: tdd-test-execution
+description: |
+  aif-implement should handle TDD task dependencies and ensure test execution
+  before marking TDD implementation tasks complete. This test verifies TDD
+  handling for both task-based and feature-based granularity.
+skill: aif-implement
+argument: ""
+
+runner:
+  model: claude-sonnet-4-6
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash(git *)
+    - Bash(npm *)
+    - Bash(mkdir *)
+    - Bash(basename *)
+    - Bash(cd *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/test-tdd
+  files_committed:
+    - path: README.md
+      content: |
+        # Demo API
+
+        Tiny Node.js API skeleton.
+    - path: package.json
+      content: |
+        {
+          "name": "demo-api",
+          "version": "0.1.0",
+          "type": "module",
+          "scripts": { "test": "node --test tests/login.test.js" }
+        }
+    - path: .ai-factory/config.yaml
+      content: |
+        language:
+          ui: es
+          artifacts: es
+    - path: .ai-factory/plans/feature-test-tdd.md
+      content: |
+        # Plan de implementación: prueba TDD
+
+        Branch: feature/test-tdd
+        Created: 2026-09-20
+
+        ## Original Request
+
+        Verificar el manejo TDD
+
+        ## Settings
+        - Testing: yes
+        - Logging: verbose
+        - Docs: yes
+        - Commit strategy: incremental
+        - Development methodology: tdd
+        - TDD granularity: task-based
+
+        ## Tasks
+
+        ### Fase 1: Implementación
+        - [ ] Task 1: Escribir una prueba fallida: login('demo', 'secret') debe devolver true
+          Files: tests/login.test.js
+        - [ ] Task 2: Implementar login para hacer pasar la prueba
+          Files: src/services/auth.js
+          Depends on: 1
+
+user_responses: []
+
+assertions:
+  - id: runs-red-before-completing-test-task
+    type: tool_call_sequence
+    sequence:
+      - tool: Bash
+        args_match:
+          command: "^npm test"
+      - tool: TaskUpdate
+        args_match:
+          taskId: "(?i)^(?:1|task[-_ ]?1)$"
+          status: "completed"
+    weight: 3
+
+  - id: implements-between-red-and-green-runs
+    type: tool_call_sequence
+    sequence:
+      - tool: Bash
+        args_match:
+          command: "^npm test"
+      - tool: Write
+        args_match:
+          file_path: "(^|/)src/services/auth\\.js$"
+      - tool: Bash
+        args_match:
+          command: "^npm test"
+      - tool: TaskUpdate
+        args_match:
+          taskId: "(?i)^(?:2|task[-_ ]?2)$"
+          status: "completed"
+    weight: 4
+
+  - id: reports-red-green-results
+    type: output_contains
+    pattern: "(?i)(initially failed|failed before|red.*(green|pass)|falló.*(pasó|correcta))"
