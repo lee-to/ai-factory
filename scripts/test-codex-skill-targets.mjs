@@ -139,9 +139,11 @@ test('core', 'Devin resolves platform-specific global paths without changing pro
   assert.deepEqual(await installSkills({
     projectDir: project, agentId: 'devin', skillsDir: devin.skillsDir, skills: ['aif'],
   }), ['aif']);
-  const installedSkill = await fs.readFile(path.join(project, devin.skillsDir, 'aif/SKILL.md'), 'utf8');
-  assert.ok(installedSkill.includes('.devin/skills/aif/'));
-  assert.ok(!installedSkill.includes(devin.homeSkillsDir));
+  const installedSecurityReference = await fs.readFile(
+    path.join(project, devin.skillsDir, 'aif/references/SETUP-SECURITY.md'), 'utf8',
+  );
+  assert.ok(installedSecurityReference.includes('.devin/skills/aif-skill-generator/scripts/security-scan.py'));
+  assert.ok(!installedSecurityReference.includes(devin.homeSkillsDir));
 
   const generatorSkill = processTemplate(
     await fs.readFile(path.join(root, 'skills/aif-skill-generator/SKILL.md'), 'utf8'),

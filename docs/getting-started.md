@@ -23,6 +23,7 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 |-------|-----------------|-----------------|
 | Claude Code | `.claude/` | `.claude/skills/` |
 | Cursor | `.cursor/` | `.cursor/skills/` |
+| Devin CLI | `.devin/` | `.devin/skills/` |
 | Devin Desktop (formerly Windsurf) | `.devin/` | `.devin/skills/` |
 | Roo Code | `.roo/` | `.roo/skills/` |
 | Kilo Code | `.kilocode/` | `.kilocode/skills/`, `.kilocode/workflows/` |
