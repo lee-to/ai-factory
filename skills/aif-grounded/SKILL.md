@@ -2,11 +2,16 @@
 name: aif-grounded
 description: Reliability gate for answers. Forces evidence-based reasoning, explicit uncertainty, and “insufficient information” instead of guesses. Use when user says “be 100% sure”, “no hallucinations”, “only if verified”, “grounded answer”, or when stakes are high.
 argument-hint: "[question or task]"
-allowed-tools: Read Write Edit Glob Grep Bash AskUserQuestion Questions
+allowed-tools: Read Write Edit Glob Grep AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
 # Grounded - Reliability Gate (No Guessing)
+
+Shell commands are not pre-approved by this skill. If command evidence is needed,
+use an exposed shell tool under the runtime's existing permissions and request
+approval when required. Never broaden permissions or use another execution path
+to work around a denied command; report missing command evidence explicitly.
 
 ## Shared project skill-context
 

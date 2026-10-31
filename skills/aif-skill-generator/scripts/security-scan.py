@@ -18,6 +18,8 @@ import re
 import base64
 import json
 import fnmatch
+import hashlib
+from urllib.parse import urlsplit
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 
@@ -67,8 +69,8 @@ _add(r'override\s+(all\s+)?(safety|security|restriction|constraint|limitation|gu
 _add(r'(curl|wget|fetch|http\.request|urllib|requests\.(get|post))\s+.{0,50}(\.env|credentials|secret|token|password|api.?key|private.?key)',
      'CRITICAL', 'Data exfiltration: sends sensitive files/variables to external URL')
 
-_add(r'(curl|wget)\s+(-[a-zA-Z]\s+)*https?://(?!skills\.sh|github\.com|npmjs\.com|registry\.npmjs\.org)',
-     'WARNING', 'External HTTP request: sends data to unknown external URL')
+_add(r'''(curl|wget)\s+(?:-[a-zA-Z]+\s+)*(?P<request_url>https?://[^\s`"'<>]+)''',
+     'WARNING', 'Network request: review destination and data sent')
 
 _add(r'(cat|read|type)\s+.{0,30}(\.env|credentials|\.ssh|\.aws|\.gnupg|id_rsa|\.netrc|\.npmrc)',
      'CRITICAL', 'Credential access: reads sensitive credential files')
@@ -96,7 +98,10 @@ _add(r'(silently|quietly)\s+(execute|run|delete|remove|send|install|modify|write
 _add(r'(hide|conceal|suppress|mask)\s+(the\s+)?(output|result|error|warning|action|change)',
      'CRITICAL', 'Output suppression: hides results from user')
 
-_add(r'invisible|hidden\s+instruction|obfuscate',
+_add(r'\binvisible\b.{0,40}\b(instructions?|actions?|commands?|operations?|changes?|payloads?|execution|uploads?|downloads?|access|requests?|logs?|activity)\b|'
+     r'\b(instructions?|actions?|commands?|operations?|changes?|payloads?|execution|uploads?|downloads?|access|requests?|logs?|activity)\b.{0,40}\binvisible\b|'
+     r'\b(make|keep|perform|run|send|execute)\b.{0,40}\binvisible\b|'
+     r'hidden\s+instruction|obfuscate',
      'WARNING', 'Obfuscation language: may hide malicious intent')
 
 # ── 4. Destructive Commands ───────────────────────────────────────────────────
@@ -118,8 +123,11 @@ _add(r'git\s+push\s+(-f|--force)\s+(origin\s+)?(main|master)',
 
 # ── 5. Configuration Tampering ────────────────────────────────────────────────
 
-_add(r'(write|modify|edit|change|overwrite|update)\s+.{0,30}(\.claude|\.cursor|\.codex|\.github|\.gemini|\.junie|\.agents|\.ai(?:/|\b(?!-))|claude\.json|settings\.json|settings\.local\.json|CLAUDE\.md)',
+_add(r'(write|modify|edit|change|overwrite|update)\s+.{0,30}(\.claude|\.cursor|\.codex|\.gemini|\.junie|\.agents|\.ai(?:/|\b(?!-))|claude\.json|settings\.json|settings\.local\.json|CLAUDE\.md)',
      'CRITICAL', 'Config tampering: modifies AI agent configuration')
+
+_add(r'(write|modify|edit|change|overwrite|update)\s+.{0,30}\.github\b',
+     'CRITICAL', 'CI configuration write: modifies GitHub configuration')
 
 _add(r'(write|modify|edit|change|overwrite)\s+.{0,30}(\.bashrc|\.zshrc|\.profile|\.bash_profile|crontab|\.gitconfig)',
      'CRITICAL', 'Shell config tampering: modifies user shell configuration')
@@ -132,11 +140,11 @@ _add(r'(allowed-tools|allowed_tools)\s*:\s*.*(Bash\s*$|Bash\s+[^(])',
 _add(r'sudo\s',
      'WARNING', 'Sudo usage: attempts to escalate privileges')
 
-_add(r'(pip|npm|brew|apt|yum)\s+install\s+(?!-)',
-     'WARNING', 'Package installation: installs system-level packages')
+_add(r'(pip|npm|brew|apt|yum)\s+install\b',
+     'WARNING', 'Package installation: may modify dependencies or the host environment')
 
 _add(r'(eval|exec)\s*\(',
-     'WARNING', 'Dynamic execution: runs dynamically constructed code')
+     'WARNING', 'Dynamic execution: evaluates code or invokes an execution API')
 
 # ── 7. Encoded / Obfuscated Payloads ─────────────────────────────────────────
 
@@ -185,8 +193,12 @@ _add(r'(not\s+a\s+threat|not\s+malicious)',
 _add(r'known\s+issue.{0,30}(safe|ignore|skip|harmless|false.positive|not.a.threat|bypass|disable)',
      'CRITICAL', 'Scanner evasion: uses "known issue" to dismiss security findings')
 
-_add(r'(ignore|skip|disable|bypass)\s+(the\s+)?(security\s+)?(scan|scanner|check|warning|alert|flag)',
+_add(r'\b(ignore|skip|disable|bypass)\s+(the\s+)?'
+     r'((security\s+)?(scans?|scanners?|checks?)|security\s+(warnings?|alerts?|flags?))\b',
      'CRITICAL', 'Scanner bypass: skill instructs to skip security scanning')
+
+_add(r'\b(ignore|skip|disable|bypass)\s+(the\s+)?(warnings?|alerts?|flags?)\b',
+     'CRITICAL', 'Review suppression: instructs to skip warnings or alerts')
 
 _add(r'(scanner|security.?check|security.?scan)\s+(will|may|might|can)\s+(flag|detect|report|show|find)\s+.{0,30}(false|expected|normal|okay|fine|harmless)',
      'CRITICAL', 'Pre-emptive scanner discrediting: skill warns that scanner will flag it and claims this is normal')
@@ -295,10 +307,34 @@ def is_in_code_block(line_num: int, code_ranges: list) -> bool:
 
 # ─── Scanner ──────────────────────────────────────────────────────────────────
 
+def is_contextual_nonfinding(content: str, match, description: str) -> bool:
+    """Handle narrow semantic distinctions without exempting whole lines/rules."""
+    if 'request_url' in match.re.groupindex:
+        # Exact hostname matching prevents github.com.evil and userinfo bypasses.
+        # Loopback requests remain visible: contacting local services is an effect.
+        try:
+            url = urlsplit(match.group('request_url'))
+            port = url.port  # Invalid ports must not qualify for the built-in host set.
+            return (url.hostname in {'skills.sh', 'github.com', 'npmjs.com', 'registry.npmjs.org'}
+                    and url.username is None and url.password is None
+                    and (port is None or 0 < port <= 65535))
+        except ValueError:
+            return False
+    if description == 'Self-declaration of safety: skill claims it has been verified/audited':
+        start = content.rfind('\n', 0, match.start()) + 1
+        end = content.find('\n', match.end())
+        line = content[start:end if end >= 0 else len(content)].strip()
+        # Only a complete negative verdict, never a line merely containing "not".
+        return re.fullmatch(r'this\s+skill\s+is\s+not\s+safe(?:\s+to\s+use)?[.!]?', line,
+                            flags=re.IGNORECASE) is not None
+    return False
+
+
 def scan_file(filepath: str, strict: bool = False) -> dict:
     """Scan a single file for security threats."""
-    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-        content = f.read()
+    with open(filepath, 'rb') as f:
+        canonical_bytes = f.read().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+    content = canonical_bytes.decode('utf-8', errors='ignore')
 
     findings = []
     is_markdown = filepath.endswith('.md')
@@ -310,6 +346,10 @@ def scan_file(filepath: str, strict: bool = False) -> dict:
     for pattern, severity, description in THREAT_PATTERNS:
         for match in pattern.finditer(content):
             line_num = content[:match.start()].count('\n') + 1
+            if is_contextual_nonfinding(content, match, description):
+                if os.environ.get('DEBUG_FIX') == '1':
+                    print(f'[FIX:scanner-precision] contextual nonfinding at line {line_num}', file=sys.stderr)
+                continue
 
             # In markdown, matches inside code blocks are demoted to WARNING
             # (they are likely documentation examples, not actual attacks)
@@ -335,6 +375,7 @@ def scan_file(filepath: str, strict: bool = False) -> dict:
 
     return {
         'file': filepath,
+        'source_sha256': hashlib.sha256(canonical_bytes).hexdigest(),
         'findings': findings,
         'critical_count': sum(1 for f in findings if f['severity'] == 'CRITICAL'),
         'warning_count': sum(1 for f in findings if f['severity'] == 'WARNING'),
@@ -356,7 +397,7 @@ def _normalize_description(description: str) -> str:
     return description
 
 
-def _allowlist_matches(rel_path: str, finding: dict, entry: dict) -> bool:
+def _allowlist_matches(rel_path: str, finding: dict, entry: dict, source_sha256: str = None) -> bool:
     """Check whether a finding matches an allowlist entry."""
     file_pattern = entry.get('file')
     if file_pattern and not fnmatch.fnmatch(rel_path, file_pattern):
@@ -373,6 +414,10 @@ def _allowlist_matches(rel_path: str, finding: dict, entry: dict) -> bool:
     match = entry.get('match')
     if match and finding['match'] != match:
         return False
+
+    if 'source_sha256' in entry:
+        if source_sha256 != entry['source_sha256'] or finding['line'] != entry['line']:
+            return False
 
     return True
 
@@ -414,6 +459,20 @@ def load_allowlist(filepath: str) -> list:
             print(f"{RED}ERROR:{NC} Allowlist entry #{i} needs non-empty 'description' or 'match'.", file=sys.stderr)
             sys.exit(3)
 
+        binding_keys = {'source_sha256', 'line', 'reason'}
+        if binding_keys.intersection(entry):
+            literal_file = entry['file']
+            valid_file = (not literal_file.startswith('/')
+                          and not any(char in literal_file for char in '\\*?[]:')
+                          and all(part not in ('', '.', '..') for part in literal_file.split('/')))
+            if (not binding_keys.issubset(entry) or not valid_file
+                    or not isinstance(entry.get('source_sha256'), str)
+                    or re.fullmatch(r'[0-9a-f]{64}', entry['source_sha256']) is None
+                    or type(entry.get('line')) is not int or entry['line'] < 1
+                    or not isinstance(entry.get('reason'), str) or not entry['reason'].strip()):
+                print(f"{RED}ERROR:{NC} Allowlist entry #{i} needs a literal relative file, lowercase SHA256, positive line and reason together.", file=sys.stderr)
+                sys.exit(3)
+
         validated.append(entry)
 
     return validated
@@ -430,7 +489,7 @@ def apply_allowlist(report: dict, allowlist_entries: list) -> dict:
 
         filtered_findings = []
         for finding in file_result['findings']:
-            if any(_allowlist_matches(rel_path, finding, entry) for entry in allowlist_entries):
+            if any(_allowlist_matches(rel_path, finding, entry, file_result.get('source_sha256')) for entry in allowlist_entries):
                 ignored_count += 1
             else:
                 filtered_findings.append(finding)

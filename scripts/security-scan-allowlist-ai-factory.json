@@ -161,6 +161,96 @@
       "severity": "CRITICAL",
       "description": "Scanner bypass: skill instructs to skip security scanning",
       "match": "skip scan"
+    },
+    {
+      "file": "aif-dockerize/references/BEST-PRACTICES.md",
+      "severity": "WARNING",
+      "description": "Fork bomb: denial of service attack",
+      "match": "fork bomb",
+      "line": 411,
+      "source_sha256": "d9d3e586895f12ecad6a801ea02bc5ff9e90db7c89f0f1771d98c4a287c514ca",
+      "reason": "Resource-limit comment explicitly describes preventing fork bombs."
+    },
+    {
+      "file": "aif-security-checklist/SKILL.md",
+      "severity": "WARNING",
+      "description": "Dynamic execution: evaluates code or invokes an execution API",
+      "match": "exec(",
+      "line": 295,
+      "source_sha256": "9076a0081e067f9ab25641cd83fe5667de74cad6e49099d9747958796686515e",
+      "reason": "Commented vulnerable command-injection example followed by an execFile alternative."
+    },
+    {
+      "file": "aif-security-checklist/references/PROMPT-INJECTION.md",
+      "severity": "WARNING",
+      "description": "Instruction override: attempts to discard prior instructions",
+      "match": "Ignore previous instructions",
+      "line": 8,
+      "source_sha256": "62a40338af54dc72be10270c3109a6a7b699b05e650b984d9ced2f86c9346bcb",
+      "reason": "Quoted attack payload in a direct prompt-injection example."
+    },
+    {
+      "file": "aif-security-checklist/references/PROMPT-INJECTION.md",
+      "severity": "WARNING",
+      "description": "Destructive command: recursive delete of critical paths",
+      "match": "rm -rf /",
+      "line": 41,
+      "source_sha256": "62a40338af54dc72be10270c3109a6a7b699b05e650b984d9ced2f86c9346bcb",
+      "reason": "Example of a malicious model-generated tool argument, labelled vulnerable."
+    },
+    {
+      "file": "aif-security-checklist/references/PROMPT-INJECTION.md",
+      "severity": "WARNING",
+      "description": "Dynamic execution: evaluates code or invokes an execution API",
+      "match": "exec(",
+      "line": 41,
+      "source_sha256": "62a40338af54dc72be10270c3109a6a7b699b05e650b984d9ced2f86c9346bcb",
+      "reason": "Vulnerable model-output execution example followed by input validation guidance."
+    },
+    {
+      "file": "aif-skill-generator/references/BEST-PRACTICES.md",
+      "severity": "WARNING",
+      "description": "Unrestricted Bash: skill requests unrestricted shell access (no command pattern)",
+      "match": "allowed-tools: Bash",
+      "line": 111,
+      "source_sha256": "62b82b7fa01b4907fda2ba5a2f59c9ee4dd5799f5a58da5bf71dbbf923b129cb",
+      "reason": "Explicitly labelled bad permission example, followed by scoped command examples."
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "WARNING",
+      "description": "Dynamic execution: evaluates code or invokes an execution API",
+      "match": "eval(",
+      "line": 37,
+      "source_sha256": "95df3a4edd0c554899996ce921c159086c95ec95d9edfd2c89bd9d6ac3142aeb",
+      "reason": "Threat-category table documenting the execution pattern that the scanner detects."
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "WARNING",
+      "description": "Config tampering: modifies AI agent configuration",
+      "match": "Update .ai",
+      "line": 48,
+      "source_sha256": "95df3a4edd0c554899996ce921c159086c95ec95d9edfd2c89bd9d6ac3142aeb",
+      "reason": "Example JSON entry illustrating the allowlist format, not a command to change settings."
+    },
+    {
+      "file": "aif-skill-generator/references/SECURITY-SCANNING.md",
+      "severity": "WARNING",
+      "description": "Fork bomb: denial of service attack",
+      "match": "Fork bomb",
+      "line": 49,
+      "source_sha256": "95df3a4edd0c554899996ce921c159086c95ec95d9edfd2c89bd9d6ac3142aeb",
+      "reason": "Example JSON entry illustrating a scanner rule in the allowlist format."
+    },
+    {
+      "file": "aif-verify/references/VERIFY-REPORT.md",
+      "severity": "WARNING",
+      "description": "Review suppression: instructs to skip warnings or alerts",
+      "match": "skip warnings",
+      "line": 45,
+      "source_sha256": "dfe7bc972075e8bb90fcabafdf1ad1f5b07062a9177a07e7b191e6e231e3fba3",
+      "reason": "Sample user-selected repair scope; no automatic suppression of a security scan."
     }
   ]
 }

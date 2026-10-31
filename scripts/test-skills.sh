@@ -1259,12 +1259,12 @@ fi
 
 AIF_PLAN_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_PLAN_SKILL" || true)
 AIF_IMPROVE_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_IMPROVE_SKILL" || true)
-AIF_FIX_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_FIX_SKILL" || true)
 if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
    && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
-   && [[ "$AIF_FIX_ALLOWED_TOOLS_LINE" == *'Bash'* ]] \
+   && grep -Fq 'Shell commands are not pre-approved by this skill.' "$AIF_FIX_SKILL" \
+   && grep -Fq "under the runtime's existing permissions" "$AIF_FIX_SKILL" \
    && grep -Fq 'Normalize the copied Active Summary before hashing' "$AIF_PLAN_SKILL" \
    && grep -Fq 'use the same normalization algorithm' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'use the same normalization algorithm as the drift check' "$AIF_FIX_SKILL" \
@@ -1280,9 +1280,9 @@ if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && grep -Fq 'end with exactly one final newline' "$AIF_PLAN_SKILL" \
    && grep -Fq 'end with one newline' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'end with one newline' "$AIF_FIX_SKILL"; then
-    pass "research-backed plan producers can calculate SHA256 revisions without temp artifacts"
+    pass "research-backed plan producers retain SHA256 normalization and execution policy without temp artifacts"
 else
-    fail "research-backed plan producers lack SHA256 tools, normalization instructions, or temp-artifact guard"
+    fail "research-backed plan producers lack SHA256 policy, normalization instructions, or temp-artifact guard"
 fi
 
 if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then
@@ -1887,6 +1887,12 @@ if [[ ${#PYTHON_CMD[@]} -eq 0 ]]; then
 else
     SCANNER="$ROOT_DIR/skills/aif-skill-generator/scripts/security-scan.py"
 
+    if "${PYTHON_CMD[@]}" -B "$ROOT_DIR/scripts/test-security-scan.py"; then
+        pass "security scanner precision, hostile pairs, allowlist boundaries and CLI exits"
+    else
+        fail "security scanner precision regressions"
+    fi
+
     SCAN_BENIGN="$TMPDIR/security-scan-benign"
     mkdir -p "$SCAN_BENIGN/references"
     cat > "$SCAN_BENIGN/SKILL.md" << 'EOF'
@@ -1956,7 +1962,14 @@ set -e
 
 if [[ $SELF_SCAN_EXIT -eq 0 ]]; then
     pass "self-scan passed (no critical threats after allowlist)"
-    echo "$SELF_SCAN_OUTPUT" | grep -E 'Critical:|Warnings:|Ignored by allowlist' | sed 's/^/      /' || true
+    # Retain the actual findings, not only counters, for manual review in CI logs.
+    if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        echo "::group::Internal security self-scan findings"
+    fi
+    echo "$SELF_SCAN_OUTPUT" | sed 's/^/      /'
+    if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        echo "::endgroup::"
+    fi
 elif [[ $SELF_SCAN_EXIT -eq 3 ]]; then
     pass "self-scan skipped ${YELLOW}(Python 3 not found)${NC}"
     echo "      Install Python 3 to enable internal self-scan."

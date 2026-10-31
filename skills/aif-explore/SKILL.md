@@ -2,11 +2,16 @@
 name: aif-explore
 description: Enter explore mode to investigate ideas, systems, problems, and requirements before planning. Use ultra mode, explicitly or through config, when the user wants a durable adaptive research bundle with an index and only the justified C4, ADR, or dependency artifacts.
 argument-hint: "[regular|ultra] [topic or plan name]"
-allowed-tools: Read Glob Grep Write Edit Bash Task AskUserQuestion Questions
+allowed-tools: Read Glob Grep Write Edit Task AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
+
+Shell commands are not pre-approved by this skill. If command evidence is needed,
+use an exposed shell tool under the runtime's existing permissions and request
+approval when required. Never broaden permissions or use another execution path
+to work around a denied command; report missing command evidence explicitly.
 
 **IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER implement features or modify project code. If the user asks to implement something, remind them to exit explore mode first (e.g., start with `/aif-plan`). Regular mode may write only the resolved research file after the user chooses to save. Ultra mode may write only its selected research bundle; a leading `ultra` token or `workflow.explore_mode: ultra` is the user's request to persist that bundle.
 

@@ -442,8 +442,9 @@ existing git tooling, CI, and PR conventions are unaffected.
 Implementation notes:
 
 - **Use `Glob` to enumerate candidates and `Read` to validate every numbered
-  ultra candidate's marker.** Do NOT shell out to `ls` — `aif-plan`'s
-  frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
+  ultra candidate's marker.** Do not replace this discovery with `ls`: structured
+  discovery avoids platform-specific shell output and quoting. Frontmatter
+  pre-approval does not establish runtime tool availability.
 - The 4-digit `[0-9][0-9][0-9][0-9]` glob is **strict by contract**: the format supports `0001`..`9999` only. The error in step 4 enforces this.
 - **`--parallel` scope (TL;DR — source-worktree scoped):**
   - **Where the prefix is computed:** the source worktree's `<configured plans dir>`

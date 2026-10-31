@@ -135,6 +135,42 @@ For repository self-audits, use the internal allowlist:
 
 Use `--allowlist` only for trusted first-party content. Do not use it when scanning external downloaded skills.
 
+The self-scan passes when no critical findings remain after that allowlist; warnings
+still require review. The test log includes the full findings (collapsed in GitHub
+Actions), not just their counters. Educational attack examples, package installs,
+local network requests and code-evaluation APIs can all warrant warnings without
+proving malicious intent. GitHub workflow writes are classified separately from
+agent settings writes, but neither is exempted from review. Built-in host exceptions
+use exact URL hostnames, not prefix matches. `DEBUG_FIX=1` enables scanner precision
+diagnostics with line numbers only; matched source content is not added to those diagnostics.
+
+`aif-explore`, `aif-grounded`, `aif-fix`, `aif-implement`, `aif-loop` and
+`aif-qa-check` do not pre-approve unrestricted shell commands.
+Commands needed for evidence use the runtime's existing permissions and approval
+policy; unavailable or denied execution leaves its checks unmet. For delegated and
+non-interactive runs, report blockers/not_run rather than finding another way to
+execute a denied command. Existing stricter QA/production approvals still apply.
+In Claude Code this removes blanket pre-approval, not the tool itself; other
+runtimes use their own capability and permission policies. Installation/rendering
+tests do not establish live interactive permission-prompt behavior.
+
+New reviewed educational exceptions in the internal allowlist additionally bind
+the exact file and finding to a line and full-file content revision:
+
+- `line`: a positive integer identifying the reviewed finding.
+- `source_sha256`: lowercase SHA256 of the file bytes after normalizing CRLF and
+  CR to LF; all other bytes remain significant.
+- `reason`: the review rationale for this exact exception.
+
+Supply these three fields together, with a literal relative `file` path (no globs).
+Malformed or partial binding metadata is a usage error. Changed file content or
+line location makes the exception stale and the finding visible again. An added
+copy at another line remains visible even after explicitly refreshing the hash.
+The exception still matches severity, description and match text; the new
+`WARNING` entries do not suppress critical findings in `--strict` mode.
+Existing unbound entries retain their previous behavior. Content binding does not
+make an exception appropriate for an external skill or replace manual review.
+
 ## See Also
 
 - [Core Skills](skills.md) — `/aif-security-checklist` for project-level security audits

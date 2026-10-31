@@ -2,11 +2,18 @@
 name: aif-implement
 description: Execute implementation tasks from the current plan. Works through tasks sequentially, marks completion, and preserves progress for continuation across sessions. Use when user says "implement", "start coding", "execute plan", or "continue implementation".
 argument-hint: '[--list] [--without-plan <description>] [@plan-file-or-directory] [task-id or "status"]'
-allowed-tools: Read Write Edit Glob Grep Bash TaskList TaskGet TaskUpdate AskUserQuestion Questions mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
+allowed-tools: Read Write Edit Glob Grep TaskList TaskGet TaskUpdate AskUserQuestion Questions mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 ---
 
 # Implement - Execute Task Plan
+
+Shell commands are not pre-approved by this skill. Use an exposed execution tool
+under the runtime's existing permissions for the authorized command and CWD.
+Reuse applicable authorization; request native approval only when required.
+Unavailable or denied commands remain blockers/not_run in delegated runs too.
+Never broaden permissions, use another path to bypass a denial, or report an
+unexecuted check as passed.
 
 ## Shared project skill-context
 
