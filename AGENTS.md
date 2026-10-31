@@ -597,7 +597,7 @@ ai-factory upgrade
 | `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
 | `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
-| `src/core/agents.ts` | Agent registry (16 agents) |
+| `src/core/agents.ts` | Agent registry (17 agents) |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/skill-targets.ts` | Resolves physical skill targets, shared rendering profiles, and native-path boundaries |
 | `src/core/skills-migration.ts` | Proves skill ownership and performs journaled skill-only migration/recovery |

@@ -144,7 +144,9 @@ export function simplifyFrontmatterWithNameAndDesc(content: string, name: string
 const LEGACY_AG_VARS: TemplateVars = {
   config_dir: '.agent',
   skills_dir: '.agent/skills',
+  skill_reference_dir: '~/.agent/skills',
   home_skills_dir: '~/.agent/skills',
+  shell_home_skills_dir: '~/.agent/skills',
   settings_file: '',
   agent_name: 'Antigravity',
   skills_cli_agent_flag: '--agent antigravity',
@@ -153,8 +155,10 @@ const LEGACY_AG_VARS: TemplateVars = {
 const MODERN_AG_VARS: TemplateVars = {
   config_dir: '.agents',
   skills_dir: '.agents/skills',
+  skill_reference_dir: '~/.agents/skills',
   home_skills_dir: '~/.agents/skills',
-  settings_file: '.agents/mcp_config.json',
+  shell_home_skills_dir: '~/.agents/skills',
+  settings_file: '',
   agent_name: 'Antigravity',
   skills_cli_agent_flag: '--agent antigravity',
 };
