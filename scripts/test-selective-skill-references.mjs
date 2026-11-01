@@ -36,9 +36,13 @@ try {
   const selected = (skill, route) => report.routes.find(entry => entry.skill === skill && entry.route === route)
     .current.files.map(file => file.file);
   for (const route of ['list', 'status']) {
-    assert(!selected('aif-implement', route).some(file => /IMPLEMENT-(TASK|INLINE|COMPLETION|RECOVERY)/.test(file)));
+    assert(!selected('aif-implement', route).some(file => /IMPLEMENT-(TASK|INLINE|COMPLETION|RECOVERY|COMMITS)/.test(file)));
   }
-  assert(!selected('aif-implement', 'inline').some(file => /IMPLEMENT-(DISCOVERY|RECOVERY|TASK|COMPLETION)/.test(file)));
+  assert(!selected('aif-implement', 'inline').some(file => /IMPLEMENT-(DISCOVERY|RECOVERY|TASK|COMPLETION|COMMITS)/.test(file)));
+  for (const route of ['task', 'recovery']) {
+    assert(selected('aif-implement', route).some(file => file.endsWith('/IMPLEMENT-COMMITS.md')),
+      `aif-implement ${route}: commit and receipt instructions must be loaded`);
+  }
   assert(!selected('aif-fix', 'plan-first').some(file => /FIX-(IMPLEMENTATION|COMPLETION|OUTPUT|PATCH)/.test(file)));
   for (const entry of report.routes) {
     assert(!entry.current.files.some(file => /-(EXAMPLES|USAGE|COMMANDS)\.md$/.test(file.file)), 'Examples must be optional');
