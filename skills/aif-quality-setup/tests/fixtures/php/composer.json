@@ -1,0 +1,5 @@
+{
+  "name": "fixture/quality-php",
+  "require": { "php": ">=8.2" },
+  "scripts": { "test": "php -l src/Example.php" }
+}

@@ -621,6 +621,12 @@ Brief: scan for existing command sections, update or append quick reference, sug
 
 ## Artifact Ownership and Config Policy
 
+When `/aif-quality-setup` hands off selected checks, expose the same native commands,
+repository/component CWD and check/fix distinction in requested build targets.
+Preserve existing targets and tool policy; do not regenerate quality configs or
+install hook managers as part of this handoff. Command discovery is not execution
+authorization. Build-file ownership below remains unchanged.
+
 - Primary ownership: generated or enhanced build automation files (`Makefile`, `Taskfile.yml`, `justfile`, `magefile.go`).
 - Allowed companion updates: quick command snippets in existing docs or `AGENTS.md` when directly tied to the generated build workflow.
 - Config policy: config-agnostic by design. This skill uses repository detection and fixed AI Factory context files rather than `config.yaml`.

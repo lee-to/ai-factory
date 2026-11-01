@@ -1,0 +1,10 @@
+{
+  "name": "quality-fixture-js-ts",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.19.0" },
+  "scripts": {
+    "lint": "node existing-check.cjs",
+    "prepare": "node existing-prepare.cjs"
+  }
+}

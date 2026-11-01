@@ -513,6 +513,12 @@ Suggest: `/aif-build-automation` for CI targets in Makefile/Taskfile, `/aif-dock
 
 ## Artifact Ownership and Config Policy
 
+When `/aif-quality-setup` hands off a selected setup, reuse its native check commands,
+exact repository/component CWD, runtime versions, coverage and blocking policy.
+Run full selected checks without autofix in CI. Inspect existing CI before changing
+it; do not regenerate native tool configs or run setup again. Discovery of a command
+does not execute, verify or authorize it. The CI-only ownership below still applies.
+
 - Primary ownership: CI pipeline artifacts such as `.github/workflows/*` and `.gitlab-ci.yml`.
 - Allowed companion updates: none by default outside CI files.
 - Config policy: config-agnostic by design. This skill relies on repository detection and explicit user choices, not `config.yaml`.

@@ -20,6 +20,7 @@ const SKILL_HINTS: Record<string, string> = {
     'aif-plan-overview': 'Read-only plan summary and file map',
     'aif-qa': 'QA change-summary, test-plan, test-cases',
     'aif-qa-check': 'Execute QA cases with human/browser',
+    'aif-quality-setup': 'Set up stack-aware checks and Git hooks',
     'aif-reference': 'Create knowledge refs from URLs/docs',
     'aif-review': 'Review staged changes/PR',
     'aif-roadmap': 'Roadmap and milestones',
