@@ -2,11 +2,18 @@
 name: aif-fix
 description: Fix a bug or problem. Supports fix-now or plan-first; no args executes FIX_PLAN.md. When a regression check is needed, reproduce first, then implement and rerun it. Adds logging and suggests extra coverage.
 argument-hint: <bug description or error message>
-allowed-tools: Read Write Edit Glob Grep Bash AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
+allowed-tools: Read Write Edit Glob Grep AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 ---
 
 # Fix - Bug Fix Workflow
+
+Shell commands are not pre-approved by this skill. Use an exposed execution tool
+under the runtime's existing permissions for the authorized command and CWD.
+Reuse applicable authorization; request native approval only when required.
+Unavailable or denied commands remain blockers/not_run in delegated runs too.
+Never broaden permissions, use another path to bypass a denial, or report an
+unexecuted check as passed.
 
 ## Shared project skill-context
 

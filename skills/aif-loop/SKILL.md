@@ -2,11 +2,18 @@
 name: aif-loop
 description: Run a strict multi-iteration Reflex Loop with phases (PLAN, PRODUCE||PREPARE, EVALUATE, CRITIQUE, REFINE) to improve an artifact until quality gates pass or iteration limits are reached. Use when user asks for iterative refinement, quality-gated generation, or "generate -> critique -> refine" loops.
 argument-hint: "[new|resume|status|stop|list|history|clean] [task or alias]"
-allowed-tools: Read Write Edit Glob Grep Bash Task AskUserQuestion Questions
+allowed-tools: Read Write Edit Glob Grep Task AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
 # Loop - Reflex Iteration Workflow
+
+Shell commands are not pre-approved by this skill. Use an exposed execution tool
+under the runtime's existing permissions for the authorized command and CWD.
+Reuse applicable authorization; request native approval only when required.
+Apply this policy to delegated executable checks as well: unavailable or denied
+commands remain blockers/not_run. Never broaden permissions, use another path
+to bypass a denial, or report an unexecuted check as passed.
 
 ## Shared project skill-context
 

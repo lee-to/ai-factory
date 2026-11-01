@@ -12,7 +12,9 @@ import {
   applyExtensionToolPermissions,
 } from '../dist/core/tool-permissions.js';
 import { loadInstalledExtensionManifest } from '../dist/core/extensions.js';
-import { buildManagedSkillsState } from '../dist/core/installer.js';
+import { buildManagedSkillsState, installSkills } from '../dist/core/installer.js';
+import { getBuiltinAgentConfigs } from '../dist/core/agents.js';
+import { getTransformer } from '../dist/core/transformer.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'aif-tool-permissions-'));
@@ -54,6 +56,43 @@ async function extension(directory, name, declaredTools, extra = {}) {
 }
 
 try {
+  const executionSkills = ['aif-explore', 'aif-grounded', 'aif-fix', 'aif-implement', 'aif-loop', 'aif-qa-check'];
+  const permissionContract = 'Shell commands are not pre-approved by this skill.';
+  for (const name of executionSkills) {
+    const source = await fs.readFile(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    const value = tools(source);
+    const declared = Array.isArray(value) ? value.join(' ') : value;
+    assert(!/(?:^|\s)Bash(?:\s|$)|Bash\(\*\)/.test(declared), `${name}: blanket Bash pre-approval`);
+    assert(!/Bash\((?:python3?|node|sh|bash|npm|pnpm|cargo) \*\)/.test(declared), `${name}: replacement catch-all`);
+    assert(source.includes(permissionContract), `${name}: missing native permission contract`);
+    const applied = applyToolPermissions(source, 'scoped-test', [requested]);
+    assert(tools(applied).includes(requested), `${name}: scoped extension permission lost`);
+    assert.equal(stripToolPermissions(applied, 'scoped-test'), source);
+    const userEdited = editTools(applied, values => [...values, 'Bash(user-approved *)']);
+    assert(tools(stripToolPermissions(userEdited, 'scoped-test')).includes('Bash(user-approved *)'),
+      `${name}: removing an extension lost the user's explicit rule`);
+  }
+  let installed = 0;
+  for (const agent of getBuiltinAgentConfigs()) {
+    const project = path.join(temp, 'execution-skills', agent.id);
+    const settings = path.join(project, '.claude', 'settings.json');
+    const settingsBytes = '{"permissions":{"ask":["Bash"],"deny":["Bash(destructive *)"]}}\n';
+    await fs.mkdir(path.dirname(settings), { recursive: true });
+    await fs.writeFile(settings, settingsBytes);
+    await installSkills({ projectDir: project, skillsDir: agent.skillsDir, agentId: agent.id, skills: executionSkills });
+    for (const name of executionSkills) {
+      const source = await fs.readFile(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+      const target = getTransformer(agent.id).transform(name, source);
+      const entry = await fs.readFile(path.join(project, target.flat ? agent.configDir : agent.skillsDir,
+        target.targetDir, target.targetName), 'utf8');
+      assert(entry.includes(permissionContract), `${agent.id}/${name}: installed approval contract lost`);
+      assert(!/^allowed-tools:.*\bBash(?:\s|$)/m.test(entry), `${agent.id}/${name}: installed blanket Bash`);
+      installed++;
+    }
+    assert.equal(await fs.readFile(settings, 'utf8'), settingsBytes, 'Installation changed unrelated permission settings');
+  }
+  console.log(`PASS ${installed} real skill/runtime installations retain native permission contracts; interactive prompting NOTRUN`);
+
   for (const source of [
     base,
     base.replace('Read, Bash(git *) # keep comment', '"Read Bash(git *)"'),

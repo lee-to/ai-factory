@@ -2,11 +2,18 @@
 name: aif-qa-check
 description: Executes QA test cases created by /aif-qa in human-guided or automated-agent mode, including reusable browser replay scripts. Use when you need to walk through QA one case at a time, record pass/fail results, or have an agent verify and rerun cases through browser, CLI, API, automated tests, or file/document checks.
 argument-hint: "[human | agent] [<branch>]"
-allowed-tools: Read Write Grep Glob Bash AskUserQuestion Browser mcp__playwright__*
+allowed-tools: [Read, Write, Grep, Glob, AskUserQuestion, Browser, "mcp__playwright__*"]
 disable-model-invocation: true
 ---
 
 # QA Check — Execute Test Cases
+
+Shell commands are not pre-approved by this skill. Use an exposed execution tool
+under the runtime's existing permissions for the authorized command and CWD.
+Reuse applicable authorization; request native approval only when required.
+Keep the stricter case/production approvals below. Unavailable or denied commands
+remain blockers/not_run in delegated runs too. Never broaden permissions, use
+another path to bypass a denial, or report an unexecuted check as passed.
 
 ## Shared project skill-context
 
