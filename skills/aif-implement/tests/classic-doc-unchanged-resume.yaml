@@ -1,0 +1,88 @@
+scenario: classic-doc-unchanged-resume
+description: |
+  After /aif-docs made no changes for a classic incremental-at-end docs-only
+  group and the documentation-unchanged group outcome was persisted, clear the
+  conversation and resume. The marker must be recognized before history
+  matching and pass the same live-state ownership check.
+skill: aif-implement
+argument: ""
+
+runner:
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/classic-doc-unchanged-resume
+  files_committed:
+    - path: .ai-factory/plans/feature-classic-doc-unchanged-resume.md
+      content: |
+        # Implementation Plan: Classic unchanged docs resume
+
+        ## Settings
+        - Testing: yes
+        - Logging: verbose
+        - Docs: yes
+        - Commit strategy: incremental-at-end
+
+        ## Tasks
+        - [x] Task 1: Implement feature
+          Files: src/feature.js
+        - [x] Task 2: Check and update feature documentation <!-- aif:task-outcome:skipped reason="documentation-unchanged" -->
+          Files: docs/feature.md
+
+        ## Commit Plan
+        1. Documentation (Task 2): "docs: document feature"
+        <!-- aif:classic-group-outcome:skipped-no-op group="1" reason="documentation-unchanged" -->
+    - path: src/feature.js
+      content: "export const feature = true;\n"
+    - path: docs/feature.md
+      content: "# Feature\n\nThe feature is current and documented.\n"
+
+assertions:
+  - id: validates-classic-noop-before-history-matching
+    type: tool_call_sequence
+    sequence:
+      - tool: Read
+        args_match:
+          file_path: "\\.ai-factory/plans/feature-classic-doc-unchanged-resume\\.md$"
+      - tool: Bash
+        args_match:
+          command: "^git status --porcelain -uall"
+      - tool: Bash
+        args_match:
+          command: "^git diff --cached"
+      - tool: Bash
+        args_match:
+          command: "^git diff( |$)"
+      - tool: Bash
+        args_match:
+          command: "^git ls-files --others --exclude-standard"
+      - tool: Read
+        args_match:
+          file_path: "docs/feature\\.md$"
+    weight: 4
+  - id: does-not-match-history-for-unchanged-group
+    type: no_tool_called
+    tool: Bash
+    args_match:
+      command: "^git log"
+  - id: does-not-create-empty-documentation-commit
+    type: no_tool_called
+    tool: Bash
+    args_match:
+      command: "^git commit"
+  - id: retains-unchanged-outcome
+    type: output_contains
+    pattern: "(?i)documentation-unchanged|documentation unchanged"

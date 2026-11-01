@@ -91,6 +91,10 @@ Handoff sync is handled inline — see **Step 0.2** (after reading the plan file
      highest-numbered matching artifact.
      `timestamp` and `uuid` are **reserved values** and currently behave like `slug`.
      Treat any unknown value as `slug`.
+   - `workflow.plan_structure` (default: `classic`) — `classic` or
+     `task-based`. Invalid types or values warn and fall back to `classic`.
+     Use it only for unreadable or legacy plans; a readable plan's markers and
+     sections determine its execution structure.
    - `rules.base` plus any named `rules.<area>` entries
 2. Parse arguments:
    - --list → list available plans only (no implementation; STOP)
@@ -131,7 +135,29 @@ List/status routes do not discover or execute commands.
 
 ### Recovery route
 
-For plan-backed resumption after a break or lost context, or when discovery finds no active plan, read [recovery and reconciliation](references/IMPLEMENT-RECOVERY.md) before continuing. Preserve uncommitted work, reconcile code/task/checklist evidence, redirect fix plans to `/aif-fix`, and use the no-plan choices when needed. Inline and list routes never enter recovery; status stays read-only and does not enter the interactive no-plan flow.
+For plan-backed resumption after a break or lost context, or when discovery finds no active plan, read [commit tasks and receipt reconciliation](references/IMPLEMENT-COMMITS.md) before [recovery and reconciliation](references/IMPLEMENT-RECOVERY.md). Preserve uncommitted work, reconcile code/task/checklist evidence, redirect fix plans to `/aif-fix`, and use the no-plan choices when needed. Inline and list routes never enter recovery; status stays read-only and does not enter the interactive no-plan flow.
+
+Before generic uncommitted-change recovery, resolve the active plan using the
+normal discovery rules and inspect its commit tasks, `## Commit Plan`, and all
+adjacent `aif:commit-receipt` blocks. Never offer an ordinary commit or stash
+while a captured receipt is unresolved:
+
+- Reconcile every pending task-based or classic-group receipt using its saved
+  manifest and the receipt-bound flow in that reference, including deferred groups not
+  next in task order.
+- If a receipt proves a commit, persist its verified state and task/group
+  completion. If no commit is proven but the exact captured changes remain,
+  retry only via that receipt-bound group-specific `/aif-commit` path; never
+  recapture the baseline.
+- If changes overlap a pending receipt or ownership cannot be proven outside
+  every pending receipt, stop with an integrity error and leave them untouched.
+- Only after all receipts are resolved may changes proven outside saved groups
+  enter generic recovery. Any commit or stash must be limited to those changes
+  and abort if they cannot be isolated; never use an unrestricted commit or
+  stash while saved-group ownership is unresolved.
+
+If there is no active plan or pending receipt, retain the existing generic
+uncommitted-change recovery behavior.
 
 ### Project context
 
@@ -170,7 +196,16 @@ Current task: #4 - Implement search service
 
 Before each plan-backed task, read [execution and requirement consistency](references/IMPLEMENT-TASK.md) and the full task/ultra phase. Resolve requirements against committed Research Context; live research remains drift-only. On clear conflicts emit `ERROR [requirement-conflict]`, leave the task pending, and STOP; autonomous Handoff returns `handoff_outcome: blocked_external` without a completion/review transition.
 
-Execute one task at a time: mark in progress, implement within scope, verify, mark completed, and immediately update the entrypoint checkbox. Never duplicate progress in phase files or mark unfinished work complete. Keep manual Handoff sync and commit checkpoints; do not call Handoff MCP in autonomous mode. Context artifacts remain read-only except the factual maintenance explicitly allowed by this workflow. Read [logging requirements](references/LOGGING-GUIDE.md) before editing implementation code.
+Before ordinary execution, check whether the actual task checkbox is marked with
+`<!-- aif:task-kind:commit -->` immediately above it. Route marked commit tasks
+to the [commit-task handler](references/IMPLEMENT-COMMITS.md) before marking them in progress; only ordinary
+tasks follow the implementation, verification, and generic completion flow.
+Execute one task at a time. Never duplicate progress in phase files or mark
+unfinished work complete. Keep manual Handoff sync and commit checkpoints; do
+not call Handoff MCP in autonomous mode. Context artifacts remain read-only
+except the factual maintenance explicitly allowed by this workflow. Read
+[logging requirements](references/LOGGING-GUIDE.md) before editing implementation
+code.
 
 ### Session persistence
 

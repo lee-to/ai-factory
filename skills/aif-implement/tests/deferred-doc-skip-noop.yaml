@@ -1,0 +1,86 @@
+scenario: deferred-doc-skip-noop
+description: |
+  Skipping the reserved documentation task in an incremental-at-end plan
+  persists both task and empty docs-commit terminal outcomes. No empty commit
+  is attempted.
+skill: aif-implement
+argument: ""
+
+runner:
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/docs-skip
+  files_committed:
+    - path: .ai-factory/plans/feature-docs-skip.md
+      content: |
+        # Implementation Plan: Skip documentation
+
+        ## Settings
+        - Testing: yes
+        - Logging: verbose
+        - Docs: yes
+        - Commit strategy: incremental-at-end
+
+        ## Tasks
+        - [x] Task 1: Implement the feature
+          Files: src/feature.js
+        - [ ] Task 2: Update the documentation
+          Files: docs/feature.md
+        <!-- aif:task-kind:commit -->
+        - [ ] Task 3: Commit documentation with message "docs: document feature"
+          Depends on: 2
+    - path: src/feature.js
+      content: "export const feature = true;\n"
+
+user_responses:
+  - match_question: "(?i)(documentation|docs)"
+    choose: "Skip documentation"
+
+assertions:
+  - id: asks-docs-checkpoint-before-finalization
+    type: tool_called
+    tool: AskUserQuestion
+    args_match:
+      question: "(?i)(documentation|docs)"
+  - id: persists-skipped-doc-and-commit-markers
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: "\\.ai-factory/plans/feature-docs-skip\\.md$"
+      new_string: "(?s)aif:task-outcome:skipped reason=\"documentation-skipped\".*aif:commit-outcome:skipped-no-op reason=\"documentation-skipped\""
+    weight: 4
+  - id: resolves-both-skipped-task-states
+    type: tool_call_sequence
+    sequence:
+      - tool: TaskUpdate
+        args_match:
+          taskId: "(?i)^(?:2|task[-_ ]?2)$"
+          status: "completed"
+      - tool: Edit
+        args_match:
+          file_path: "\\.ai-factory/plans/feature-docs-skip\\.md$"
+          new_string: "aif:task-outcome:skipped"
+      - tool: TaskUpdate
+        args_match:
+          taskId: "(?i)^(?:3|task[-_ ]?3)$"
+          status: "completed"
+    weight: 3
+  - id: does-not-create-empty-commit
+    type: no_tool_called
+    tool: Bash
+    args_match:
+      command: "^git commit"
