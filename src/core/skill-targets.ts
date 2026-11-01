@@ -33,6 +33,12 @@ export function usesSharedCodexProfile(targets: readonly Pick<EffectiveSkillTarg
     && targets.every(target => ['codex', 'codex-app', 'universal'].includes(target.id));
 }
 
+export function usesSharedDevinProfile(targets: readonly Pick<EffectiveSkillTarget, 'id'>[]): boolean {
+  return targets.length === 2
+    && targets.some(target => target.id === 'devin')
+    && targets.some(target => target.id === 'windsurf');
+}
+
 export function logSkillTarget(message: string, context: Record<string, unknown>): void {
   if (process.env.LOG_LEVEL?.toLowerCase() === 'debug') {
     console.log(`[skill-targets] ${message} ${JSON.stringify(context)}`);
@@ -80,25 +86,31 @@ export async function physicalProjectPath(
   }
 }
 
-export function createSkillRenderContext(agentId: string, skillsDir: string, sharedCodex = false): SkillRenderContext {
-  const registry = getAgentConfig(agentId);
+export function createSkillRenderContext(
+  agentId: string, skillsDir: string, sharedCodex = false, sharedDevin = false,
+): SkillRenderContext {
+  const sharedProfile = sharedCodex ? 'codex' : sharedDevin ? 'devin' : null;
+  const profileAgentId = sharedProfile ?? agentId;
+  const registry = getAgentConfig(profileAgentId);
   const agent = Object.freeze({
     ...registry,
     skillsDir: normalizeRelative(skillsDir),
+    ...(sharedProfile === 'codex' ? {
+      configDir: '.codex', settingsFile: '.codex/config.toml', displayName: 'Codex', skillsCliAgent: 'codex',
+      homeSkillsDir: getAgentConfig('codex').skillsDir,
+    } : {}),
     // Keep saved Windsurf render profiles stable so updates need no migration.
-    ...(agentId === 'windsurf' && normalizeRelative(skillsDir) !== '.devin/skills'
+    ...(agentId === 'windsurf' && !sharedProfile && normalizeRelative(skillsDir) !== '.devin/skills'
       ? { configDir: '.windsurf', displayName: 'Windsurf', homeSkillsDir: '.windsurf/skills', skillsCliAgent: 'windsurf' } : {}),
-    ...(sharedCodex ? { configDir: '.codex', settingsFile: '.codex/config.toml', displayName: 'Codex', skillsCliAgent: 'codex',
-      homeSkillsDir: getAgentConfig('codex').skillsDir } : {}),
   });
-  if (sharedCodex) logSkillTarget('[FIX:155] render:shared-home', { skillsDir: agent.skillsDir, homeSkillsDir: buildTemplateVars(agent).home_skills_dir });
+  if (sharedProfile) logSkillTarget('render:shared-profile', { profile: sharedProfile, skillsDir: agent.skillsDir });
   const hash = createHash('sha256').update(JSON.stringify({
     // v2 renders runtime invocation prefixes in Markdown references as well.
     version: 2,
-    transformer: getTransformerIdentity(sharedCodex ? 'codex' : agentId),
+    transformer: getTransformerIdentity(profileAgentId),
     variables: buildTemplateVars(agent),
   })).digest('hex');
-  return Object.freeze({ agent, hash, ...(sharedCodex ? { transformerAgentId: 'codex' } : {}) });
+  return Object.freeze({ agent, hash, ...(sharedProfile ? { transformerAgentId: profileAgentId } : {}) });
 }
 
 export async function resolveSkillTargets(
@@ -152,8 +164,9 @@ export async function resolveSkillTargets(
     const ordered = [...members].sort((a, b) => a.id.localeCompare(b.id));
     assertCompatibleSkillTargets(members.map(member => ({ id: member.id, skillsDir: physicalPath })));
     const sharedCodex = usesSharedCodexProfile(ordered);
+    const sharedDevin = usesSharedDevinProfile(ordered);
     const skillsDir = ordered[0].skillsDir;
-    const contexts = ordered.map(member => createSkillRenderContext(member.id, skillsDir, sharedCodex));
+    const contexts = ordered.map(member => createSkillRenderContext(member.id, skillsDir, sharedCodex, sharedDevin));
     if (contexts.some(context => context.hash !== contexts[0].hash)) {
       throw new Error(`Incompatible skill render profiles for "${skillsDir}": ${ordered.map(member => member.id).join(', ')}.`);
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regression coverage for #163: shared Codex app / Universal skills.
+// Regression coverage for runtimes sharing a project skills directory.
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,7 +10,7 @@ import { assertCompatibleSkillTargets, getTransformer } from '../dist/core/trans
 import { getAgentChoices, getBuiltinAgentConfigs } from '../dist/core/agents.js';
 import { commitResolvedExtension } from '../dist/core/extension-ops.js';
 import { preflightSkillMigration } from '../dist/core/skills-migration.js';
-import { resolveSkillTargets } from '../dist/core/skill-targets.js';
+import { createSkillRenderContext, resolveSkillTargets } from '../dist/core/skill-targets.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temp = mkdtempSync(path.join(tmpdir(), 'aif-shared-skills-'));
@@ -38,6 +38,9 @@ function snapshot(directory) {
 try {
   const choices = getAgentChoices();
   for (const id of ['codex', 'codex-app', 'universal']) {
+    assert.ok(choices.some(choice => choice.value === id), `${id} must remain selectable in the wizard`);
+  }
+  for (const id of ['devin', 'windsurf']) {
     assert.ok(choices.some(choice => choice.value === id), `${id} must remain selectable in the wizard`);
   }
   const codexBuiltins = getBuiltinAgentConfigs().filter(agent => agent.id !== 'antigravity');
@@ -90,14 +93,15 @@ try {
     replaces: { 'skills/shared-replacement': 'aif' },
   }));
 
-  for (const agents of ['codex,codex-app', 'codex-app,universal', 'codex,universal', 'codex,codex-app,universal']) {
+  for (const agents of ['codex,codex-app', 'codex-app,universal', 'codex,universal', 'codex,codex-app,universal', 'windsurf,devin', 'devin,windsurf']) {
     const project = mkdtempSync(path.join(temp, 'rollback-'));
     mkdirSync(path.join(project, '.agents'));
     cli(project, 'init', '--agents', agents, '--skills', 'aif');
     const configPath = path.join(project, '.ai-factory.json');
     const configBefore = readFileSync(configPath);
     const config = JSON.parse(configBefore);
-    const skillRoot = path.join(project, '.agents/skills/aif');
+    const sharedSkillsDir = agents.split(',').includes('devin') ? '.devin/skills' : '.agents/skills';
+    const skillRoot = path.join(project, sharedSkillsDir, 'aif');
     writeFileSync(path.join(skillRoot, 'executable.sh'), '#!/bin/sh\nexit 0\n');
     writeFileSync(path.join(skillRoot, 'private.txt'), 'local content\n');
     mkdirSync(path.join(skillRoot, 'empty'));
@@ -106,7 +110,7 @@ try {
       chmodSync(path.join(skillRoot, 'executable.sh'), 0o755);
       chmodSync(path.join(skillRoot, 'private.txt'), 0o600);
     }
-    const before = snapshot(path.join(project, '.agents/skills'));
+    const before = snapshot(path.join(project, sharedSkillsDir));
     const manifest = {
       name: 'aif-ext-shared-rollback', version: '1.0.0',
       skills: ['skills/shared-replacement'], replaces: { 'skills/shared-replacement': 'aif' },
@@ -120,7 +124,7 @@ try {
       assert.match(error.message, /MCP/);
       return true;
     });
-    assert.deepEqual(snapshot(path.join(project, '.agents/skills')), before, `${agents}: failed first extension install must restore bytes, modes and directories`);
+    assert.deepEqual(snapshot(path.join(project, sharedSkillsDir)), before, `${agents}: failed first extension install must restore bytes, modes and directories`);
     assert.deepEqual(readFileSync(configPath), configBefore);
     console.log(`PASS rollback after successful replacement: ${agents}`);
   }
@@ -251,7 +255,28 @@ try {
     cli(project, 'update', '--force');
     assert.equal(readFileSync(skillPath, 'utf8'), installed);
   }
-  console.log('shared Codex / Universal skill regression tests passed');
+  for (const agents of ['windsurf,devin', 'devin,windsurf']) {
+    const project = mkdtempSync(path.join(temp, 'devin-project-'));
+    const installations = agents.split(',').map(id => ({ id, skillsDir: '.devin/skills' }));
+    const [group] = await resolveSkillTargets(project, installations, { select: false });
+    const [reversed] = await resolveSkillTargets(project, [...installations].reverse(), { select: false });
+    assert.equal(group.context.hash, reversed.context.hash, `${agents}: shared Devin render must not depend on selection order`);
+    assert.equal(group.context.hash, createSkillRenderContext('devin', '.devin/skills').hash);
+    cli(project, 'init', '--agents', agents, '--skills', 'aif');
+    const configPath = path.join(project, '.ai-factory.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
+    assert.deepEqual(config.agents.map(agent => agent.id), agents.split(','));
+    assert.ok(config.agents.every(agent => agent.skillsDir === '.devin/skills'));
+    assert.equal(config.agents[0].managedSkills.aif.renderContextHash, config.agents[1].managedSkills.aif.renderContextHash);
+    const skillPath = path.join(project, '.devin/skills/aif/SKILL.md');
+    const installed = readFileSync(skillPath, 'utf8');
+    for (const args of [['update'], ['update', '--force']]) {
+      cli(project, ...args);
+      assert.equal(readFileSync(skillPath, 'utf8'), installed, `${agents}: update must preserve shared Devin rendering`);
+    }
+    assert.equal(existsSync(path.join(project, '.windsurf/skills')), false);
+  }
+  console.log('shared skill-target regression tests passed');
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
