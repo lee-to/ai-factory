@@ -1,7 +1,7 @@
 ---
 name: aif-plan
 description: Plan a feature or task in fast, full, or ultra mode. Ultra creates an indexed multi-file bundle with deeply specified phases for execution by a smaller model. Use for "plan", "new feature", "start feature", "create tasks", or exhaustive implementation planning.
-argument-hint: "[fast | full | ultra] [--parallel | --list | --cleanup <branch>] <description>"
+argument-hint: "[fast | full | ultra] [+coupling] [--parallel | --list | --cleanup <branch>] <description>"
 allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 version: 1.0.0
@@ -250,6 +250,7 @@ Extract flags and mode from `$ARGUMENTS`:
 --parallel  → Enable parallel worktree mode (full/ultra only; requires `git.enabled=true` and `git.create_branches=true`)
 --list      → Show all active worktrees, then STOP (git-only)
 --cleanup <branch> → Remove worktree and optionally delete branch, then STOP (git-only)
++coupling  → Optional architectural coupling methodology (default off; leading option segment only)
 fast        → Fast mode (first word)
 full        → Full mode (first word)
 ultra       → Ultra mode (first word)
@@ -257,9 +258,28 @@ ultra       → Ultra mode (first word)
 
 **Parsing rules:**
 
+- Recognize exact standalone `+coupling` only in the leading option segment:
+  after an explicit leading fast/full/ultra token, or at the beginning when no
+  mode is given, and before the first description word. Existing control flags
+  retain their rules and may share that segment. Repeated `+coupling` there is
+  idempotent. Once description starts, preserve every literal `+coupling`, all
+  internal whitespace and line breaks. Do not strip substrings from a URL/ref.
+  Resolve the mode independently using the existing explicit/config/Handoff
+  priority; the modifier never selects or reopens a mode.
+- When selected (and not returning from --list/--cleanup), read only the local
+  `references/COUPLING-PLAN.md` before analyzing the change. It is self-contained;
+  do not require aif-review. Carry relevant producer/consumer boundaries,
+  alternatives with costs and source limitations into existing tasks/acceptance,
+  without a new plan schema, review invocation or automatic refactor. Use the
+  existing question contract for material decisions and preserve Handoff branch
+  ownership and research snapshot rules. When off, do not load this reference or
+  add coupling questions, source reads, logging, or agents. If enabled diagnostics
+  are used, record activation/scope only, never source bodies.
+
 - Strip only recognized command tokens in command positions from `$ARGUMENTS`:
   - `fast`, `full`, or `ultra` only when used as the leading mode token
   - recognized control flags `--parallel`, `--list`, and `--cleanup <branch>`
+  - `+coupling` only in the leading option segment defined above; keep literal occurrences in the request
   - do not remove matching words inside the user's actual request text
 - Remaining text becomes the description
 - Resolve configured defaults separately; never prepend them to `$ARGUMENTS` or include them in `original_user_request`.

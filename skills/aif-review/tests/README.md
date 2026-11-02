@@ -23,6 +23,34 @@ Replay-ключ имеет вид `call_id:tool:sha256(canonical_args)`. `call_i
 
 JSON-отчёт содержит итоговый review, gate, полный trace вызовов, результаты assertions, SHA-256 skill/references, scenario и recordings, версии package, Node.js, `ai-tester`, workflow и хеши исполняемых runner-файлов. Путь отчёта печатается в конце прогона. `AIF_REVIEW_DEBUG=1` включает stderr-диагностику workflow.
 
+## Опциональный coupling lens
+
+`npm run test:coupling` выполняет offline-проверки синтетических producer/consumer,
+реального parser/host protocol, prepare/finish, integrity и лимитов источников,
+финального PR payload с обеими revisions, установки каждого skill отдельно и
+обоих вместе для всех профилей, удаления flat workflow с сохранением данных и
+фактического npm package inventory. Для Kilo plan находится в workflows, review —
+в skills; тест использует эти реальные пути. Authoring fixtures не публикуются.
+
+Replay содержит отдельные coupling-staged/coupling-pr cases. Поле `lenses` —
+совместимое опциональное расширение workflow v3; новый reference и helper входят
+в source receipts. При выключенном lens нет новых tool calls или lens fields.
+Изменение SKILL/CHECK-MODE меняет хеш Reviewer instructions; validator/source
+payload и остальные baseline traces сравниваются без ослабления hash contract.
+
+`coupling_dependencies` проходит полную проверку до дополнительных source calls:
+дубликаты объединяются по repository/commit/path, конфликт отклоняется; недоступное
+остаётся unavailable. Границы: 16 identities, 1 MiB/file, 2 MiB UTF-8 total.
+Host получает доступные записи независимо из pinned head/merge-base того же PR
+repository и добавляет их после project-context merge. Неверные данные не дают
+PASS, отсутствие внешнего consumer не превращается в доказанный дефект.
+
+Матрица automatic-marker проверяет prepare/finish envelopes и routing-инструкции,
+включая отсутствие разрешённого автоматического fallback. Выбор dispatch остаётся
+процедурой родительского skill; тест не доказывает исполнение native runtime.
+Статические проверки planner не исполняют LLM parser. Все проверки без inference;
+качество обнаружения моделью и native UI acceptance остаются NOTRUN.
+
 После осознанного изменения prompt или протокола можно пересоздать записи:
 
 ```sh

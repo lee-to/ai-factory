@@ -644,6 +644,22 @@ PR review evidence is defined in `skills/aif-review/references/PR-SOURCE.md`: `/
 
 For application API changes, `skills/aif-review/references/API-COMPATIBILITY.md` defines a conditional review lens: pin supported contract revisions and inspected consumers, compare wire shape and semantics, and preserve existing severity, source, validation and gate rules. This reference grants no independent command execution or production access.
 
+The optional `+coupling` lens uses independent `COUPLING-REVIEW.md` and
+`COUPLING-PLAN.md` references, shipped with their respective skills. It is off by
+default, retains qualitative evidence/unknowns, existing severity/gates and both
+explicit/automatic validator permission boundaries. Review protocol v3 supports
+an optional allowlisted `lenses` field for prepare/finish; run selects it only
+from argument tokens. `references/coupling-context.mjs` verifies declared PR
+dependencies in the same repository at pinned head/merge-base, bounded to 16
+identities, 1 MiB/file and 2 MiB total. Attach its verified results after project
+context merging using repository/commit/path identity, preserving both revisions
+even for config/description. External consumers remain unavailable without new
+access authorization. No graph crawl, numeric coupling score or new config key.
+`npm run test:coupling` covers offline examples, protocol/evidence and all-profile
+standalone/combined installs and package inventory, not model/native behavior.
+Kilo currently installs plan as a flat workflow and review as a nested skill;
+tests must follow actual targets rather than inventing a shared flat layout.
+
 User-facing documentation is split between a lean README and detailed `docs/` pages:
 
 ```

@@ -1,7 +1,7 @@
 ---
 name: aif-review
 description: Perform code review on staged changes or a pull request. Checks for bugs, security issues, performance problems, and best practices. Use when user says "review code", "check my code", "review PR", or "is this code okay". The +check flag validates findings via a fresh-context subagent; validation also runs automatically when the review produced confidence markers.
-argument-hint: "[PR number | branch/commit/tag | empty] [+check]"
+argument-hint: "[PR number | branch/commit/tag | empty] [+check] [+coupling]"
 allowed-tools: Bash(git *) Bash(gh *) Bash(node *) Read Glob Grep Task Agent AskUserQuestion
 disable-model-invocation: false
 ---
@@ -53,6 +53,20 @@ For explicit `+check`, use the executable host protocol in `references/CHECK-MOD
 ### Argument flags
 
 Before routing the argument string into one of the modes below, extract any standalone tokens that flag optional behavior. Strip them from the argument string and route the remainder normally.
+
+- `+coupling` — opt-in architectural coupling lens, default off. Extract only the
+  exact standalone token; repeats are idempotent and either order with `+check`
+  works. Load only the local `references/COUPLING-REVIEW.md` when selected, apply
+  it to the touched boundary, and pass the same methodology to explicit or
+  automatic marker-triggered validation without changing permissions. It adds
+  no validator dispatch by itself. Substrings in URLs/refs remain unchanged.
+  Keep the ordinary checklist, severity, output sections and gate when off.
+
+Routing examples: `+coupling` → staged; `123 +coupling` or a PR URL → PR;
+`main +coupling` → commits; `+check +coupling 123` and
+`123 +coupling +check` → the same PR with validation. A ref such as
+`feature/+coupling-notes` remains a ref. A literal ref `+coupling` is consumed
+as an option, just like the existing `+check` compromise.
 
 - `+check` — runs the optional findings validator after the review is produced. The full procedure (when to run, failure modes, output additions, gate-result recomputation) lives in `references/CHECK-MODE.md`. The validator runs when this token is present **or** when the review produced at least one confidence marker — see "Resolving markers before the gate" below. For a marker-free review the flag is the only trigger, so nothing is dispatched unless it is given. The token may appear before or after the main argument (e.g. `/aif-review +check`, `/aif-review 123 +check`, `/aif-review main +check`).
 

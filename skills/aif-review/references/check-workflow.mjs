@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 
 import { collectProjectContext, mergeProjectContext, pinnedProjectContext } from './project-context.mjs';
+import { collectCouplingContext } from './coupling-context.mjs';
 
 export const WORKFLOW_VERSION = 3;
 const marked = text => /\(confidence: (?:low|medium)\)\s*$/.test(text);
@@ -39,11 +40,13 @@ function validateDraft(draft) {
 }
 
 export function prepareCheck(input) {
+  const lenses = normalizeLenses(input.lenses);
   validateDraft(input.review);
   assert(typeof input.diff === 'string', 'Exact reviewed diff is required');
   assert(typeof input.project_context === 'string', 'Project context is required');
   assert(['pr', 'staged', 'commits'].includes(input.source?.mode), 'Source mode is required');
   assert(typeof input.validator?.available === 'boolean' && typeof input.validator?.read_only_enforced === 'boolean', 'Actual validator capabilities are required');
+  if (lenses.length) debug(`[FIX:177] coupling lens enabled; source mode=${input.source.mode}`);
   const review = structuredClone(input.review);
   for (const item of review.items.filter(item => item.validate === false)) {
     assert(input.source.mode === 'commits' && item.kind === 'commit-structure' && !marked(item.text),
@@ -64,16 +67,24 @@ export function prepareCheck(input) {
   assert(template, 'Validator prompt separator is missing');
   // Single replacement pass: source bytes containing {{ITEMS}} etc. are evidence,
   // not recursive template instructions.
-  const prompt = template.replace(/\{\{(PROJECT_CONTEXT|REVIEWED_DIFF|SOURCE_PACKAGE|ITEMS|SEVERITY_RULES)\}\}/g, (_, key) => values[key]);
+  const prompt = (lenses.length ? reference('COUPLING-REVIEW.md') + '\n\n' : '')
+    + template.replace(/\{\{(PROJECT_CONTEXT|REVIEWED_DIFF|SOURCE_PACKAGE|ITEMS|SEVERITY_RULES)\}\}/g, (_, key) => values[key]);
   debug(`prepared ${items.length} validator items`);
   return {
     workflow_version: WORKFLOW_VERSION, review, source: input.source,
+    ...(lenses.length ? { lenses } : {}),
     task: items.length ? { subagent_type: input.validator?.available === false ? 'general-purpose' : 'review-validator', prompt } : null,
     boundary_warning: input.validator?.available === false
       ? 'WARN [+check]: review-validator unavailable, validated with a full-tool agent'
       : input.validator?.read_only_enforced === false
         ? 'WARN [+check]: review-validator has no enforced tool allowlist on this runtime, validated with a sandbox-only boundary' : null,
   };
+}
+
+function normalizeLenses(lenses) {
+  assert(lenses === undefined || (Array.isArray(lenses) && lenses.every(value => value === 'coupling')
+    && new Set(lenses).size === lenses.length), 'Invalid lenses: expected an optional unique coupling allowlist');
+  return lenses === undefined ? [] : [...lenses];
 }
 
 function parseItems(text) {
@@ -189,6 +200,7 @@ function renderReviewSources(source, freshness) {
 
 export function finishCheck({ prepared, result, freshness }) {
   assert(prepared?.workflow_version === WORKFLOW_VERSION, 'Unsupported check workflow version');
+  normalizeLenses(prepared.lenses);
   validateDraft(prepared.review);
   const review = structuredClone(prepared.review);
   const warnings = [];
@@ -289,9 +301,11 @@ export async function runCheck(input, call) {
 }
 
 export async function runReview(request, call) {
+  assert(!Object.hasOwn(request, 'lenses'), 'run selects lenses only from argument tokens');
   const tokens = (request.argument ?? '').trim().split(/\s+/).filter(Boolean);
   assert(tokens.includes('+check'), 'Replay workflow requires the explicit +check flag');
-  const args = tokens.filter(token => token !== '+check');
+  const lenses = tokens.includes('+coupling') ? ['coupling'] : [];
+  const args = tokens.filter(token => token !== '+check' && token !== '+coupling');
   assert(args.length <= 1, 'Expected at most one review target');
   const target = args[0] ?? '';
   const url = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/pull\/([1-9]\d*)\/?$/.exec(target);
@@ -327,6 +341,7 @@ export async function runReview(request, call) {
   assert(typeof diff === 'string', 'Source tool must return the exact diff text');
   const drafted = await call('Reviewer', {
     skill: skillText(), procedure: reference('CHECK-MODE.md'),
+    ...(lenses.length ? { lenses, coupling_methodology: reference('COUPLING-REVIEW.md') } : {}),
     project_context: source.mode === 'pr' ? request.working_directory : request.project_context ?? '', source: structuredClone(source), diff,
   });
   if (source.mode === 'pr') {
@@ -338,6 +353,10 @@ export async function runReview(request, call) {
     source = mergeProjectContext({ ...completed, stale: source.stale || completed.stale,
       unavailable_context: [...new Map([...(source.unavailable_context ?? []), ...(completed.unavailable_context ?? [])]
         .map(item => [JSON.stringify(item), item])).values()] }, projectEvidence);
+    if (lenses.length) {
+      const helper = fileURLToPath(new URL('pr-source.mjs', import.meta.url)).replaceAll('\\', '/');
+      source = await collectCouplingContext(source, drafted.coupling_dependencies, helper, call, projectEvidence.files);
+    }
   }
   const { diff: capturedDiff, ...metadata } = source;
   if (capturedDiff) metadata.diff = { ...capturedDiff, text: undefined };
@@ -347,6 +366,7 @@ export async function runReview(request, call) {
     ? request.working_directory + (excerpt ? '\n' + excerpt : '')
     : request.project_context ?? '';
   return runCheck({ review: drafted.review, source: metadata, diff,
+    ...(lenses.length ? { lenses } : {}),
     project_context: projectContext, validator: request.validator }, call);
 }
 

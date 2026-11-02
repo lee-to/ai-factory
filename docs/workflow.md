@@ -332,7 +332,14 @@ High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROAD
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
 /aif-plan ultra Rebuild billing around a ledger    # Multi-file, implementation-complete plan
 /aif-plan full --parallel Add Stripe checkout      # Parallel worktree
+/aif-plan full +coupling Change receipt pricing    # Optional boundary analysis
 ```
+
+The optional `+coupling` modifier is independent of the selected mode. It loads
+the [local planning methodology](../skills/aif-plan/references/COUPLING-PLAN.md)
+only in the leading option segment; once the description starts, literal
+`+coupling` text is preserved. It adds relevant boundary decisions and acceptance
+checks to the existing plan without invoking review or implementation.
 
 Three modes — **fast** (quick single file), **full** (rich single file), and
 **ultra** (a directory whose `index.md` owns scope/progress and whose phase files
@@ -482,6 +489,16 @@ Also runs read-only context gates against the resolved architecture, roadmap, an
 Checks only rules compliance for staged changes, working-tree changes, or a provided git ref. It reads the resolved rules hierarchy, uses optional active plan context only to disambiguate scope, and stays read-only. Human verdicts are `PASS` / `WARN` / `FAIL`: missing or ambiguous rules stay `WARN`, while `FAIL` is reserved for explicit hard-rule violations tied to concrete diff evidence. The final output appends an `aif-gate-result` JSON block with lowercase `pass` / `warn` / `fail`.
 
 ### `/aif-review [PR number or URL] [+check]` — code review with read-only context gates
+
+Add `+coupling` to opt into the [architectural coupling methodology](../skills/aif-review/references/COUPLING-REVIEW.md),
+for example `/aif-review 123 +coupling +check`. It connects a concrete producer,
+shared knowledge/contract and consumer, explains change propagation, and compares
+bounded alternatives with costs, including keeping a justified dependency. It is
+off by default and preserves existing severity, gates and validator permissions.
+Declared additional PR evidence is independently rechecked within the pinned
+repository and bounded file/byte limits; external consumers stay unknown when
+their sources are unavailable. See the [skill reference](skills.md) for limits,
+flag examples and offline-test scope.
 
 Explicit `+check` is driven by the shared executable host protocol in [CHECK-MODE.md](../skills/aif-review/references/CHECK-MODE.md). Its source → internal reviewer → validator → gate sequence is exercised offline by `npm run test:review-check`, also included in `npm test`, using deterministic tool responses and versioned reports. [Replay maintenance](../skills/aif-review/tests/README.md) describes the recording format and failure checks.
 

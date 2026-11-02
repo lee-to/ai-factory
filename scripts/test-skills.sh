@@ -2198,6 +2198,12 @@ fi
 
 echo -e "\n${BOLD}=== API compatibility examples and reference installation ===${NC}\n"
 
+if node "$ROOT_DIR/scripts/test-coupling.mjs"; then
+    pass "coupling methodology, provenance and standalone/combined reference installation"
+else
+    fail "coupling methodology, provenance or reference installation"
+fi
+
 if node "$ROOT_DIR/scripts/test-api-compatibility.mjs"; then
     pass "API compatibility example data and standalone reference installation"
 else

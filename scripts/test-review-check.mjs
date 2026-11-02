@@ -27,7 +27,7 @@ const report = {
     workflow_sha256: sourceHash('skills/aif-review/references/check-workflow.mjs'),
     replay_sha256: sourceHash('scripts/lib/tool-replay.mjs'), runner_sha256: sourceHash('scripts/test-review-check.mjs') },
   skill: { name: 'aif-review', package_version: JSON.parse(fs.readFileSync(path.join(root, 'package.json'))).version,
-    sources: Object.fromEntries(['SKILL.md', 'references/CHECK-MODE.md', 'references/VALIDATOR.md', 'references/SEVERITY.md', 'references/pr-source.mjs', 'references/project-context.mjs']
+    sources: Object.fromEntries(['SKILL.md', 'references/CHECK-MODE.md', 'references/VALIDATOR.md', 'references/SEVERITY.md', 'references/pr-source.mjs', 'references/project-context.mjs', 'references/COUPLING-REVIEW.md', 'references/coupling-context.mjs']
       .map(file => [file, sourceHash(`skills/aif-review/${file}`)])) },
   recordings_sha256: hash(fs.readFileSync(casesPath)), cases: [], checks: [],
 };

@@ -110,7 +110,15 @@ Plans implementation for a feature or task:
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
 /aif-plan ultra Rebuild billing around a ledger    # Exhaustive multi-file plan bundle
+/aif-plan full +coupling Change receipt pricing   # Optional boundary analysis
 ```
+
+`+coupling` is off by default and independent of fast/full/ultra. In the leading
+option segment, it loads the self-contained [planning methodology](../skills/aif-plan/references/COUPLING-PLAN.md)
+to compare producer/consumer boundaries and alternatives with their costs inside
+the ordinary plan. It does not invoke review or refactor code. Literal occurrences
+after the description starts remain part of the exact Original Request:
+`full Add +coupling receipt` keeps `Add +coupling receipt` and leaves the lens off.
 
 Three modes:
 - **Fast** — no git branch, saves plan to `paths.plan` (default: `.ai-factory/PLAN.md`), asks fewer questions
@@ -760,7 +768,30 @@ Reviews staged changes or PR diffs:
 /aif-review https://github.com/org/repo/pull/123
 /aif-review +check                              # Validate findings via fresh-context subagent
 /aif-review 123 +check
+/aif-review +coupling                           # Optional architectural coupling lens
+/aif-review 123 +check +coupling
 ```
+- `+coupling` is off by default. The [coupling methodology](../skills/aif-review/references/COUPLING-REVIEW.md)
+  identifies producer → shared knowledge/model/contract → consumer, cites paths
+  and revisions, gives a concrete change-propagation example, and compares a
+  bounded alternative with its costs. Keeping a justified dependency is valid.
+  Strength/distance/volatility are qualitative; missing team/domain facts stay
+  unknown. Repository separation alone does not establish a domain boundary.
+- Either flag order works; only exact standalone tokens are consumed. The lens
+  preserves SEVERITY.md and the existing gate, and adds no agent or dispatch.
+  If validation runs explicitly or due to confidence markers, it receives the
+  same methodology. Automatic validation still requires the enforced read-only
+  allowlist; only explicit `+check` permits the existing warned fallback.
+- For PR `+coupling +check`, the host rechecks declared additional dependencies
+  in the current repository at pinned head/merge-base: at most 16 unique
+  repository/commit/path identities, 1 MiB/file, 2 MiB total UTF-8 content.
+  Both revisions of a file survive merging. Missing/oversized/external sources
+  remain unavailable with the existing uncertainty floor; forged source metadata
+  fails before validation. See [the protocol](../skills/aif-review/references/CHECK-MODE.md)
+  for the declaration schema and automatic prepare/finish procedure. Other
+  repositories are never accessed merely because a finding mentions them.
+- `npm run test:coupling` checks synthetic examples, host contracts, offline
+  packaging and installations. It does not qualify native UI or model behavior.
 - Checks correctness, security, performance, and maintainability
 - For API contract or producer/consumer changes, uses the [API compatibility reference](../skills/aif-review/references/API-COMPATIBILITY.md): pins old/new supported contracts and inspected consumers, checks schema and semantics separately, and records coverage gaps. Findings retain the existing severity/validation/gate contract; the reference does not authorize commands or production access.
 - **Coverage-first finding stage** — the review reports every issue it finds, including uncertain and low-severity ones, instead of pre-filtering to "only important" issues; ranking and filtering happen downstream
