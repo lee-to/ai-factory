@@ -12,6 +12,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "node scripts/run-bash-test.mjs scripts/test-skills.sh",
+    "test:runtime-questions": "node scripts/test-runtime-questions.mjs",
     "test:distillation-source-use": "node scripts/test-distillation-source-use.mjs",
     "test:skills-audit": "node scripts/test-skills-audit.mjs",
     "test:quality-setup": "node scripts/test-quality-setup.mjs",

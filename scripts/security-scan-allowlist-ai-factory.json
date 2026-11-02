@@ -176,8 +176,8 @@
       "severity": "WARNING",
       "description": "Dynamic execution: evaluates code or invokes an execution API",
       "match": "exec(",
-      "line": 295,
-      "source_sha256": "9076a0081e067f9ab25641cd83fe5667de74cad6e49099d9747958796686515e",
+      "line": 307,
+      "source_sha256": "90b22b137f3c1ad5582a17f6f6d3b6ef250a88124c419b349f8c6285f2b443e9",
       "reason": "Commented vulnerable command-injection example followed by an execFile alternative."
     },
     {

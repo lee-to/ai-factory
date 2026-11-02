@@ -4,7 +4,7 @@
 
 AI Factory has two phases: **configuration** (one-time project setup) and the **development workflow** (repeatable loop of explore → plan → improve → implement → verify → commit → evolve).
 
-User decisions follow the [runtime-aware question contract](skills.md#questions-across-runtimes): use the current session's supported tool/schema, fall back to plain text when needed, and return unresolved required decisions from autonomous workers to their caller.
+All bundled interactive skills embed the [runtime-aware question contract](skills.md#questions-across-runtimes): use the current session's supported tool/schema, fall back to plain text when needed, and return unresolved required decisions from autonomous workers to their caller. The policy covers linked references while preserving each workflow's question scope and explicit confirmation gates.
 
 Extensions and runtime adapters can explicitly register an invocation with `ai-factory instructions` to preserve its instruction composition and load reports. This is opt-in and does not alter ordinary skill execution. See [Instruction Manifests](instruction-manifests.md) for capture policy, provenance limits, and verification.
 

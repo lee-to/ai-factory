@@ -8,6 +8,18 @@ disable-model-invocation: true
 
 # Evolve - Skill Self-Improvement
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
+
 ## Shared project skill-context
 
 Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
@@ -326,8 +338,9 @@ For each stale rule, present:
 
 #### Collecting Decisions
 
-Use `AskUserQuestion` to collect stale rule decisions. Process in batches
-of up to 3 decisions per `AskUserQuestion` call:
+Collect stale rule choices in logical batches of up to 3 independent decisions.
+Deliver each batch under Runtime-aware questions: use native batching only when
+the actual tool supports it; otherwise ask individually or in plain text.
 
 - Present first batch (up to 3 stale rules) → `AskUserQuestion`
 - Get answers → apply keep/remove decisions; queue rewrites/narrowing as exact candidates for Step 6.5
@@ -486,8 +499,8 @@ For improvements — ask:
 
 **Based on choice:**
 - "Yes, apply all improvements" → proceed to 7.2 with all improvements
-- "Let me pick" → present improvements in batches of up to 4
-  per `AskUserQuestion` call (same approach as Step 4 stale rules). For each
+- "Let me pick" → present improvements in logical batches of up to 4 independent
+  decisions, delivered under Runtime-aware questions as in Step 4. For each
   improvement, options: Apply / Skip. Continue until all improvements are resolved.
   Then proceed to 7.2 with only approved improvements.
 - "No, just save report" → skip 7.2; save all candidate outcomes in 7.3

@@ -8,6 +8,18 @@ disable-model-invocation: true
 
 # Quality Checks and Git Hooks Setup
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
+
 ## Shared project skill-context
 
 Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
@@ -140,22 +152,6 @@ repository/component, command/CWD and configured/verified/not_run/failed status.
 Missing tools and config errors are visible; all required selected checks must
 pass before claiming verified success. Report partial changes and next steps on
 failure. Do not create an automatic report file or machine-readable gate protocol.
-
-## Runtime-aware questions
-
-- `AskUserQuestion` and `Questions` describe interaction, not guaranteed tool names.
-  Use only an exposed, permitted question tool with its advertised schema; do not
-  guess aliases or probe unavailable tools. Frontmatter does not expose a tool.
-- Ask focused questions with labelled options in UI language. Batch independent
-  questions only when the tool supports it. Permit free text through native input
-  or plain text.
-- Without a usable question tool, ask in plain text with numbered options and a
-  free-text answer. Pause dependent writes; independent read-only work may continue.
-- Empty/cancelled responses, preselected options and elapsed time are not consent.
-  Reuse decisions already given in this session.
-- In delegated/background or explicit non-interactive runs, return unresolved
-  material choices to the caller. Declared optional defaults do not authorize new
-  scope, installs, writes or execution; required decisions remain blockers.
 
 ## Artifact Ownership and Config Policy
 
