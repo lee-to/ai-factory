@@ -141,7 +141,14 @@ export async function collectCouplingContext(source, dependencies, helper, call,
     const key = identity(file);
     if (!unique.has(key)) continue;
     const verified = files.find(entry => identity(entry) === key);
-    if (verified.status === 'available') assert(sameCore(file, verified), 'source package conflicts with verified dependency');
+    if (verified.status === 'available') {
+      // A canonical host failure has no bytes to conflict with. Recovery is
+      // permitted only after the declaration matched a fresh host read above.
+      const initial = independentFiles.get(key);
+      const recovered = initial?.status === 'unavailable' && isDeepStrictEqual(file, initial);
+      assert(sameCore(file, verified) || recovered, 'source package conflicts with verified dependency');
+      if (recovered) debug('[FIX:177] independent source availability recovered after verified host read');
+    }
   }
   // Only the separate host baseline may survive without a declaration. Retain
   // canonical unavailable metadata too, never arbitrary Reviewer annotations.

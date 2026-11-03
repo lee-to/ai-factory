@@ -170,6 +170,89 @@ await check('independent-project-evidence-cannot-be-downgraded', async () => {
     assert.equal(otherRevision.files.find(value => value.commit_sha === source.merge_base_sha).status, 'unavailable');
   }
 });
+await check('independent-unavailable-source-recovery-and-integrity', async () => {
+  for (const path of ['.ai-factory/config.yaml', '.ai-factory/DESCRIPTION.md']) {
+    const available = file(path, 'PRIVATE_RECOVERED_CONTENT');
+    const missing = { repository: source.repository, commit_sha: source.head_sha, path,
+      status: 'unavailable', reason: 'Transient source outage' };
+    const baseline = { ...source, files: [missing], unavailable_context: [missing] };
+    let reads = 0;
+    const recovered = await collectCouplingContext(baseline, [available], '/helper', () => { reads++; return available; }, [missing]);
+    assert.equal(reads, 1);
+    assert.deepEqual(recovered.files, [available]);
+    assert.deepEqual(recovered.unavailable_context, [missing], 'initial source limitations remain explicit');
+    for (const [files, independent] of [[[missing], []], [[{ ...missing, reason: 'Reviewer changed reason' }], [missing]],
+      [[file(path, 'forged available source')], [missing]]]) {
+      await assert.rejects(collectCouplingContext({ ...source, files }, [available], '/helper', () => available, independent),
+        /source package conflicts with verified dependency/);
+    }
+    for (const response of [file(path, 'different host bytes'), { ...available, commit_sha: source.merge_base_sha },
+      { ...available, sha256: '0'.repeat(64) }]) {
+      await assert.rejects(collectCouplingContext(baseline, [available], '/helper', () => response, [missing]), /Coupling context/);
+    }
+    const stillMissing = await collectCouplingContext(baseline, [available], '/helper', () => missing, [missing]);
+    assert.equal(stillMissing.files[0].status, 'unavailable');
+    assert(!('content' in stillMissing.files[0]));
+    const noRead = await collectCouplingContext(baseline, [missing], '/helper', () => { throw new Error('Unavailable must not read'); }, [missing]);
+    assert.equal(noRead.files[0].status, 'unavailable');
+    const oversized = file(path, 'x'.repeat(1024 * 1024 + 1));
+    const limited = await collectCouplingContext(baseline, [oversized], '/helper', () => { throw new Error('Over budget must not read'); }, [missing]);
+    assert.equal(limited.files[0].status, 'unavailable');
+    const old = file(path, 'merge-base content', source.merge_base_sha);
+    const otherRevision = await collectCouplingContext(baseline, [old], '/helper', () => old, [missing]);
+    assert.deepEqual(otherRevision.files, [missing, old], 'merge-base availability never promotes unavailable head');
+    let forbiddenReads = 0;
+    await assert.rejects(collectCouplingContext({ ...source, files: [available] }, [file(path, 'replacement')], '/helper',
+      () => { forbiddenReads++; }, [available]), /conflicts with independently verified/);
+    assert.equal(forbiddenReads, 0);
+  }
+});
+await check('real-PR-project-source-recovery-reaches-validator', async () => {
+  const config = file('.ai-factory/config.yaml', '# default paths\n');
+  const description = file('.ai-factory/DESCRIPTION.md', 'PRIVATE_RECOVERED_DESCRIPTION');
+  const snapshot = { ...source, schema_version: 1, pr: 123, base_sha: 'a'.repeat(40), stale: false,
+    diff: { text: input.diff, bytes: Buffer.byteLength(input.diff), sha256: createHash('sha256').update(input.diff).digest('hex') } };
+  for (const recovered of [config, description]) {
+    let reads = 0;
+    let targetReads = 0;
+    let dispatches = 0;
+    let prompt;
+    const result = await runReview({ argument: '123 +coupling +check', repository: source.repository,
+      working_directory: '/sandbox', validator: input.validator }, async (tool, args) => {
+      if (tool === 'Bash') {
+        if (args.command.includes(' snapshot ')) return snapshot;
+        if (args.command.includes(' context ')) {
+          reads++;
+          const record = args.command.includes(config.path) ? config : description;
+          if (record.path === recovered.path && ++targetReads === 1) return {
+            repository: record.repository, commit_sha: record.commit_sha, path: record.path,
+            status: 'unavailable', reason: 'Transient source outage' };
+          return record;
+        }
+        return { base: { sha: snapshot.base_sha }, head: { sha: snapshot.head_sha } };
+      }
+      if (tool === 'Reviewer') {
+        assert.equal(args.source.files.find(value => value.path === recovered.path).status, 'unavailable');
+        assert.equal(args.project_context, '/sandbox');
+        return { source: args.source, project_context: '', review: input.review, coupling_dependencies: [recovered] };
+      }
+      if (tool === 'Task') {
+        dispatches++;
+        prompt = args.prompt;
+        return { outcome: 'success', text: '### Item 1 (section: suggestion)\nVerdict: drop\nReason: No supported defect.\n' };
+      }
+      throw new Error('Unexpected recovery call');
+    });
+    assert.equal(targetReads, 2);
+    assert.equal(reads, recovered === config ? 2 : 3);
+    assert.equal(dispatches, 1);
+    assert(prompt.includes(JSON.stringify(recovered.content)), 'host-verified bytes reach SOURCE_PACKAGE');
+    assert(!prompt.includes('/sandbox\n' + recovered.content), 'recovery does not invent a pinned description excerpt');
+    assert(result.output.includes(recovered.path));
+    assert(result.output.includes('Transient source outage'));
+    assert.equal(result.gate.status, 'warn', 'initial unavailable context retains its existing uncertainty floor');
+  }
+});
 await check('undeclared-source-evidence-whole-package-preflight', async () => {
   const known = { ...file('.ai-factory/DESCRIPTION.md', 'host description'), source: 'git-objects', local: false };
   const missing = { repository: source.repository, commit_sha: source.head_sha, path: '.ai-factory/config.yaml',
@@ -271,6 +354,10 @@ await check('coupling-debug-activation-mode-and-source-redaction', async () => {
     assert(messages.some(value => value.includes('[FIX:177] undeclared source evidence rejected')));
     await collectCouplingContext({ ...source, files: [dependency] }, [dependency], '/helper', () => dependency);
     assert(messages.some(value => value.includes('[FIX:177] source evidence preflight complete')));
+    const missing = { repository: dependency.repository, commit_sha: dependency.commit_sha, path: dependency.path,
+      status: 'unavailable', reason: 'PRIVATE_REASON' };
+    await collectCouplingContext({ ...source, files: [missing] }, [dependency], '/helper', () => dependency, [missing]);
+    assert(messages.some(value => value.includes('[FIX:177] independent source availability recovered')));
     assert(!messages.some(value => /PRIVATE_|Representation crosses/.test(value)));
     messages.length = 0;
     prepareCheck(input);
@@ -279,6 +366,7 @@ await check('coupling-debug-activation-mode-and-source-redaction', async () => {
     delete process.env.AIF_REVIEW_DEBUG;
     prepareCheck({ ...input, lenses: ['coupling'] });
     await collectCouplingContext({ ...source, files: [dependency] }, [dependency], '/helper', () => dependency);
+    await collectCouplingContext({ ...source, files: [missing] }, [dependency], '/helper', () => dependency, [missing]);
     assert.equal(messages.length, 0);
   } finally {
     console.error = originalError;
