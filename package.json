@@ -118,5 +118,10 @@
     "ajv": "^8.20.0",
     "knip": "^5.85.0",
     "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": {
+      "@hono/node-server": "^1.19.18"
+    }
   }
 }
