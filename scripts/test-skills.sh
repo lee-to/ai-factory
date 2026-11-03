@@ -715,55 +715,11 @@ else
     fail "source-use assertion sensitivity checks"
 fi
 
-# Portable question instructions must survive every built-in rendering profile.
-if ROOT_DIR="$ROOT_DIR" node --input-type=module - <<'EOF'
-import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-const root = process.env.ROOT_DIR;
-const load = file => import(pathToFileURL(path.join(root, 'dist/core', file)));
-const { renderSkillFiles } = await load('installer.js');
-const { getBuiltinAgentConfigs } = await load('agents.js');
-const { createSkillRenderContext } = await load('skill-targets.js');
-const authoring = await fs.readFile(path.join(root, 'skills/aif-skill-generator/references/BEST-PRACTICES.md'), 'utf8');
-const contract = authoring.match(/```markdown\n(## Runtime-aware questions\n[\s\S]*?)\n```/)?.[1];
-assert.ok(contract, 'Reusable question contract is missing');
-assert.match(contract, /plain text with numbered options/);
-assert.match(contract, /preselected option/);
-assert.match(contract, /do not prompt the user directly/);
-assert.match(contract, /required decision, approval, or material scope\/behavior choice/);
-for (const skill of ['aif-plan', 'aif-review', 'aif-verify']) {
-  for (const agent of getBuiltinAgentConfigs()) {
-    const files = await renderSkillFiles(path.join(root, 'skills', skill), skill, agent.id, createSkillRenderContext(agent.id, agent.skillsDir));
-    assert.ok(files.get('SKILL.md').toString().includes(contract), `${agent.id}/${skill}: question contract drifted or disappeared`);
-  }
-}
-// URL arguments route away from the standard workflow; both paths must carry
-// clarification rules and the requirement to embed them in interactive output.
-for (const agent of getBuiltinAgentConfigs()) {
-  const files = await renderSkillFiles(path.join(root, 'skills/aif-skill-generator'), 'aif-skill-generator', agent.id, createSkillRenderContext(agent.id, agent.skillsDir));
-  const generator = files.get('SKILL.md').toString();
-  const routing = generator.indexOf('## Argument Detection');
-  const allModes = generator.indexOf('## Questions and Interactive Output (All Modes)');
-  assert.ok(allModes >= 0 && allModes < routing, `${agent.id}: question contract must precede URL routing`);
-  assert.match(generator.slice(allModes, routing), /every generated interactive skill/);
-  const learn = files.get('references/LEARN-MODE.md').toString();
-  const clarify = learn.split('### Phase 4: Clarify with User')[1].split('### Phase 5:')[0];
-  assert.match(clarify, /Runtime-Aware Questions contract/);
-  assert.match(clarify, /plain text with numbered options/);
-  assert.doesNotMatch(clarify, /using `AskUserQuestion`/);
-  assert.match(learn.split('### Phase 5: Generate the Skill')[1].split('### Phase 6:')[0], /self-contained `## Runtime-aware questions`/);
-  assert.match(learn.split('### Phase 6: Validate & Present')[1], /verify that its `SKILL.md` includes the complete Runtime-aware questions section/);
-}
-const docs = await fs.readFile(path.join(root, 'docs/skills.md'), 'utf8');
-assert.match(docs, /^## Questions Across Runtimes$/m);
-assert.match(docs, /BEST-PRACTICES\.md#runtime-aware-questions/);
-EOF
-then
-    pass "runtime-aware question contract is self-contained across built-in renderers"
+# Portable question instructions cover every interactive skill, including standalone renderings.
+if node "$ROOT_DIR/scripts/test-runtime-questions.mjs"; then
+    pass "runtime-aware question contracts cover all interactive skills and built-in renderers"
 else
-    fail "runtime-aware question contract rendering"
+    fail "runtime-aware question contract inventory and rendering"
 fi
 
 # /aif localization contract regression checks

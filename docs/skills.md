@@ -39,8 +39,9 @@ defaults for optional preferences and report assumptions. Required approvals
 and material scope/behavior choices remain blockers when unresolved; existing
 blocked-result and quality-gate formats are preserved.
 
-`/aif-plan`, `/aif-review`, and `/aif-verify` embed this contract so each can be
-installed independently. Skill authors can copy the shared [question-delivery
+Every bundled skill with a user-decision or exceptional clarification path embeds
+this contract, so each can be installed independently. The non-interactive
+`/aif-best-practices` reference has no question workflow. Skill authors can copy the shared [question-delivery
 snippet](../skills/aif-skill-generator/references/BEST-PRACTICES.md#runtime-aware-questions)
 into other interactive skills.
 
@@ -49,6 +50,20 @@ mode selection, including URL-based Learn Mode, and embeds it in every generated
 interactive skill. Runtime-specific historical examples such as
 [#62](https://github.com/lee-to/ai-factory/issues/62) do not replace the current
 session's tool definitions.
+
+The policy governs delivery, including questions in linked references; it does
+not add questions or remove workflow-specific approvals. `/aif-warmup` still asks
+only when the project root cannot be identified. `/aif-loop` still requires its
+setup confirmations and cleanup approval; prompt-supplied values are drafts.
+QA agent mode can remain interactive with its supervising user, while an actual
+background/non-interactive caller receives unresolved required decisions as
+blockers. Logical question batches are delivered individually when the native
+tool cannot represent them. Config-agnostic skills use the conversation language
+without reading configuration just for question delivery.
+
+`scripts/test-runtime-questions.mjs` checks the bundled inventory and renders each
+consumer through every built-in profile, including flat workflows. These are
+instruction and rendering checks, not a claim of live native UI compatibility.
 
 ## Workflow Skills
 

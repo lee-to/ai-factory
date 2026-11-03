@@ -259,7 +259,7 @@ Not yet configurable via the current schema:
 
 ### Runtime-Aware Questions
 
-Question delivery follows `docs/skills.md#questions-across-runtimes`. `aif-plan`, `aif-review`, and `aif-verify` embed the portable contract; authors reuse the snippet in `skills/aif-skill-generator/references/BEST-PRACTICES.md`. Tool examples never imply runtime availability. Missing UI uses plain text; delegated/non-interactive runs preserve required approvals and return unresolved material decisions as blockers.
+Question delivery follows `docs/skills.md#questions-across-runtimes`. Every bundled skill with a user-decision or exceptional clarification path embeds the portable contract; only the non-interactive `aif-best-practices` reference is exempt. Authors reuse the snippet in `skills/aif-skill-generator/references/BEST-PRACTICES.md`. Tool examples, including linked references, never imply runtime availability. Missing UI uses plain text; delegated/non-interactive runs preserve required approvals and return unresolved material decisions as blockers. Preserve workflow-specific question scope and explicit reconfirmation, including loop setup/cleanup and supervised QA. `scripts/test-runtime-questions.mjs` checks the inventory and every built-in rendering profile without inference or native UI execution.
 
 `aif-skill-generator` applies this contract before mode routing, including URL-based Learn Mode, and embeds the self-contained section in every generated interactive skill. Learn Mode checks both clarification delivery and the generated section before presentation.
 
