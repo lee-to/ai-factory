@@ -111,6 +111,9 @@ const specs = [
       contains: [available ? 'sandbox-only boundary' : 'full-tool agent'] } })),
   { id: 'empty-items-no-dispatch', file: happyFile, empty: true,
     expected: { status: 'pass', command: '/aif-commit', counters: { hidden: 0, adjusted: 0, reclassified: 0 }, dispatches: 0 } },
+  ...[false, true].map(pr => ({ id: pr ? 'coupling-pr' : 'coupling-staged', file: happyFile,
+    pr, fresh: true, coupling: true, response: success(keep),
+    expected: { status: 'fail', command: '/aif-fix', counters: { hidden: 0, adjusted: 0, reclassified: 0 }, preserved: [critical, suggestion] } })),
 ];
 
 const diffs = new Map();
@@ -138,6 +141,7 @@ for (const spec of specs) {
     project_context: spec.pr ? 'LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.' : '/sandbox\nDemo authentication service.',
     validator: spec.validator ?? { available: true, read_only_enforced: true },
     ...(spec.pr ? { repository: 'fixture/demo', working_directory: '/sandbox' } : {}) };
+  if (spec.coupling) request.argument += ' +coupling';
   const contextFile = (path, content) => {
     const bytes = Buffer.from(content);
     return { repository: source.repository, commit_sha: source.head_sha, path, status: 'available', source: 'git-objects',
@@ -163,7 +167,7 @@ for (const spec of specs) {
         : args.command.includes(' snapshot ') ? source
           : args.command.includes(' context ') ? args.command.includes('.ai-factory/config.yaml') ? config : description
             : spec.fresh ? { base: { sha: source.base_sha }, head: { sha: source.head_sha } } : { error: 'freshness unavailable' };
-    } else if (tool === 'Reviewer') response = { review, ...(spec.pr ? { source: structuredClone(args.source), project_context: spec.pinned_context ?? '',
+    } else if (tool === 'Reviewer') response = { review, ...(spec.coupling && spec.pr ? { coupling_dependencies: [] } : {}), ...(spec.pr ? { source: structuredClone(args.source), project_context: spec.pinned_context ?? '',
       ...(spec.description_path ? { project_context_path: spec.description_path } : {}) } : {}) };
     else if (tool === 'Task') response = spec.response;
     else if (tool === 'TaskStatus') response = spec.polls[polls++];

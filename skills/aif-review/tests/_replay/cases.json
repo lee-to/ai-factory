@@ -25,7 +25,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -102,7 +102,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -175,7 +175,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -248,7 +248,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -321,7 +321,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -395,7 +395,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -474,7 +474,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -556,7 +556,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -638,7 +638,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -720,7 +720,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -802,7 +802,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -884,7 +884,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -966,7 +966,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1048,7 +1048,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1130,7 +1130,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1212,7 +1212,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -1305,7 +1305,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1406,7 +1406,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -1481,7 +1481,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -1556,7 +1556,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -1639,7 +1639,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1713,7 +1713,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1787,7 +1787,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1861,7 +1861,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -1939,7 +1939,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -2017,7 +2017,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -2094,7 +2094,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "e57c3b36940399d93ca2459a3df0cc3eac2cddf2667356c09aa95e52ac4d2267",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
           "response": {
             "review": {
               "items": [
@@ -2220,7 +2220,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "47fe439f0c92f8289c049bcf21be714c9691947027172a02af7a823824dd42a6",
+          "args_sha256": "86805e503e74ab0703cb3159771fba6c2d95bf368726fbacc319c339b29aea9d",
           "response": {
             "review": {
               "items": [
@@ -2395,7 +2395,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "47fe439f0c92f8289c049bcf21be714c9691947027172a02af7a823824dd42a6",
+          "args_sha256": "86805e503e74ab0703cb3159771fba6c2d95bf368726fbacc319c339b29aea9d",
           "response": {
             "review": {
               "items": [
@@ -2565,7 +2565,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "be9ca5150b30624ec50c91eb711a09e650e44bd6e93c1cbdbb754f3faed42be7",
+          "args_sha256": "527cb08cca37f8eb9391d3cfa00c0f33eb2ceb4c44e2734dcc61a2df4818e994",
           "response": {
             "review": {
               "items": [
@@ -2741,7 +2741,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "294dab5b8a7f5c44122225b64e7c0e46dc3424268f80f147b6cb07a3d81e1688",
+          "args_sha256": "648932620947e29a999ba6058e04a397109ec06c8d3a5d7fde714b6d77e9b8c2",
           "response": {
             "review": {
               "items": [
@@ -2902,7 +2902,7 @@
         {
           "call_id": 3,
           "tool": "Reviewer",
-          "args_sha256": "3220a360cc6915ecc9ac54284f9dd97802f063c06217f67ec9e4b34c15b2e28a",
+          "args_sha256": "f2554e09448a7fe8bef73a9aab0aab9b2988ac01be721c4134f3e5bd00e06403",
           "response": {
             "review": {
               "items": [
@@ -3057,7 +3057,7 @@
         {
           "call_id": 3,
           "tool": "Reviewer",
-          "args_sha256": "a37d35318cda392c778b853470fb5ba695591ba182acd38afafa1a1dfeb56d8e",
+          "args_sha256": "1b63683448a1b3c8a1a2e3802f4440c8363e4d6557e89fb3342db709e5abe384",
           "response": {
             "review": {
               "items": [
@@ -3231,7 +3231,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "8ff11046e5400753267ed6b4935a379226915aa6acd279c03ccab91261305028",
+          "args_sha256": "052a8cebaa1f74a2ee003524b3425e36d1be5b71b49d3230d592a121ad27d511",
           "response": {
             "review": {
               "items": [],
@@ -3386,7 +3386,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "8ff11046e5400753267ed6b4935a379226915aa6acd279c03ccab91261305028",
+          "args_sha256": "052a8cebaa1f74a2ee003524b3425e36d1be5b71b49d3230d592a121ad27d511",
           "response": {
             "review": {
               "items": [
@@ -3569,7 +3569,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "676fecaa9a09a99ed962bd475def36b2fa330a21a9b2cffb892029b8477ae6e5",
+          "args_sha256": "cae3856d908fc76e82aaf4120c49635eaf6e79211aa5de6aba6339802a5317c4",
           "response": {
             "review": {
               "items": [
@@ -3749,7 +3749,7 @@
         {
           "call_id": 4,
           "tool": "Reviewer",
-          "args_sha256": "47fe439f0c92f8289c049bcf21be714c9691947027172a02af7a823824dd42a6",
+          "args_sha256": "86805e503e74ab0703cb3159771fba6c2d95bf368726fbacc319c339b29aea9d",
           "response": {
             "review": {
               "items": [
@@ -3876,7 +3876,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -3950,7 +3950,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [
@@ -4024,7 +4024,7 @@
         {
           "call_id": 2,
           "tool": "Reviewer",
-          "args_sha256": "74aac3f9aad8f1951f244c8becfd783e1b5c40125d6c0d35da12f3562172984b",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
           "response": {
             "review": {
               "items": [],
@@ -4048,6 +4048,257 @@
           "reclassified": 0
         },
         "dispatches": 0
+      }
+    },
+    {
+      "id": "coupling-staged",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check +coupling",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "5edb9e54911caad152bbd0bc7b3594c5e9ee198d80c0e47684a40f715304d71b",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "cbf4bc9939ba0789355eff92797a72582b3b008cc609a5426f7fc547d392de9e",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ]
+      }
+    },
+    {
+      "id": "coupling-pr",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check +coupling",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+            "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+            "bytes": 24,
+            "content": "# Pinned fixture project"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "229c2863346aca4efba73d25ade641f18b646694ab6b8c588bf51b6c98a2575e",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "coupling_dependencies": [],
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+                  "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+                  "bytes": 24,
+                  "content": "# Pinned fixture project"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "824a94821e83755bc091be9d380737a28e645dddd2574814d6708891cda6993c",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ]
       }
     }
   ]

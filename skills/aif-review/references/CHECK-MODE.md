@@ -6,6 +6,63 @@ The two severity levels — **critical** (merge-blocking) and **suggestion** (no
 
 ## When to run
 
+### Optional coupling methodology
+
+`+coupling` selects the local COUPLING-REVIEW.md methodology; it does not trigger
+validation. Pass the same methodology on explicit `+check` and automatic
+confidence-marker validation. Automatic dispatch retains its enforced read-only
+allowlist requirement; an unavailable or weaker validator means whole-dispatch
+failure, never an automatic full-tool fallback. Existing severity/gate rules apply.
+
+Protocol version 3 accepts optional `lenses:["coupling"]` on `prepare` (including
+the automatic procedure and commits mode). Missing/`[]` means off. Unknown names,
+duplicates and non-arrays fail. Preserve the prepared selection in `finish`;
+there is no finish override. `run` selects only from exact argument tokens and
+rejects caller-supplied `request.lenses` before calls. It still requires explicit
+`+check`; automatic validation uses the existing procedure with prepare/finish.
+The trusted methodology comes from the bundled file, never a caller path/prompt.
+When off, no methodology content is loaded, no lens field is emitted, and no
+extra source or validator action runs.
+
+An enabled PR Reviewer must return top-level `coupling_dependencies` (an array,
+including `[]`) for additional producer/consumer/rule files relied on outside
+the diff. Records contain `repository`, full lowercase 40-hex `commit_sha`, safe
+repository-relative `path`, and `status:"available"|"unavailable"`. Available
+records require full UTF-8 `content`, integer `bytes`, `sha256`, and `blob_sha`;
+unavailable records require `reason` and carry no content/byte/hash fields.
+No other fields are accepted. Unknown external revisions belong in
+`source.unavailable_context`, never invented SHA values.
+
+For explicit PR `run`, coupling-context.mjs validates the entire declaration
+before additional coupling context calls. Automatic PR prepare/finish callers
+must first use that same helper with their pinned source and actual read-only
+host transport, passing independently collected `projectEvidence.files` as its
+fifth argument (never Reviewer-supplied files). Conflicting declarations fail
+preflight; a later recheck failure/limit preserves those established file bytes
+and records the coupling-recheck limitation separately. `prepare` alone assembles a prompt and does not independently
+collect or attest sources. Identical records deduplicate by repository/commit/path;
+conflicting duplicates or malformed data fail before source/validator calls.
+Every `source.files` identity must be declared or match the separately collected
+project evidence. Undeclared additional files fail before any coupling reads or
+validator dispatch, even when other declarations are valid. Only canonical host
+project records (including unavailable records) survive without a declaration;
+Reviewer-supplied hashes or annotations never establish that provenance.
+The host independently re-reads available declarations through pr-source.mjs
+context, compares raw content/byte/hash/blob identities, and appends the verified
+results AFTER mergeProjectContext using the composite identity. Both head and
+merge-base of the same file, even config/description, reach validator and Review
+Sources. Supplied content/hashes alone do not establish provenance.
+
+Only the current PR repository's pinned head/merge-base may be read, with at most
+16 unique records, 1 MiB/file, 2 MiB total UTF-8 bytes in declaration order.
+Preflight excludes known over-budget entries without reads; verified bytes are
+checked again after reading. Stop remaining reads when the total is exhausted.
+External/out-of-revision sources and real missing/oversized sources remain
+unavailable with reasons and the existing WARN floor. Forged identities/content
+are integrity errors, not an unavailable shortcut. A declared unavailable source
+stays unavailable and requires no read. This is declared coverage, not a graph
+scan. Staged/commits retain the existing local read-only evidence policy.
+
 After the full review is produced internally (all sections, including the gate result inputs) but **before** anything is rendered to the user. The validator only adjusts which items reach the user and what the final `aif-gate-result` block reports.
 
 If `+check` is not set **and** the drafted review contains no `(confidence: low)` / `(confidence: medium)` marker, skip this entire procedure — render the review as-is, with no validator-related lines in the output. If markers are present, run the procedure even without the flag: the gate cannot be published while a marker is unresolved. The validator receives exactly one class of item: actionable code findings, which live in "Critical Issues" and "Suggestions". "Questions", "Positive Notes", the "Context Gates" block, and commit-structure findings in commits mode (see Procedure step 1) are NOT validated even when `+check` is set — the validator judges items against the reviewed diff, which is not evidence for context-gate or per-commit claims. That class table, and the rule that an actionable code finding is never rendered outside the two validated sections, live in `SKILL.md` ("Findings taxonomy and the validation boundary").
