@@ -158,7 +158,7 @@ const MODERN_AG_VARS: TemplateVars = {
   skill_reference_dir: '~/.agents/skills',
   home_skills_dir: '~/.agents/skills',
   shell_home_skills_dir: '~/.agents/skills',
-  settings_file: '',
+  settings_file: '.agents/mcp_config.json',
   agent_name: 'Antigravity',
   skills_cli_agent_flag: '--agent antigravity',
 };
