@@ -68,11 +68,12 @@ async function materialize(projectDir: string, config: AiFactoryConfig): Promise
     if (!allowed.has(relative) || destination !== `${SHARED_DIR}/${path.posix.basename(relative)}`) {
       throw new Error(`Invalid managed skill symlink: ${relative}`);
     }
+    const nativePath = await physicalProjectPath(projectDir, relative);
     const link = path.join(projectDir, relative);
     const info = await stat(link);
     if (info && !info.isSymbolicLink()) continue;
     const target = await sharedPath(projectDir, destination);
-    if (info && await physicalProjectPath(projectDir, relative) !== target) {
+    if (info && nativePath !== target) {
       throw new Error(`Managed skill symlink changed: ${relative}`);
     }
     const hash = await treeHash(target);

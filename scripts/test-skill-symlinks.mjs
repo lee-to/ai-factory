@@ -168,6 +168,28 @@ try {
   assert.ok(await linked(path.join(unsafe, '.claude/skills/aif-plan')), 'All link validation must precede materialization');
   assert.equal(await fs.readFile(path.join(other, 'SKILL.md'), 'utf8'), 'Do not change\n');
 
+  for (const scenario of ['traversal', 'absolute', 'redirected-parent']) {
+    const directory = await project(`unsafe-missing-${scenario}`);
+    const outside = await project(`outside-${scenario}`);
+    await fs.ensureDir(path.join(outside, 'skills'));
+    await fs.writeFile(path.join(outside, 'sentinel'), 'Preserve outside files\n');
+    cli(directory, 'init', '--agents', 'claude,cursor', '--skills', 'aif-plan', '--symlinks');
+    const config = await readConfig(directory);
+    const cursor = config.agents.find(agent => agent.id === 'cursor');
+    cursor.skillsDir = scenario === 'traversal' ? `../outside-${scenario}/skills`
+      : scenario === 'absolute' ? `${outside}/skills` : '.redirect/skills';
+    if (scenario === 'redirected-parent') await fs.symlink(outside, path.join(directory, '.redirect'), 'dir');
+    delete config.skillSymlinks.links['.cursor/skills/aif-plan'];
+    const relative = path.posix.join(cursor.skillsDir, 'aif-plan');
+    config.skillSymlinks.links[relative] = '.agents/skills/aif-plan';
+    await fs.writeJson(path.join(directory, '.ai-factory.json'), config);
+    await assert.rejects(withSkillProjectLock(directory, async () => assert.fail('Unsafe recovery must not reach the action')), /Unsafe skill target|outside project/);
+    assert.ok(!await fs.pathExists(path.join(outside, 'skills/aif-plan')), 'Recovery must not create an outside skill');
+    assert.ok(!await fs.pathExists(path.join(directory, relative)), 'Recovery must not create an invalid logical target');
+    assert.ok(await linked(path.join(directory, '.claude/skills/aif-plan')), 'Reject every invalid path before materializing valid links');
+    assert.equal(await fs.readFile(path.join(outside, 'sentinel'), 'utf8'), 'Preserve outside files\n');
+  }
+
   const fallback = await project('fallback');
   cli(fallback, 'init', '--agents', 'claude', '--skills', 'aif-plan');
   const fallbackConfig = await readConfig(fallback);
