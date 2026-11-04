@@ -89,11 +89,13 @@ Examples:
 ## Step 1: Inventory the Installed Set
 
 Discover from `.ai-factory.json` agent records (skillsDir, tracked skills, extensions),
-the current runtime's advertised catalog/locations, `{{skills_dir}}` and
-`{{home_skills_dir}}` when resolved, and explicit roots. Inventory physical entries
-as well as tracked names: third-party skills need not appear in the manifest.
-Include known project/user/plugin roots; do not recursively search home or guess
-other users' directories. List advertised but inaccessible roots as uncovered.
+the current runtime's advertised catalog/locations, `{{skills_dir}}`, and explicit
+roots. Resolve user-level roots from the current user's runtime configuration and
+environment at audit time; never rely on a home path rendered by the installer,
+because a project checkout may be shared across machines and users. Inventory
+physical entries as well as tracked names: third-party skills need not appear in the
+manifest. Include known project/user/plugin roots; do not recursively search home or
+guess other users' directories. List advertised but inaccessible roots as uncovered.
 
 Support directory SKILL.md entries and runtime-specific flat workflows. For Kilo Code,
 include `{{config_dir}}/workflows/` alongside the manifest skillsDir; workflow files

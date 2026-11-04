@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { installSkills, getAvailableSkills } from '../dist/core/installer.js';
 import { getBuiltinAgentConfigs } from '../dist/core/agents.js';
 import { getTransformer } from '../dist/core/transformer.js';
+import { buildTemplateVars } from '../dist/core/template.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const name = 'aif-skills-audit';
@@ -100,6 +101,7 @@ try {
           `Untransformed invocation example for ${agent.id}`);
       }
       assert(body.includes('skill-context/aif-skills-audit/SKILL.md'), 'File paths must not be invocation-rewritten');
+      assert(!body.includes(buildTemplateVars(agent).home_skills_dir), 'Personal skills paths must be resolved on the current machine');
       if (!transformed.flat) assert(/^disable-model-invocation:\s*true\s*$/m.test(body), 'Explicit opt-in metadata missing');
       assert(!body.includes('{{skills_dir}}'));
       if (agent.id === 'kilocode') {
