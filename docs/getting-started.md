@@ -126,7 +126,9 @@ skills are linked again. Untracked or modified files never authorize new links o
 shared-copy cleanup. Editing a linked skill edits its shared copy for every consumer.
 
 Run `ai-factory init --agents claude,cursor --no-symlinks` to restore independent
-copies. If the OS denies link creation, installation keeps copies and reports it;
+copies in the saved native directories. Later init, update, upgrade, and extension
+operations keep those paths even when `.agents/` remains from sharing.
+If the OS denies link creation, installation keeps copies and reports it;
 on Windows, directory symlinks may require Developer Mode or elevated privileges.
 For instruction inventory, select the canonical `.agents/skills/<skill>` path;
 the recorder continues to reject symlinked input paths.

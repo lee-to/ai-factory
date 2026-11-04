@@ -105,6 +105,30 @@ try {
   cli(mixed, 'upgrade');
   assert.equal((await readConfig(mixed)).agents.find(agent => agent.id === 'codex').skillsDir, '.codex/skills');
 
+  for (const modified of [false, true]) {
+    const directory = await project(`codex-opt-out-${modified}`);
+    const args = ['--agents', 'claude,codex', '--skills', 'aif'];
+    cli(directory, 'init', ...args, '--symlinks');
+    const canonical = path.join(directory, '.agents/skills/aif/SKILL.md');
+    if (modified) await fs.appendFile(canonical, '\nLocal canonical changes\n');
+    const before = await fs.readFile(canonical);
+    for (const command of [
+      ['init', ...args, '--no-symlinks'], ['init', ...args],
+      ['update'], ['update', '--force'], ['upgrade'],
+      ['extension', 'add', extension], ['extension', 'remove', 'aif-ext-symlinks-test'],
+    ]) {
+      const output = cli(directory, ...command);
+      const config = await readConfig(directory);
+      assert.equal(config.useSymlinks, false);
+      assert.equal(config.skillSymlinks, undefined);
+      assert.equal(config.agents.find(agent => agent.id === 'codex').skillsDir, '.codex/skills');
+      assert.ok(!await linked(path.join(directory, '.codex/skills/aif')));
+      assert.ok(!await linked(path.join(directory, '.claude/skills/aif')));
+      assert.doesNotMatch(output, /\[skill-migration\] Migrating skills/);
+      if (modified) assert.deepEqual(await fs.readFile(canonical), before, 'Modified shared copy must be preserved');
+    }
+  }
+
   for (const ids of ['universal,claude', 'codex-app,codex', 'antigravity,claude', 'kilocode,claude']) {
     const directory = await project(ids.replaceAll(',', '-'));
     cli(directory, 'init', '--agents', ids, '--skills', skills, '--symlinks');

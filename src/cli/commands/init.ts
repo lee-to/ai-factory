@@ -246,11 +246,12 @@ async function initLocked(options: InitOptions): Promise<void> {
     }
     answers.selectedSkills = resolvedSkills;
 
+    // A saved sharing choice keeps native paths pinned even after opting out.
     const groups = await resolveSkillTargets(projectDir,
       answers.agents.map(agent => ({
         id: agent.id,
         skillsDir: existingConfig?.agents.find(previous => previous.id === agent.id)?.skillsDir ?? getAgentConfig(agent.id).skillsDir,
-      })), { select: !answers.useSymlinks },
+      })), { select: !answers.useSymlinks && existingConfig?.useSymlinks === undefined },
     );
     for (const group of groups) {
       const previous = existingConfig?.agents.filter(agent => group.targets.some(target => target.id === agent.id)) ?? [];

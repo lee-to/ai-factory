@@ -221,7 +221,7 @@ export async function preflightSkillMigration(
 ): Promise<SkillMigrationPlan> {
   const configBefore = await readOptional(path.join(projectDir, '.ai-factory.json'));
   const configBeforeMode = await readMode(path.join(projectDir, '.ai-factory.json'));
-  const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents, { select: !config.useSymlinks });
+  const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents, { select: config.useSymlinks === undefined });
   const previousGroups = await resolveSkillTargets(projectDir, config.agents, { select: false });
   const extensions = await loadAllExtensions(projectDir, (config.extensions ?? []).map(extension => extension.name));
   if (extensions.length !== (config.extensions ?? []).length) throw new Error('Missing installed extension manifest; resolve it before skill migration.');
@@ -718,7 +718,7 @@ export async function prepareSkillTargets(
       const recovered = await loadConfig(projectDir);
       if (recovered) Object.assign(config, recovered);
     }
-    const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents, { select: !config.useSymlinks });
+    const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents, { select: config.useSymlinks === undefined });
     const previousGroups = await resolveSkillTargets(projectDir, config.agents, { select: false });
     const extensions = await loadAllExtensions(projectDir, (config.extensions ?? []).map(extension => extension.name));
     await collectSkillOwners(extensions);
