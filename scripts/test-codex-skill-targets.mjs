@@ -1132,12 +1132,11 @@ test('preflight', 'preflight plans a proven move without writing bytes', async p
   assert.deepEqual(await snapshot(project), before);
 });
 
-for (const mode of ['missing-state', 'changed-source', 'missing-manifest', 'local-edit', 'unknown-file', 'injection-edit', 'destination-conflict']) {
+for (const mode of ['missing-state', 'missing-manifest', 'local-edit', 'unknown-file', 'injection-edit', 'destination-conflict']) {
   test('preflight', `preflight preserves all bytes on ${mode}`, async project => {
     const config = await legacyProject(project);
     const skill = path.join(project, '.codex/skills/aif');
     if (mode === 'missing-state') config.agents[0].managedSkills = {};
-    if (mode === 'changed-source') config.agents[0].managedSkills.aif.sourceHash = 'unavailable-old-revision';
     if (mode === 'missing-manifest') config.extensions = [{ name: 'aif-ext-missing', version: '1.0.0', source: './missing' }];
     if (mode === 'local-edit') await fs.appendFile(path.join(skill, 'SKILL.md'), '\nlocal change');
     if (mode === 'unknown-file') await fs.writeFile(path.join(skill, 'local-note'), 'private notes');
@@ -1148,6 +1147,111 @@ for (const mode of ['missing-state', 'changed-source', 'missing-manifest', 'loca
     }
     const before = await snapshot(project);
     await assert.rejects(preflightSkillMigration(project, config), /baseline|conflict|source|manifest/i);
+    assert.deepEqual(await snapshot(project), before);
+  });
+}
+
+test('preflight', 'an exact copy with an unavailable source revision moves and keeps the old copy', async project => {
+  const config = await legacyProject(project);
+  config.agents[0].managedSkills.aif.sourceHash = 'unavailable-old-revision';
+  const plan = await preflightSkillMigration(project, config);
+  await applySkillMigration(project, plan);
+  await fs.access(path.join(project, '.agents/skills/aif/SKILL.md'));
+  await fs.access(path.join(project, '.codex/skills/aif/SKILL.md'));
+});
+
+// A copy an older package installed: its source is gone, and only the receipt describes the bytes.
+async function outdatedProject(project, config) {
+  config ??= await legacyProject(project);
+  const [agent] = config.agents;
+  for (const name of agent.installedSkills) {
+    await fs.appendFile(path.join(project, agent.skillsDir, name, 'SKILL.md'), '\nolder revision\n');
+    await fs.writeFile(path.join(project, agent.skillsDir, name, 'removed-upstream.md'), 'older helper');
+    await fs.writeFile(path.join(project, agent.skillsDir, name, 'legacy-notes.MD'), 'older notes\n');
+  }
+  const references = path.join(project, agent.skillsDir, 'aif/references');
+  await fs.rm(path.join(references, 'SETUP-AGENTS.md')); // added upstream since
+  await fs.writeFile(path.join(references, 'SETUP-EMPTY.md'), 'PRIVATE USER CONTENT\n'); // an overlay the receipt recorded
+  const states = await buildManagedSkillsState(project, agent, agent.installedSkills);
+  agent.managedSkills = Object.fromEntries(agent.installedSkills.map(name =>
+    [name, { sourceHash: 'older-revision', installedHash: states[name].installedHash }]));
+  await saveConfig(project, config, { hydrateAgentFileSources: false });
+  return config;
+}
+
+test('preflight', 'an older copy moves to the new source and stays in place untouched', async project => {
+  const config = await outdatedProject(project);
+  const before = await snapshot(path.join(project, '.codex/skills'));
+  const plan = await preflightSkillMigration(project, config);
+  assert.ok(plan.warnings.some(warning => warning.startsWith('Keeping .codex/skills/aif:')));
+  await applySkillMigration(project, plan);
+  assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
+  const destination = path.join(project, '.agents/skills/aif');
+  assert.ok(!(await fs.readFile(path.join(destination, 'SKILL.md'), 'utf8')).includes('older revision'));
+  await fs.access(path.join(destination, 'references/SETUP-AGENTS.md'));
+  assert.ok(!(await fs.readFile(path.join(destination, 'references/SETUP-EMPTY.md'), 'utf8')).includes('PRIVATE USER CONTENT'));
+  assert.deepEqual(await snapshot(path.join(project, '.codex/skills')), before);
+});
+
+test('preflight', 'update moves an older copy and a second update changes nothing', async project => {
+  await outdatedProject(project);
+  runUpdate(project);
+  assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
+  const before = await snapshot(path.join(project, '.agents/skills'));
+  runUpdate(project);
+  assert.deepEqual(await snapshot(path.join(project, '.agents/skills')), before);
+});
+
+test('preflight', 'an older destination keeps absent files and gets a receipt of the resulting tree', async project => {
+  const config = await outdatedProject(project);
+  await fs.cp(path.join(project, '.codex/skills/aif'), path.join(project, '.agents/skills/aif'), { recursive: true });
+  const plan = await preflightSkillMigration(project, config);
+  assert.ok(plan.warnings.includes('Preserving file absent from the new source: .agents/skills/aif/removed-upstream.md'));
+  await applySkillMigration(project, plan);
+  assert.equal(await fs.readFile(path.join(project, '.agents/skills/aif/removed-upstream.md'), 'utf8'), 'older helper');
+  const [agent] = (await loadConfig(project)).agents;
+  const actual = (await buildManagedSkillsState(project, agent, ['aif'])).aif;
+  assert.equal(agent.managedSkills.aif.installedHash, actual.installedHash);
+  assert.equal(agent.managedSkills.aif.rawInstalledHash, undefined);
+});
+
+test('preflight', 'an older copy with extension injections moves unless they were reordered', async project => {
+  const config = await legacyProject(project);
+  await fs.rmdir(path.join(project, '.agents'));
+  const source = path.join(project, 'extension-source');
+  await fs.mkdir(source);
+  await fs.writeFile(path.join(source, 'first.md'), 'First injection');
+  await fs.writeFile(path.join(source, 'second.md'), 'Second injection');
+  const manifest = { name: 'aif-ext-order', version: '1.0.0', injections: [
+    { target: 'aif', position: 'prepend', file: 'first.md' }, { target: 'aif', position: 'append', file: 'second.md' }] };
+  await fs.writeFile(path.join(source, 'extension.json'), JSON.stringify(manifest));
+  await commitResolvedExtension(project, { config, source, resolved: { sourceDir: source, manifest, cleanup: async () => {} } });
+  await saveConfig(project, config, { hydrateAgentFileSources: false });
+  await outdatedProject(project, config);
+  await fs.mkdir(path.join(project, '.agents'));
+  const skill = path.join(project, '.codex/skills/aif/SKILL.md');
+  const installed = await fs.readFile(skill, 'utf8');
+  const [first, second] = ['prepend', 'append'].map(position => new RegExp(`<!-- aif-ext:aif-ext-order:aif:${position}:start -->\\n[\\s\\S]*?:${position}:end -->`).exec(installed)[0]);
+  await fs.writeFile(skill, installed.replace(first, '\0').replace(second, first).replace('\0', second));
+  await assert.rejects(preflightSkillMigration(project, config), /conflict/i);
+  await fs.writeFile(skill, installed);
+  await applySkillMigration(project, await preflightSkillMigration(project, config));
+  const content = await fs.readFile(path.join(project, '.agents/skills/aif/SKILL.md'), 'utf8');
+  assert.equal(content.split('First injection').length - 1, 1);
+  assert.equal(content.split('Second injection').length - 1, 1);
+});
+
+for (const mode of ['local-edit', 'unknown-file', 'injection-edit', 'uppercase-injection-edit']) {
+  test('preflight', `an older copy with a ${mode} preserves all bytes`, async project => {
+    const config = await outdatedProject(project);
+    const skill = path.join(project, '.codex/skills/aif');
+    const block = '\n<!-- aif-ext:demo:aif:append:start -->\nchanged\n<!-- aif-ext:demo:aif:append:end -->\n';
+    if (mode === 'local-edit') await fs.appendFile(path.join(skill, 'SKILL.md'), '\nlocal change');
+    if (mode === 'unknown-file') await fs.writeFile(path.join(skill, 'local-note'), 'private notes');
+    if (mode === 'injection-edit') await fs.appendFile(path.join(skill, 'SKILL.md'), block);
+    if (mode === 'uppercase-injection-edit') await fs.appendFile(path.join(skill, 'legacy-notes.MD'), block);
+    const before = await snapshot(project);
+    await assert.rejects(preflightSkillMigration(project, config), /conflict/i);
     assert.deepEqual(await snapshot(project), before);
   });
 }
