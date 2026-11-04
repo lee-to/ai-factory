@@ -45,8 +45,6 @@ Resolve reference paths beside this installed entrypoint, including flat workflo
 
 Before installing any external skill or generating a Learn Mode skill, read [security scanning](references/SETUP-SECURITY.md). Require supported Python 3 and both readable scanner/cleanup helpers before acquisition; missing prerequisites STOP acquisition. Never trust or use an external skill before the automated and semantic checks permit it. Scan only the actual installed external path; never block built-in `aif*` skills. A blocked skill requires cleanup exit 0 and verified removal of its scanned directory and known lock identities; otherwise report incomplete cleanup and STOP.
 
----
-
 ### Project Context
 
 **Read `.ai-factory/skill-context/aif/SKILL.md`** — MANDATORY if the file exists.
