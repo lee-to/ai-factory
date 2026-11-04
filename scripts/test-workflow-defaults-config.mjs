@@ -14,6 +14,8 @@ const defaults = {
   'workflow.explore_mode': 'regular',
   'workflow.plan_mode': 'ask',
   'workflow.improve_check': false,
+  'workflow.fix_mode': 'ask',
+  'workflow.fix_patch': true,
 };
 
 function update(target, payload) {
@@ -87,7 +89,26 @@ try {
     assert.ok(text.includes('# Run /aif-improve\'s +check validation by default.'));
     assertNoop(target, merge);
   }
-  console.log('Workflow defaults config helper regressions passed (16 custom combinations, fresh and legacy configs).');
+
+  for (const mode of ['ask', 'now', 'plan']) {
+    for (const patch of [false, true]) {
+      const values = { 'workflow.fix_mode': mode, 'workflow.fix_patch': patch };
+      const target = path.join(temp, `fix-${mode}-${patch}.yaml`);
+      assertValues(update(target, { mode: 'create', set: values }), { ...defaults, ...values });
+      const custom = fs.readFileSync(target, 'utf8')
+        .replace(`  fix_mode: ${mode}`, `  fix_mode: ${mode} # keep my mode`)
+        .replace(`  fix_patch: ${patch}`, `  fix_patch: ${patch} # keep my patch policy`);
+      fs.writeFileSync(target, custom);
+      const merge = { mode: 'merge', fillMissing: defaults };
+      assert.equal(update(target, merge), custom, 'setup preserves fix choices, including false');
+      assertNoop(target, merge);
+    }
+  }
+
+  const incomplete = path.join(temp, 'incomplete-fix.yaml');
+  fs.writeFileSync(incomplete, 'workflow:\n  fix_mode: null # fill mode\n  fix_patch: # fill patch policy\n');
+  assertValues(update(incomplete, { mode: 'merge', fillMissing: defaults }), defaults);
+  console.log('Workflow defaults config helper regressions passed (16 workflow and 6 fix combinations, fresh, legacy and incomplete configs).');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }

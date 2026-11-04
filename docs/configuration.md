@@ -414,6 +414,8 @@ workflow:
   explore_mode: regular            # regular | ultra; explicit mode wins
   plan_mode: ask                   # ask | fast | full | ultra; explicit mode wins
   improve_check: false             # true enables +check; --no-check overrides once
+  fix_mode: ask                    # ask | now | plan; --fix-now / --plan-first wins
+  fix_patch: true                  # learning patch; --patch / --no-patch wins
   # roadmap_next_mode: full        # optional; otherwise concrete plan_mode or ultra
   # roadmap_next_capacity:         # optional user-owned positive integer estimates
   #   fast: 1
@@ -451,6 +453,12 @@ defaults where an explicit override exists; `plan_structure` is config-only.
 Missing settings use their documented defaults.
 See [Command defaults](config-reference.md#command-defaults) for precedence and
 one-invocation overrides.
+
+For bug fixes, `workflow.fix_mode: now` skips the mode question and
+`workflow.fix_mode: plan` creates a fix plan and stops. `workflow.fix_patch: false`
+disables completed-fix learning patches independently of mode. Defaults remain
+`ask` and `true`; `--fix-now` / `--plan-first` and `--patch` / `--no-patch`
+override them once. Existing fix plans still execute before mode selection.
 
 `/aif-plan-overview` is a read-only consumer of plan/archive paths and language.
 `/aif-roadmap-next` also reads roadmap/context paths and optional

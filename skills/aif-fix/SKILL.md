@@ -1,7 +1,7 @@
 ---
 name: aif-fix
 description: Fix a bug or problem. Supports fix-now or plan-first; no args executes FIX_PLAN.md. When a regression check is needed, reproduce first, then implement and rerun it. Adds logging and suggests extra coverage.
-argument-hint: <bug description or error message>
+argument-hint: "[--fix-now | --plan-first] [--patch | --no-patch] <bug description or error message>"
 allowed-tools: Read Write Edit Glob Grep AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 ---
@@ -84,7 +84,7 @@ Bash: printenv HANDOFF_SKIP_REVIEW || true
 
 The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools. Instead:
 
-- **No interactive questions:** Do not use `AskUserQuestion`. If `$ARGUMENTS` contains `--plan-first`, use "Plan first" mode. Otherwise default to "Fix now" mode. When a regression check is needed for the bug, include regression-first handling and logging.
+- **No interactive questions:** Do not use `AskUserQuestion`. Honor the mode resolved in Step 0; only `ask` falls back to "Fix now" in autonomous Handoff. When a regression check is needed for the bug, include regression-first handling and logging.
 - **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the fix plan file, before the title. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.** This applies to both Step 1.1 (creating new plan) and any plan rewrite.
 
 #### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session)
@@ -106,6 +106,9 @@ When creating a new FIX_PLAN.md: if there is no existing annotation and no Hando
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, and `paths.patches`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for `FIX_PLAN.md` and patch artifacts, and `language.technical_terms` for human-readable technical terminology in artifacts
 - **Rules:** `rules.base` plus any named `rules.<area>` entries
+- **Fix defaults:** `workflow.fix_mode` (`ask`, `now`, `plan`; default `ask`) and `workflow.fix_patch` (YAML boolean; default `true`). Invalid values/types emit `WARN [config]` and fall back independently to those defaults; quoted booleans are invalid. Preserve `false`, never resolve the patch policy with `value || true`.
+
+Parse standalone control flags from `$ARGUMENTS`: `--fix-now` selects `now`, `--plan-first` selects `plan`, `--patch` enables patch creation, and `--no-patch` disables it. For each setting, the last explicit flag wins over config. Remove only these control tokens from the problem description; preserve other wording, paths, quoted/code text, and flag-like substrings. Flags alone are not a problem description. Resolve mode and patch policy once for this invocation; do not persist overrides to config or the fix plan. An existing fix plan still takes priority over mode selection.
 
 If config.yaml doesn't exist, use defaults:
 
@@ -157,14 +160,14 @@ Templates and examples define structure, not fixed English output. If `artifact_
   rm .ai-factory/FIX_PLAN.md
   ```
 - If the fix plan came from a custom `paths.fix_plan` value, an explicitly supplied custom plan path, or any non-default fix plan location, do **not** delete it. Leave it in place and mention in the final summary that the custom fix plan was preserved.
-- Continue to Step 5 (Additional Test Coverage) and Step 6 (Patch)
+- Continue to Step 5 (Additional Test Coverage), then apply the learning patch policy below.
 
-**If the file DOES NOT exist AND `$ARGUMENTS` is empty:**
+**If the file DOES NOT exist AND the problem description is empty after removing control flags:**
 
 - Tell the user: "No fix plan found and no problem description provided. Please either provide a bug description (`/aif-fix <description>`) or create a fix plan first."
 - **STOP.**
 
-**If the file DOES NOT exist AND `$ARGUMENTS` is provided:**
+**If the file DOES NOT exist AND a problem description remains:**
 
 - Continue to Step 0.2 below.
 
@@ -195,7 +198,7 @@ Verify every generated artifact against those rules and correct violations befor
 
 ### Step 1: Understand the Problem & Choose Mode
 
-From `$ARGUMENTS`, identify:
+From the problem description after removing control flags, identify:
 
 - Error message or unexpected behavior
 - Where it occurs (file, function, endpoint)
@@ -212,16 +215,12 @@ To fix this effectively, I need more context:
 4. When did this start happening?
 ```
 
-**After understanding the problem, ask the user to choose a mode using `AskUserQuestion`:**
+**After understanding the problem, use the resolved mode:** `now` selects "Fix now" and `plan` selects "Plan first" without a mode question. Only `ask` prompts below; in autonomous Handoff it selects "Fix now" without prompting. Missing or invalid config retains this legacy `ask` behavior. This skips only the optional mode question, never required clarification or approval.
 
-Question: "How would you like to proceed with the fix?"
-
-Options:
+For interactive `ask`, use `AskUserQuestion`: "How would you like to proceed with the fix?"
 
 1. **Fix now** — Investigate and apply the fix immediately
 2. **Plan first** — Create a fix plan for review, then fix later
-
-**Based on choice:**
 
 - "Plan first" → Proceed to **Step 1.1: Create Fix Plan**
 - "Fix now" → Skip Step 1.1, proceed directly to **Step 2: Investigate the Codebase**
@@ -256,7 +255,7 @@ After the Canonical Regression-First Policy permits implementation, read [fix im
 
 ### Coverage and completion
 
-After verification, read [completion, manual Handoff final sync, and extra coverage](references/FIX-COMPLETION.md). Always suggest additional coverage beyond the regression check and respect the user's choice. Autonomous Handoff never calls MCP; manual linked tasks use `done` only with `HANDOFF_SKIP_REVIEW=1`, otherwise `review`, with the existing paused contract. Render the result in `ui_language` and continue to mandatory patch creation.
+After verification, read [completion, manual Handoff final sync, and extra coverage](references/FIX-COMPLETION.md). Always suggest additional coverage beyond the regression check and respect the user's choice. Autonomous Handoff never calls MCP; manual linked tasks use `done` only with `HANDOFF_SKIP_REVIEW=1`, otherwise `review`, with the existing paused contract. Render the result in `ui_language` and continue to the learning patch policy below.
 
 ## Logging contract
 
@@ -287,9 +286,9 @@ Read [fix examples](references/FIX-EXAMPLES.md) only when a worked example is ne
 
 Before displaying the fix summary, read [result template](references/FIX-OUTPUT.md). Report the cause, fix, files, logging, and actual regression check/result or its explicit absence; do not create a report file.
 
-### Mandatory learning patch
+### Learning patch policy
 
-After every completed fix, read [self-improvement patch creation](references/FIX-PATCH.md) and write the timestamped learning artifact under configured `paths.patches` in `artifact_language`. Include problem, root cause, solution, prevention, and tags. This is mandatory and is not a summary report. Plan-first runs stop before execution and never create a completed-fix patch.
+After a completed fix (including existing-plan execution), only when the resolved patch policy is enabled, read [self-improvement patch creation](references/FIX-PATCH.md) and write the timestamped learning artifact under configured `paths.patches` in `artifact_language`. Include problem, root cause, solution, prevention, and tags. When disabled, skip that reference and all patch writes/directory creation; state in `ui_language` that learning patch creation was skipped by policy. Existing patches and their optional read-only fallback remain unchanged. Plan-first runs stop before execution and never create a completed-fix patch; resolve the policy anew when executing the plan later. Failed/blocked fixes do not produce completed-fix patches. Patch settings never skip regression verification, logging, extra coverage suggestions, Handoff sync, or default-plan cleanup.
 
 ### Context Cleanup
 
@@ -308,4 +307,4 @@ Suggest the user to free up context space if needed: `/clear` (full reset) or `/
 - ❌ Add features while fixing
 - ❌ Skip logging
 - ❌ Skip test suggestion
-- ❌ Skip patch creation
+- ❌ Skip patch creation when the resolved patch policy is enabled

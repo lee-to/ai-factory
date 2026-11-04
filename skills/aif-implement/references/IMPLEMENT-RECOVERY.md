@@ -52,7 +52,7 @@ A fix plan was created by `/aif-fix` in plan mode. Redirect to fix workflow:
 Found a fix plan at the resolved fix plan path.
 
 This plan was created by /aif-fix and should be executed through the fix workflow
-(it creates a patch and handles cleanup automatically).
+(it follows the configured learning patch policy and handles cleanup automatically).
 
 Running /aif-fix to execute the plan...
 ```

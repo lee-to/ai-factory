@@ -477,7 +477,7 @@ Open questions: Do we need refresh tokens?
 
 ## Self-Improvement Patches
 
-AI Factory has a built-in learning loop. Every bug fix creates a **patch** — a structured knowledge artifact that helps AI avoid the same mistakes in the future.
+AI Factory has a built-in learning loop. By default, each completed bug fix creates a **patch** — a structured knowledge artifact that helps AI avoid the same mistakes in the future. Learning patches can be disabled independently of fix mode.
 
 ```
 /aif-fix → finds bug → fixes it → creates patch → /aif-evolve distills new patches into skill-context → smarter future runs
@@ -485,7 +485,7 @@ AI Factory has a built-in learning loop. Every bug fix creates a **patch** — a
 
 **How it works:**
 
-1. `/aif-fix` fixes a bug and creates a patch file in `paths.patches/YYYY-MM-DD-HH.mm.md`
+1. `/aif-fix` fixes a bug and, when its learning patch policy is enabled (default), creates a patch file in `paths.patches/YYYY-MM-DD-HH.mm.md`; `workflow.fix_patch: false` or `--no-patch` skips creation
 2. Each patch documents: **Problem**, **Root Cause**, **Solution**, **Prevention**, and **Tags**
 3. `/aif-evolve` reads patches incrementally using `paths.evolutions/patch-cursor.json` (first run reads all). Targets are project-scoped by default; existing user-global skills require explicit `--global`. See [ownership and destinations](evolve.md#skill-ownership-and-write-destinations)
 4. Before approval, candidate rules are compared with the current effective instructions on the same problem and control cases; only validated revisions enter active skill-context
