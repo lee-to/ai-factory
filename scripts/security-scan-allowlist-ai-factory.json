@@ -177,7 +177,7 @@
       "description": "Dynamic execution: evaluates code or invokes an execution API",
       "match": "exec(",
       "line": 307,
-      "source_sha256": "90b22b137f3c1ad5582a17f6f6d3b6ef250a88124c419b349f8c6285f2b443e9",
+      "source_sha256": "2a92bd257d76be2355a065950ecb4a75ac7e6c326a04653e6fd317bf7d672f86",
       "reason": "Commented vulnerable command-injection example followed by an execFile alternative."
     },
     {

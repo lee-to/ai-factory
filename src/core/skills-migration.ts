@@ -11,7 +11,7 @@ import { getAvailableSkills, buildManagedSkillsState, renderSkillFiles } from '.
 import { getSkillsDir } from '../utils/fs.js';
 import { applyInjection } from './injections.js';
 import { applyManifestToolPermissions } from './tool-permissions.js';
-import { logSkillTarget, physicalProjectPath, resolveSkillTargets, usesSharedCodexProfile, type SkillRenderContext, type SkillTargetGroup } from './skill-targets.js';
+import { logSkillTarget, physicalProjectPath, resolveSkillTargets, usesSharedCodexProfile, usesSharedDevinProfile, type SkillRenderContext, type SkillTargetGroup } from './skill-targets.js';
 
 interface SkillOwner {
   name: string;
@@ -742,7 +742,7 @@ export async function captureSharedSkillRollback(
   const snapshots: { relative: string; physical: string; tree: TreeInventory | null }[] = [];
   const flatFiles: { relative: string; physical: string; before: Buffer | null; mode: number | null }[] = [];
   for (const group of await resolveSkillTargets(projectDir, agents, { select: false })) {
-    if (!options.includeSingletons && !usesSharedCodexProfile(group.targets)) continue;
+    if (!options.includeSingletons && !usesSharedCodexProfile(group.targets) && !usesSharedDevinProfile(group.targets)) continue;
     for (const name of new Set(names.map(name => path.posix.basename(name.replaceAll('\\', '/'))))) {
       if (!name || name === '.' || name === '..') throw new Error('Unsafe shared rollback skill name.');
       const transformed = getTransformer(group.targets[0].id).transform(name, '');

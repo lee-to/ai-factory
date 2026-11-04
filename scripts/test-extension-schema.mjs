@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
+import { getAgentConfig, registerRuntimeDefinitions, resetExtensionAgentRegistry } from '../dist/core/agents.js';
+import { loadExtensionManifest } from '../dist/core/extensions.js';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(scriptDir, '..');
@@ -71,6 +74,38 @@ function assertExampleManifestValid(validate) {
   console.log(`pass: example manifest validates (${manifestPath})`);
 }
 
+async function assertDocumentedAgentExampleValid(validate) {
+  const docs = fs.readFileSync(docsPath, 'utf8');
+  const agentsSection = docs.slice(docs.indexOf('### Agents'));
+  const match = agentsSection.match(/```json\s*([\s\S]*?)```/);
+  assert.ok(match, 'Agents documentation must include a JSON runtime example');
+  const agent = JSON.parse(match[1]);
+  const manifest = { name: 'aif-ext-documented-agent', version: '1.0.0', agents: [agent] };
+  const isValid = validate(manifest);
+  assert.ok(isValid, `Documented runtime example must validate: ${formatErrors(validate.errors)}`);
+  const optionalFieldAgent = { ...agent };
+  delete optionalFieldAgent.homeSkillsDir;
+  assert.ok(
+    validate({ ...manifest, agents: [optionalFieldAgent] }),
+    'homeSkillsDir must remain optional in the extension schema',
+  );
+
+  const extensionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aif-extension-schema-'));
+  try {
+    fs.writeFileSync(path.join(extensionDir, 'extension.json'), JSON.stringify(manifest));
+    const loaded = await loadExtensionManifest(extensionDir);
+    assert.ok(loaded?.agents?.[0], 'Documented runtime should load from its extension manifest');
+    resetExtensionAgentRegistry();
+    registerRuntimeDefinitions(loaded.agents, loaded.name);
+    assert.equal(getAgentConfig(agent.id).homeSkillsDir, agent.homeSkillsDir);
+  } finally {
+    resetExtensionAgentRegistry();
+    fs.rmSync(extensionDir, { recursive: true, force: true });
+  }
+
+  console.log('pass: documented runtime example validates, loads, and preserves homeSkillsDir');
+}
+
 function assertStringAgentFilesInvalid(validate) {
   const invalidManifest = {
     name: 'aif-ext-invalid-agent-files',
@@ -115,6 +150,7 @@ function assertSchemaPacked() {
 
 const validate = compileSchema();
 assertExampleManifestValid(validate);
+await assertDocumentedAgentExampleValid(validate);
 assertStringAgentFilesInvalid(validate);
 assertSchemaPacked();
 assertSchemaReferencesDocumented();
