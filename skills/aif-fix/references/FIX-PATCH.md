@@ -1,6 +1,6 @@
 ### Step 6: Create Self-Improvement Patch
 
-**ALWAYS create a patch after every fix.** This builds a knowledge base for future fixes.
+**Read this reference only after a completed fix when the resolved patch policy is enabled.** Create a learning patch to build a knowledge base for future fixes. When disabled, skip this step without creating the patches directory or modifying existing patches.
 
 **Create the patch:**
 
@@ -60,4 +60,4 @@ Space-separated tags for categorization, e.g.:
 
 For a worked patch example only when needed, read `references/FIX-EXAMPLES.md`.
 
-**This is NOT optional.** Every fix generates a patch. The patch is your learning.
+Patch creation is required when the resolved policy is enabled (the default). Plan-first, failed, and blocked runs do not create completed-fix patches.

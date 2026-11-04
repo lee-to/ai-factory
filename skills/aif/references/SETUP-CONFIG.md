@@ -72,7 +72,7 @@ node <reference-dir>/update-config.mjs \
 - Preserve `language.technical_terms` from existing config when present; otherwise set it to `keep` when writing config.
 - In `set`, include only values explicitly resolved in the current run and that must be written now.
 - In `fillMissing`, include canonical defaults that should be backfilled only when the key or section is missing or incomplete.
-- Preserve existing command defaults (`workflow.explore_mode`, `workflow.plan_mode`, and `workflow.improve_check`) on reruns unless the user explicitly changes them. Backfill only missing/incomplete values with `regular`, `ask`, and `false`, respectively; do not infer preferences from prior command usage.
+- Preserve existing command defaults (`workflow.explore_mode`, `workflow.plan_mode`, `workflow.improve_check`, `workflow.fix_mode`, and `workflow.fix_patch`) on reruns unless the user explicitly changes them. Backfill only missing/incomplete values with `regular`, `ask`, `false`, `ask`, and `true`, respectively; do not infer preferences from prior command usage. Preserve `fix_patch: false` as an explicit choice.
 - `workflow.roadmap_next_mode` and nested `workflow.roadmap_next_capacity` are optional user-owned settings. Preserve them and their comments verbatim; do not add them to managed updater payloads or backfill them. New configs include commented examples only.
 - Managed keys for this helper are limited to:
   - `language.ui`

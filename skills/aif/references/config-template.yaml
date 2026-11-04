@@ -186,6 +186,15 @@ workflow:
   # --list always skips refinement and validation.
   improve_check: false
 
+  # Default /aif-fix mode when no fix plan exists.
+  # Options: ask, now, plan. --fix-now / --plan-first overrides this.
+  # ask keeps the mode question (or now in non-interactive Handoff mode).
+  fix_mode: ask
+
+  # Create a learning patch after a completed fix (independent of fix_mode).
+  # Boolean: true or false. --patch / --no-patch overrides this once.
+  fix_patch: true
+
   # Optional user-owned defaults for /aif-roadmap-next (preserved on setup reruns).
   # If absent: use a concrete plan_mode, otherwise ultra. Explicit mode wins.
   # roadmap_next_mode: ultra

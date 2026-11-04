@@ -44,6 +44,17 @@ try {
       `aif-implement ${route}: commit and receipt instructions must be loaded`);
   }
   assert(!selected('aif-fix', 'plan-first').some(file => /FIX-(IMPLEMENTATION|COMPLETION|OUTPUT|PATCH)/.test(file)));
+  const fix = readSkillContract(path.join(root, 'skills/aif-fix/SKILL.md'));
+  for (const phrase of ['workflow.fix_mode', 'workflow.fix_patch', '--fix-now', '--plan-first', '--patch', '--no-patch',
+    'last explicit flag wins over config', 'Flags alone are not a problem description',
+    'An existing fix plan still takes priority', 'only `ask` falls back',
+    'skip that reference and all patch writes/directory creation', 'resolve the policy anew',
+    'Failed/blocked fixes do not produce completed-fix patches']) {
+    assert(fix.includes(phrase), `aif-fix: missing mode/patch boundary: ${phrase}`);
+  }
+  assert.doesNotMatch(fix, /ALWAYS create a patch|Every fix generates a patch|mandatory patch creation|This is NOT optional/);
+  assert.equal((fix.match(/Step 6 only when enabled/g) ?? []).length, 2,
+    'Both extra-coverage answers must honor the patch policy');
   for (const entry of report.routes) {
     assert(!entry.current.files.some(file => /-(EXAMPLES|USAGE|COMMANDS)\.md$/.test(file.file)), 'Examples must be optional');
   }
@@ -88,6 +99,11 @@ try {
     const flat = id === 'kilocode';
     const refs = skill => path.join(project, flat ? '.kilocode/workflows' : path.join(agent.skillsDir, skill), 'references');
     const entry = skill => path.join(project, flat ? `.kilocode/workflows/${skill}.md` : path.join(agent.skillsDir, skill, 'SKILL.md'));
+    const installedFix = readSkillContract(entry('aif-fix'));
+    for (const phrase of ['workflow.fix_mode', 'workflow.fix_patch', '--fix-now', '--plan-first', '--patch', '--no-patch',
+      'skip that reference and all patch writes/directory creation']) {
+      assert(installedFix.includes(phrase), `${id}: fix policy lost in installed skill: ${phrase}`);
+    }
     for (const skill of skills) {
       for (const names of Object.values(routes[skill])) {
         for (const name of names) assert(fs.existsSync(path.join(refs(skill), name)), `${id}: unavailable ${skill}/${name}`);

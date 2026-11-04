@@ -247,6 +247,7 @@ Current config keys in active use:
 - `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
 - `workflow.verify_mode` - default verification strictness
 - `workflow.explore_mode` / `workflow.plan_mode` / `workflow.improve_check` - command defaults (`regular` / `ask` / `false`); explicit arguments win, `/aif` reruns preserve values
+- `workflow.fix_mode` / `workflow.fix_patch` - fix mode (`ask` / `now` / `plan`, default `ask`) and independent completed-fix learning patch policy (YAML boolean, default `true`); last explicit mode/patch flag wins, existing fix plans execute first, setup preserves values including `false`
 - `workflow.roadmap_next_mode` / `workflow.roadmap_next_capacity` - optional user-owned next-plan recommendation defaults; setup leaves them and their comments intact
 - `warmup.paths` - optional extra files/directories loaded recursively by `/aif-warmup`
 - `rules.base` plus named `rules.<area>` entries - rules hierarchy
@@ -512,7 +513,7 @@ Implements fix WITH logging ([FIX] prefix)
     ↓
 Reruns the same regression check when available and suggests any useful extra coverage
     ↓
-Creates self-improvement patch in configured `paths.patches/`
+Creates self-improvement patch in configured `paths.patches/` only when the resolved patch policy is enabled (`workflow.fix_patch: true` by default; `--patch` / `--no-patch` overrides it)
     ↓
 NO plans, NO reports
 

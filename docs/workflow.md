@@ -545,7 +545,9 @@ without changing the index when ownership is unclear.
 /aif-fix TypeError: Cannot read property 'name' of undefined
 ```
 
-Two modes — choose when you invoke:
+Two modes — selected by `workflow.fix_mode` (`ask` by default), or by
+`--fix-now` / `--plan-first` for one invocation:
+
 - **Fix now** — investigates, applies the Canonical Regression-First Policy when needed, fixes with logging, then reruns the same regression check when available
 - **Plan first** – creates `paths.fix_plan` with analysis and fix checklist, then stops for review
 
@@ -560,7 +562,7 @@ After successful execution, `/aif-fix` deletes only the default `.ai-factory/FIX
 
 If a fix plan references `RESEARCH.md`, `/aif-fix` executes against the embedded Research Context and checks the exact legacy or bundled source only for revision drift.
 
-Every fix creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`). Patches improve future workflow runs primarily through `/aif-evolve` (which distills them into `.ai-factory/skill-context/*`).
+Completed fixes create a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`) unless `workflow.fix_patch: false` or `--no-patch` disables it; `--patch` enables it once. Mode and patch policy are independent. Plan-first stops before patch creation; later plan execution resolves patch policy anew. Existing plans take priority over mode defaults, and disabling patches preserves verification, logging, Handoff sync, and plan cleanup. Patches improve future workflow runs primarily through `/aif-evolve` (which distills them into `.ai-factory/skill-context/*`).
 
 ### `/aif-evolve` — improve skills from experience
 

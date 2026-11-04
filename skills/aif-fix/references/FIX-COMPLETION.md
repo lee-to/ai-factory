@@ -51,7 +51,7 @@ Options:
   1. Create the test file in the appropriate test directory (follow project conventions)
   2. Include the suggested additional test case and related edge cases
   3. Run the test to verify it passes
-  4. Then proceed to **Step 6: Create Self-Improvement Patch**
+  4. Then follow the entrypoint's **Learning patch policy** (Step 6 only when enabled).
 
 - **If "No, skip for now":**
-  - Proceed directly to **Step 6: Create Self-Improvement Patch**
+  - Follow the entrypoint's **Learning patch policy** (Step 6 only when enabled).

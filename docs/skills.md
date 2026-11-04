@@ -403,24 +403,24 @@ Verifies completed implementation against the plan:
 
 **Strict mode** (`--strict`) is recommended before merging: requires all tasks complete, build passing, tests passing, lint clean, zero TODOs in changed files, and passing architecture/rules/roadmap gates. For `feat`/`fix`/`perf`, missing roadmap milestone linkage is reported as a warning, not a failure.
 
-### `/aif-fix [bug description]`
+### `/aif-fix [--fix-now | --plan-first] [--patch | --no-patch] [bug description]`
 Bug fix with optional plan-first mode:
 ```
 /aif-fix TypeError: Cannot read property 'name' of undefined
 ```
-- Asks to choose mode: **Fix now** (immediate) or **Plan first** (review before fixing)
+- Uses `workflow.fix_mode`: `ask` (default) offers **Fix now** or **Plan first**, `now` fixes immediately, `plan` creates a plan and stops. `--fix-now` / `--plan-first` overrides the default; existing fix plans take priority. In autonomous Handoff, only `ask` falls back to `now`.
 - Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, named `rules.<area>` entries, `language.ui`, `language.artifacts`, and `language.technical_terms`
 - Investigates codebase to find root cause
 - When a bug needs regression coverage, follows the Canonical Regression-First Policy before implementation: create or identify a regression check, handle no-regression-check or non-reproducible fallbacks, then preserve the same check for verification
 - The Canonical Regression-First Policy is defined in `skills/aif-fix/SKILL.md`
 - Applies fix WITH logging (`[FIX]` prefix for easy filtering)
 - Reruns the same regression check after the fix when available, then suggests any useful extra coverage
-- Creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`)
+- Creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`) after a completed fix unless `workflow.fix_patch: false` or `--no-patch` disables it. `--patch` enables it once. The last flag wins independently for mode and patch policy; overrides are not saved. Disabling patches preserves existing patches and all verification, logging, Handoff, and cleanup steps.
 - User-facing fix summaries use `language.ui`; `FIX_PLAN.md` and patch artifacts use `language.artifacts` while preserving `[FIX]`, commands, paths, identifiers, raw errors, and patch tags according to `language.technical_terms`
 
 **Plan-first mode** — for complex bugs or when you want to review the approach:
 ```
-/aif-fix Something is broken    # Choose "Plan first" when asked
+/aif-fix --plan-first Something is broken
 ```
 - Investigates the codebase, creates `paths.fix_plan` with analysis, fix checklist, risks
 - Includes `Research Context` only when research content influenced the fix plan, records the exact legacy or bundled source revision, and checks that source only for drift before executing the plan
@@ -430,6 +430,7 @@ Bug fix with optional plan-first mode:
 /aif-fix                        # Detects the configured fix plan, executes the fix, deletes only the default FIX_PLAN.md
 ```
 - After successful execution, `/aif-fix` deletes only the default `.ai-factory/FIX_PLAN.md`; custom/non-default fix plan files are preserved.
+- Plan-first never creates a completed-fix patch. Later execution resolves patch policy anew from its own flags/config. With an existing plan, `/aif-fix --no-patch` executes it and skips the patch; flags alone without a plan or description stop without writes. Invalid defaults warn and fall back independently to `ask` and `true`; `fix_patch` requires a YAML boolean.
 
 ### `/aif-evolve [skill-name|"all"] [--global]`
 Self-improve skills based on project experience:

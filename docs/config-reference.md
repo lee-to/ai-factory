@@ -152,6 +152,8 @@ pinned source revision and MIT notice.
 | `workflow.explore_mode` | `regular` | `/aif-explore` | Default mode: `regular` or `ultra`; a leading mode token overrides it. `ultra` opts into saving a named research bundle. |
 | `workflow.plan_mode` | `ask` | `/aif-plan`, `/aif-roadmap-next` | Default mode: `ask`, `fast`, `full`, or `ultra`; a leading mode token overrides it. `ask` keeps the full/fast question, or fast in non-interactive Handoff mode. |
 | `workflow.improve_check` | `false` | `/aif-improve` | Boolean default for findings validation. `+check` enables it; `--no-check` disables it for one invocation; the last explicit flag wins. `--list` always skips validation. |
+| `workflow.fix_mode` | `ask` | `/aif-fix` | Default when no fix plan exists: `ask` prompts, `now` fixes immediately, `plan` creates a fix plan and stops. `--fix-now` / `--plan-first` overrides it; the last mode flag wins. Existing fix plans take priority. Autonomous Handoff maps only `ask` to `now`. |
+| `workflow.fix_patch` | `true` | `/aif-fix` | YAML boolean controlling learning patch creation after a completed fix, including existing-plan execution. `--patch` / `--no-patch` overrides it; the last patch flag wins. Independent of mode; plan-first never creates a completed-fix patch. |
 | `workflow.roadmap_next_mode` | concrete `workflow.plan_mode`, otherwise `ultra` | `/aif-roadmap-next` | Optional user-owned fast/full/ultra default; explicit argument wins; invalid present value warns and uses ultra |
 | `workflow.roadmap_next_capacity` | `{fast: 1, full: 2, ultra: 3}` | `/aif-roadmap-next` | Optional user-owned mapping of positive integer estimate points per mode; absent/invalid keys use their built-in defaults |
 | `workflow.auto_create_dirs` | `true` | No dedicated built-in reader yet | Present in schema/template; reserved for directory-management behavior |
@@ -186,7 +188,25 @@ Missing values retain the previous behavior (`regular`, `ask`, `false`).
 Invalid values or types emit `WARN [config]` and fall back to those same defaults;
 `improve_check` must be a YAML boolean, not a quoted string. `/aif` setup reruns
 preserve existing values and comments and backfill only missing/incomplete keys.
-These settings support the three command options listed above.
+
+For `/aif-fix`, configure mode and learning patches independently:
+
+```yaml
+workflow:
+  fix_mode: now    # ask | now | plan
+  fix_patch: false # skip learning patches after completed fixes
+```
+
+`/aif-fix --plan-first <bug>` creates a plan and stops; `/aif-fix --fix-now --patch <bug>`
+overrides these defaults for one invocation. Existing fix plans execute before mode
+selection, even with `fix_mode: plan`; running `/aif-fix --no-patch` with an existing
+plan executes it without creating a learning patch. Flags without a description
+and without an existing plan stop with the normal missing-problem message.
+Overrides are not saved to config or plans. Later plan execution resolves patch
+policy from that invocation's flags/config. Invalid values/types warn and fall
+back independently to `ask` and `true`; `fix_patch` must be a YAML boolean.
+Disabling patch creation preserves existing patches and does not disable checks,
+logging, coverage suggestions, Handoff sync, or default-plan cleanup.
 
 #### Roadmap-next defaults
 
@@ -261,7 +281,7 @@ managing or backfilling these fields. Neither advisor writes config or plan arti
 | `/aif-review` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.rules`, `language.ui`, `git.base_branch` |
 | `/aif-loop` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.plan`, `paths.plans`, `paths.evolution`, `language.ui`, `language.artifacts` |
 | `/aif-docs` | Yes | No | `paths.description`, `paths.architecture`, `paths.docs`, `language.ui`, `language.artifacts`, `language.technical_terms`, `writing.profile`, `writing.targets`, `writing.dictionary` |
-| `/aif-fix` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, `language.ui`, `language.artifacts`, `language.technical_terms`, `rules.base`, `rules.<area>` |
+| `/aif-fix` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.research`, `paths.fix_plan`, `paths.patches`, `language.ui`, `language.artifacts`, `language.technical_terms`, `rules.base`, `rules.<area>`, `workflow.fix_mode`, `workflow.fix_patch` |
 | `/aif-evolve` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `paths.patches`, `paths.evolutions`, `language.ui`, `language.artifacts`, `rules.base`, `rules.<area>` |
 | `/aif-skills-audit` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `rules.base`, `rules.<area>`, `language.ui`, `language.artifacts`, `language.technical_terms` |
 | `/aif-quality-setup` | Yes | No | `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.rules`, `rules.base`, `rules.<area>`, `language.ui`, `language.artifacts`, `language.technical_terms`, `git.enabled`; stack/tool choices come from repository evidence |

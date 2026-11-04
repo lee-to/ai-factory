@@ -2,7 +2,7 @@
 
 # Skill Evolution
 
-Every `/aif-fix` leaves behind a **patch** — a structured record of what went wrong and how it was fixed. `/aif-evolve` processes patches incrementally, analyzes your project's tech stack and conventions, and turns recurring patterns into **rules** that make skills smarter. The more you fix, the better the evolution.
+By default, each completed `/aif-fix` leaves behind a **patch** — a structured record of what went wrong and how it was fixed. `workflow.fix_patch: false` or `--no-patch` skips this artifact. `/aif-evolve` processes existing patches incrementally, analyzes your project's tech stack and conventions, and turns recurring patterns into **rules** that make skills smarter. The more recorded fixes, the more evidence for evolution.
 
 When a similar AI Factory project already has useful patches, `/aif-transfer` can feed
 only the applicable, anonymized prevention points into the same evolve workflow without
