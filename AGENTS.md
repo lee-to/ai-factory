@@ -513,7 +513,7 @@ Implements fix WITH logging ([FIX] prefix)
     ↓
 Reruns the same regression check when available and suggests any useful extra coverage
     ↓
-Creates self-improvement patch in configured `paths.patches/`
+Creates self-improvement patch in configured `paths.patches/` only when the resolved patch policy is enabled (`workflow.fix_patch: true` by default; `--patch` / `--no-patch` overrides it)
     ↓
 NO plans, NO reports
 
