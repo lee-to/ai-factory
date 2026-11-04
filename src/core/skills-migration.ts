@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { withSkillSymlinks } from './skill-symlinks.js';
 import type { AgentInstallation, AiFactoryConfig, ManagedSkillState } from './config.js';
 import { loadConfig } from './config.js';
 import { getAgentConfig } from './agents.js';
@@ -220,7 +221,7 @@ export async function preflightSkillMigration(
 ): Promise<SkillMigrationPlan> {
   const configBefore = await readOptional(path.join(projectDir, '.ai-factory.json'));
   const configBeforeMode = await readMode(path.join(projectDir, '.ai-factory.json'));
-  const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents);
+  const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents, { select: !config.useSymlinks });
   const previousGroups = await resolveSkillTargets(projectDir, config.agents, { select: false });
   const extensions = await loadAllExtensions(projectDir, (config.extensions ?? []).map(extension => extension.name));
   if (extensions.length !== (config.extensions ?? []).length) throw new Error('Missing installed extension manifest; resolve it before skill migration.');
@@ -474,7 +475,7 @@ export async function withSkillProjectLock<T>(projectDir: string, action: () => 
   }
   logSkillTarget('lock:acquired', { project });
   try {
-    return await lockContext.run(new Set([...(held ?? []), project]), action);
+    return await lockContext.run(new Set([...(held ?? []), project]), () => withSkillSymlinks(project, action));
   } finally {
     if (equalBytes(await readOptional(lockPath), lockBytes)) await fs.unlink(lockPath);
     logSkillTarget('lock:released', { project });
@@ -717,7 +718,7 @@ export async function prepareSkillTargets(
       const recovered = await loadConfig(projectDir);
       if (recovered) Object.assign(config, recovered);
     }
-    const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents);
+    const resolved = groups ?? await resolveSkillTargets(projectDir, config.agents, { select: !config.useSymlinks });
     const previousGroups = await resolveSkillTargets(projectDir, config.agents, { select: false });
     const extensions = await loadAllExtensions(projectDir, (config.extensions ?? []).map(extension => extension.name));
     await collectSkillOwners(extensions);

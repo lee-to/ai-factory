@@ -495,7 +495,7 @@ async function upgradeLocked(): Promise<void> {
   config = (await loadConfig(projectDir))!;
 
   const oldSkillRoots = new Map(config.agents.map(agent => [agent.id, agent.skillsDir]));
-  const groups = await resolveSkillTargets(projectDir, config.agents);
+  const groups = await resolveSkillTargets(projectDir, config.agents, { select: !config.useSymlinks });
   const availableSkills = await getAvailableSkills();
   // v1 names are handled by the explicit upgrade cleanup below. Only installed v2
   // skills with verifiable receipts participate in the skills-only transaction.

@@ -23,6 +23,8 @@ program
   .option('--mcp <servers>', 'Comma-separated list of MCP servers (e.g. github,playwright,postgres,filesystem,chrome-devtools)')
   .option('--skills <skills>', 'Comma-separated list of skills or "all" for all skills (default: all)')
   .option('--no-skills', 'Skip installing base skills')
+  .option('--symlinks', 'Share identical skills in .agents/skills using symlinks')
+  .option('--no-symlinks', 'Install independent skill copies')
   .option('--config', 'Create default .ai-factory/config.yaml from template')
   .action(initCommand);
 

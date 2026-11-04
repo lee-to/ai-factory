@@ -41,6 +41,7 @@ export interface InitOptions {
   mcp?: string;
   skills?: string | boolean;
   config?: boolean;
+  symlinks?: boolean;
 }
 
 const VALID_MCP_KEYS: Record<string, string> = {
@@ -234,8 +235,9 @@ async function initLocked(options: InitOptions): Promise<void> {
     if (nonInteractive) {
       answers = buildAnswersFromFlags(options, availableSkills);
     } else {
-      answers = await runWizard(existingAgentIds);
+      answers = await runWizard(existingAgentIds, options.symlinks ?? existingConfig?.useSymlinks ?? false, options.symlinks === undefined);
     }
+    answers.useSymlinks = options.symlinks ?? answers.useSymlinks ?? existingConfig?.useSymlinks ?? false;
 
     const resolvedSkills = includeRequiredSkills(answers.selectedSkills);
     const requiredSkills = resolvedSkills.filter(skill => !answers.selectedSkills.includes(skill));
@@ -248,7 +250,7 @@ async function initLocked(options: InitOptions): Promise<void> {
       answers.agents.map(agent => ({
         id: agent.id,
         skillsDir: existingConfig?.agents.find(previous => previous.id === agent.id)?.skillsDir ?? getAgentConfig(agent.id).skillsDir,
-      })),
+      })), { select: !answers.useSymlinks },
     );
     for (const group of groups) {
       const previous = existingConfig?.agents.filter(agent => group.targets.some(target => target.id === agent.id)) ?? [];
@@ -422,6 +424,8 @@ async function initLocked(options: InitOptions): Promise<void> {
       version: getCurrentVersion(),
       agents: installedAgents,
       extensions: existingExtensions,
+      ...(answers.useSymlinks || existingConfig?.useSymlinks !== undefined
+        ? { useSymlinks: answers.useSymlinks } : {}),
     });
 
     console.log(chalk.green('✓ Configuration saved to .ai-factory.json'));

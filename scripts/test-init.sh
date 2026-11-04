@@ -209,7 +209,8 @@ async function runInteractive(selectSkills, expectedSkills) {
   inquirer.prompt = async questions => {
     promptCount++;
     if (promptCount === 1) {
-      assert.deepEqual(questions.map(question => question.name), ['selectedAgents', 'selectedSkills']);
+      assert.deepEqual(questions.map(question => question.name), ['selectedAgents', 'selectedSkills', 'useSymlinks']);
+      assert.equal(questions[2].default, false, 'New installations must default to copies');
       const choices = questions[1].choices;
       assert(choices.some(choice => choice.value === 'aif-loop'), 'Loop must be available for selection');
       selectedSkills = selectSkills(choices.map(choice => choice.value));
