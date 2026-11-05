@@ -52,6 +52,11 @@ try {
   assert.ok(!path.isAbsolute(await fs.readlink(claudePlan)), 'Links must remain project-relative');
   assert.ok(!await linked(path.join(shared, '.cursor/skills/aif')), 'Runtime-specific template values must remain separate');
   assert.match(await fs.readFile(path.join(shared, '.cursor/skills/aif/SKILL.md'), 'utf8'), /\.cursor/);
+  const sharedAif = path.join(shared, '.agents/skills/aif');
+  const cursorAif = await fs.readFile(path.join(shared, '.cursor/skills/aif/SKILL.md'));
+  assert.notDeepEqual(await fs.readFile(path.join(sharedAif, 'SKILL.md')), cursorAif);
+  assert.ok(await linked(path.join(shared, '.claude/skills/aif')));
+  assert.match((await readConfig(shared)).skillSymlinks.shared['.agents/skills/aif'] ?? '', /^[a-f0-9]{64}$/, 'A divergent second agent must not erase shared-tree ownership');
   assert.equal((await loadConfig(shared)).useSymlinks, true);
   const plan = await fs.readFile(path.join(claudePlan, 'SKILL.md'));
   for (const args of [['update'], ['update', '--force'], ['init', '--agents', 'claude,cursor', '--skills', skills]]) {
@@ -86,6 +91,8 @@ try {
   cli(shared, 'init', '--agents', 'cursor', '--skills', skills);
   assert.ok(await linked(cursorPlan), 'Removing a consumer must preserve surviving links');
   assert.ok(!await fs.pathExists(claudePlan));
+  assert.ok(await linked(path.join(shared, '.cursor/skills/aif')), 'Removing the first agent must release its divergent shared copy');
+  assert.deepEqual(await fs.readFile(path.join(sharedAif, 'SKILL.md')), cursorAif, 'The remaining agent must receive its own version');
   assert.equal(await fs.readFile(path.join(custom, 'SKILL.md'), 'utf8'), 'User-owned\n');
   cli(shared, 'init', '--agents', 'cursor', '--skills', skills, '--no-symlinks');
   assert.ok(!await linked(cursorPlan));
@@ -93,6 +100,8 @@ try {
   assert.equal((await readConfig(shared)).skillSymlinks, undefined);
   assert.deepEqual(await fs.readFile(path.join(cursorPlan, 'SKILL.md')), plan);
   assert.ok(!await fs.pathExists(path.join(shared, '.agents/skills/aif-plan')));
+  assert.ok(!await fs.pathExists(sharedAif), 'Opt-out must clean up the owned shared copy');
+  assert.deepEqual(await fs.readFile(path.join(shared, '.cursor/skills/aif/SKILL.md')), cursorAif);
 
   const mixed = await project('mixed');
   cli(mixed, 'init', '--agents', 'claude,codex', '--skills', 'aif', '--symlinks');
@@ -216,6 +225,25 @@ try {
   if (process.platform !== 'win32') {
     assert.equal((await fs.stat(path.join(fallback, '.claude/skills/aif-plan/SKILL.md'))).mode & 0o777, 0o640);
   }
+
+  const changedCopy = await project('changed-shared-copy');
+  cli(changedCopy, 'init', '--agents', 'claude', '--skills', 'aif-plan');
+  const changedConfig = await readConfig(changedCopy);
+  changedConfig.useSymlinks = true;
+  await fs.writeJson(path.join(changedCopy, '.ai-factory.json'), changedConfig);
+  const changedCanonical = path.join(changedCopy, '.agents/skills/aif-plan');
+  const originalCopy = fs.copy;
+  try {
+    fs.copy = async (from, to, ...options) => {
+      await originalCopy(from, to, ...options);
+      if (to === changedCanonical) await fs.appendFile(path.join(to, 'SKILL.md'), '\nConcurrent shared change\n');
+    };
+    await withSkillProjectLock(changedCopy, async () => {});
+  } finally { fs.copy = originalCopy; }
+  assert.equal((await readConfig(changedCopy)).skillSymlinks.shared['.agents/skills/aif-plan'], undefined, 'A changed copy without consumers must not gain cleanup authority');
+  assert.ok(!await linked(path.join(changedCopy, '.claude/skills/aif-plan')));
+  await withSkillProjectLock(changedCopy, async () => {});
+  assert.match(await fs.readFile(path.join(changedCanonical, 'SKILL.md'), 'utf8'), /Concurrent shared change/);
 
   const concurrent = await project('concurrent');
   cli(concurrent, 'init', '--agents', 'claude', '--skills', 'aif-plan');

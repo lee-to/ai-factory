@@ -162,7 +162,7 @@ async function linkSkills(projectDir: string, config: AiFactoryConfig): Promise<
         state.shared[destination] = hash;
       }
       if (await treeHash(target) !== hash) {
-        delete state.shared[destination];
+        if (!Object.values(state.links).includes(destination)) delete state.shared[destination];
         continue;
       }
       state.links[relative] = destination;
