@@ -196,7 +196,7 @@ function report(output: string): ObjectValue | null {
     || !Array.isArray(value.blockers) || !Array.isArray(value.affected_files) || !value.affected_files.every(text)
     || !object(value.suggested_next) || !(value.suggested_next.command === null
       || ['/aif-fix', '/aif-rules', '/aif-architecture', '/aif-roadmap', '/aif-commit'].includes(String(value.suggested_next.command)))
-    || !text(value.suggested_next.reason)
+    || !(value.suggested_next.reason === null || text(value.suggested_next.reason))
     || value.blockers.some(blocker => !object(blocker) || !text(blocker.id) || !text(blocker.summary)
       || !['error', 'warning'].includes(String(blocker.severity)))
     || (value.status === 'fail') !== value.blocking || value.blocking !== (value.blockers.length > 0)) throw new Error('Invalid verifier report.');

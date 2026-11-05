@@ -84,6 +84,9 @@ else if (mode === 'invalid') { console.log('\`\`\`aif-gate-result\\n{}\\n\`\`\`'
 else {
   if (mode === 'edit') fs.appendFileSync('source.txt', 'changed during verifier\\n');
   if (mode === 'inconsistent') result.blocking = true;
+  if (mode === 'null-reason') result.suggested_next.reason = null;
+  if (mode === 'missing-reason') delete result.suggested_next.reason;
+  if (mode === 'number-reason') result.suggested_next.reason = 42;
   if (mode === 'last-block') console.log('\`\`\`aif-gate-result\\n{}\\n\`\`\`');
   if (mode === 'index-edit') {
     const original = fs.readFileSync('source.txt');
@@ -134,7 +137,9 @@ else {
   hook = await enable();
   spec.argv = ['verify.mjs', 'fail-exit']; await saveSpec();
   await check(hook, 'changed_command');
-  for (const [mode, outcome, blocked] of [['fail-exit', 'failed', true], ['fail-report', 'failed', true],
+  for (const [mode, outcome, blocked] of [['null-reason', 'passed', false],
+    ['missing-reason', 'invalid_report', true], ['number-reason', 'invalid_report', true],
+    ['fail-exit', 'failed', true], ['fail-report', 'failed', true],
     ['missing', 'missing_report', true], ['invalid', 'invalid_report', true], ['inconsistent', 'invalid_report', true],
     ['warn', 'warning', false], ['last-block', 'passed', false], ['whitespace', 'passed', false],
     ['dangling', 'invalid_report', true], ['trailing', 'invalid_report', true], ['index-edit', 'stale', true], ['output', 'output_limit', true], ['edit', 'stale', true]]) {
