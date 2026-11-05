@@ -91,6 +91,48 @@ If scope is unclear, start with `/aif-explore` (optionally save results to `path
 
 If the task is clear but the answer must be strictly verified, use `/aif-grounded`; if the direction is already clear, jump straight to `/aif-plan`. From there, AI Factory builds a plan, optionally creates a branch/worktree when git settings allow it, and you run `/aif-implement` to execute it step by step.
 
+## Global Skills and Project Symlinks
+
+Installing the CLI with `npm install -g ai-factory` makes the command available
+globally. `ai-factory init` still configures the current project.
+
+To install only skills across projects, use the [skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add lee-to/ai-factory --skill '*' --global
+```
+
+This installs skill files without AI Factory's runtime transformations, MCP setup,
+or bundled agent files. Global skills are managed by the skills CLI.
+
+For a project with several agents, `ai-factory init` offers symlinks immediately
+after skill selection. You can also use:
+
+```bash
+ai-factory init --agents claude,cursor --symlinks
+```
+
+Identical bundled skill directories with proven source receipts share a copy in
+the project's `.agents/skills/`. Custom and extension replacement skills stay native.
+Each agent keeps its native skills directory, with relative links for matching
+skills. All files, permissions, and empty directories must match. Different runtime
+templates, invocation formats, and flat workflows keep independent copies. Existing
+native `.agents/skills/` consumers keep their own format; otherwise Codex is preferred
+when selected. A conflicting shared skill is preserved and other versions stay native.
+
+The choice persists for `init`, `update`, `upgrade`, and extension operations.
+Before mutations, managed links become copies; after successful operations, identical
+skills are linked again. Untracked or modified files never authorize new links or
+shared-copy cleanup. Editing a linked skill edits its shared copy for every consumer.
+
+Run `ai-factory init --agents claude,cursor --no-symlinks` to restore independent
+copies in the saved native directories. Later init, update, upgrade, and extension
+operations keep those paths even when `.agents/` remains from sharing.
+If the OS denies link creation, installation keeps copies and reports it;
+on Windows, directory symlinks may require Developer Mode or elevated privileges.
+For instruction inventory, select the canonical `.agents/skills/<skill>` path;
+the recorder continues to reject symlinked input paths.
+
 ## CLI Commands
 
 ```bash
@@ -101,6 +143,7 @@ ai-factory init
 ai-factory init --agents claude,codex --mcp playwright,github
 ai-factory init --agents cursor --skills commit,plan
 ai-factory init --agents claude --no-skills --mcp github
+ai-factory init --agents claude,cursor --symlinks
 
 # Update skills to latest version (also checks for CLI updates)
 ai-factory update
@@ -147,6 +190,7 @@ See [Instruction Manifests](instruction-manifests.md) for preparing `composition
 - `--agents` - Comma-separated target agents (for example `claude,codex`)
 - `--skills` - Comma-separated skill set to install instead of full defaults
 - `--no-skills` - Select no base skills (useful when only MCP setup is needed); on reruns, removes unchanged base skills with verified ownership
+- `--symlinks` / `--no-symlinks` - Share identical managed skills through `.agents/skills/`, or restore independent copies. The wizard asks after skill selection; new installations default to copies and reruns keep the saved choice.
 - `--mcp` - Comma-separated MCP servers to configure (`github`, `postgres`, `filesystem`, `chrome-devtools`, `playwright`)
 
 Rerunning `init` removes deselected base skills only when their saved raw ownership receipt proves that the installed contents are unchanged. This also applies to flat workflow files.

@@ -57,6 +57,11 @@ export interface AiFactoryConfig {
   version: string;
   agents: AgentInstallation[];
   extensions?: ExtensionRecord[];
+  useSymlinks?: boolean;
+  skillSymlinks?: {
+    links: Record<string, string>;
+    shared: Record<string, string>;
+  };
 }
 
 interface SaveConfigOptions {
@@ -307,6 +312,8 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
       version: raw.version ?? CURRENT_VERSION,
       agents: normalizedAgents,
       extensions: rawExtensions,
+      ...(typeof raw.useSymlinks === 'boolean' ? { useSymlinks: raw.useSymlinks } : {}),
+      ...(raw.skillSymlinks ? { skillSymlinks: raw.skillSymlinks } : {}),
     };
   }
 

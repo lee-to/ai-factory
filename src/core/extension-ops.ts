@@ -761,7 +761,7 @@ async function commitResolvedExtensionLocked(
   assertNoConfiguredRuntimeOrphans(options.config,
     getManifestRuntimeIds(priorManifest).filter(id => !getManifestRuntimeIds(options.resolved.manifest).includes(id)), options.resolved.manifest.name, 'update');
   await assertNoAgentFileConflicts(projectDir, options.config, options.resolved.manifest);
-  await resolveSkillTargets(projectDir, options.config.agents);
+  await resolveSkillTargets(projectDir, options.config.agents, { select: options.config.useSymlinks === undefined });
   await hydrateProjectAgentRegistry(projectDir, { extensionNames: (options.config.extensions ?? []).map(extension => extension.name) });
   await prepareSkillTargets(projectDir, options.config);
   const { config, source, resolved } = options;

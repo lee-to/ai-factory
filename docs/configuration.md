@@ -218,6 +218,13 @@ provide local evidence or an explicit mapping. Unknown effects remain unknown.
 
 The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills.
 
+Optional top-level `useSymlinks` stores the project's opt-in skill sharing choice.
+`skillSymlinks.links` records managed relative links to `.agents/skills/<skill>`;
+`skillSymlinks.shared` records hashes of shared trees created by AI Factory for safe
+cleanup. These are installation metadata, not `config.yaml` settings. Native
+`skillsDir` values and render profiles stay unchanged in this mode. See
+[global skills and project symlinks](getting-started.md#global-skills-and-project-symlinks).
+
 Codex additionally persists `configFiles` / `installedConfigFiles` for managed files such as `.codex/config.toml`. Updates refresh files that still match the saved installation baseline; local modifications and untracked pre-existing config files are preserved. Codex app installs Codex-style skills into `.agents/skills` and can write MCP config to `.codex/config.toml`, but it does not define a runtime-global `agentsDir`.
 
 AI Factory also stores internal `managedSkills`, `managedAgentFiles`, `managedConfigFiles`, and `agentFileSources` maps, omitted above for brevity. Managed entries keep source/install hashes. Skill entries may additionally carry `renderContextHash`, which detects changed template paths or shared-runtime profiles even when package source bytes are unchanged, and `rawInstalledHash`, which includes injection content, extension tool-request metadata, and exact file bytes. These fields do not change native agent/config ownership.

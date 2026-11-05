@@ -123,6 +123,14 @@ If you only need the `aif-*` skills without full AI-Factory setup, use:
 npx skills add lee-to/ai-factory --skill '*'
 ```
 
+For global skills available across projects, add `--global`:
+
+```bash
+npx skills add lee-to/ai-factory --skill '*' --global
+```
+
+See [global skills and project symlinks](docs/getting-started.md#global-skills-and-project-symlinks).
+
 > **Disclaimer:** This installs only the skill files. CLI commands (`ai-factory init/update/upgrade`), MCP auto-configuration, agent transformers, and the interactive wizard are **not** available. For the full experience, use the [npm installation](#installation) above.
 
 ---

@@ -98,6 +98,7 @@ Default artifacts are `.ai-factory/instruction-runs/<run-id>/manifest.json` and 
 ### Skills Location
 
 - **Package skills**: `skills/` — source of truth, copied during install
+- Optional `init --symlinks` shares source-proven, byte-identical skill trees in `.agents/skills/`; native paths and render profiles stay independent. `src/core/skill-symlinks.ts` materializes recorded links before the outer project-locked mutation and relinks after success. Persist `useSymlinks` and `skillSymlinks` metadata in `.ai-factory.json`; never replace untracked skill links or delete unproven shared trees. `init --no-symlinks` restores copies.
 - Selecting `aif` also selects `aif-skill-generator`, which supplies setup's security scanner and blocked-skill cleanup helpers. `init` records this managed dependency; `update` heals older selections missing it. Other skill selections remain independent.
 - **User skills**: `<agent-config-dir>/skills/` (e.g. `.claude/skills/`, `.opencode/skills/`, `.agents/skills/`)
 - **Agent transformer system**: `src/core/transformers/` adapts skill format per agent (e.g. Codex rewrites invocation prefixes to `$`, Antigravity 2.0 uses `.agents/` with triggered rules and subagents, KiloCode sanitizes dotted names)
