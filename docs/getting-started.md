@@ -165,6 +165,10 @@ ai-factory commands . packages/api packages/web --json
 ai-factory instructions start --spec composition.json
 ai-factory instructions verify RUN
 
+# Connect an explicitly approved project verifier to the qualified Claude Stop hook
+ai-factory completion-hook enable --spec tools/completion-hook.json
+ai-factory completion-hook disable
+
 # Install an extension (local path, git URL, or npm package)
 ai-factory extension add ./my-extension
 
@@ -180,6 +184,9 @@ ai-factory extension update my-extension --force
 # Remove extension
 ai-factory extension remove my-extension
 ```
+
+See [Project Completion Hook](configuration.md#project-completion-hook) for runtime qualification,
+explicit command approval, receipt limits and reversal.
 
 See [Plan Files](plan-files.md) for the artifact frontmatter schema, default scan paths, `--json` output, `--strict` exit behavior, and path boundary rules.
 

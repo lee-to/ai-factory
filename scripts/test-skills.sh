@@ -2198,6 +2198,12 @@ else
     fail "project command catalog or discovery boundaries"
 fi
 
+if node "$ROOT_DIR/scripts/test-completion-hook.mjs"; then
+    pass "completion hook bounded verifier and receipt lifecycle"
+else
+    fail "completion hook bounded verifier or receipt lifecycle"
+fi
+
 echo -e "\n${BOLD}=== Review confidence lifecycle tests ===${NC}\n"
 
 set +e

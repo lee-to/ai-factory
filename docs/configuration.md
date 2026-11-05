@@ -2,6 +2,127 @@
 
 # Configuration
 
+## Project Completion Hook
+
+`ai-factory completion-hook` is an opt-in adapter for **Claude Code 2.1.318 on
+macOS/Linux**, qualified against the documented synchronous `Stop` command-hook
+protocol with a local fake host. Native interactive Claude execution is not covered
+by these fixtures. Other versions, runtimes and Windows are unsupported.
+
+The [Claude hooks reference](https://code.claude.com/docs/en/hooks#stop) describes
+`Stop` as the end of a response, with a blocking decision continuing the conversation.
+It does not fire for every cancellation or host failure. Host loop limits, a missing
+adapter executable, disabled hooks, or an outer hook timeout can still allow the
+session to stop. **This is cooperative feedback, not a fail-closed completion or
+permission boundary.** `onFailure` does not provide enforcement for `Stop`.
+
+Use the **existing, reviewed project verification entrypoint** used manually and in
+CI. Do not introduce a second checklist. Command catalog discovery, an agent-authored
+PASS, or a repository-provided specification does not authorize execution. Inspect
+the command, its transitive scripts, lifecycle effects and configuration before
+explicitly enabling it. The adapter grants no permissions or isolation: the approved
+command retains the caller's environment and OS access. Choose a read-only verifier;
+the adapter itself never commits, merges, publishes, auto-fixes or finalizes work.
+
+Create a project-relative JSON specification, for example `tools/completion-hook.json`:
+
+```json
+{
+  "schema_version": 1,
+  "runtime": "claude",
+  "version": "2.1.318",
+  "host_executable": "/absolute/canonical/path/to/claude",
+  "role": "required",
+  "executable": "/absolute/canonical/path/to/node",
+  "argv": ["tools/verify.mjs"],
+  "cwd": ".",
+  "source_revision": "FULL_GIT_HEAD_HASH",
+  "inputs": ["tools/verify.mjs", "package.json", "package-lock.json"],
+  "timeout_ms": 30000
+}
+```
+
+Executable paths must be canonical absolute regular-file paths; use `realpath` to
+resolve shims/symlinks first. `argv` is passed without a shell. `cwd` is the exact
+project-relative verifier directory (`.` means root). `source_revision` is the full
+current `git rev-parse HEAD`; dirty source files are fingerprinted at execution.
+`inputs` must list the reviewed command definitions, transitive verifier scripts and
+policy/configuration files, including ignored files that affect verification. This
+explicit list is not a discovered dependency graph. The specification itself,
+input hashes, executable bytes and observed host `--version` are pinned. Changes
+require reviewing the new command/configuration and explicitly enabling again.
+Do not put credentials in argv/specification; receipts retain command identity.
+
+```bash
+ai-factory completion-hook enable --spec tools/completion-hook.json
+ai-factory completion-hook disable
+```
+
+Enable adds one owned entry to **project-local** `.claude/settings.local.json` and
+writes `.ai-factory/completion-hook/approval.json`; ordinary init/update never enable
+it. Existing hooks and unrelated settings are preserved. Disable removes only the
+exact owned entry and active approval, preserving receipts and user-edited hooks.
+Restart Claude after changing hook settings. These commands do not modify global
+agent or Git settings. Keep the local approval, attempts and receipts out of Git;
+they contain local paths and command metadata. Unsupported enable returns an explicit
+`unsupported` result without changing settings. A retained required hook whose
+approval was disabled returns `unsupported` and requests a block; an observer
+reports the same unsuccessful outcome without requesting a block.
+
+The verifier must exit zero and emit its normal final
+[`aif-gate-result`](quality-gates.md) fence with `gate: "verify"`. A complete `pass`
+allows stopping. A non-blocking `warn` remains a warning and allows stopping under
+the existing gate policy. Blocking reports, nonzero exits (even with a PASS report),
+timeouts, cancellation, missing/invalid reports and incomplete output never become
+PASS. The aggregate verifier owns which checks are required and whether they were
+completed; the adapter does not infer per-check coverage. `role: "required"` requests
+a block for unsuccessful outcomes; `role: "observer"` only reports them. An observer
+failure stays a failure in its receipt and cannot satisfy a required check.
+
+Execution is bounded to 100–120000 ms, 64 KiB combined stdout/stderr, and **one launch
+per approval and host session**. `stop_hook_active`, an inherited recursion marker,
+and an exclusive attempt file prevent recursive/concurrent/repeated verifier
+launches. Retries require explicit re-enablement; an interrupted launch consumes its
+attempt. Cancellation/timeout/output overflow kill the local process group. A hostile
+program that detaches itself is outside this adapter's process-containment claim.
+The outer host timeout includes 30 seconds of overhead; host termination before the
+receipt is written yields missing evidence, never an authenticated success.
+
+Each invocation writes `.ai-factory/completion-hook/receipts/UUID.json`. Schema v1
+records approval/config digest, exact executable/argv/CWD, executable hash, worktree
+root, source HEAD and file digests, post-execution source digest, observed exit/signal,
+execution outcome, report digest/status, output digests and evidence completeness.
+Raw output and transcripts are not retained. `evidence_complete` describes captured
+execution/report evidence, not proof of every project requirement or instruction.
+The distinct outcomes include `passed`, `warning`, `failed`, `timeout`, `cancelled`,
+`output_limit`, `spawn_error`, `missing_report`, `invalid_report`, `stale`, `recursion`,
+`reentry`, `wrong_cwd`, `wrong_project_or_role`, `changed_command`, `invalid_event`,
+`unsupported` and `error`.
+
+Source inventory covers Git tracked files (including deletions), non-ignored
+untracked files, the specification and explicit inputs. Adapter storage and local
+hook settings are excluded from the source hash to avoid self-invalidation; approval
+identity/configuration are bound separately. Other ignored dependencies, external
+services and environment changes are outside that inventory. Unsupported symlinks,
+submodules, unreadable files or limits fail without launching: 10000 files, 8 MiB per
+source file, 128 MiB total, 512 KiB source evidence, 256 MiB per executable and 1 MiB
+per JSON input. A source change during verification makes the result stale.
+
+```bash
+ai-factory completion-hook inspect .ai-factory/completion-hook/receipts/UUID.json
+```
+
+Inspect recomputes current source and command/configuration pins. Later source,
+HEAD, input, command or worktree changes make earlier evidence stale. It **only
+checks freshness**, always returning `authenticity: "not_authenticated"`: local JSON
+can be edited or imported. No receipt import or acceptance path is provided. A
+consumer requiring trusted execution must obtain its observation from the host and
+revalidate scope/freshness; a copied receipt containing PASS is insufficient.
+`/aif-verify` and the existing workflow retain verification/finalization ownership.
+Extension command modules are not imported on any `completion-hook` route,
+including help. Set `AIF_COMPLETION_HOOK_LOG_LEVEL=silent` to suppress progress logs;
+host decisions and local receipt metadata remain available.
+
 ## Project Command Catalog
 
 ```bash

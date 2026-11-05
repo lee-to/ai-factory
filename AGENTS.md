@@ -89,6 +89,20 @@ commands on the catalog route, including help. No discovered command is executed
 verified or authorized by discovery. No catalog/config files are written. See
 `docs/configuration.md#project-command-catalog` for limits and explicit mappings.
 
+### Project completion hook
+
+`ai-factory completion-hook` is an explicit project-local Claude Code 2.1.318 Stop
+adapter (`src/core/completion-hook.ts`). It pins the reviewed spec, executable,
+command inputs, CWD and source HEAD, then records working-tree fingerprints and
+bounded observed verifier execution using the existing `aif-gate-result` report.
+Only enable/disable own the exact local settings entry and active approval;
+run owns attempts/receipts under `.ai-factory/completion-hook/`. No global settings,
+command discovery execution, automatic retries or workflow finalization. Required
+checks and optional observers retain their existing policy. Inspect checks freshness,
+not authenticity; local receipts cannot independently prove trusted execution.
+Stop lifecycle limits preclude fail-closed host enforcement. See
+`docs/configuration.md#project-completion-hook` and `npm run test:completion-hook`.
+
 ### Instruction composition records
 
 `ai-factory instructions` is an opt-in recorder for explicitly registered invocations. Core logic is in `src/core/instruction-manifest.ts` and installed-package inventory in `src/core/instruction-inventory.ts`; CLI wiring is in `src/cli/commands/instructions.ts`. The output contract is `schemas/instruction-manifest.schema.json`, documented in `docs/instruction-manifests.md`.
