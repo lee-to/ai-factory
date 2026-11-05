@@ -100,6 +100,120 @@ paths are normalized; invocation tokens are not rewritten for another OS. Worksp
 directories and inherited package managers are not guessed: list directories and
 provide local evidence or an explicit mapping. Unknown effects remain unknown.
 
+## Worktree Readiness Diagnostic
+
+```bash
+# Select existing checkout directories; no Git worktree is created or discovered automatically
+ai-factory worktree-check . ../project-feature --json
+ai-factory worktree-check . ../project-feature --mapping tools/project.json
+```
+
+Run this before runtime-dependent work in parallel checkouts. Git worktrees separate
+source files; they do not separate host ports, databases, caches or Docker resources.
+The command only reads declarations and prints to stdout (human or JSON). It creates
+no reports, worktrees, services, volumes or other files. Shell redirection can save an
+explicitly selected report. No Make/Compose commands, package hooks, extension
+imports (including on `--help`), scripts, installations, credential copies, allocation
+or cleanup run. Existing configuration owners retain ownership; no settings change.
+
+Select 1–32 existing directories, relative to the calling directory or absolute;
+checkout numbers in the report follow argument order. Git metadata is not required,
+so disposable synthetic checkouts can also be inspected. Defaults to the current
+directory. This inspects only the selected roots, without recursive workspace scans.
+
+The bounded Compose subset reads root `compose.yaml`, `compose.yml`,
+`docker-compose.yaml`, `docker-compose.yml` and their `.override` variants:
+
+- Literal Compose project names (or the normalized directory basename), fixed
+  `container_name`, named/external volumes and networks, and implicit project-scoped
+  volumes/default networks.
+- Fixed host ports in short/long syntax; protocol participates in identity. Host
+  IPs are conservatively ignored, so different IP bindings can still be potential
+  collisions. Automatic ports, ranges and interpolated ports remain unknown.
+- Short/long bind mounts and named volumes, including read-only access. Relative
+  bind paths resolve lexically against their checkout. External targets are never
+  opened; filesystem aliases, parent/child path overlaps and remote filesystems are
+  not resolved. Backslash bind paths are unsupported in both syntaxes; Windows
+  drive-letter short mounts remain unknown.
+- Literal `DATABASE_URL`, `REDIS_URL` and `CACHE_URL` bindings for PostgreSQL, MySQL
+  and Redis. User/password never participate in identity; host/port/database do.
+  Connection routing/host aliases still produce an explicit unknown. Other
+  database/cache/port/path environment bindings require explicit mappings.
+
+Interpolation, inherited environment, aliases, invalid/duplicate-key YAML/JSON,
+multiple-file Compose merging, includes/extends, unsupported service fields and
+custom resource options stay unknown. Present `.env`, Make/Task/just, npm and
+Composer files are identified as uninspected runtime sources, without reading their
+contents. Neither `.env` nor the process environment is used for interpolation.
+A mapping does not erase these unknowns.
+Full stacks will commonly report `incomplete`; this is expected coverage information,
+not a failed scan. Multiple Compose files are analyzed independently, so potential
+collisions may include declarations that a live merge would replace or remove.
+Runtime overrides such as `COMPOSE_PROJECT_NAME`, `-p` or additional `-f` files are
+not inferred from the caller's environment. Inspect them separately before execution.
+
+### Resource Mappings in an Existing Owner
+
+`--mapping` reads the same project-relative JSON path in each selected checkout.
+Reuse an existing project metadata owner, including the command catalog's mapping
+file or `package.json`; no `config.yaml` key or generated registry is introduced.
+Root Compose discovery filenames are rejected as mappings to preserve Compose analysis.
+Other top-level fields are ignored. `runtimeResources` entries accept only `kind`,
+`identity`, `access`, and optional `sharing`:
+
+```json
+{
+  "runtimeResources": [
+    { "kind": "database", "identity": "local-postgres/app-feature-a", "access": "read-write" },
+    { "kind": "cache", "identity": "local-redis/feature-a", "access": "read-write" },
+    { "kind": "host-port", "identity": "8081/tcp", "access": "read-write" },
+    { "kind": "path", "identity": "../shared-fixtures", "access": "read-only", "sharing": "read-only" }
+  ]
+}
+```
+
+Kinds are `container`, `volume`, `network`, `compose-project`, `host-port`, `path`,
+`database`, and `cache`. Identities are literal project-owner declarations. Use the
+same canonical identifier for the same resource in each checkout; use distinct
+database/cache identifiers only after their namespaces are explicitly configured.
+Container/volume/network/project mappings use the actual literal resource name;
+host ports use `NUMBER/tcp` or `NUMBER/udp`; paths resolve as bind paths do. Arbitrary
+database/cache labels are owner assertions, not verified connection settings.
+
+Sharing is permitted only for `path`, `volume`, `database` and `cache`. Every
+participating checkout must declare `access: read-only` and `sharing: read-only`
+for that identity, and every discovered use must be read-only. A Compose `:ro`
+mount alone does not approve sharing. These declarations do not enforce read-only
+access at runtime and cannot authorize a writable use or shared container/port.
+
+Both views carry `schema_version: 1`, `revision_sha256`, `sources`, and `findings`.
+Each finding has source checkout/path, line where available, exact source-byte
+SHA-256 where read, and certainty (`static`, `owner-declared`, or `unknown`).
+Resource IDs are opaque SHA-256 fingerprints, so raw names, paths, connection
+strings, environment values and parser errors are withheld. Use source locations
+for private inspection. Fingerprints are comparison identifiers, not encrypted
+secret storage; keep secrets out of owner-supplied resource identities.
+
+Finding statuses distinguish `potential-collision`, `allowed-read-only-sharing`,
+`distinct` and `unknown`, with a scoped remediation. `distinct` only means no equal
+static identity in another selected checkout. Summary status prioritizes potential
+collisions, then incomplete coverage, then `no-static-collision`. `coverage` is
+`incomplete` whenever any source/value is unknown or no supported declarations were
+found. `supported-declarations` applies only to the scanned subset; **`isolation`
+is always `not_verified`**. No result guarantees complete or live isolation.
+Use explicit namespaces in the existing owner or run runtime-dependent work serially
+when independence cannot be established; this command grants no execution permission.
+
+Reads reject source symlinks/junctions and non-regular files, and are bounded to
+1 MiB per file and 8 MiB total. Mapping paths must stay within each checkout and
+cannot select environment, credential, private-key or certificate files. Source
+access/parse/size failures are unknown; exceeding 2,000 resource/unknown records
+rejects the diagnostic. Exit 0
+means a report was produced, including collisions/incomplete coverage; exit 1 means
+invalid input, unavailable checkout roots or a fatal limit failure. Consumers must
+inspect `status` and `coverage`. Refresh after source, mapping or checkout changes;
+uninspected source contents have no byte revision and cannot carry a prior pass.
+
 ## `.ai-factory.json`
 
 ```json
