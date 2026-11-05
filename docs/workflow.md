@@ -346,6 +346,14 @@ Three modes — **fast** (quick single file), **full** (rich single file), and
 specify implementation in code-level detail). Full and ultra share testing,
 logging, docs, roadmap, branch, and worktree preferences.
 
+Before parallel runtime-dependent work, planning runs the read-only
+[`worktree-check` diagnostic](configuration.md#worktree-readiness-diagnostic) against
+selected existing checkouts. Fixed/shared ports, names, paths and database/cache
+bindings require independent namespaces or explicitly approved read-only sharing.
+Dynamic/unsupported declarations remain incomplete. Resolve conflicts through the
+existing configuration owner or run runtime-dependent work serially; a worktree
+and a static scan do not guarantee live isolation or authorize environment setup.
+
 In every mode, an explicitly
 selected milestone group is persisted as `Milestone:` plus `Also completes:` lines;
 completion checks each linked milestone separately, and archived completed plans

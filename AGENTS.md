@@ -103,6 +103,18 @@ not authenticity; local receipts cannot independently prove trusted execution.
 Stop lifecycle limits preclude fail-closed host enforcement. See
 `docs/configuration.md#project-completion-hook` and `npm run test:completion-hook`.
 
+### Worktree runtime readiness
+
+`ai-factory worktree-check [checkouts...] [--mapping <existing-json>] [--json]`
+compares bounded static Compose declarations and owner-supplied `runtimeResources`
+without launching environments, importing extensions or writing files. Core logic
+is in `src/core/worktree-readiness.ts`; CLI rendering is in
+`src/cli/commands/worktree-check.ts`. Unknown/dynamic sources stay incomplete and
+isolation is always unverified. `/aif-plan --parallel` carries findings into execution;
+checkout creation alone does not authorize parallel runtime-resource use. Existing
+configuration owners retain all mappings and remediation writes. See
+`docs/configuration.md#worktree-readiness-diagnostic`.
+
 ### Instruction composition records
 
 `ai-factory instructions` is an opt-in recorder for explicitly registered invocations. Core logic is in `src/core/instruction-manifest.ts` and installed-package inventory in `src/core/instruction-inventory.ts`; CLI wiring is in `src/cli/commands/instructions.ts`. The output contract is `schemas/instruction-manifest.schema.json`, documented in `docs/instruction-manifests.md`.

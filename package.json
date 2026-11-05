@@ -24,6 +24,7 @@
     "test:shared-skill-context": "node scripts/test-shared-skill-context.mjs",
     "test:command-catalog": "node scripts/test-command-catalog.mjs",
     "test:completion-hook": "node scripts/test-completion-hook.mjs",
+    "test:worktree-readiness": "node scripts/test-worktree-readiness.mjs",
     "test:api-compatibility": "node scripts/test-api-compatibility.mjs",
     "test:coupling": "node scripts/test-coupling.mjs",
     "test:shared-skills": "npm run build && node scripts/test-shared-skill-targets.mjs",

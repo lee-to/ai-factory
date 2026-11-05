@@ -2204,6 +2204,14 @@ else
     fail "completion hook bounded verifier or receipt lifecycle"
 fi
 
+echo -e "\n${BOLD}=== Read-only worktree readiness ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-worktree-readiness.mjs"; then
+    pass "worktree resource diagnostic and read-only boundaries"
+else
+    fail "worktree resource diagnostic or read-only boundaries"
+fi
+
 echo -e "\n${BOLD}=== Review confidence lifecycle tests ===${NC}\n"
 
 set +e

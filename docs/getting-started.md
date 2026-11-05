@@ -161,6 +161,9 @@ ai-factory audit-artifacts
 ai-factory commands
 ai-factory commands . packages/api packages/web --json
 
+# Diagnose static runtime conflicts between existing checkouts without launching environments
+ai-factory worktree-check . ../project-feature --json
+
 # Record an explicitly registered skill invocation and verify its instruction bytes
 ai-factory instructions start --spec composition.json
 ai-factory instructions verify RUN
@@ -222,6 +225,10 @@ Run `ai-factory upgrade` to migrate old bare-named skills (`commit`, `feature`, 
 The [project command catalog](configuration.md#project-command-catalog) reads
 supported declarations and optional existing JSON mappings. It never executes
 commands, imports project extensions, installs tooling, or rewrites configuration.
+
+The [worktree readiness diagnostic](configuration.md#worktree-readiness-diagnostic)
+compares static runtime resource declarations and existing owner mappings before
+parallel work. Unknown settings remain incomplete; it never guarantees live isolation.
 
 ### Documentation Commands
 
