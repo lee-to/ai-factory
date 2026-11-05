@@ -154,15 +154,25 @@ function equalFiles(left: Map<string, Buffer>, right: Map<string, Buffer>): bool
   return left.size === right.size && [...left].every(([name, bytes]) => equalBytes(bytes, right.get(name) ?? null));
 }
 
+const INJECTION_BLOCK = /\n?<!-- aif-ext:[^:]+:[^:]+:[^:]+:start -->\n[\s\S]*?\n<!-- aif-ext:[^:]+:[^:]+:[^:]+:end -->\n?/g;
+
 function managedHash(files: Map<string, Buffer>, raw = false): string {
   const hash = createHash('sha256');
   for (const [name, bytes] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
     hash.update(`path:${name}\n`);
-    hash.update(!raw && name.endsWith('.md') ? bytes.toString('utf8').replace(/\r\n/g, '\n')
-      .replace(/\n?<!-- aif-ext:[^:]+:[^:]+:[^:]+:start -->\n[\s\S]*?\n<!-- aif-ext:[^:]+:[^:]+:[^:]+:end -->\n?/g, '').trimEnd() : bytes);
+    hash.update(!raw && path.extname(name).toLowerCase() === '.md' ? bytes.toString('utf8').replace(/\r\n/g, '\n')
+      .replace(INJECTION_BLOCK, '').trimEnd() : bytes);
     hash.update('\n');
   }
   return hash.digest('hex');
+}
+
+// Receipts leave injection blocks out, so they are compared separately, in order, per file.
+function injectionBlocks(files: Map<string, Buffer>): string {
+  return JSON.stringify([...files].filter(([name]) => path.extname(name).toLowerCase() === '.md')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, bytes]) => [name, (bytes.toString('utf8').replace(/\r\n/g, '\n').match(INJECTION_BLOCK) ?? []).map(block => block.trim())])
+    .filter(([, blocks]) => blocks.length > 0));
 }
 
 // Validate source identity before any target deduplication, including custom basenames.
@@ -305,7 +315,7 @@ export async function preflightSkillMigration(
       const owner = owners.get(name);
       if (!owner) throw new Error(`Unknown source for "${name}"; preserve the existing copy and resolve its ownership before migration.`);
       const finalFiles = await renderComposition(owner, group.targets[0].id, group.context, extensions);
-      const proofs: { directory: string; physical: string; tree: TreeInventory; files: Map<string, Buffer> }[] = [];
+      const proofs: { directory: string; physical: string; tree: TreeInventory; files: Map<string, Buffer>; outdated: boolean }[] = [];
       for (const agent of participants) {
         const directory = `${agent.skillsDir}/${name}`;
         await rejectLinkedSkillEntry(projectDir, directory);
@@ -329,11 +339,15 @@ export async function preflightSkillMigration(
             }
           }
         }
-        if (!equalFiles(tree.files, expected)) throw new Error(`Skill migration conflict: "${directory}" differs from its known source (including injections or unknown files). Preserve both copies and resolve local changes.`);
+        const saved = agent.managedSkills?.[name];
+        const state = owner.extension ? undefined : (await buildManagedSkillsState(projectDir, agent, [name], oldContext))[name];
+        // The package carries only its own source, so a copy an older one installed cannot be
+        // re-rendered. Its receipt may be replaced like an ordinary update would, not deleted.
+        const outdated = Boolean(saved && state && saved.sourceHash !== state.sourceHash
+          && saved.installedHash === state.installedHash && injectionBlocks(tree.files) === injectionBlocks(expected));
+        if (!outdated && !equalFiles(tree.files, expected)) throw new Error(`Skill migration conflict: "${directory}" differs from its known source (including injections or unknown files). Preserve both copies and resolve local changes.`);
         if (!owner.extension) {
-          const state = (await buildManagedSkillsState(projectDir, agent, [name], oldContext))[name];
-          const saved = agent.managedSkills?.[name];
-          if (!saved || !state || saved.sourceHash !== state.sourceHash || saved.installedHash !== state.installedHash) {
+          if (!saved || !state || (!outdated && saved.sourceHash !== state.sourceHash) || saved.installedHash !== state.installedHash) {
             throw new Error(`Missing or changed managed baseline for "${directory}". Migration will not overwrite an unproven copy.`);
           }
         } else {
@@ -341,7 +355,7 @@ export async function preflightSkillMigration(
           const manifest = extensions.find(extension => extension.manifest.name === record?.name)?.manifest;
           if (!record || record.version !== manifest?.version) throw new Error(`Unproven extension revision for "${directory}".`);
         }
-        proofs.push({ directory, physical, tree, files: expected });
+        proofs.push({ directory, physical, tree, files: outdated ? tree.files : expected, outdated });
       }
       if (proofs.length === 0) throw new Error(`No installed baseline for "${name}"; restore the source before migrating to ${group.skillsDir}.`);
       const destination = `${group.skillsDir}/${name}`;
@@ -352,18 +366,27 @@ export async function preflightSkillMigration(
         && !proofs.some(proof => equalFiles(destinationTree.files, proof.files))) {
         throw new Error(`Skill migration conflict: "${destination}" and "${proofs[0].directory}" differ. No files were changed.`);
       }
+      const outdated = proofs.some(proof => proof.outdated);
+      const retained = outdated ? [...(destinationTree?.files ?? [])].filter(([relative]) => !finalFiles.has(relative)) : [];
+      for (const [relative] of retained) warnings.push(`Preserving file absent from the new source: ${destination}/${relative}`);
       for (const [relative, bytes] of finalFiles) {
         const modes = new Set([...proofs.map(proof => proof.tree), ...(destinationTree ? [destinationTree] : [])]
           .map(tree => tree.modes.get(relative)).filter((mode): mode is number => mode !== undefined));
-        if (modes.size !== 1) throw new Error(`Skill migration mode conflict: "${name}/${relative}" has differing or unknown permissions. Preserve copies and resolve their modes.`);
-        const afterMode = [...modes][0];
+        if (modes.size > 1 || (modes.size === 0 && !outdated)) throw new Error(`Skill migration mode conflict: "${name}/${relative}" has differing or unknown permissions. Preserve copies and resolve their modes.`);
+        // A file the new source added exists in no outdated copy.
+        const afterMode = [...modes][0] ?? await readMode(path.join(owner.sourceDir, relative)) ?? proofs[0].tree.modes.get('SKILL.md')!;
         await addFile(`${destination}/${relative}`, destinationTree?.files.get(relative) ?? null, bytes, destinationTree?.modes.get(relative) ?? null, afterMode);
       }
       for (const [relative, bytes] of destinationTree?.files ?? []) {
-        if (!finalFiles.has(relative)) await addFile(`${destination}/${relative}`, bytes, null, destinationTree!.modes.get(relative)!, null);
+        if (!outdated && !finalFiles.has(relative)) await addFile(`${destination}/${relative}`, bytes, null, destinationTree!.modes.get(relative)!, null);
       }
       for (const proof of proofs) {
         if (proof.physical === destinationPath) continue;
+        // Normalized receipts record observed bytes, so they do not authorize deleting user files.
+        if (proof.outdated) {
+          warnings.push(`Keeping ${proof.directory}: an older package installed it and its files cannot be proven. Delete it once nothing there is yours.`);
+          continue;
+        }
         for (const [relative, bytes] of proof.tree.files) await addFile(`${proof.directory}/${relative}`, bytes, null, proof.tree.modes.get(relative)!, null);
         // Only directories required by known files are eligible for empty-directory cleanup.
         const knownDirectories = new Set(['']);
@@ -381,8 +404,8 @@ export async function preflightSkillMigration(
         agent.managedSkills ??= {};
         if (owner.extension) delete agent.managedSkills[name]; // A replacement must not retain the old bundled-skill receipt.
         if (sourceState && agent.installedSkills.includes(name)) {
-          const state: ManagedSkillState = { sourceHash: sourceState.sourceHash, installedHash: managedHash(finalFiles),
-            rawInstalledHash: managedHash(finalFiles, true), renderContextHash: group.context.hash };
+          const state: ManagedSkillState = { sourceHash: sourceState.sourceHash, installedHash: managedHash(new Map([...finalFiles, ...retained])),
+            ...(retained.length === 0 ? { rawInstalledHash: managedHash(finalFiles, true) } : {}), renderContextHash: group.context.hash };
           agent.managedSkills[name] = state;
         }
       }

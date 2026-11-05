@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { installExtensionSkills } from '../dist/core/installer.js';
+import { buildManagedSkillsState, installExtensionSkills, installSkills } from '../dist/core/installer.js';
+import { getSkillsDir } from '../dist/utils/fs.js';
 import { saveConfig } from '../dist/core/config.js';
 import { applySkillMigration, preflightSkillMigration, recoverSkillMigration, captureSharedSkillRollback } from '../dist/core/skills-migration.js';
 
@@ -279,6 +280,24 @@ test('unmodified singleton and flat snapshots need no write access', async proje
   finally { fs.open = originalOpen; }
   assert.equal(writeAttempts, 0);
   await assertModes(project, sourcePath);
+});
+
+test('a file the new source added takes its source mode in an older copy', async project => {
+  const name = 'aif-security-checklist';
+  const script = 'scripts/audit.sh';
+  const agent = { id: 'codex', skillsDir: '.codex/skills', installedSkills: [name],
+    mcp: { github: false, filesystem: false, postgres: false, chromeDevtools: false, playwright: false } };
+  await installSkills({ projectDir: project, agentId: agent.id, skillsDir: agent.skillsDir, skills: [name] });
+  await fs.rm(path.join(project, sourcePath, '..', name, script));
+  const state = await buildManagedSkillsState(project, agent, [name]);
+  agent.managedSkills = { [name]: { sourceHash: 'older-revision', installedHash: state[name].installedHash } };
+  const config = { version: '2.19.0', agents: [agent] };
+  await saveConfig(project, config, { hydrateAgentFileSources: false });
+  await fs.mkdir(path.join(project, '.agents'));
+  await applySkillMigration(project, await preflightSkillMigration(project, config));
+  const expected = await mode(path.join(getSkillsDir(), name, script));
+  if (process.platform !== 'win32') assert.ok(expected & 0o111, 'bundled script is executable');
+  assert.equal(await mode(path.join(project, '.agents/skills', name, script)), expected);
 });
 
 let failures = 0;
