@@ -641,6 +641,34 @@ To manage worktrees later:
   /aif-plan --cleanup <branch-name>
 ```
 
+#### Runtime Resource Readiness
+
+Before independent runtime-dependent tasks start, use the existing worktree paths
+from `git worktree list` to select the source checkout, new checkout and any relevant
+concurrent checkouts. Run the installed read-only CLI diagnostic:
+
+```bash
+ai-factory worktree-check "<source-checkout>" "${WORKTREE}" --json
+```
+
+Use `--mapping <project-relative-json>` only for an existing mapping explicitly
+provided by the configuration owner; never create/rewrite settings for discovery.
+Read `status`, `coverage`, findings and source revisions; exit 0 only means a report
+was produced. A worktree does not isolate ports, databases, caches, mutable external
+paths or container resources. Static `distinct` results are not live isolation proof;
+`isolation` is always `not_verified`. Shared read-only resources need explicit owner
+approval in every participating checkout and no discovered writable use.
+
+If the CLI feature is unavailable, report that gap and inspect only bounded literal
+declarations read-only, retaining dynamic/unsupported settings as unknown. Do not
+install tooling or execute Make/Compose/package hooks/scripts to discover resources.
+For potential collisions or incomplete coverage, suggest a specific namespace change
+through its existing configuration owner or serial runtime-dependent execution.
+Independent source editing/planning may continue, but do not automatically start
+conflicting or unresolved parallel environments/tests. No resource allocation,
+environment setup, credential copying, cleanup, permission expansion or live
+two-environment test is authorized by this diagnostic.
+
 Continue to Step 2.
 
 **If no `--parallel` → create branch normally:**
@@ -1072,7 +1100,7 @@ The canonical template defines the required sections and ordering only. Render a
 
 ### Step 6: Next Steps
 
-**Full/ultra mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` — the whole point of parallel is autonomous end-to-end execution in an isolated worktree. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
+**Full/ultra mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` for autonomous end-to-end execution in the separate worktree, carrying Step 1.4's runtime-resource findings and execution limits forward. Unresolved/conflicting runtime-dependent work stays serial or blocked pending the owner's scoped remediation; source editing may continue. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
 
 ```
 /aif-implement

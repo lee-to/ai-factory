@@ -5,6 +5,7 @@ import { upgradeCommand } from './commands/upgrade.js';
 import { auditArtifactsCommand } from './commands/audit-artifacts.js';
 import { registerInstructionCommands } from './commands/instructions.js';
 import { commandsCommand } from './commands/commands.js';
+import { worktreeCheckCommand } from './commands/worktree-check.js';
 import { extensionAddCommand, extensionRemoveCommand, extensionListCommand, extensionUpdateCommand } from './commands/extension.js';
 import { getCurrentVersion, loadConfig } from '../core/config.js';
 import { loadAllExtensions } from '../core/extensions.js';
@@ -59,6 +60,13 @@ program.command('commands [directories...]')
   .allowExcessArguments(false)
   .action(commandsCommand);
 
+program.command('worktree-check [checkouts...]')
+  .description('Diagnose static runtime-resource conflicts between existing checkouts without launching environments')
+  .option('--json', 'Print the same diagnostic as machine-readable JSON')
+  .option('--mapping <file>', 'Read runtimeResources from this existing project-relative JSON file in each checkout')
+  .allowExcessArguments(false)
+  .action(worktreeCheckCommand);
+
 ext
   .command('add <source>')
   .allowExcessArguments(false)
@@ -108,6 +116,6 @@ async function loadExtensionCommands(): Promise<void> {
   }
 }
 
-// Catalog discovery (including help) must not import project extension modules.
-if (process.argv.slice(2).find(argument => !argument.startsWith('-')) !== 'commands') await loadExtensionCommands();
+// Read-only discovery (including help) must not import project extension modules.
+if (!['commands', 'worktree-check'].includes(process.argv.slice(2).find(argument => !argument.startsWith('-')) ?? '')) await loadExtensionCommands();
 program.parse();

@@ -186,9 +186,16 @@ Plan prompts and summaries use `language.ui`; saved plan artifacts use `language
 ```
 - Creates a separate working directory (`../my-project-feature-stripe-checkout`)
 - Copies AI context files (`.ai-factory/`, `.claude/`, `CLAUDE.md`)
-- Each feature gets its own Claude Code session — no branch switching, no conflicts
+- Each feature can run in its own agent session without switching other sessions' branches
+
+Before runtime-dependent tasks start, parallel planning uses the read-only
+[`worktree-check` diagnostic](configuration.md#worktree-readiness-diagnostic) on
+selected existing checkouts. Static resource conflicts and unknown configuration
+require scoped owner remediation or serial runtime execution; separate worktrees
+alone do not prove runtime isolation. Source editing may continue independently.
 
 **Manage parallel features:**
+
 ```
 /aif-plan --list                          # Show all active worktrees
 /aif-plan --cleanup feature/stripe-checkout # Remove worktree and branch
