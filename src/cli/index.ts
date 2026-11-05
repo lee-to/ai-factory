@@ -64,6 +64,7 @@ program.command('worktree-check [checkouts...]')
   .description('Diagnose static runtime-resource conflicts between existing checkouts without launching environments')
   .option('--json', 'Print the same diagnostic as machine-readable JSON')
   .option('--mapping <file>', 'Read runtimeResources from this existing project-relative JSON file in each checkout')
+  .addHelpText('after', '\nIncomplete coverage is expected for full stacks; isolation is always unverified.')
   .allowExcessArguments(false)
   .action(worktreeCheckCommand);
 

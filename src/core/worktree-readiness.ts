@@ -48,7 +48,9 @@ export async function diagnoseWorktrees(checkouts: string[], mapping?: string): 
   if (!checkouts.length || checkouts.length > 32) throw new Error('Select 1 to 32 existing checkouts.');
   if (mapping !== undefined) {
     mapping = normalizeInstructionPath(mapping.replaceAll('\\', '/').replace(/^(?:\.\/)+/, ''));
-    if (!/^[a-zA-Z0-9_. /-]{1,1000}$/.test(mapping) || mapping.split('/').some(part => /^\.env(?:\.|$)|secret|credential|\.git$/i.test(part))) {
+    if (COMPOSE.includes(mapping.toLowerCase()) || !/^[a-zA-Z0-9_. /-]{1,1000}$/.test(mapping)
+      || mapping.split('/').some(part => /^\.env|secret|credential|^\.git$|^id_(rsa|ed25519)$/i.test(part))
+      || /\.(pem|key|p12|pfx)$/i.test(mapping)) {
       throw new Error('Unsupported mapping path.');
     }
   }
@@ -61,10 +63,14 @@ export async function diagnoseWorktrees(checkouts: string[], mapping?: string): 
   const sources: Source[] = [];
   const resources: Resource[] = [];
   const findings: Finding[] = [];
+  const unknowns = new Set<string>();
   let totalBytes = 0;
 
   function unknown(location: Location, reason: string): void {
+    const key = JSON.stringify([location.checkout, location.path, location.line, reason]);
+    if (unknowns.has(key)) return;
     if (findings.length + resources.length >= 2000) throw new Error('Finding limit exceeded.');
+    unknowns.add(key);
     findings.push({ kind: 'configuration', resource_id: null, status: 'unknown', locations: [{ ...location, certainty: 'unknown' }], reason,
       remediation: 'Inspect this declaration privately; supply literal runtimeResources in the existing configuration owner, or run serially.' });
   }
@@ -262,8 +268,8 @@ export async function diagnoseWorktrees(checkouts: string[], mapping?: string): 
             : Array.isArray(environment) ? environment.map(value => typeof value === 'string'
               ? [value.split('=')[0], value.includes('=') ? value.slice(value.indexOf('=') + 1) : null] : ['', null]) : null;
           if (!entries) unknown(at([...base, 'environment']), 'unsupported-environment');
-          else for (const [key, value] of entries) {
-            const loc = at([...base, 'environment']);
+          else for (const [index, [key, value]] of entries.entries()) {
+            const loc = at([...base, 'environment', object(environment) && typeof key === 'string' ? key : index]);
             if (value === null || typeof value === 'string' && value.includes('$') || object(value) || Array.isArray(value)) {
               unknown(loc, 'dynamic-inherited-or-unsupported-environment'); continue;
             }

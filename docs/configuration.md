@@ -133,7 +133,8 @@ The bounded Compose subset reads root `compose.yaml`, `compose.yml`,
 - Short/long bind mounts and named volumes, including read-only access. Relative
   bind paths resolve lexically against their checkout. External targets are never
   opened; filesystem aliases, parent/child path overlaps and remote filesystems are
-  not resolved.
+  not resolved. Backslash bind paths are unsupported in both syntaxes; Windows
+  drive-letter short mounts remain unknown.
 - Literal `DATABASE_URL`, `REDIS_URL` and `CACHE_URL` bindings for PostgreSQL, MySQL
   and Redis. User/password never participate in identity; host/port/database do.
   Connection routing/host aliases still produce an explicit unknown. Other
@@ -145,6 +146,9 @@ custom resource options stay unknown. Present `.env`, Make/Task/just, npm and
 Composer files are identified as uninspected runtime sources, without reading their
 contents. Neither `.env` nor the process environment is used for interpolation.
 A mapping does not erase these unknowns.
+Full stacks will commonly report `incomplete`; this is expected coverage information,
+not a failed scan. Multiple Compose files are analyzed independently, so potential
+collisions may include declarations that a live merge would replace or remove.
 Runtime overrides such as `COMPOSE_PROJECT_NAME`, `-p` or additional `-f` files are
 not inferred from the caller's environment. Inspect them separately before execution.
 
@@ -153,6 +157,7 @@ not inferred from the caller's environment. Inspect them separately before execu
 `--mapping` reads the same project-relative JSON path in each selected checkout.
 Reuse an existing project metadata owner, including the command catalog's mapping
 file or `package.json`; no `config.yaml` key or generated registry is introduced.
+Root Compose discovery filenames are rejected as mappings to preserve Compose analysis.
 Other top-level fields are ignored. `runtimeResources` entries accept only `kind`,
 `identity`, `access`, and optional `sharing`:
 
@@ -201,8 +206,9 @@ when independence cannot be established; this command grants no execution permis
 
 Reads reject source symlinks/junctions and non-regular files, and are bounded to
 1 MiB per file and 8 MiB total. Mapping paths must stay within each checkout and
-cannot select environment/credential files. Source access/parse/size failures are
-unknown; exceeding 2,000 resource/unknown records rejects the diagnostic. Exit 0
+cannot select environment, credential, private-key or certificate files. Source
+access/parse/size failures are unknown; exceeding 2,000 resource/unknown records
+rejects the diagnostic. Exit 0
 means a report was produced, including collisions/incomplete coverage; exit 1 means
 invalid input, unavailable checkout roots or a fatal limit failure. Consumers must
 inspect `status` and `coverage`. Refresh after source, mapping or checkout changes;

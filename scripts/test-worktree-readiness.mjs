@@ -112,6 +112,13 @@ volumes:
   await write(roots[0], 'compose.yaml', 'name: same\nservices: {api: {image: app}}');
   await write(roots[1], 'compose.yaml', 'name: same\nservices: {api: {image: app}}');
   assert(collisions(await diagnoseWorktrees(roots)).some(finding => finding.kind === 'compose-project'));
+  const sameBasenames = [path.join(temp, 'left', 'app'), path.join(temp, 'right', 'app')];
+  for (const root of sameBasenames) await write(root, 'compose.yaml', 'services: {api: {image: app}}');
+  assert(collisions(await diagnoseWorktrees(sameBasenames)).some(finding => finding.kind === 'compose-project'), 'Implicit Compose projects use the checkout basename, not its full path');
+  for (const file of ['compose.yaml', 'compose.yml', 'docker-compose.yaml', 'docker-compose.yml',
+    'compose.override.yaml', 'compose.override.yml', 'docker-compose.override.yaml', 'docker-compose.override.yml', './Compose.yaml']) {
+    await assert.rejects(diagnoseWorktrees(roots, file), 'A mapping must never shadow a Compose discovery source');
+  }
   console.log('PASS fixed collisions, namespaced/local resources, read-only approvals, provenance, secret withholding and read-only human/JSON output');
 
   await write(roots[0], 'compose.yaml', `name: \${PROJECT}
@@ -165,6 +172,9 @@ services:
   assert.equal((await diagnoseWorktrees([roots[1]], 'linked/tools/project.json')).coverage, 'incomplete');
   await assert.rejects(diagnoseWorktrees(roots, '../outside.json'));
   await assert.rejects(diagnoseWorktrees(roots, '.env'));
+  for (const file of ['.envlocal', 'id_rsa', 'keys/id_ed25519', 'cert.pem', 'cert.key', 'cert.p12', 'cert.pfx']) {
+    await assert.rejects(diagnoseWorktrees(roots, file), 'Sensitive mapping paths must be rejected before reading');
+  }
   await assert.rejects(diagnoseWorktrees([roots[0], roots[0]]));
   await assert.rejects(diagnoseWorktrees(Array(33).fill(roots[0])));
   const invalid = spawnSync(process.execPath, [cli, 'worktree-check', `missing-${secret}`, '--json'], { cwd: roots[0], encoding: 'utf8' });
@@ -173,6 +183,29 @@ services:
   const empty = path.join(temp, 'empty');
   await fs.mkdir(empty);
   assert.equal((await diagnoseWorktrees([empty])).status, 'incomplete');
+  await write(empty, 'compose.yaml', `services:
+  api:
+    image: app
+    volumes: [data:/data]
+    environment:
+      DB_HOST: database.example
+      DB_PORT: 5432
+volumes:
+  data:
+    driver_opts: {device: /srv/shared}
+`);
+  const precise = await diagnoseWorktrees([empty]);
+  assert.equal(precise.findings.filter(finding => finding.reason === 'unsupported-resource-driver-or-options').length, 1, 'One unknown per source location/reason, even when a volume is also mounted');
+  assert.deepEqual(precise.findings.filter(finding => finding.reason === 'runtime-binding-requires-explicit-mapping').map(finding => finding.locations[0].line), [6, 7]);
+  await write(empty, 'compose.yaml', `services:
+  api:
+    image: app
+    environment:
+      - DB_HOST=database.example
+      - DB_PORT=5432
+`);
+  const listEnvironment = await diagnoseWorktrees([empty]);
+  assert.deepEqual(listEnvironment.findings.filter(finding => finding.reason === 'runtime-binding-requires-explicit-mapping').map(finding => finding.locations[0].line), [5, 6]);
   await write(empty, 'compose.yaml', 'services: {api: {image: "${IMAGE}", environment: {OPAQUE_SETTING: "${INPUT}"}, ports: [{target: 80, published: {toString: invalid}}]}}');
   assert.equal((await diagnoseWorktrees([empty])).status, 'incomplete');
   await fs.rm(path.join(empty, 'compose.yaml'));
