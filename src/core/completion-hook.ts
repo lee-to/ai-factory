@@ -61,7 +61,7 @@ async function read(project: string, relative: string): Promise<Buffer> {
     return bytes.subarray(0, size);
   } finally { await handle.close(); }
 }
-async function fingerprint(file: string, limit = 256 * 1024 * 1024): Promise<{ sha256: string; size: number; mode: number }> {
+async function fingerprint(file: string, limit = 512 * 1024 * 1024): Promise<{ sha256: string; size: number; mode: number }> {
   const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stat = await handle.stat();
@@ -91,6 +91,7 @@ function git(project: string, args: string[]): string {
 async function snapshot(project: string, inputs: string[]) {
   if (await fs.realpath(git(project, ['rev-parse', '--show-toplevel']).trim()) !== project) throw new Error('Expected the Git worktree root.');
   const head = git(project, ['rev-parse', 'HEAD']).trim();
+  const index_sha256 = sha(git(project, ['ls-files', '--stage', '-z']));
   const files = [...new Set([...git(project, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']).split('\0').filter(Boolean), ...inputs])]
     .filter(file => file !== SETTINGS && file !== STORE && !file.startsWith(`${STORE}/`)).sort();
   if (files.length > 10000) throw new Error('Source inventory exceeds 10000 files.');
@@ -109,7 +110,7 @@ async function snapshot(project: string, inputs: string[]) {
     }
   }
   if (Buffer.byteLength(json(entries)) > 512 * 1024) throw new Error('Source evidence exceeds 512 KiB.');
-  return { head, sha256: sha(json({ head, entries })), files: entries };
+  return { head, index_sha256, sha256: sha(json({ head, index_sha256, entries })), files: entries };
 }
 async function inputDigests(project: string, inputs: string[]): Promise<Record<string, string>> {
   const entries: Record<string, string> = Object.create(null);
@@ -186,8 +187,10 @@ export async function disableCompletionHook(projectDir: string) {
 }
 function report(output: string): ObjectValue | null {
   const blocks = [...output.matchAll(/^```aif-gate-result\r?\n([\s\S]*?)^```\s*$/gm)];
-  if (!blocks.length) return null;
-  const value: unknown = JSON.parse(blocks.at(-1)![1]);
+  const block = blocks.at(-1);
+  if (!block) return null;
+  if (output.slice(block.index! + block[0].length).trim()) throw new Error('Verifier report must be the final complete output.');
+  const value: unknown = JSON.parse(block[1]);
   if (!object(value) || value.schema_version !== 1 || value.gate !== 'verify'
     || !['pass', 'warn', 'fail'].includes(String(value.status)) || typeof value.blocking !== 'boolean'
     || !Array.isArray(value.blockers) || !Array.isArray(value.affected_files) || !value.affected_files.every(text)

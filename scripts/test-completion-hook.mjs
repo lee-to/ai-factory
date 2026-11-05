@@ -66,7 +66,7 @@ try {
   await fs.writeFile(path.join(project, 'source.txt'), 'original\n');
   await fs.writeFile(path.join(project, 'verify.mjs'), `
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 const mode = process.argv[2];
 fs.appendFileSync('out/launches', 'launch\\n');
 const result = { schema_version: 1, gate: 'verify', status: mode === 'warn' ? 'warn' : mode === 'fail-report' ? 'fail' : 'pass',
@@ -85,7 +85,16 @@ else {
   if (mode === 'edit') fs.appendFileSync('source.txt', 'changed during verifier\\n');
   if (mode === 'inconsistent') result.blocking = true;
   if (mode === 'last-block') console.log('\`\`\`aif-gate-result\\n{}\\n\`\`\`');
+  if (mode === 'index-edit') {
+    const original = fs.readFileSync('source.txt');
+    fs.writeFileSync('source.txt', 'staged-only change');
+    if (spawnSync('git', ['add', 'source.txt']).status !== 0) throw new Error('staging failed');
+    fs.writeFileSync('source.txt', original);
+  }
   report();
+  if (mode === 'dangling') console.log('\`\`\`aif-gate-result\\n{');
+  if (mode === 'trailing') console.log('verification failed after report');
+  if (mode === 'whitespace') process.stdout.write(' \\n\\t\\r\\n');
   if (mode === 'fail-exit') process.exitCode = 1;
 }
 `);
@@ -104,7 +113,12 @@ else {
   assert.equal(parse(run(['completion-hook', 'inspect', passed.relative])).status, 'current');
   await fs.appendFile(path.join(project, 'source.txt'), 'later edit\n');
   assert.equal(parse(run(['completion-hook', 'inspect', passed.relative])).status, 'stale');
+  await fs.writeFile(path.join(project, 'source.txt'), 'staged-only change');
+  git('add', 'source.txt');
   await fs.writeFile(path.join(project, 'source.txt'), 'original\n');
+  assert.equal(parse(run(['completion-hook', 'inspect', passed.relative])).status, 'stale', 'index-only changes invalidate evidence');
+  git('reset', '--', 'source.txt');
+  assert.equal(parse(run(['completion-hook', 'inspect', passed.relative])).status, 'current', 'index metadata refresh alone preserves evidence');
   const once = event();
   await check(hook, 'passed', false, once);
   const launches = await fs.readFile(path.join(project, 'out/launches'), 'utf8');
@@ -122,9 +136,11 @@ else {
   await check(hook, 'changed_command');
   for (const [mode, outcome, blocked] of [['fail-exit', 'failed', true], ['fail-report', 'failed', true],
     ['missing', 'missing_report', true], ['invalid', 'invalid_report', true], ['inconsistent', 'invalid_report', true],
-    ['warn', 'warning', false], ['last-block', 'passed', false], ['output', 'output_limit', true], ['edit', 'stale', true]]) {
+    ['warn', 'warning', false], ['last-block', 'passed', false], ['whitespace', 'passed', false],
+    ['dangling', 'invalid_report', true], ['trailing', 'invalid_report', true], ['index-edit', 'stale', true], ['output', 'output_limit', true], ['edit', 'stale', true]]) {
     hook = await enable(mode);
     const receipt = await check(hook, outcome, blocked);
+    if (mode === 'index-edit') git('reset', '--', 'source.txt');
     if (mode === 'fail-exit') assert.equal(receipt.data.execution.exit, 1);
     if (mode === 'output') assert.equal(receipt.data.execution.output_complete, false);
   }

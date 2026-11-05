@@ -6,8 +6,10 @@
 
 `ai-factory completion-hook` is an opt-in adapter for **Claude Code 2.1.318 on
 macOS/Linux**, qualified against the documented synchronous `Stop` command-hook
-protocol with a local fake host. Native interactive Claude execution is not covered
-by these fixtures. Other versions, runtimes and Windows are unsupported.
+protocol with a local fake host. Native macOS `--print` smoke tests also exercised
+the installed adapter with model tools disabled: one successful verifier and one
+intentional failure, each launched once. Interactive TUI behavior remains untested.
+Other versions, runtimes and Windows are unsupported.
 
 The [Claude hooks reference](https://code.claude.com/docs/en/hooks#stop) describes
 `Stop` as the end of a response, with a blocking decision continuing the conversation.
@@ -15,6 +17,10 @@ It does not fire for every cancellation or host failure. Host loop limits, a mis
 adapter executable, disabled hooks, or an outer hook timeout can still allow the
 session to stop. **This is cooperative feedback, not a fail-closed completion or
 permission boundary.** `onFailure` does not provide enforcement for `Stop`.
+The native failure smoke test observed one `failed` receipt followed by eight
+`recursion` receipts. Claude then ended with CLI exit `0` and a session `success`
+result at its continuation limit. The failed verifier receipt remains unsuccessful;
+consumers must use the existing verification gate before finalizing work.
 
 Use the **existing, reviewed project verification entrypoint** used manually and in
 CI. Do not introduce a second checklist. Command catalog discovery, an agent-authored
@@ -74,7 +80,8 @@ The verifier must exit zero and emit its normal final
 allows stopping. A non-blocking `warn` remains a warning and allows stopping under
 the existing gate policy. Blocking reports, nonzero exits (even with a PASS report),
 timeouts, cancellation, missing/invalid reports and incomplete output never become
-PASS. The aggregate verifier owns which checks are required and whether they were
+PASS. Only whitespace may follow the final complete report fence; trailing output
+or a later unfinished fence makes the report invalid. The aggregate verifier owns which checks are required and whether they were
 completed; the adapter does not infer per-check coverage. `role: "required"` requests
 a block for unsuccessful outcomes; `role: "observer"` only reports them. An observer
 failure stays a failure in its receipt and cannot satisfy a required check.
@@ -90,7 +97,7 @@ receipt is written yields missing evidence, never an authenticated success.
 
 Each invocation writes `.ai-factory/completion-hook/receipts/UUID.json`. Schema v1
 records approval/config digest, exact executable/argv/CWD, executable hash, worktree
-root, source HEAD and file digests, post-execution source digest, observed exit/signal,
+root, source HEAD, Git index and file digests, post-execution source digest, observed exit/signal,
 execution outcome, report digest/status, output digests and evidence completeness.
 Raw output and transcripts are not retained. `evidence_complete` describes captured
 execution/report evidence, not proof of every project requirement or instruction.
@@ -99,13 +106,14 @@ The distinct outcomes include `passed`, `warning`, `failed`, `timeout`, `cancell
 `reentry`, `wrong_cwd`, `wrong_project_or_role`, `changed_command`, `invalid_event`,
 `unsupported` and `error`.
 
-Source inventory covers Git tracked files (including deletions), non-ignored
+Source inventory includes a digest of Git index entries (staged blob IDs, modes and
+merge stages), plus Git tracked files (including deletions), non-ignored
 untracked files, the specification and explicit inputs. Adapter storage and local
 hook settings are excluded from the source hash to avoid self-invalidation; approval
 identity/configuration are bound separately. Other ignored dependencies, external
 services and environment changes are outside that inventory. Unsupported symlinks,
 submodules, unreadable files or limits fail without launching: 10000 files, 8 MiB per
-source file, 128 MiB total, 512 KiB source evidence, 256 MiB per executable and 1 MiB
+source file, 128 MiB total, 512 KiB source evidence, 512 MiB per executable and 1 MiB
 per JSON input. A source change during verification makes the result stale.
 
 ```bash
@@ -113,8 +121,9 @@ ai-factory completion-hook inspect .ai-factory/completion-hook/receipts/UUID.jso
 ```
 
 Inspect recomputes current source and command/configuration pins. Later source,
-HEAD, input, command or worktree changes make earlier evidence stale. It **only
-checks freshness**, always returning `authenticity: "not_authenticated"`: local JSON
+HEAD, staged content, input, command or worktree changes make earlier evidence
+stale. Receipts created before index binding also become stale on inspection.
+It **only checks freshness**, always returning `authenticity: "not_authenticated"`: local JSON
 can be edited or imported. No receipt import or acceptance path is provided. A
 consumer requiring trusted execution must obtain its observation from the host and
 revalidate scope/freshness; a copied receipt containing PASS is insufficient.
