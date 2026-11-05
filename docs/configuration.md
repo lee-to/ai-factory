@@ -143,7 +143,8 @@ Interpolation, inherited environment, aliases, invalid/duplicate-key YAML/JSON,
 multiple-file Compose merging, includes/extends, unsupported service fields and
 custom resource options stay unknown. Present `.env`, Make/Task/just, npm and
 Composer files are identified as uninspected runtime sources, without reading their
-contents. No environment values are loaded. A mapping does not erase these unknowns.
+contents. Neither `.env` nor the process environment is used for interpolation.
+A mapping does not erase these unknowns.
 Runtime overrides such as `COMPOSE_PROJECT_NAME`, `-p` or additional `-f` files are
 not inferred from the caller's environment. Inspect them separately before execution.
 
