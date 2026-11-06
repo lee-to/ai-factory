@@ -63,6 +63,7 @@ Rules:
 - `blockers` contains only findings that should block the current quality gate. Non-blocking notes stay in the human summary.
 - `blockers[].severity` uses the shared gate scale: `error` for blocking findings and `warning` only when policy treats a warning-class finding as blocking. Security domain severities map to this scale (`critical`/`high` -> `error`; `medium`/`low` -> non-blocking human warning unless policy escalates them).
 - `affected_files` is a predictable top-level array of files the gate actually evaluated or cited in the result. It is not limited to blocker files, and it should not include unrelated repository files. Use an empty array when no specific files apply.
+- `suggested_next.command` and `suggested_next.reason` must both be present. Use `reason: null` when no rationale is available; omitting the key is invalid.
 - `suggested_next.command` must come from the global allowlist: `/aif-fix`, `/aif-rules`, `/aif-architecture`, `/aif-roadmap`, `/aif-commit`, or `null`. Each gate may document a narrower subset for its own outputs.
 - The JSON block appears after the human-readable summary so manual workflows remain readable.
 

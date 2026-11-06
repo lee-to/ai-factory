@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { normalizeInstructionPath, resolveInstructionLocalPath } from './instruction-manifest.js';
+import { getCurrentVersion } from './config.js';
 
 const STORE = '.ai-factory/completion-hook';
 const SETTINGS = '.claude/settings.local.json';
@@ -233,7 +234,7 @@ async function execute(spec: Specification, cwd: string) {
 }
 export async function runCompletionHook(projectDir: string, approvalId: string, role: string, event: unknown) {
   const project = await fs.realpath(projectDir);
-  const receipt: ObjectValue = { schema_version: 1, id: randomUUID(), producer: 'ai-factory/completion-hook',
+  const receipt: ObjectValue = { schema_version: 1, id: randomUUID(), producer: 'ai-factory/completion-hook', adapter_version: getCurrentVersion(),
     observed_by: 'local-adapter', project, approval: approvalId, role, started_at: new Date().toISOString(),
     outcome: 'error', execution: null, report: null, evidence_complete: false };
   let approval: Approval | undefined;
@@ -304,7 +305,12 @@ export async function runCompletionHook(projectDir: string, approvalId: string, 
 export async function inspectCompletionReceipt(projectDir: string, receiptPath: string) {
   const project = await fs.realpath(projectDir);
   const receipt = JSON.parse((await read(project, receiptPath)).toString('utf8')) as ObjectValue;
-  const approval = JSON.parse((await read(project, `${STORE}/approval.json`)).toString('utf8')) as Approval;
+  let approval: Approval;
+  try { approval = JSON.parse((await read(project, `${STORE}/approval.json`)).toString('utf8')); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return { status: 'stale', authenticity: 'not_authenticated', receipt };
+  }
   const current = await snapshot(project, [...approval.spec.inputs, approval.spec_path]);
   const source = receipt.source;
   const fresh = receipt.project === project && receipt.approval === approval.id && object(source) && source.sha256 === current.sha256

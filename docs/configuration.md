@@ -57,6 +57,8 @@ policy/configuration files, including ignored files that affect verification. Th
 explicit list is not a discovered dependency graph. The specification itself,
 input hashes, executable bytes and observed host `--version` are pinned. Changes
 require reviewing the new command/configuration and explicitly enabling again.
+Exclude `.claude/settings.local.json` and adapter storage from `inputs`: enable/run
+mutate them, so pinning their earlier bytes can invalidate verification.
 Do not put credentials in argv/specification; receipts retain command identity.
 
 ```bash
@@ -74,6 +76,16 @@ they contain local paths and command metadata. Unsupported enable returns an exp
 `unsupported` result without changing settings. A retained required hook whose
 approval was disabled returns `unsupported` and requests a block; an observer
 reports the same unsuccessful outcome without requesting a block.
+After moving or renaming the worktree, review absolute paths in the specification
+and re-enable the adapter; the existing hook and approval retain the old path.
+A malformed `.ai-factory/completion-hook/approval.json` makes enable/disable stop;
+restore its known-good contents before retrying. Existing hooks stay untouched when
+the ownership record cannot be read.
+
+Attempts and receipts have no automatic retention or cleanup. After the verification
+workflow no longer needs the evidence, disable the adapter before manually removing
+its `attempts/` and `receipts/` directories under `.ai-factory/completion-hook/`.
+Keep attempt files while an approval is active so cleanup cannot reset its launch limit.
 
 The verifier must exit zero and emit its normal final
 [`aif-gate-result`](quality-gates.md) fence with `gate: "verify"`. A complete `pass`
@@ -96,11 +108,14 @@ The outer host timeout includes 30 seconds of overhead; host termination before 
 receipt is written yields missing evidence, never an authenticated success.
 
 Each invocation writes `.ai-factory/completion-hook/receipts/UUID.json`. Schema v1
-records approval/config digest, exact executable/argv/CWD, executable hash, worktree
-root, source HEAD, Git index and file digests, post-execution source digest, observed exit/signal,
+records the installed AI Factory release as `adapter_version`, approval/config digest,
+exact executable/argv/CWD, executable hash, worktree root, source HEAD, Git index and
+file digests, post-execution source digest, observed exit/signal,
 execution outcome, report digest/status, output digests and evidence completeness.
-Raw output and transcripts are not retained. `evidence_complete` describes captured
-execution/report evidence, not proof of every project requirement or instruction.
+The adapter version is release metadata; it does not pin local edits made under the
+same package version. Raw output and transcripts are not retained.
+`evidence_complete` describes captured execution/report evidence, not proof of every
+project requirement or instruction.
 The distinct outcomes include `passed`, `warning`, `failed`, `timeout`, `cancelled`,
 `output_limit`, `spawn_error`, `missing_report`, `invalid_report`, `stale`, `recursion`,
 `reentry`, `wrong_cwd`, `wrong_project_or_role`, `changed_command`, `invalid_event`,
@@ -122,7 +137,9 @@ ai-factory completion-hook inspect .ai-factory/completion-hook/receipts/UUID.jso
 
 Inspect recomputes current source and command/configuration pins. Later source,
 HEAD, staged content, input, command or worktree changes make earlier evidence
-stale. Receipts created before index binding also become stale on inspection.
+stale. Inspecting preserved receipts after disabling the adapter returns `stale`
+with the original receipt intact. Receipts created before index binding also become
+stale on inspection.
 It **only checks freshness**, always returning `authenticity: "not_authenticated"`: local JSON
 can be edited or imported. No receipt import or acceptance path is provided. A
 consumer requiring trusted execution must obtain its observation from the host and

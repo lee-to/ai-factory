@@ -108,6 +108,7 @@ else {
   let hook = await enable();
   assert.deepEqual(hook.args.slice(1, 3), ['completion-hook', 'run']);
   const passed = await check(hook, 'passed', false);
+  assert.equal(passed.data.adapter_version, JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url), 'utf8')).version);
   assert.equal(passed.data.execution.exit, 0);
   assert.equal(passed.data.evidence_complete, true);
   assert.equal(passed.data.effective_cwd, project);
@@ -189,9 +190,15 @@ else {
   hook = await enable('fail-exit', 'observer');
   await check(hook, 'failed', false);
   const requiredHook = await enable();
+  const beforeDisable = await check(requiredHook, 'passed', false);
+  assert.equal(parse(run(['completion-hook', 'inspect', beforeDisable.relative])).status, 'current');
   const downgraded = { ...requiredHook, args: [...requiredHook.args.slice(0, -1), 'observer'] };
   await check(downgraded, 'wrong_project_or_role');
   parse(run(['completion-hook', 'disable']));
+  const disabledReceipt = parse(run(['completion-hook', 'inspect', beforeDisable.relative]));
+  assert.equal(disabledReceipt.status, 'stale');
+  assert.equal(disabledReceipt.authenticity, 'not_authenticated');
+  assert.deepEqual(disabledReceipt.receipt, beforeDisable.data);
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(project, '.claude/settings.local.json'), 'utf8')), originalSettings);
   await check(requiredHook, 'unsupported');
   await check(hook, 'unsupported', false);
