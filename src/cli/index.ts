@@ -5,6 +5,7 @@ import { upgradeCommand } from './commands/upgrade.js';
 import { auditArtifactsCommand } from './commands/audit-artifacts.js';
 import { registerInstructionCommands } from './commands/instructions.js';
 import { commandsCommand } from './commands/commands.js';
+import { registerCompletionHookCommands } from './commands/completion-hook.js';
 import { worktreeCheckCommand } from './commands/worktree-check.js';
 import { extensionAddCommand, extensionRemoveCommand, extensionListCommand, extensionUpdateCommand } from './commands/extension.js';
 import { getCurrentVersion, loadConfig } from '../core/config.js';
@@ -52,6 +53,7 @@ const ext = program
   .description('Manage extensions');
 
 registerInstructionCommands(program);
+registerCompletionHookCommands(program);
 
 program.command('commands [directories...]')
   .description('Catalog declared project commands without executing project code')
@@ -117,6 +119,6 @@ async function loadExtensionCommands(): Promise<void> {
   }
 }
 
-// Read-only discovery (including help) must not import project extension modules.
-if (!['commands', 'worktree-check'].includes(process.argv.slice(2).find(argument => !argument.startsWith('-')) ?? '')) await loadExtensionCommands();
+// Discovery and completion hooks must not import unapproved project extension modules.
+if (!['commands', 'worktree-check', 'completion-hook'].includes(process.argv.slice(2).find(argument => !argument.startsWith('-')) ?? '')) await loadExtensionCommands();
 program.parse();
