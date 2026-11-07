@@ -527,6 +527,40 @@ Extension refresh uses the saved `source` field:
 
 When GitHub-backed extension refreshes are frequent, set `GITHUB_TOKEN` to raise the GitHub API rate limit used by these checks.
 
+### Cross-Agent Dispatch
+
+Optional top-level fields configure phase-boundary dispatch for `/aif-loop` and the
+spec-driven workflow (`/aif-implement`, `/aif-review`). `ai-factory init`, `update`,
+and `upgrade` preserve these fields; they are user-owned, not managed installation state.
+
+```json
+{
+  "dispatch": "manual",
+  "phases": {
+    "plan": { "agent": "claude-code", "model": "opus" },
+    "implement": { "agent": "antigravity", "timeoutMs": 900000 }
+  },
+  "dispatchAgents": {
+    "my-agent": { "command": "mycli --model {model} --task {prompt}", "defaultModel": "sonnet" }
+  }
+}
+```
+
+- `dispatch` — `manual` (default) prints instructions and never spawns anything; `auto` spawns the target CLI. Any invalid value behaves as `manual`.
+- `phases.<phase>` — targets per phase. Valid phases: `plan`, `produce`, `prepare`, `evaluate`, `critique`, `refine` (aif-loop) plus `implement`, `review` (spec-driven workflow). `model` falls back to the agent's `defaultModel`; `timeoutMs` is a positive integer cap for auto spawns (default 600000).
+- `dispatchAgents` — per-agent `command` / `defaultModel` overrides. Built-in dispatch ids: `claude-code`, `gemini-cli`, `antigravity`, `chatgpt-cli`, `openrouter-cli`. An agent id that resolves to an installed runtime (including extension-provided ones) maps through its `skillsCliAgent`.
+
+`command` is an **argv template, not a shell string**: it is split on whitespace, then `{model}`, `{phase}`, `{prompt}` are substituted per token. Quotes and shell metacharacters have no special meaning, and paths with spaces cannot be expressed as one token; prompts always travel as a single argv element, never through a shell.
+
+`ai-factory dispatch <phase> [--prompt <text>] [--print]` resolves one phase:
+
+- no dispatch config or no phase entry → exit 0 with empty stdout and stderr (a fully silent no-op, so callers treat it as "continue in-process");
+- manual mode or `--print` → a structured `Command:` / `Args:` block on stdout, one argv element per line, copy-safe for prompts with quotes, `$()`, or semicolons;
+- auto mode → spawns the command without a shell, bounded by `timeoutMs`; the child is killed on timeout and the command exits 1 with a diagnostic on stderr;
+- unknown phase or agent → exit 2 with a diagnostic on stderr and empty stdout.
+
+`/aif-loop` Step 4.0 defines the fallback contract: non-zero dispatch results are appended to `history.jsonl` as `phase_error` events and the phase runs in-process — dispatch must never block the loop. See [Reflex Loop Files](configuration.md#reflex-loop-files) for loop state ownership and [workflow](workflow.md) for the loop protocol.
+
 ## Codex Skill Directories and Migration
 
 For Codex CLI, AI Factory selects the skill directory from the project state before the command creates any directories. Codex app keeps its `.agents/skills` default.

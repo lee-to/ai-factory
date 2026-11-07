@@ -427,6 +427,11 @@ async function initLocked(options: InitOptions): Promise<void> {
       extensions: existingExtensions,
       ...(answers.useSymlinks || existingConfig?.useSymlinks !== undefined
         ? { useSymlinks: answers.useSymlinks } : {}),
+      // Preserve user-owned cross-agent dispatch settings across re-init; init owns agents/extensions,
+      // not the dispatch contract.
+      ...(existingConfig?.dispatch ? { dispatch: existingConfig.dispatch } : {}),
+      ...(existingConfig?.phases ? { phases: existingConfig.phases } : {}),
+      ...(existingConfig?.dispatchAgents ? { dispatchAgents: existingConfig.dispatchAgents } : {}),
     });
 
     console.log(chalk.green('✓ Configuration saved to .ai-factory.json'));

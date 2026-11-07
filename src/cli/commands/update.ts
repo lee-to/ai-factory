@@ -98,17 +98,20 @@ async function promptForNewSkills(
   }
 
   if (!process.stdin.isTTY) {
-    console.log(chalk.dim(`New base skills available but not installed: ${candidates.join(', ')}`));
-    console.log(chalk.dim('Non-interactive mode — skipping new skills. Re-run `ai-factory update` interactively to add them.\n'));
+    console.log(chalk.dim(`Base skills not installed on some agents: ${candidates.join(', ')}`));
+    console.log(chalk.dim('Non-interactive mode — skipping uninstalled base skills. Re-run `ai-factory update` interactively and select them explicitly.\n'));
     return [];
   }
 
-  console.log(chalk.cyan(`New base skills available: ${candidates.join(', ')}`));
+  // These are "installed nowhere / on fewer agents", not "new in this package version": the user may
+  // have intentionally skipped them. Nothing is pre-selected — expanding the managed skill surface
+  // requires explicit opt-in.
+  console.log(chalk.cyan(`Base skills not installed on some agents: ${candidates.join(', ')}`));
   const { selectedNewSkills } = await inquirer.prompt([{
     type: 'checkbox',
     name: 'selectedNewSkills',
-    message: 'Add new base skills to configured agents?',
-    choices: candidates.map(skill => ({ name: skill, value: skill, checked: true })),
+    message: 'Select uninstalled base skills to add (nothing is added by default):',
+    choices: candidates.map(skill => ({ name: skill, value: skill, checked: false })),
   }]);
 
   return Array.isArray(selectedNewSkills) ? selectedNewSkills : [];

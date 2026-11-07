@@ -329,6 +329,31 @@ Each phase produces its defined output (see PHASE-CONTRACTS.md). No envelope wra
 
 ## Step 4: Iteration Execution
 
+### Step 4.0: Phase dispatch (optional, backwards-compatible)
+
+Before running each phase's in-process work, attempt cross-agent dispatch:
+
+    ai-factory dispatch <phase> [--prompt "<short plan/task summary>"]
+
+where `<phase>` ∈ `plan | produce | prepare | evaluate | critique | refine`.
+
+Interpret the result:
+- **No "Cross-agent dispatch" output at all (exit 0)** → no dispatch configured for this phase;
+  run the phase in-process exactly as today.
+- **Manual block printed (exit 0, `Mode : manual`)** → STOP. Show the block to the user, persist
+  `run.json.current_step` for this phase, and do NOT run it in-process. `/aif-loop resume` re-enters
+  this phase.
+- **Auto mode (exit 0, no manual block)** → the external agent already produced this phase's output;
+  read the artifact/checks it wrote and continue. Auto dispatch is bounded by a per-phase timeout
+  (`phases.<phase>.timeoutMs`, default 600000 ms); the spawned process is killed on timeout.
+- **Non-zero exit** → append a `phase_error` event to `history.jsonl` and fall back to running the
+  phase in-process. Dispatch must NEVER block the loop.
+
+`current_step = PRODUCE_PREPARE` spans two phase keys: call `ai-factory dispatch produce` and
+`ai-factory dispatch prepare` separately (sequentially in auto mode), then aggregate in-process.
+The skill still reads only `.ai-factory/config.yaml`; all `.ai-factory.json` resolution lives in the
+`ai-factory dispatch` command.
+
 For each iteration:
 
 1. Set `run.json.current_step = "PLAN"`, run PLAN phase

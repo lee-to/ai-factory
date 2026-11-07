@@ -45,5 +45,8 @@ jobs:
       - name: Cleanup helper tests
         run: npm run test:cleanup-helper
 
+      - name: Dispatch tests
+        run: npm run test:dispatch
+
       - name: Antigravity E2E tests
         run: npm run test:antigravity

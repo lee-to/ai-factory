@@ -9,7 +9,7 @@
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
 2. **Built-in skills** (34 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
-4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
+4. **Multi-agent support** — 18 agents (Claude Code, Cursor, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity, ChatGPT CLI, OpenRouter CLI, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
 
 ## Project Structure
@@ -88,6 +88,18 @@ and leave dynamic/ambiguous definitions unresolved. Never import project extensi
 commands on the catalog route, including help. No discovered command is executed,
 verified or authorized by discovery. No catalog/config files are written. See
 `docs/configuration.md#project-command-catalog` for limits and explicit mappings.
+
+### Cross-agent dispatch
+
+`ai-factory dispatch <phase>` resolves one workflow phase to an external agent CLI
+(`src/core/dispatch.ts`, `src/core/dispatch-registry.ts`, CLI in `src/cli/commands/dispatch.ts`).
+User-owned `dispatch` / `phases` / `dispatchAgents` live in `.ai-factory.json` and survive
+`init`/`update`/`upgrade` reruns; they are not `config.yaml` keys. `command` is an argv
+template split on whitespace, never a shell string; prompts stay one argv element. No-config
+and no-phase-entry are silent no-ops (exit 0, empty stdout/stderr); unknown phase/agent exit 2
+on stderr; auto spawns are bounded by `phases.<phase>.timeoutMs` (default 600000).
+`/aif-loop` Step 4.0 owns the fallback contract: dispatch must never block the loop.
+See `docs/configuration.md#cross-agent-dispatch` and `npm run test:dispatch`.
 
 ### Project completion hook
 
@@ -643,7 +655,7 @@ ai-factory upgrade
 | `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
 | `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
-| `src/core/agents.ts` | Agent registry (17 agents) |
+| `src/core/agents.ts` | Agent registry (19 agents incl. runtime aliases) |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/skill-targets.ts` | Resolves physical skill targets, shared rendering profiles, and native-path boundaries |
 | `src/core/skills-migration.ts` | Proves skill ownership and performs journaled skill-only migration/recovery |
