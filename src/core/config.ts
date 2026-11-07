@@ -53,6 +53,29 @@ export interface ExtensionRecord {
   replacedSkills?: string[];
 }
 
+export type DispatchMode = 'manual' | 'auto';
+
+export const DISPATCH_PHASES = [
+  // aif-loop phases
+  'plan', 'produce', 'prepare', 'evaluate', 'critique', 'refine',
+  // spec-driven workflow phases (aif-plan -> aif-implement -> aif-review)
+  'implement', 'review',
+] as const;
+export type DispatchPhase = typeof DISPATCH_PHASES[number];
+
+export interface PhaseDispatch {
+  agent: string;     // dispatch-agent id: claude-code | gemini-cli | antigravity | chatgpt-cli | openrouter-cli | <custom>
+  model?: string;    // optional; falls back to the agent's defaultModel
+  timeoutMs?: number; // optional auto-mode cap for this phase; positive integer ms
+}
+
+export type PhasesConfig = Partial<Record<DispatchPhase, PhaseDispatch>>;
+
+export interface AgentRunOverride {
+  command?: string;       // argv template, e.g. "claude --model {model} -p {prompt}" (not a shell string)
+  defaultModel?: string;
+}
+
 export interface AiFactoryConfig {
   version: string;
   agents: AgentInstallation[];
@@ -62,6 +85,9 @@ export interface AiFactoryConfig {
     links: Record<string, string>;
     shared: Record<string, string>;
   };
+  dispatch?: DispatchMode;                            // cross-agent dispatch mode at loop/phase boundaries
+  phases?: PhasesConfig;                              // per-phase dispatch targets
+  dispatchAgents?: Record<string, AgentRunOverride>;  // per-agent command/model overrides
 }
 
 interface SaveConfigOptions {
@@ -156,6 +182,55 @@ function normalizeManagedArtifacts(raw: unknown): Record<string, ManagedArtifact
   }
 
   return result;
+}
+
+function normalizePhases(raw: unknown): PhasesConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: PhasesConfig = {};
+  for (const phase of DISPATCH_PHASES) { // unknown phase keys are ignored
+    const entry = (raw as Record<string, unknown>)[phase];
+    if (!entry || typeof entry !== 'object') continue;
+    const agent = (entry as { agent?: unknown }).agent;
+    const model = (entry as { model?: unknown }).model;
+    const timeoutMs = (entry as { timeoutMs?: unknown }).timeoutMs;
+    if (typeof agent !== 'string' || !agent) continue; // agent required
+    out[phase] = {
+      agent,
+      ...(typeof model === 'string' && model ? { model } : {}),
+      ...(typeof timeoutMs === 'number' && Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {}),
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function normalizeDispatchAgents(raw: unknown): Record<string, AgentRunOverride> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: Record<string, AgentRunOverride> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object') continue;
+    const command = (v as { command?: unknown }).command;
+    const defaultModel = (v as { defaultModel?: unknown }).defaultModel;
+    const entry: AgentRunOverride = {};
+    if (typeof command === 'string' && command) entry.command = command;
+    if (typeof defaultModel === 'string' && defaultModel) entry.defaultModel = defaultModel;
+    if (Object.keys(entry).length) out[id] = entry;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function normalizeDispatchFields(raw: AiFactoryConfig): Pick<AiFactoryConfig, 'dispatch' | 'phases' | 'dispatchAgents'> {
+  const phases = normalizePhases(raw.phases);
+  const dispatchAgents = normalizeDispatchAgents(raw.dispatchAgents);
+  // Invalid/missing mode falls back to 'manual' whenever any dispatch config exists:
+  // phases then resolve to printed instructions instead of spawning anything.
+  const dispatch = (raw.dispatch !== undefined || phases)
+    ? (raw.dispatch === 'auto' ? 'auto' : 'manual')
+    : undefined;
+  return {
+    ...(dispatch !== undefined ? { dispatch } : {}),
+    ...(phases ? { phases } : {}),
+    ...(dispatchAgents ? { dispatchAgents } : {}),
+  };
 }
 
 function normalizeManagedSkills(raw: unknown): Record<string, ManagedSkillState> {
@@ -254,6 +329,8 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
     return null;
   }
 
+  const dispatchFields = normalizeDispatchFields(raw);
+
   if (Array.isArray(raw.agents)) {
     const rawExtensions = Array.isArray(raw.extensions) ? raw.extensions : [];
 
@@ -314,6 +391,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
       extensions: rawExtensions,
       ...(typeof raw.useSymlinks === 'boolean' ? { useSymlinks: raw.useSymlinks } : {}),
       ...(raw.skillSymlinks ? { skillSymlinks: raw.skillSymlinks } : {}),
+      ...dispatchFields,
     };
   }
 
@@ -322,6 +400,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
       version: raw.version ?? CURRENT_VERSION,
       agents: [createAgentInstallation(raw.agent, raw)],
       extensions: [],
+      ...dispatchFields,
     };
   }
 
@@ -329,6 +408,7 @@ export async function loadConfig(projectDir: string): Promise<AiFactoryConfig | 
     version: raw.version ?? CURRENT_VERSION,
     agents: [],
     extensions: [],
+    ...dispatchFields,
   };
 }
 
