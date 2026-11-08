@@ -439,7 +439,14 @@ Stops by a fixed precedence contract — `threshold_reached`, `no_major_issues`,
 
 If loop stops on max iterations or the time budget without passing criteria, final summary includes distance-to-success metrics (threshold gap + remaining blocking fail-rules). Use `list` to see all loop runs, `history` to view events, `clean` to remove old loop runs.
 
-Each phase boundary first attempts optional cross-agent dispatch (`ai-factory dispatch <phase>`). Without dispatch config the command is a silent no-op and the phase runs in-process exactly as before; with `dispatch: "manual"` the loop stops and prints a copy-safe instruction block; with `dispatch: "auto"` the external agent produces the phase output under a per-phase timeout. Non-zero dispatch results never block the loop — the phase falls back to in-process execution. See [Cross-Agent Dispatch](configuration.md#cross-agent-dispatch).
+Each phase boundary attempts optional cross-agent dispatch through
+`ai-factory dispatch <phase> --json`. An explicit `noop` runs in-process; `manual`
+persists a handoff that the target agent accepts with `/aif-loop resume` without
+redispatching that phase; `completed` requires validating and persisting the
+external phase result before advancing. Non-zero exits and invalid responses
+fall back in-process. The plain CLI keeps its silent no-op behavior. See
+[Cross-Agent Dispatch](configuration.md#cross-agent-dispatch) and
+[phase dispatch and resume](loop.md#phase-dispatch-and-resume).
 
 For full contracts and state transition rules, see [Reflex Loop](loop.md).
 

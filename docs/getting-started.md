@@ -169,6 +169,7 @@ ai-factory worktree-check . ../project-feature --json
 # Resolve a workflow phase to an external agent (prints instructions or spawns it)
 ai-factory dispatch plan --prompt "Run the plan phase of the aif-loop"
 ai-factory dispatch implement --print
+ai-factory dispatch plan --json --prompt "Execute only this plan phase"
 
 # Record an explicitly registered skill invocation and verify its instruction bytes
 ai-factory instructions start --spec composition.json

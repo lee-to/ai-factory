@@ -397,16 +397,25 @@ cat > "$TMP_CASE14/.ai-factory.json" << 'EOF'
 }
 EOF
 
-(cd "$TMP_CASE14" && node "$ROOT/dist/cli/index.js" init --agents claude --skills aif --no-symlinks > "$TMP_CASE14/init.log" 2>&1) || echo "INIT_EXIT=$?" >> "$TMP_CASE14/init.log"
+cp "$TMP_CASE14/.ai-factory.json" "$TMP_CASE14/expected.json"
+init_status=0
+(cd "$TMP_CASE14" && node "$ROOT/dist/cli/index.js" init --agents claude --skills aif --no-symlinks > "$TMP_CASE14/init.log" 2>&1) || init_status=$?
 
-rt_config=$(cat "$TMP_CASE14/.ai-factory.json" 2>/dev/null || true)
-if echo "$rt_config" | grep -q '"dispatch": "manual"' \
-   && echo "$rt_config" | grep -q '"claude-code"' \
-   && echo "$rt_config" | grep -q '"opus"' \
-   && echo "$rt_config" | grep -q 'customcli'; then
+if [ "$init_status" -eq 0 ] && node --input-type=module - "$TMP_CASE14" <<'EOF'
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const dir = process.argv[2];
+const actual = JSON.parse(fs.readFileSync(path.join(dir, '.ai-factory.json'), 'utf8'));
+const expected = JSON.parse(fs.readFileSync(path.join(dir, 'expected.json'), 'utf8'));
+for (const key of ['dispatch', 'phases', 'dispatchAgents']) assert.deepEqual(actual[key], expected[key]);
+assert.ok(actual.agents.some(agent => agent.id === 'claude' && agent.installedSkills.includes('aif')));
+assert.ok(fs.existsSync(path.join(dir, '.claude/skills/aif/SKILL.md')));
+EOF
+then
   pass "Case 14: init rerun preserves dispatch/phases/dispatchAgents"
 else
-  fail "Case 14: init dispatch round-trip" "Dispatch hits: $(echo "$rt_config" | grep -c 'dispatch' || true)"
+  fail "Case 14: init dispatch round-trip" "init exit: $init_status; $(tail -n 5 "$TMP_CASE14/init.log")"
 fi
 
 # Show final summary

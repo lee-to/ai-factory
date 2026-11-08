@@ -17,8 +17,14 @@ export type ResolveResult =
   | { kind: 'unknown-agent'; phase: DispatchPhase; agent: string }
   | { kind: 'unknown-phase'; phase: string };
 
-/** Soft cap for auto dispatch; checked by the spawned CLI, never mid-flight by aif-loop. */
+/** Direct-child timeout; checked by the spawned CLI, never mid-flight by aif-loop. */
 export const DEFAULT_DISPATCH_TIMEOUT_MS = 600_000;
+
+function debugDispatch(event: string, details: Record<string, unknown>): void {
+  if (process.env.DEBUG_FIX === '1' || process.env.LOG_LEVEL === 'debug') {
+    console.error(`[FIX:dispatch] ${event}`, details);
+  }
+}
 
 export function isDispatchPhase(v: string): v is DispatchPhase {
   return (DISPATCH_PHASES as readonly string[]).includes(v);
@@ -43,12 +49,13 @@ export interface BuiltCommand { file: string; args: string[]; }
 // No shell anywhere → injection-safe. Templates are argv templates, not shell scripts: quotes and
 // metacharacters have no special meaning and paths with spaces cannot be expressed as one token.
 export function buildAgentCommand(spec: AgentRunSpec, ctx: BuildContext): BuiltCommand {
-  const subst = (t: string) => t
-    .replaceAll('{model}', ctx.model)
-    .replaceAll('{phase}', ctx.phase)
-    .replaceAll('{prompt}', ctx.prompt);
+  debugDispatch('build', { phase: ctx.phase, promptBytes: Buffer.byteLength(ctx.prompt) });
+  // One callback pass keeps replacement syntax and placeholders inside values literal.
+  const subst = (t: string) => t.replace(/\{(model|phase|prompt)\}/g,
+    (_match, key: keyof BuildContext) => ctx[key]);
   const tokens = spec.command.trim().split(/\s+/);
   const [file, ...rest] = tokens.map(subst);
+  debugDispatch('built', { phase: ctx.phase, argumentCount: rest.length });
   return { file, args: rest };
 }
 
@@ -61,7 +68,7 @@ function resumeHint(phase: DispatchPhase): string {
     case 'review':
       return 'Then run /aif-review in that agent.';
     default:
-      return 'Resume the loop afterwards with: /aif-loop resume';
+      return 'In the target agent, run /aif-loop resume to execute the pending handoff without redispatch.';
   }
 }
 
@@ -88,17 +95,31 @@ export function formatManualInstructions(r: ResolvedDispatch, prompt: string): s
 
 export interface RunResult { ok: boolean; code: number | null; error?: string; }
 
-export function runAuto(r: ResolvedDispatch, prompt: string): RunResult {
+export function runAuto(r: ResolvedDispatch, prompt: string, options: { json?: boolean } = {}): RunResult {
   const { file, args } = buildAgentCommand(r.spec, { model: r.model, phase: r.phase, prompt });
+  debugDispatch('start', { phase: r.phase, timeoutMs: r.timeoutMs });
   try {
-    execFileSync(file, args, { stdio: 'inherit', timeout: r.timeoutMs });
+    execFileSync(file, args, {
+      // In JSON mode stdout belongs exclusively to the dispatcher result.
+      stdio: ['inherit', options.json ? 2 : 'inherit', 'inherit'],
+      timeout: r.timeoutMs,
+      // SIGTERM can be handled indefinitely on POSIX; force the direct child to exit.
+      killSignal: 'SIGKILL',
+    });
+    debugDispatch('completed', { phase: r.phase });
     return { ok: true, code: 0 };
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { status?: number; killed?: boolean; signal?: NodeJS.Signals };
+    debugDispatch('failed', { phase: r.phase, code: e.code, status: e.status, signal: e.signal });
     if (e.code === 'ENOENT') return { ok: false, code: null, error: `Command not found on PATH: ${file}` };
-    if (e.killed || e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT') {
+    if (e.code === 'ETIMEDOUT') {
       return { ok: false, code: null, error: `Dispatch timed out after ${r.timeoutMs} ms: ${file}` };
     }
-    return { ok: false, code: typeof e.status === 'number' ? e.status : 1, error: e.message };
+    // execFileSync's message contains argv (and potentially a private prompt).
+    const error = typeof e.status === 'number'
+      ? `Dispatch child exited with code ${e.status}`
+      : e.signal ? `Dispatch child terminated by ${e.signal}`
+        : `Dispatch could not start (${e.code ?? 'unknown error'})`;
+    return { ok: false, code: typeof e.status === 'number' ? e.status : 1, error };
   }
 }

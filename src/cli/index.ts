@@ -24,6 +24,7 @@ program
   .description('Resolve the agent/model for a loop phase and switch or spawn it')
   .option('--prompt <text>', 'Instruction passed to the target agent (fills {prompt})')
   .option('--print', 'Force manual mode: print instructions, never spawn')
+  .option('--json', 'Emit one dispatcher result on stdout; send child output to stderr')
   .action(dispatchCommand);
 
 program

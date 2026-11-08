@@ -304,6 +304,39 @@ Track `delta = score - last_score`:
 - if `delta < 0.02` and no severity `fail` blockers, increment `stagnation_count`
 - if `stagnation_count >= 2`, stop with `stagnation`
 
+## Phase Dispatch and Resume
+
+The loop uses `ai-factory dispatch <phase> --json --prompt <phase-context>` at each
+phase boundary. The prompt transfers the run path/id, iteration, A/B level,
+required inputs and PHASE-CONTRACTS output format. The dispatcher does not write
+loop state. Its JSON stdout distinguishes `noop`, `manual`, `completed`, and
+`error`; child output is kept on stderr. A `completed` status proves process exit,
+so validate the phase output and persist it in the normal run field/artifact
+before advancing. Non-zero exits or invalid/mismatched JSON fall back in-process.
+
+For manual dispatch, the loop saves `run.json.manual_dispatch`, bound to
+`run_id`, `iteration`, `phase_level` (A/B), logical `step`, the pending `phase`, and
+`completed_phases` (only accepted members of PRODUCE_PREPARE). It then shows a
+non-spawning target-agent command whose prompt invokes `/aif-loop resume <alias>`.
+The loop stays running; manual handoff is not a terminal stop reason.
+
+On resume, validate this marker before ordinary interrupted-phase replay. Execute
+the pending phase in the current target-agent session **without dispatching it
+again**, validate and persist its result, then clear the marker and route onward.
+Resume alone is not proof that the phase was already executed. Stale/malformed
+markers use corrupted-state recovery; they never authorize skipping a phase.
+Keep accepted PRODUCE/PREPARE output when handing off the other member. Standalone
+B-level PREPARE preserves step PREPARE and never re-runs PRODUCE. Legacy
+runs without a marker retain ordinary interrupted-phase replay.
+
+When the budget is enabled, clear the boundary timer before manual STOP and restart it on resume. Waiting
+between sessions is not charged; interrupted partial time is discarded, and
+PRODUCE_PREPARE remains one logical segment without an intermediate budget stop.
+With no budget, accounting fields remain untouched.
+Full authoring details are in the bundled loop reference `references/DISPATCH.md`.
+See [dispatch configuration](configuration.md#cross-agent-dispatch) for CLI modes
+and the direct-child timeout contract.
+
 ## Criteria Model
 
 Use template-recommended phase thresholds by default (fallback: A=`0.8`, B=`0.9`):

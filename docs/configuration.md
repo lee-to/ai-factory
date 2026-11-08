@@ -550,16 +550,35 @@ and `upgrade` preserve these fields; they are user-owned, not managed installati
 - `phases.<phase>` — targets per phase. Valid phases: `plan`, `produce`, `prepare`, `evaluate`, `critique`, `refine` (aif-loop) plus `implement`, `review` (spec-driven workflow). `model` falls back to the agent's `defaultModel`; `timeoutMs` is a positive integer cap for auto spawns (default 600000).
 - `dispatchAgents` — per-agent `command` / `defaultModel` overrides. Built-in dispatch ids: `claude-code`, `gemini-cli`, `antigravity`, `chatgpt-cli`, `openrouter-cli`. An agent id that resolves to an installed runtime (including extension-provided ones) maps through its `skillsCliAgent`.
 
-`command` is an **argv template, not a shell string**: it is split on whitespace, then `{model}`, `{phase}`, `{prompt}` are substituted per token. Quotes and shell metacharacters have no special meaning, and paths with spaces cannot be expressed as one token; prompts always travel as a single argv element, never through a shell.
+`command` is an **argv template, not a shell string**: it is split on whitespace, then `{model}`, `{phase}`, `{prompt}` are substituted per token in one pass. Values remain literal, including `$$`, `$&` and placeholder-like text inside a prompt/model. Quotes and shell metacharacters have no special meaning, and paths with spaces cannot be expressed as one token; prompts always travel as a single argv element, never through a shell.
 
-`ai-factory dispatch <phase> [--prompt <text>] [--print]` resolves one phase:
+`ai-factory dispatch <phase> [--prompt <text>] [--print] [--json]` resolves one phase:
 
 - no dispatch config or no phase entry → exit 0 with empty stdout and stderr (a fully silent no-op, so callers treat it as "continue in-process");
 - manual mode or `--print` → a structured `Command:` / `Args:` block on stdout, one argv element per line, copy-safe for prompts with quotes, `$()`, or semicolons;
-- auto mode → spawns the command without a shell, bounded by `timeoutMs`; the child is killed on timeout and the command exits 1 with a diagnostic on stderr;
+- auto mode → spawns the command without a shell; at `timeoutMs` the direct child is forcibly terminated with SIGKILL and the command exits 1 with a diagnostic on stderr. This is not a process-tree cleanup guarantee;
 - unknown phase or agent → exit 2 with a diagnostic on stderr and empty stdout.
 
-`/aif-loop` Step 4.0 defines the fallback contract: non-zero dispatch results are appended to `history.jsonl` as `phase_error` events and the phase runs in-process — dispatch must never block the loop. See [Reflex Loop Files](configuration.md#reflex-loop-files) for loop state ownership and [workflow](workflow.md) for the loop protocol.
+Those stdout rules describe the default text interface. With `--json`, stdout is
+exactly one object with `schema_version: 1`, the requested `phase`, and `status`:
+
+| Status | Meaning | Additional fields |
+|---|---|---|
+| `noop` | Execute the phase in-process | `reason`: `no-config` or `no-phase-entry` |
+| `manual` | No child was started | `agent`, `model`, `command: {file, args}`, `instructions` |
+| `completed` | The child exited successfully | Phase output still requires validation |
+| `error` | Resolution or child execution failed | `reason` or `error`; non-zero exit |
+
+Child stdout is redirected to stderr in JSON mode; it cannot impersonate a
+dispatcher result. `--print --json` returns `manual` even under auto configuration.
+`DEBUG_FIX=1` or `LOG_LEVEL=debug` enables `[FIX:dispatch]` diagnostics on stderr;
+prompts and artifact contents are not logged.
+
+`/aif-loop` Step 4.0 consumes the JSON interface. Non-zero exits and malformed or
+mismatched responses become `phase_error` events and fall back in-process.
+Manual mode records a phase-bound handoff; resume in the target agent executes it
+without redispatch. See [phase dispatch and resume](loop.md#phase-dispatch-and-resume)
+for result validation, state and budget handling.
 
 ## Codex Skill Directories and Migration
 

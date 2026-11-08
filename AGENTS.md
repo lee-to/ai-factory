@@ -97,8 +97,12 @@ User-owned `dispatch` / `phases` / `dispatchAgents` live in `.ai-factory.json` a
 `init`/`update`/`upgrade` reruns; they are not `config.yaml` keys. `command` is an argv
 template split on whitespace, never a shell string; prompts stay one argv element. No-config
 and no-phase-entry are silent no-ops (exit 0, empty stdout/stderr); unknown phase/agent exit 2
-on stderr; auto spawns are bounded by `phases.<phase>.timeoutMs` (default 600000).
+on stderr. `--json` emits one versioned `noop|manual|completed|error` result on stdout,
+with child output redirected to stderr; loop routing never infers status from child text.
+Auto spawns forcibly terminate the direct child at `phases.<phase>.timeoutMs` (default 600000).
 `/aif-loop` Step 4.0 owns the fallback contract: dispatch must never block the loop.
+Its phase-bound `run.json.manual_dispatch` is consumed on target-agent resume without
+redispatch, then cleared after accepted output; see the bundled `references/DISPATCH.md`.
 See `docs/configuration.md#cross-agent-dispatch` and `npm run test:dispatch`.
 
 ### Project completion hook
@@ -725,7 +729,7 @@ docs/
 2. **Details go to `docs/`.** Each file is self-contained — one topic, one page. A user should be able to read a single doc file and get the full picture on that topic.
 3. **No duplication.** If information lives in `docs/`, README links to it — does not repeat it. The only exception: installation command appears in both README and `docs/getting-started.md` (users expect it in README).
 4. **Navigation.** Every docs/ file starts with prev/back/next navigation that follows the README Documentation table order and ends with a "See Also" section linking to 2-3 related pages. `getting-started.md` may use a simpler first-page header and ends with "Next Steps" instead.
-5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/research.md` is the source of truth for regular/ultra research artifact shapes. `docs/loop.md` is the source of truth for Reflex Loop contracts and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
+5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/research.md` is the source of truth for regular/ultra research artifact shapes. `docs/loop.md` is the source of truth for Reflex Loop contracts, dispatch handoffs and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
 6. **Cross-links use relative paths.** From README: `docs/workflow.md`. Between docs: `workflow.md` (same directory).
 
 ### When to Update What

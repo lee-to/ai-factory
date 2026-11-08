@@ -242,10 +242,11 @@ When resuming a loop:
 1. Read `run.json` to get `current_step` and `iteration`
 2. Read last event from `history.jsonl` to confirm consistency
 3. If `run.json.current_step` indicates a phase was interrupted:
-   - Re-execute from that phase (do not skip)
-   - `PRODUCE_PREPARE`: always re-run both PRODUCE and PREPARE (idempotent — artifact overwrites, checks regenerate)
+   - First handle a matching `manual_dispatch` using `references/DISPATCH.md`: execute its pending phase in this agent without redispatch, validate and persist its result, then clear the marker. Resume alone is not proof of completed work.
+   - Otherwise re-execute from that phase (do not skip).
+   - `PRODUCE_PREPARE`: re-run both PRODUCE and PREPARE unless a validated manual handoff preserves an already accepted part of this pair; see `references/DISPATCH.md`.
 4. If `run.json.status` is `stopped`, `completed`, or `failed`, inform user and suggest `new` (for `failed` runs, also show the last `phase_error` event from `history.jsonl` so user understands what went wrong)
-5. Discard a stale `phase_started_epoch_seconds`: set it to the current `date +%s` when the interrupted phase actually re-starts. The interrupted attempt contributes nothing to the budget — only `completed_phase_seconds` already accumulated from finished segments carries over (see `references/ACTIVE-TIME-BUDGET.md`).
+5. When a budget is enabled, discard a stale `phase_started_epoch_seconds`: set it to the current `date +%s` when the interrupted phase actually re-starts. The interrupted attempt contributes nothing to the budget — only `completed_phase_seconds` already accumulated from finished segments carries over (see `references/ACTIVE-TIME-BUDGET.md`). With no budget, leave accounting fields untouched.
 
 ## Step 2: Interactive Setup (new loop)
 
@@ -331,23 +332,25 @@ Each phase produces its defined output (see PHASE-CONTRACTS.md). No envelope wra
 
 ### Step 4.0: Phase dispatch (optional, backwards-compatible)
 
-Before running each phase's in-process work, attempt cross-agent dispatch:
+Before dispatch, load `references/DISPATCH.md` for phase input/output transfer and manual resume.
+A matching pending manual handoff takes priority over dispatch; never dispatch that phase again.
+Otherwise, before each phase's in-process work, call:
 
-    ai-factory dispatch <phase> [--prompt "<short plan/task summary>"]
+    ai-factory dispatch <phase> --json --prompt "<phase context and output contract>"
 
 where `<phase>` ∈ `plan | produce | prepare | evaluate | critique | refine`.
 
-Interpret the result:
-- **No "Cross-agent dispatch" output at all (exit 0)** → no dispatch configured for this phase;
-  run the phase in-process exactly as today.
-- **Manual block printed (exit 0, `Mode : manual`)** → STOP. Show the block to the user, persist
-  `run.json.current_step` for this phase, and do NOT run it in-process. `/aif-loop resume` re-enters
-  this phase.
-- **Auto mode (exit 0, no manual block)** → the external agent already produced this phase's output;
-  read the artifact/checks it wrote and continue. Auto dispatch is bounded by a per-phase timeout
-  (`phases.<phase>.timeoutMs`, default 600000 ms); the spawned process is killed on timeout.
-- **Non-zero exit** → append a `phase_error` event to `history.jsonl` and fall back to running the
-  phase in-process. Dispatch must NEVER block the loop.
+Parse stdout as exactly one JSON object with `schema_version: 1` and the requested `phase`.
+Child output goes to stderr and is never a routing signal. On exit 0:
+- `status: "noop"` → execute in-process.
+- `status: "manual"` → persist the bound `run.json.manual_dispatch`, show the target-agent
+  resume instructions from `references/DISPATCH.md`, and STOP before phase execution.
+- `status: "completed"` → collect and validate the external result using PHASE-CONTRACTS.md;
+  persist it in the normal phase output location before advancing. Process success alone does
+  not validate phase output.
+Non-zero exit, malformed/mismatched JSON or any other status → append a `phase_error` event
+and fall back to in-process execution. Dispatch must NEVER block the loop.
+Auto dispatch forcibly terminates the direct child on `timeoutMs` (default 600000 ms).
 
 `current_step = PRODUCE_PREPARE` spans two phase keys: call `ai-factory dispatch produce` and
 `ai-factory dispatch prepare` separately (sequentially in auto mode), then aggregate in-process.

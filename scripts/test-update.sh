@@ -166,6 +166,9 @@ inquirer.prompt = async (questions) => {
     return { shouldUpdate: false };
   }
   if (first?.name === 'selectedNewSkills') {
+    if (!first.choices?.length || first.choices.some(choice => choice.checked !== false)) {
+      throw new Error('Uninstalled skills must all require explicit opt-in');
+    }
     return { selectedNewSkills: ['aif-plan'] };
   }
   throw new Error(`Unexpected prompt: ${JSON.stringify(questions)}`);
@@ -183,7 +186,7 @@ try {
 }
 EOF
 
-assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "New base skills available:" "update must announce newly available base skills"
+assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "Base skills not installed on some agents:" "update must announce uninstalled base skills without preselecting them"
 assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "aif-plan \(new in package\)" "accepted new skill must be reported as installed"
 assert_exists "$NEW_SKILL_PROMPT_PROJECT_DIR/.agents/skills/aif-plan/SKILL.md" "accepted new skill must be installed"
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(!Array.isArray(a.installedSkills)||!a.installedSkills.includes('aif-plan'))process.exit(1);if(!a.managedSkills||!a.managedSkills['aif-plan'])process.exit(1);" "$NEW_SKILL_PROMPT_PROJECT_DIR/.ai-factory.json"
