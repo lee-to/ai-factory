@@ -714,7 +714,7 @@ docs/
 ├── research.md              # Regular and ultra research, adaptive C4/ADR/dependency bundles
 ├── loop.md                  # Reflex loop protocol: phases, rules, state, stop conditions
 ├── subagents.md             # Claude-only bundled subagents and runtime-local agent-file boundaries
-├── skills.md                # Workflow/utility reference, including stack-driven quality setup
+├── skills.md                # Workflow/utility reference, including stack-driven quality setup and loop dispatch/resume
 ├── evolve.md                # Patch-driven skill evolution and skill-context learning loop
 ├── plan-files.md            # Plan files, self-improvement patches, skill acquisition strategy
 ├── security.md              # Two-level security scanning system

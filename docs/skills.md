@@ -327,8 +327,10 @@ Runs a strict iterative Reflex Loop with phase-based execution and quality gates
 /aif-loop history courses-api-ddd
 /aif-loop clean courses-api-ddd
 ```
-- Uses 6 phases: PLAN -> PRODUCE||PREPARE -> EVALUATE -> CRITIQUE -> REFINE (PRODUCE and PREPARE run in parallel)
+- Uses 6 phases: PLAN -> PRODUCE||PREPARE -> EVALUATE -> CRITIQUE -> REFINE (PRODUCE and PREPARE run in parallel in-process, or sequentially under auto dispatch)
 - Evaluation uses weighted rules with score formula and severity levels (`fail`, `warn`, `info`)
+- Optional cross-agent dispatch uses `ai-factory dispatch <phase> --json`: `noop` runs in-process; `completed` requires validating and persisting the external phase result before advancing. Non-zero exits or invalid/mismatched responses fall back in-process.
+- Manual dispatch saves a phase-bound `run.json.manual_dispatch` and pauses. In the target agent, `/aif-loop resume <alias>` executes the pending phase without redispatch, validates and persists its result, then clears the handoff. Accepted PRODUCE/PREPARE output is preserved; standalone B-level PREPARE does not repeat PRODUCE.
 - Persists state between sessions in `paths.evolution` (default: `.ai-factory/evolution/`):
   - `current.json` (active loop pointer to current run)
   - `<alias>/run.json` (single source of truth for current state)
@@ -340,7 +342,7 @@ Runs a strict iterative Reflex Loop with phase-based execution and quality gates
 - Before iteration 1, always explicitly confirms success criteria, max iterations, and a non-`none` time budget with the user (even if already provided in task text)
 - Stop conditions follow a fixed precedence contract — `threshold_reached`, `no_major_issues`, `user_stop`, `stagnation`, `budget_exceeded`, `iteration_limit` — so completion always outranks a resource guard that trips at the same boundary
 - If stopped by `iteration_limit` or `budget_exceeded` with unmet criteria, final summary includes distance-to-success (threshold gap + remaining fail-rule blockers)
-- Full protocol and schemas: [Reflex Loop](loop.md)
+- Full protocol and schemas: [Reflex Loop](loop.md), including [phase dispatch and resume](loop.md#phase-dispatch-and-resume)
 
 ### `/aif-implement`
 Executes the plan:
