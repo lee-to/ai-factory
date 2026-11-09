@@ -3,6 +3,7 @@ import { initCommand } from './commands/init.js';
 import { updateCommand } from './commands/update.js';
 import { upgradeCommand } from './commands/upgrade.js';
 import { auditArtifactsCommand } from './commands/audit-artifacts.js';
+import { dispatchCommand } from './commands/dispatch.js';
 import { registerInstructionCommands } from './commands/instructions.js';
 import { commandsCommand } from './commands/commands.js';
 import { registerCompletionHookCommands } from './commands/completion-hook.js';
@@ -19,9 +20,17 @@ program
   .version(getCurrentVersion());
 
 program
+  .command('dispatch <phase>')
+  .description('Resolve the agent/model for a loop phase and switch or spawn it')
+  .option('--prompt <text>', 'Instruction passed to the target agent (fills {prompt})')
+  .option('--print', 'Force manual mode: print instructions, never spawn')
+  .option('--json', 'Emit one dispatcher result on stdout; send child output to stderr')
+  .action(dispatchCommand);
+
+program
   .command('init')
   .description('Initialize ai-factory in current project')
-  .option('--agents <agents>', 'Comma-separated list of agents (e.g. claude,codex,codex-app,cursor)')
+  .option('--agents <agents>', 'Comma-separated list of agents (e.g. claude,codex,codex-app,cursor,chatgpt,openrouter)')
   .option('--mcp <servers>', 'Comma-separated list of MCP servers (e.g. github,playwright,postgres,filesystem,chrome-devtools)')
   .option('--skills <skills>', 'Comma-separated list of skills or "all" for all skills (default: all)')
   .option('--no-skills', 'Skip installing base skills')

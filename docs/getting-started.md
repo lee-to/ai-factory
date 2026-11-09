@@ -28,6 +28,8 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | Roo Code | `.roo/` | `.roo/skills/` |
 | Kilo Code | `.kilocode/` | `.kilocode/skills/`, `.kilocode/workflows/` |
 | Antigravity | `.agents/` | `.agents/skills/` |
+| ChatGPT CLI | `.chatgpt/` | `.chatgpt/skills/` |
+| OpenRouter CLI | `.openrouter/` | `.openrouter/skills/` |
 | OpenCode | `.opencode/` | `.opencode/skills/` |
 | Warp | `.warp/` | `.warp/skills/` |
 | Zencoder | `.zencoder/` | `.zencoder/skills/` |
@@ -163,6 +165,11 @@ ai-factory commands . packages/api packages/web --json
 
 # Diagnose static runtime conflicts between existing checkouts without launching environments
 ai-factory worktree-check . ../project-feature --json
+
+# Resolve a workflow phase to an external agent (prints instructions or spawns it)
+ai-factory dispatch plan --prompt "Run the plan phase of the aif-loop"
+ai-factory dispatch implement --print
+ai-factory dispatch plan --json --prompt "Execute only this plan phase"
 
 # Record an explicitly registered skill invocation and verify its instruction bytes
 ai-factory instructions start --spec composition.json

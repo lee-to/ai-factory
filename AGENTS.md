@@ -9,7 +9,7 @@
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
 2. **Built-in skills** (34 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
-4. **Multi-agent support** — 16 agents (Claude Code, Cursor, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity, OpenCode, Warp,
+4. **Multi-agent support** — 18 agents (Claude Code, Cursor, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity, ChatGPT CLI, OpenRouter CLI, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
 
 ## Project Structure
@@ -88,6 +88,22 @@ and leave dynamic/ambiguous definitions unresolved. Never import project extensi
 commands on the catalog route, including help. No discovered command is executed,
 verified or authorized by discovery. No catalog/config files are written. See
 `docs/configuration.md#project-command-catalog` for limits and explicit mappings.
+
+### Cross-agent dispatch
+
+`ai-factory dispatch <phase>` resolves one workflow phase to an external agent CLI
+(`src/core/dispatch.ts`, `src/core/dispatch-registry.ts`, CLI in `src/cli/commands/dispatch.ts`).
+User-owned `dispatch` / `phases` / `dispatchAgents` live in `.ai-factory.json` and survive
+`init`/`update`/`upgrade` reruns; they are not `config.yaml` keys. `command` is an argv
+template split on whitespace, never a shell string; prompts stay one argv element. No-config
+and no-phase-entry are silent no-ops (exit 0, empty stdout/stderr); unknown phase/agent exit 2
+on stderr. `--json` emits one versioned `noop|manual|completed|error` result on stdout,
+with child output redirected to stderr; loop routing never infers status from child text.
+Auto spawns forcibly terminate the direct child at `phases.<phase>.timeoutMs` (default 600000).
+`/aif-loop` Step 4.0 owns the fallback contract: dispatch must never block the loop.
+Its phase-bound `run.json.manual_dispatch` is consumed on target-agent resume without
+redispatch, then cleared after accepted output; see the bundled `references/DISPATCH.md`.
+See `docs/configuration.md#cross-agent-dispatch` and `npm run test:dispatch`.
 
 ### Project completion hook
 
@@ -643,7 +659,7 @@ ai-factory upgrade
 | `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
 | `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
 | `src/cli/wizard/prompts.ts` | Interactive CLI questions |
-| `src/core/agents.ts` | Agent registry (17 agents) |
+| `src/core/agents.ts` | Agent registry (19 agents incl. runtime aliases) |
 | `src/core/installer.ts` | Copies skills to project |
 | `src/core/skill-targets.ts` | Resolves physical skill targets, shared rendering profiles, and native-path boundaries |
 | `src/core/skills-migration.ts` | Proves skill ownership and performs journaled skill-only migration/recovery |
@@ -698,7 +714,7 @@ docs/
 ├── research.md              # Regular and ultra research, adaptive C4/ADR/dependency bundles
 ├── loop.md                  # Reflex loop protocol: phases, rules, state, stop conditions
 ├── subagents.md             # Claude-only bundled subagents and runtime-local agent-file boundaries
-├── skills.md                # Workflow/utility reference, including stack-driven quality setup
+├── skills.md                # Workflow/utility reference, including stack-driven quality setup and loop dispatch/resume
 ├── evolve.md                # Patch-driven skill evolution and skill-context learning loop
 ├── plan-files.md            # Plan files, self-improvement patches, skill acquisition strategy
 ├── security.md              # Two-level security scanning system
@@ -713,7 +729,7 @@ docs/
 2. **Details go to `docs/`.** Each file is self-contained — one topic, one page. A user should be able to read a single doc file and get the full picture on that topic.
 3. **No duplication.** If information lives in `docs/`, README links to it — does not repeat it. The only exception: installation command appears in both README and `docs/getting-started.md` (users expect it in README).
 4. **Navigation.** Every docs/ file starts with prev/back/next navigation that follows the README Documentation table order and ends with a "See Also" section linking to 2-3 related pages. `getting-started.md` may use a simpler first-page header and ends with "Next Steps" instead.
-5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/research.md` is the source of truth for regular/ultra research artifact shapes. `docs/loop.md` is the source of truth for Reflex Loop contracts and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
+5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/research.md` is the source of truth for regular/ultra research artifact shapes. `docs/loop.md` is the source of truth for Reflex Loop contracts, dispatch handoffs and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
 6. **Cross-links use relative paths.** From README: `docs/workflow.md`. Between docs: `workflow.md` (same directory).
 
 ### When to Update What
