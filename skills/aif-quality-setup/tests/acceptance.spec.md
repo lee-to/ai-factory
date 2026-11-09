@@ -1,18 +1,21 @@
 # Runtime Acceptance Specification
 
 These cases require actual execution of the selected skill in disposable projects.
-They are not run by the offline packaging suite. Start with reviewed fixture copies;
+They are not run by the offline packaging suite. Start with reviewed fixtures
+restored into a new temporary project using the [preparation helper](README.md#preparing-runtime-fixtures);
 record independent hashes for source/config/lock/hook files, Git index tree/patch,
 unstaged patch and relevant Git config. Use exact CWD and preserve prior failures.
+The separate [IDE indexing acceptance](README.md#ide-indexing-acceptance) checks
+the source checkout and cannot be inferred from these runtime or offline cases.
 
 | Case | Action | Observable acceptance |
 | --- | --- | --- |
-| A01 discovery/audit | Audit each js-ts/php/python/rust fixture without applying | Correct manifest/runtime/tool evidence; project bytes/index/config unchanged; no install, script or config execution |
+| A01 discovery/audit | Prepare and audit each js-ts/php/python/rust fixture without applying | Real manifest/source names restored before invocation; correct manifest/runtime/tool evidence; project bytes/index/config unchanged during audit; no install, script or config execution |
 | A02 choices | Select only a subset of checks; repeat with cancel | Only selected changes/dependencies; cancel preserves all state; no Node requirement added to another stack |
 | A03 compatibility | Use conflicting managers, a missing runtime and an incompatible tool version | Focused questions/reasoned compatible options; unavailable execution is not_run; no silent runtime upgrade |
 | A04 existing setup | Enhance existing lint/prepare/config/hooks, then rerun | Original semantics/order/comments and unrelated changes preserved; no duplicate entries or unchosen migration |
-| A05 mixed monorepo | Audit/setup mixed fixture backend and web | Both stacks identified with correct roots/CWD; repository hook routes selected commands; analysis never receives filenames |
-| A06 multirepo | Initialize independent Git roots in multirepo fixture before invocation; use the supplied conflicting contexts and select api and worker | Resolve api custom paths/Russian artifacts and worker English artifacts/git.enabled:false independently; preserve root-local rules and skill-context; gateway missing config uses its own defaults and stays byte/index/config unchanged; invocation UI stays stable; no Git queries/hooks in worker and no api-to-worker cross-check without explicit choice |
+| A05 mixed monorepo | Prepare mixed fixture, then audit/setup backend and web | Root workspace and nested manifests restored; both stacks identified with correct roots/CWD; repository hook routes selected commands; analysis never receives filenames |
+| A06 multirepo | Prepare multirepo fixture including hidden contexts; initialize independent Git roots there before invocation; use the supplied conflicting contexts and select api and worker | Resolve api custom paths/Russian artifacts and worker English artifacts/git.enabled:false independently; preserve root-local rules and skill-context; gateway missing config uses its own defaults and stays byte/index/config unchanged; invocation UI stays stable; no Git queries/hooks in worker and no api-to-worker cross-check without explicit choice |
 | A07 partial staging/check | Stage one hunk, leave another unstaged; run actual check hook | Index and working tree restored exactly; hook checks advertised content scope; unrelated hunks never committed |
 | A08 fix-and-stop | Select a supported mutating runner, induce a fix and run Git commit | Commit stops; only agreed fixes remain; unrelated unstaged hunks preserved; no retry/bypass or broad stage |
 | A09 fix-and-stage | Select a verified runner, stage one hunk and induce supported fixes | Only selected staged fixes enter actual commit; unrelated unstaged hunk remains; commit skill inspects committed scope before push offer |
