@@ -6,10 +6,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getAvailableSkills, installSkills } from '../dist/core/installer.js';
 import { getBuiltinAgentConfigs } from '../dist/core/agents.js';
 import { getTransformer } from '../dist/core/transformer.js';
+import { inspectFixtureTree, prepareFixture } from '../skills/aif-quality-setup/tests/prepare-fixture.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const name = 'aif-quality-setup';
@@ -17,9 +18,14 @@ const source = path.join(root, 'skills', name);
 const sandbox = await fs.mkdtemp(path.join(os.tmpdir(), 'aif-quality-setup-'));
 let passed = 0;
 let failed = 0;
+let notRun = 0;
 
 async function check(label, run) {
-  try { await run(); passed++; console.log(`PASS ${label}`); }
+  try {
+    const result = await run();
+    if (result?.notRun) { notRun++; console.log(`NOTRUN ${label}: ${result.notRun}`); }
+    else { passed++; console.log(`PASS ${label}`); }
+  }
   catch (error) { failed++; console.error(`FAIL ${label}: ${error.stack ?? error.message}`); }
 }
 
@@ -67,6 +73,160 @@ async function inspectLinks(file) {
 const before = await snapshot(source);
 const delivered = Object.keys(before).filter(relative => !relative.startsWith('tests/'));
 try {
+  await check('fixture storage contains neutral stubs and preserves the context inventory', async () => {
+    const inventory = await files(path.join(source, 'tests/fixtures'));
+    assert.equal(inventory.filter(file => file.endsWith('.stub')).length, 18);
+    assert.equal(inventory.filter(file => !file.endsWith('.stub')).length, 11);
+    assert.deepEqual(inventory.filter(file => /\.(?:json|toml|php|ts|py|rs|cjs)$/.test(file)), [],
+      'IDE-recognizable manifests or sources remain in fixture storage');
+  });
+
+  await check('js-ts stubs restore runnable paths and identical bytes without executing scripts', async () => {
+    const project = await prepareFixture('js-ts', sandbox);
+    const expected = ['existing-check.cjs', 'existing-prepare.cjs', 'package.json', 'src/main.ts', 'tsconfig.json'];
+    assert.deepEqual((await files(project)).sort(), expected);
+    for (const relative of expected) assert.deepEqual(await fs.readFile(path.join(project, relative)),
+      await fs.readFile(path.join(source, 'tests/fixtures/js-ts', relative + '.stub')), relative);
+    const manifest = JSON.parse(await fs.readFile(path.join(project, 'package.json'), 'utf8'));
+    assert.equal(manifest.scripts.lint, 'node existing-check.cjs');
+    assert.equal(manifest.scripts.prepare, 'node existing-prepare.cjs');
+    await assert.rejects(fs.access(path.join(project, 'check-executed.txt')), /ENOENT/);
+    await assert.rejects(fs.access(path.join(project, 'prepare-executed.txt')), /ENOENT/);
+  });
+
+  for (const [fixture, manifests] of Object.entries({ php: ['composer.json'], python: ['pyproject.toml'],
+    rust: ['Cargo.toml'], mixed: ['package.json', 'backend/composer.json', 'web/package.json'],
+    multirepo: ['api/composer.json', 'worker/pyproject.toml', 'gateway/Cargo.toml'] })) {
+    await check(`${fixture}: real fixture restores all bytes, nested roots and hidden context`, async () => {
+      const original = await snapshot(path.join(source, 'tests/fixtures', fixture));
+      const project = await prepareFixture(fixture, sandbox);
+      const restored = await snapshot(project);
+      assert.deepEqual(restored, Object.fromEntries(Object.entries(original).map(([file, hash]) =>
+        [file.replace(/\.stub$/, ''), hash])));
+      assert(!Object.keys(restored).some(file => file.endsWith('.stub')));
+      for (const manifest of manifests) assert((await fs.stat(path.join(project, manifest))).isFile(), manifest);
+      assert.deepEqual(await snapshot(path.join(source, 'tests/fixtures', fixture)), original);
+      if (fixture === 'php') {
+        const composer = JSON.parse(await fs.readFile(path.join(project, 'composer.json'), 'utf8'));
+        assert.equal(composer.scripts.test, 'php -l src/Example.php');
+        assert((await fs.stat(path.join(project, 'src/Example.php'))).isFile());
+      }
+      if (fixture === 'mixed') {
+        const manifest = JSON.parse(await fs.readFile(path.join(project, 'package.json'), 'utf8'));
+        assert.deepEqual(manifest.workspaces, ['web']);
+      }
+      if (fixture === 'multirepo') {
+        assert.equal(Object.keys(restored).filter(file => file.includes('/.ai-factory/')).length, 8);
+        assert.match(await fs.readFile(path.join(project, 'api/.ai-factory/config.yaml'), 'utf8'), /project-context\/description\.md/);
+        assert.match(await fs.readFile(path.join(project, 'worker/.ai-factory/config.yaml'), 'utf8'), /enabled: false/);
+        await assert.rejects(fs.access(path.join(project, 'gateway/.ai-factory')), /ENOENT/);
+      }
+      assert(!Object.keys(restored).some(file => file === '.git' || file.startsWith('.git/')));
+    });
+  }
+
+  await check('import is inert and CLI returns only the owned project path, including spaces', async () => {
+    const parent = path.join(sandbox, 'CLI temporary parent with spaces');
+    await fs.mkdir(parent);
+    const helper = path.join(source, 'tests/prepare-fixture.mjs');
+    const env = { ...process.env, TMP: parent, TEMP: parent, TMPDIR: parent, LOG_LEVEL: 'info', DEBUG: '0' };
+    const options = { cwd: root, env, encoding: 'utf8', timeout: 10_000 };
+    const imported = spawnSync(process.execPath, ['--input-type=module', '--eval', 'await import(process.argv[1]);',
+      pathToFileURL(helper).href], options);
+    if (imported.error) throw imported.error;
+    assert.equal(imported.status, 0, imported.stderr);
+    assert.equal(imported.stdout, '');
+    assert.equal(imported.stderr, '');
+    assert.deepEqual(await fs.readdir(parent), [], 'Import created a project');
+
+    const result = spawnSync(process.execPath, [helper, 'js-ts'], options);
+    if (result.error) throw result.error;
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^[^\r\n]+\r?\n$/);
+    assert.match(result.stderr, /INFO prepare\.complete/);
+    assert(!result.stderr.includes('DEBUG'));
+    const project = result.stdout.trim();
+    assert.equal(path.dirname(await fs.realpath(project)), await fs.realpath(parent));
+    assert(path.basename(project).startsWith('aif-quality-fixture-'));
+    assert.deepEqual((await files(project)).sort(),
+      ['existing-check.cjs', 'existing-prepare.cjs', 'package.json', 'src/main.ts', 'tsconfig.json']);
+    assert.deepEqual(await fs.readFile(path.join(project, 'src/main.ts')),
+      await fs.readFile(path.join(source, 'tests/fixtures/js-ts/src/main.ts.stub')));
+
+    const beforeInvalid = await snapshot(parent);
+    const invalid = spawnSync(process.execPath, [helper, '../php'], options);
+    assert.equal(invalid.status, 1);
+    assert.equal(invalid.stdout, '');
+    assert.match(invalid.stderr, /ERROR prepare\.failed.*Unknown fixture/);
+    assert.deepEqual(await snapshot(parent), beforeInvalid);
+  });
+
+  await check('invalid selectors and sandbox parents preserve existing data and the checkout', async () => {
+    const parent = path.join(sandbox, 'validation parent');
+    await fs.mkdir(parent);
+    await fs.writeFile(path.join(parent, 'keep.txt'), 'user-owned bytes\n');
+    const original = await snapshot(parent);
+    for (const selector of ['not-a-fixture', '../php']) {
+      await assert.rejects(() => prepareFixture(selector, parent), /Unknown fixture/);
+    }
+    await assert.rejects(() => prepareFixture('js-ts', path.join(parent, 'missing')), /ENOENT/);
+    await assert.rejects(() => prepareFixture('js-ts', path.join(parent, 'keep.txt')), /not a directory/);
+    const checkoutEntries = (await fs.readdir(root)).sort();
+    await assert.rejects(() => prepareFixture('js-ts', root), /outside the source checkout/);
+    await assert.rejects(() => prepareFixture('js-ts', path.join(source, 'tests/fixtures')), /outside the source checkout/);
+    assert.deepEqual((await fs.readdir(root)).sort(), checkoutEntries);
+    assert.deepEqual(await snapshot(parent), original);
+  });
+
+  await check('ambiguous restored names fail read-only preflight instead of overwriting', async () => {
+    for (const [label, names] of Object.entries({ duplicate: ['value', 'value.stub'],
+      caseOnly: ['Main.ts.stub', 'main.ts'], emptyName: ['.stub'] })) {
+      const directory = path.join(sandbox, label);
+      await fs.mkdir(directory);
+      for (const name of names) await fs.writeFile(path.join(directory, name), `keep ${name}\n`);
+      const before = await snapshot(directory);
+      await assert.rejects(() => inspectFixtureTree(directory), /collision|Invalid restored fixture name/);
+      assert.deepEqual(await snapshot(directory), before);
+    }
+    const directory = path.join(sandbox, 'file directory collision');
+    await fs.mkdir(path.join(directory, 'src'), { recursive: true });
+    await fs.writeFile(path.join(directory, 'src.stub'), 'not a directory\n');
+    await assert.rejects(() => inspectFixtureTree(directory), /collision/);
+  });
+
+  await check('links are rejected and a linked parent cannot bypass checkout protection', async () => {
+    const directory = path.join(sandbox, 'linked fixture');
+    await fs.mkdir(directory);
+    const link = path.join(directory, 'source');
+    try { await fs.symlink(root, link, process.platform === 'win32' ? 'junction' : 'dir'); }
+    catch (error) {
+      if (['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) return { notRun: `Link creation unavailable: ${error.code}` };
+      throw error;
+    }
+    await assert.rejects(() => inspectFixtureTree(directory), /Unsupported fixture link/);
+    await assert.rejects(() => inspectFixtureTree(link), /Expected a fixture directory/);
+    await assert.rejects(() => prepareFixture('js-ts', link), /outside the source checkout/);
+    assert((await fs.lstat(link)).isSymbolicLink());
+  });
+
+  await check('partial copy failure removes only its newly owned directory and preserves neighbors', async () => {
+    const parent = path.join(sandbox, 'failed copy parent');
+    await fs.mkdir(parent);
+    await fs.writeFile(path.join(parent, 'keep.txt'), 'must survive\n');
+    const original = await snapshot(parent);
+    const copyFile = fs.copyFile;
+    let copied = 0;
+    fs.copyFile = async (...args) => {
+      if (++copied === 2) throw new Error('Injected fixture copy failure');
+      return copyFile(...args);
+    };
+    try { await assert.rejects(() => prepareFixture('js-ts', parent), /Injected fixture copy failure/); }
+    finally { fs.copyFile = copyFile; }
+    assert.equal(copied, 2);
+    assert.deepEqual(await fs.readdir(parent), ['keep.txt']);
+    assert.deepEqual(await snapshot(parent), original);
+  });
+
   await check('[FIX:quality-fixtures] required contexts are versionable and unrelated context stays ignored', async () => {
     const fixtureRoot = `skills/${name}/tests/fixtures/multirepo/`;
     const required = [
@@ -196,5 +356,5 @@ try {
   await fs.rm(target, { recursive: true, force: true });
 }
 
-console.log(`Quality setup: ${passed} passed, ${failed} failed (offline; no inference or project hook execution)`);
+console.log(`Quality setup: ${passed} passed, ${failed} failed, ${notRun} not_run (offline; no inference or project hook execution)`);
 process.exitCode = failed ? 1 : 0;

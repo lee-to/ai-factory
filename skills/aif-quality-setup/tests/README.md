@@ -6,13 +6,43 @@ all built-in agent transforms, supporting links, reinstall/repair, preservation 
 unrelated installed files and exclusion of authoring tests. It does not install
 project quality tools, call models or run the example hooks.
 
+The suite also restores all six real fixture sets and checks names, identical
+bytes, nested roots, hidden contexts and inert imports/CLI. Invalid inputs, links,
+restored-path collisions and partial-copy cleanup must preserve existing data.
+Unavailable link creation is reported as NOTRUN for that case.
+
 [Acceptance cases](acceptance.spec.md) are specifications for running the actual
 skill in a user-facing runtime. They are not an executable replay suite. Creating
 a fixture or asserting that an instruction exists does not prove agent behavior.
 
-Copy [fixtures](fixtures/) into a disposable owned sandbox before a runtime case.
-Initialize Git repositories/worktrees only there; do not use the AI Factory source
-checkout or a user's existing repository. Review fixture code before execution.
+## Preparing runtime fixtures
+
+[Fixtures](fixtures/) store manifests, build configs and source files with a final
+`.stub` suffix, keeping their real project/source names out of the checkout.
+These stubs are complete fixture files; their contents are not interpolated.
+From the AI Factory repository root, prepare a new disposable project:
+
+```sh
+node skills/aif-quality-setup/tests/prepare-fixture.mjs js-ts
+```
+
+Choose `js-ts`, `php`, `python`, `rust`, `mixed` or `multirepo`. The helper prints
+the absolute project path to stdout and diagnostics to stderr. It creates a new
+directory in the system temporary directory, outside the source checkout, copies
+all files including hidden `.ai-factory` contexts, and removes one final
+`.stub` from file names while preserving their bytes. It does not execute
+fixture code, Git, package scripts, dependency installs or hooks. Do not restore
+real names inside this checkout or use a plain copy of the stubs as a project.
+
+In the prepared `mixed` directory, `backend` and `web` retain their original
+relationship to the root workspace. In `multirepo`, use the `api`, `worker` and
+`gateway` directories as separate project roots; their supplied contexts and
+missing-context defaults remain independent. `DEBUG=1` enables per-file copying
+diagnostics; `LOG_LEVEL=debug|info|error|silent` explicitly controls stderr logging.
+
+Initialize Git repositories/worktrees only in the prepared project; do not use
+the AI Factory source checkout or a user's existing repository. Review fixture
+code before execution.
 Record the skill revision, agent/runtime, OS, native versions, selected scope,
 commands, actual file/index evidence and PASS/FAIL/NOTRUN. Retain an earlier failure
 when a changed candidate is retested.
@@ -22,6 +52,15 @@ toolchain changes or lifecycle scripts may run; use existing authorization and
 runtime permissions. Ordinary offline tests cannot establish Windows/Linux hook
 execution, staged-content preservation or recommendation quality. Unavailable
 environments remain NOTRUN rather than producing a fabricated passing transcript.
+
+## IDE indexing acceptance
+
+Open the source checkout in the IDE that exhibited the indexing problem and
+refresh its index. Check that the renamed fixture manifests no longer introduce
+projects and that the renamed source files are no longer indexed as source units.
+Record the IDE/version, inspected paths and actual observations. The offline
+suite proves storage and restoration behavior; it does not prove this IDE result.
+If the IDE is unavailable, retain NOTRUN for this issue acceptance criterion.
 
 ## Opt-in native staging regression
 
