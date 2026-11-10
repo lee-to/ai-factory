@@ -322,7 +322,7 @@ When the resolved mode is ultra (from the leading token or `workflow.explore_mod
 
 Any C4/ADR/dependency conclusion that affects plan requirements MUST be summarized in the bundle `RESEARCH.md` Active Summary. `/aif-plan` commits and hashes that summary; it does not silently promote every diagram note into scope.
 
-When ultra research is ready, report the bundle path, list only the artifacts actually created, and suggest `/aif-plan [fast|full|ultra] <same topic>`.
+When ultra research is ready, report the bundle path, list only the artifacts actually created, and suggest `/aif-plan [fast|full|full-stay|ultra] <same topic>`.
 
 #### Regular mode: optional single-file snapshot (`paths.research`)
 
@@ -536,7 +536,7 @@ When it feels like things are crystallizing, you might summarize:
 **Open questions**: [if any remain]
 
 **Next steps** (if ready):
-- Create a plan: /aif-plan [fast|full|ultra] <description>
+- Create a plan: /aif-plan [fast|full|full-stay|ultra] <description>
 - Keep exploring: just keep talking
 ```
 

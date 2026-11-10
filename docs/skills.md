@@ -118,26 +118,28 @@ Explore ideas, constraints, and trade-offs before planning:
 - On explicit request, tracks source-linked hypothesis cards and revision-bound observations in the selected `RESEARCH.md`, preserving source conditions and redaction. Planning acceptance, implementation completion, and outcome are separate; no new command/runner or default stage. See [Optional Project Hypotheses](research.md#optional-project-hypotheses).
 - Best when the problem is still fuzzy: requirements unclear, trade-offs unresolved, or you want to inspect the codebase before choosing a direction
 
-### `/aif-plan [fast|full|ultra] <description>`
+### `/aif-plan [fast|full|full-stay|ultra] <description>`
 Plans implementation for a feature or task:
 ```
 /aif-plan Add user authentication with OAuth       # Uses config, otherwise asks which mode
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
+/aif-plan full-stay Add OAuth login in shared checkout  # Full plan; never switches branches
 /aif-plan ultra Rebuild billing around a ledger    # Exhaustive multi-file plan bundle
 /aif-plan full +coupling Change receipt pricing   # Optional boundary analysis
 ```
 
-`+coupling` is off by default and independent of fast/full/ultra. In the leading
+`+coupling` is off by default and independent of fast/full/full-stay/ultra. In the leading
 option segment, it loads the self-contained [planning methodology](../skills/aif-plan/references/COUPLING-PLAN.md)
 to compare producer/consumer boundaries and alternatives with their costs inside
 the ordinary plan. It does not invoke review or refactor code. Literal occurrences
 after the description starts remain part of the exact Original Request:
 `full Add +coupling receipt` keeps `Add +coupling receipt` and leaves the lens off.
 
-Three modes:
+Four modes:
 - **Fast** — no git branch, saves plan to `paths.plan` (default: `.ai-factory/PLAN.md`), asks fewer questions
 - **Full** — asks about testing/logging/docs policy, saves plan to `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` is enabled — see [Plan Files](plan-files.md)), and creates a git branch only when `git.enabled=true` and `git.create_branches=true`
+- **Full-stay** — the full plan flow selected with a leading `full-stay` token: same questions and artifact shape as Full, but `full_stay=true` means it never creates or switches git branches or worktrees regardless of `git.enabled`/`git.create_branches`, and the plan stem is the description slug (a `workflow.plan_id_format: sequential` prefix still applies)
 - **Ultra** — uses the full-mode preferences and optional branch/worktree flow,
   but writes `paths.plans/<id>/index.md` plus one deeply specified
   `phase-NN-*.md` file per phase. It is designed for a stronger planning model
@@ -146,7 +148,10 @@ Three modes:
   `<!-- aif:plan-mode:ultra -->` discovery marker.
 
 A leading mode token overrides `workflow.plan_mode` (`ask`, `fast`, `full`,
-`ultra`). With the default `ask`, a call without a mode keeps the full/fast
+`ultra`). `full-stay` is a leading-token-only variant of full: it runs the full
+plan flow with `full_stay=true`, never creates or switches git branches or
+worktrees regardless of git config, and is not a `workflow.plan_mode` value.
+With the default `ask`, a call without a mode keeps the full/full-stay/fast
 question (fast in non-interactive Handoff mode). Ultra is opt-in via the token
 or config. See [Command defaults](config-reference.md#command-defaults).
 If the description comes from a research Active Summary, keep the resolved mode

@@ -16,6 +16,16 @@
 -> mode=full, description="Add user authentication with OAuth"
 ```
 
+### Full-stay mode explicit
+
+```text
+/aif-plan full-stay Add product search API
+-> resolved_mode=full, full_stay=true, description="Add product search API"
+-> plan_file_stem=<description slug>; no branch_name is created
+-> Step 1.4 runs no `git checkout`, `git pull`, `git checkout -b`, or `git worktree add`
+-> `workflow.plan_id_format` (including `sequential`) still applies
+```
+
 ### Ultra mode explicit
 
 ```text
@@ -38,6 +48,13 @@
 -> mode=full, parallel=true, description="Add Stripe checkout"
 ```
 
+### Full-stay mode with parallel rejected
+
+```text
+/aif-plan full-stay --parallel Add Stripe checkout
+-> rejected with a short explanation: full-stay never creates branches or worktrees
+```
+
 ### List subcommand
 
 ```text
@@ -56,7 +73,7 @@
 
 ```text
 /aif-plan Add user authentication
--> ask full/fast interactively, description="Add user authentication"
+-> ask full/full-stay/fast interactively, description="Add user authentication"
 -> ultra is not shown or inferred; select it with a leading token or a configured ultra default
 ```
 
@@ -66,7 +83,7 @@ Assume the configured research file has a usable Active Summary topic.
 
 ```text
 /aif-plan
--> ask full/fast once
+-> ask full/full-stay/fast once
 -> description defaults to .ai-factory/RESEARCH.md Active Summary Topic (if present)
 -> keep the selected mode; omit Original Request and commit Research Context
 ```
@@ -171,7 +188,7 @@ emits `WARN [config]`; the interactive examples above then apply.
 /aif-plan Add user authentication
 
 -> No mode keyword found; configured preference resolves to ask; session is interactive
--> Asks: Full (Recommended) or Fast?
+-> Asks: Full (Recommended), Full-stay, or Fast?
 -> User picks Full
 -> Continues as full mode flow
 ```

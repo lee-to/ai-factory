@@ -1783,7 +1783,8 @@ fi
 
 if grep -qF 'Ultra is strictly opt-in' "$AIF_PLAN_SKILL" \
     && grep -qF '1. Full (Recommended) — richer plan, asks preferences, optional branch/worktree flow when git settings allow it' "$AIF_PLAN_SKILL" \
-    && grep -qF '2. Fast – quick plan, no branch, saves to the resolved fast plan path' "$AIF_PLAN_SKILL" \
+    && grep -qF '2. Full-stay — same as Full, but never creates or switches git branches or worktrees' "$AIF_PLAN_SKILL" \
+    && grep -qF '3. Fast – quick plan, no branch, saves to the resolved fast plan path' "$AIF_PLAN_SKILL" \
     && grep -qF 'How should full plans behave in git?' "$AIF_SKILL" \
     && grep -qF 'Do not add an ultra-specific setup question' "$AIF_SKILL"; then
     pass "ultra stays explicit opt-in without changing legacy setup/mode prompts"

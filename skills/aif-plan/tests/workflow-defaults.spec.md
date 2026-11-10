@@ -24,7 +24,8 @@ Run each configured mode (`fast`, `full`, `ultra`) with both an explicit
 | Same three defaults, no description, usable research | Reuse the topic, retain the mode without mode/description questions; save the corresponding artifact; commit Research Context and omit Original Request |
 | Configured ultra, explicit `fast Add GET /health` | Save only the fast plan; no mode question |
 | Configured ultra, explicit `full` with usable research | Save a full plan, not an ultra bundle; no mode question |
-| `ask`, missing key, missing config, invalid string `deep`, wrong type `true` | Interactively ask full/fast once; research topic reuse never asks again; only invalid values warn |
+| Configured ultra, explicit `full-stay Add GET /health` | Save a full plan with `full_stay=true`: stem is the description slug (no branch name), no `git checkout`/`git pull`/`git checkout -b`/`git worktree add` commands run, sequential prefix still applies; no mode question |
+| `ask`, missing key, missing config, invalid string `deep`, wrong type `true` | Interactively ask full/full-stay/fast once; research topic reuse never asks again; only invalid values warn |
 | Same fallback cases with `HANDOFF_MODE=1` and usable research | Use fast with no interactive questions; invalid values warn |
 | Valid configured fast/full/ultra with `HANDOFF_MODE=1` | Retain configured mode; no interactive questions |
 | Configured ultra, request `Add  full text\nsearch, keeping ultra as prose.` | Preserve the two spaces, newline, casing, punctuation, and non-leading mode words in Original Request; no configured token is injected |

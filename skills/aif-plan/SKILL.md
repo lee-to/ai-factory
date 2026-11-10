@@ -1,7 +1,7 @@
 ---
 name: aif-plan
-description: Plan a feature or task in fast, full, or ultra mode. Ultra creates an indexed multi-file bundle with deeply specified phases for execution by a smaller model. Use for "plan", "new feature", "start feature", "create tasks", or exhaustive implementation planning.
-argument-hint: "[fast | full | ultra] [+coupling] [--parallel | --list | --cleanup <branch>] <description>"
+description: Plan a feature or task in fast, full, full-stay (no git switching), or ultra mode. Ultra creates an indexed multi-file bundle with deeply specified phases for execution by a smaller model. Use for "plan", "new feature", "start feature", "create tasks", or exhaustive implementation planning.
+argument-hint: "[fast | full | full-stay | ultra] [+coupling] [--parallel | --list | --cleanup <branch>] <description>"
 allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 version: 1.0.0
@@ -22,10 +22,11 @@ Precedence: individual > build (when applicable) > global > skill defaults; reta
 These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
 `global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
 
-Create an implementation plan for a feature or task. Three modes:
+Create an implementation plan for a feature or task. Four modes:
 
 - **Fast** – quick plan, no git branch, saves to the configured fast plan path (default: `.ai-factory/PLAN.md`)
 - **Full** — richer plan, asks preferences, saves to the configured full-plan directory, and optionally creates a git branch/worktree when git is enabled and branch creation is allowed
+- **Full-stay** — same as Full, but `full_stay=true`: never creates or switches git branches or worktrees regardless of `git.enabled`/`git.create_branches`; `plan_file_stem` is the description slug and `workflow.plan_id_format` (including `sequential`) still applies. Resolves internally as `resolved_mode=full`
 - **Ultra** — exhaustive multi-file plan bundle under the configured full-plan directory: `index.md` is the manifest/progress ledger and every implementation phase is a separate, deeply specified markdown file. Use it when planning with a stronger model for later execution by a smaller model.
 
 For ultra layout, detail requirements, integrity checks, and consumer behavior,
@@ -94,7 +95,7 @@ Handoff owns branch creation at the agent-code level. The skill must NOT create 
 **If `HANDOFF_MODE` is `1` but `HANDOFF_BRANCH_PREPARED` is unset or `0`:**
 
 - Fallback path for older Handoff clients that have not adopted the prepared-branch contract.
-- Execute Step 1.4 branch creation normally per `git.create_branches` config.
+- Execute Step 1.4 branch creation normally per `git.create_branches` config and the `full_stay` flag (Step 1.4 skips entirely when `full_stay = true`).
 
 #### When `HANDOFF_MODE` is NOT `1` (manual Claude Code session)
 
@@ -247,19 +248,20 @@ If `git.enabled = true` but the repository is not actually inside a git work tre
 Extract flags and mode from `$ARGUMENTS`:
 
 ```
---parallel  → Enable parallel worktree mode (full/ultra only; requires `git.enabled=true` and `git.create_branches=true`)
+--parallel  → Enable parallel worktree mode (full/ultra only; requires `git.enabled=true` and `git.create_branches=true`; unavailable in full-stay mode)
 --list      → Show all active worktrees, then STOP (git-only)
 --cleanup <branch> → Remove worktree and optionally delete branch, then STOP (git-only)
 +coupling  → Optional architectural coupling methodology (default off; leading option segment only)
 fast        → Fast mode (first word)
 full        → Full mode (first word)
+full-stay   → Full-stay mode (leading token; exact match before `full`)
 ultra       → Ultra mode (first word)
 ```
 
 **Parsing rules:**
 
 - Recognize exact standalone `+coupling` only in the leading option segment:
-  after an explicit leading fast/full/ultra token, or at the beginning when no
+  after an explicit leading fast/full/full-stay/ultra token, or at the beginning when no
   mode is given, and before the first description word. Existing control flags
   retain their rules and may share that segment. Repeated `+coupling` there is
   idempotent. Once description starts, preserve every literal `+coupling`, all
@@ -277,7 +279,7 @@ ultra       → Ultra mode (first word)
   are used, record activation/scope only, never source bodies.
 
 - Strip only recognized command tokens in command positions from `$ARGUMENTS`:
-  - `fast`, `full`, or `ultra` only when used as the leading mode token
+  - `fast`, `full`, `full-stay`, or `ultra` only when used as the leading mode token; match the exact leading `full-stay` token before `full` (longest leading token wins)
   - recognized control flags `--parallel`, `--list`, and `--cleanup <branch>`
   - `+coupling` only in the leading option segment defined above; keep literal occurrences in the request
   - do not remove matching words inside the user's actual request text
@@ -293,12 +295,13 @@ ultra       → Ultra mode (first word)
 
 **Mode selection (resolve once, independently of the description):**
 
-- An explicit leading `fast`, `full`, or `ultra` token wins over config.
+- An explicit leading `fast`, `full`, `full-stay`, or `ultra` token wins over config. `full-stay` is matched as an exact leading token before `full` and sets `resolved_mode = full` with `full_stay = true`; every other path (other explicit tokens, config, the interactive question, Handoff defaults) sets `full_stay = false`. `full-stay` is CLI/interactive-menu only — `workflow.plan_mode` does not accept it and keeps its existing invalid-value fallback. It never overrides Handoff branch ownership: with `HANDOFF_BRANCH_PREPARED = 1` the Step 0 stem and no-git contract win.
 - Otherwise, `workflow.plan_mode: fast|full|ultra` selects that mode without a mode-selection question. Full/ultra preference questions and git restrictions still apply.
-- Otherwise (`ask`, missing, or invalid config), use `fast` in non-interactive Handoff mode; in an interactive session ask only between full and fast below.
+- Otherwise (`ask`, missing, or invalid config), use `fast` in non-interactive Handoff mode; in an interactive session ask only between full, full-stay, and fast below.
 - Ultra is strictly opt-in. Select it through the leading `ultra` token or `workflow.plan_mode: ultra`; never infer it from task complexity.
-- Store the selected mode as `resolved_mode`. Description resolution below must not reopen mode selection or change `resolved_mode`.
+- Store the selected mode as `resolved_mode` and the stay flag as `full_stay`. Description resolution below must not reopen mode selection or change `resolved_mode` or `full_stay`.
 - `--list` and `--cleanup` keep their early-return behavior regardless of the configured mode.
+- If `--parallel` is set while `full_stay = true`, reject it with a short explanation because full-stay never creates branches or worktrees.
 
 Ask this question only when no explicit mode was supplied, the configured preference resolves to `ask`, and the session is interactive:
 
@@ -307,7 +310,8 @@ AskUserQuestion: Which planning mode?
 
 Options:
 1. Full (Recommended) — richer plan, asks preferences, optional branch/worktree flow when git settings allow it
-2. Fast – quick plan, no branch, saves to the resolved fast plan path
+2. Full-stay — same as Full, but never creates or switches git branches or worktrees
+3. Fast – quick plan, no branch, saves to the resolved fast plan path
 ```
 
 **If the description is empty:**
@@ -378,7 +382,7 @@ Task(subagent_type: Explore, model: sonnet, prompt:
 
 This step produces two distinct values:
 
-- `branch_name` — the git branch (only when `git.enabled = true` and `git.create_branches = true`)
+- `branch_name` — the git branch (only when `git.enabled = true`, `git.create_branches = true`, and `full_stay = false`)
 - `plan_file_stem` — the canonical unprefixed plan stem under `<configured plans dir>/`
 - `plan_identifier` — `plan_file_stem` with an optional `NNNN_` prefix; it becomes the full-plan filename stem or ultra directory name
 
@@ -389,8 +393,8 @@ These are derived in a fixed order so the producer here and the branch-based con
 Pick the first matching case:
 
 1. **`HANDOFF_BRANCH_PREPARED = 1`** → `plan_file_stem = HANDOFF_BRANCH_NAME` with every `/` replaced by `-`. Skip slug generation entirely. No `branch_name` is created here (Handoff already owns the branch).
-2. **`git.enabled = true` AND `git.create_branches = true`** → generate a description slug, then `branch_name = <git.branch_prefix><slug>` (default prefix: `feature/`). Set `plan_file_stem = branch_name` with every `/` replaced by `-` (for example `feature-user-authentication`).
-3. **Otherwise** (`git.enabled = false` OR `git.create_branches = false`) → `plan_file_stem = <description slug>`. No `branch_name` is created.
+2. **`git.enabled = true` AND `git.create_branches = true` AND `full_stay = false`** → generate a description slug, then `branch_name = <git.branch_prefix><slug>` (default prefix: `feature/`). Set `plan_file_stem = branch_name` with every `/` replaced by `-` (for example `feature-user-authentication`).
+3. **Otherwise** (`git.enabled = false` OR `git.create_branches = false` OR `full_stay = true`) → `plan_file_stem = <description slug>`. No `branch_name` is created.
 
 Slug rules (cases 2 and 3):
 
@@ -422,6 +426,8 @@ Format-specific handling:
   `plan_identifier`.
 
 Sequential is **force-disabled** when `HANDOFF_BRANCH_PREPARED = 1`. In that case keep the bare `plan_file_stem` and emit `INFO [aif-plan] sequential numbering disabled under HANDOFF_BRANCH_PREPARED=1`.
+
+`full_stay = true` does not change this step: every `workflow.plan_id_format` value, including `sequential`, still applies to the slug stem.
 
 #### 1.2.c — Sequential numbering algorithm
 
@@ -487,7 +493,7 @@ Rules:
 - The prefix lives only on the full-plan filename or ultra directory. The git branch (when present) stays `<branch_prefix><slug>` without a number.
 - This setting is ignored for fast plans (`paths.plan` is a single file) and fix plans (`paths.fix_plan` is a single file).
 
-Logging: `INFO [aif-plan] resolved plan artifact: <path> (mode=<mode>, format=<value>)`.
+Logging: `INFO [aif-plan] resolved plan artifact: <path> (mode=<mode>, full_stay=<true|false>, format=<value>)`.
 
 ### Step 1.3: Ask About Preferences
 
@@ -582,9 +588,10 @@ Docs policy semantics:
 - Do **NOT** run `git checkout`, `git pull`, `git checkout -b`, or `git worktree add`.
 - Treat `--parallel` as disabled: do not create a worktree and do not auto-invoke `/aif-implement`.
 
-**If `git.enabled = false` or `git.create_branches = false`:**
+**If `git.enabled = false`, `git.create_branches = false`, or `full_stay = true`:**
 
 - Skip all branch/worktree creation
+- Do **NOT** run `git checkout`, `git pull`, `git checkout -b`, or `git worktree add`
 - Continue with the generated full file or ultra directory under `paths.plans`
 
 **If `--parallel` flag is set → create worktree:**

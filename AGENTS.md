@@ -43,7 +43,7 @@ ai-factory/
 │   ├── aif-implement/          # Execute plan tasks
 │   ├── aif-improve/            # Plan refinement (second iteration)
 │   ├── aif-loop/               # Iterative reflex loop with quality gates
-│   ├── aif-plan/               # Plan implementation (fast/full/ultra modes)
+│   ├── aif-plan/               # Plan implementation (fast/full/full-stay/ultra modes)
 │   ├── aif-plan-overview/      # Read-only plan summary and file map
 │   ├── aif-review/             # Code review
 │   ├── aif-roadmap/            # Strategic project roadmap
@@ -413,7 +413,7 @@ Subsequent → review progress, add/reprioritize/mark milestones done
     ↓
 ROADMAP.md = strategic checklist of high-level goals
 
-/aif-plan [fast|full|ultra] <description>
+/aif-plan [fast|full|full-stay|ultra] <description>
     ↓
 Preserves explicitly selected roadmap groups in every mode: primary `Milestone:` plus one `Also completes:` per remaining milestone; completion/verification assess each independently
     ↓
@@ -422,7 +422,7 @@ Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
 Resolve mode once, independently of description; reusing a research topic retains the selected mode, including configured ultra
     ↓
 Selects at most one relevant research source: explicit path → clearly matching marked ultra bundle → configured `paths.research`; if it informs the plan, writes a committed `Research Context` snapshot with the exact `RESEARCH.md` source plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
-If the user supplied an explicit planning request, saves it in the plan entrypoint as `Original Request`; strip only recognized command tokens (`fast`/`full`/`ultra` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
+If the user supplied an explicit planning request, saves it in the plan entrypoint as `Original Request`; strip only recognized command tokens (`fast`/`full`/`full-stay`/`ultra` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
     ↓
 fast → no branch, saves to configured `paths.plan`
 full → creates richer plan, asks: tests? logging? docs?
@@ -430,11 +430,14 @@ full → creates richer plan, asks: tests? logging? docs?
        saves to configured `paths.plans/<branch-or-slug>.md`
        (`<slug>.md` when git is disabled or branch creation is off;
         `<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential`)
+full-stay → same as full (`resolved_mode=full`, `full_stay=true`) but never creates/switches
+       branches or worktrees regardless of git config; stem is the description slug
+       (sequential prefix still applies); saves to configured `paths.plans/<slug>.md`
     ↓
 ultra → uses full-mode preferences and optional branch/worktree flow
         → is opt-in via the leading `ultra` token or workflow.plan_mode: ultra;
           explicit mode wins; otherwise workflow.plan_mode selects ask/fast/full/ultra
-          (ask preserves the full/fast question, or fast in non-interactive Handoff mode)
+          (ask preserves the full/full-stay/fast question, or fast in non-interactive Handoff mode)
         → saves `paths.plans/<id>/index.md` plus one `phase-NN-*.md` per phase
         → `index.md` contains the exact untranslated `<!-- aif:plan-mode:ultra -->` discovery marker
         → `index.md` owns scope/settings/context/TOC/task checkboxes/dependencies/commits
