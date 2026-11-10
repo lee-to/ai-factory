@@ -205,23 +205,27 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
     }
     return !(await git(cwd, ['status', '--porcelain']));
   }
-  private async integrationTree(run: Run): Promise<string> {
-    const cwd = path.join(this.base, run.id, 'integration');
+  private async integrationTree(run: Run, task: Task): Promise<string> {
+    const suffix = `integration-${task.id}-${task.attempts}`;
+    const cwd = path.join(this.base, run.id, suffix);
     try {
       await readFile(path.join(cwd, '.git'));
-      requireValue(await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']) === `aif/swarm/${run.id}/integration`, 'Integration worktree changed');
+      requireValue(await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']) === `aif/swarm/${run.id}/${suffix}`, 'Integration worktree changed');
       return cwd;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-      return this.worktree(run, 'integration', run.integrationRef);
+      return this.worktree(run, suffix, run.integrationRef);
     }
   }
   private async integrate(id: string, signal: AbortSignal): Promise<void> {
     const task = await this.engine.prepareIntegration(id);
     if (!task) return;
-    const run = await this.engine.get(id), cwd = await this.integrationTree(run);
+    const run = await this.engine.get(id);
     const previous = run.integrationRef;
+    let cwd: string | undefined;
+    let integrated = false;
     try {
+      cwd = await this.integrationTree(run, task);
       const branch = `refs/heads/aif/swarm/${id}/${task.id}-${task.attempts}`;
       requireValue(await git(this.engine.project, ['rev-parse', '--verify', branch]) === task.gitRef, 'Submitted ref does not belong to the assigned worker branch');
       await git(this.engine.project, ['merge-base', '--is-ancestor', task.baseRef!, task.gitRef!]);
@@ -230,19 +234,18 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
       if (head !== previous) {
         await git(cwd, ['merge-base', '--is-ancestor', task.gitRef!, head]);
         requireValue(await this.checks(run, cwd, signal), 'Recovered integration checks failed');
-        await this.engine.integration(id, task.id, head, 'Recovered integration; checks passed'); return;
+        await this.engine.integration(id, task.id, head, 'Recovered integration; checks passed'); integrated = true; return;
       }
       requireValue(!(await git(cwd, ['status', '--porcelain'])), 'Integration worktree is dirty');
       await git(cwd, ['merge', '--no-ff', '--no-edit', task.gitRef!], signal);
       requireValue(await this.checks(run, cwd, signal), 'Integration checks failed');
       await this.engine.integration(id, task.id, await git(cwd, ['rev-parse', 'HEAD']), 'Configured checks passed');
+      integrated = true;
     } catch {
-      // This directory is runtime-owned; reset only tracked integration changes, preserving worker commits.
-      await git(cwd, ['merge', '--abort']).catch(() => {});
-      await git(cwd, ['reset', '--hard', previous]);
+      // Retain failed worktrees and refs as evidence; each retry starts from the accepted integration ref.
       const live = await this.engine.get(id);
-      if (!terminal(live.status)) await this.engine.integration(id, task.id, null, 'Merge conflict or verification failed; revise against current integration ref');
-    }
+      if (!terminal(live.status)) await this.engine.integration(id, task.id, null, 'Merge conflict or verification failed; revise against current integration ref', cwd);
+    } finally { if (integrated && cwd) await this.remove(cwd); }
   }
   private async verify(run: Run, signal: AbortSignal): Promise<void> {
     const agent = await this.engine.register(run.id, 'verifier', run.spec.lead);

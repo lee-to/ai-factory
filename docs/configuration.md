@@ -54,9 +54,15 @@ checks require dependencies; no shared services are started automatically.
 Integration happens on a separate branch;
 the source branch is never merged or pushed automatically. The deterministic
 integration stage merges submitted worker commits and executes configured checks;
-failed results return to the bounded retry queue with failure context. Parent
-completion waits for child completion. A final independent verifier checks global
+failed results return to the bounded retry queue with failure context.
+Each integration attempt uses its own worktree. Failed worktrees and submitted
+commit refs remain discoverable through `integration-failure` artifacts, so
+generated reports cannot contaminate retries and remain available for diagnosis.
+Parent completion waits for child completion. A final independent verifier checks global
 criteria, then owner approval is required for `completed`.
+Rejecting final completion ends the run as `failed`; it cannot be resumed.
+Start a new run for a revised goal. Rejecting an individual integration instead
+blocks that task and retains the existing resolved-blocker retry path.
 
 `approval: manual` pauses after planning and requires per-result review;
 `integration` requires per-result review; `restricted-actions` permits intermediate

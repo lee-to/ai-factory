@@ -98,6 +98,8 @@ Use `status`, `inspect` and cursor-based `logs` to observe. Report blockers,
 approvals and failed checks with task IDs and immutable Git refs. A pending
 integration approval needs review of that exact submitted commit before
 `ai-factory swarm approve <run-id> <approval-id>`. Rejection uses `reject`.
+Rejecting final completion ends the run as `failed`; revisions need a new run.
+An individual integration rejection blocks its task and retains the retry path.
 Final completion requires independent verification and owner approval of the
 integration ref. Merge or push to the source branch remains a separate action.
 

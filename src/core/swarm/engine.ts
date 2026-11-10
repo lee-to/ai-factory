@@ -232,7 +232,7 @@ export class SwarmEngine {
       emit(run, events, 'task.retry_requested', 'owner', { task_id: taskId, reason: task.report });
     });
   }
-  async integration(id: string, taskId: string, ref: string | null, report: string): Promise<void> {
+  async integration(id: string, taskId: string, ref: string | null, report: string, worktree?: string): Promise<void> {
     await this.store.mutate(this.project, id, (run, events) => {
       requireValue(!terminal(run.status), 'Run is terminal');
       const task = run.tasks.find(t => t.id === taskId);
@@ -243,6 +243,8 @@ export class SwarmEngine {
         emit(run, events, 'task.integrated', 'integration', { task_id: taskId, git_ref: ref });
         settleParents(run, events);
       } else {
+        run.artifacts.push({ id: uid(), taskId, type: 'integration-failure', git_ref: task.gitRef!,
+          metadata: { checks: 'fail', report: redact(report), ...(worktree ? { worktree } : {}) } });
         task.status = task.attempts >= run.spec.limits.maxAttempts ? 'failed' : 'pending';
         task.report = redact(report); delete task.gitRef; delete task.claimToken; delete task.assignedAgentId;
         emit(run, events, 'integration.failed', 'integration', { task_id: taskId, reason: task.report });
@@ -278,8 +280,8 @@ export class SwarmEngine {
       if (approval.kind === 'completion') {
         requireValue(run.status === 'running' && run.agents.every(a => a.status !== 'running') &&
           approval.gitRef === run.integrationRef && run.tasks.every(t => t.status === 'done'), 'Completion approval is stale or run needs attention');
-        run.status = decision === 'approve' ? 'completed' : 'needs_attention';
-        if (run.status === 'completed') run.finishedAt = Date.now();
+        run.status = decision === 'approve' ? 'completed' : 'failed';
+        run.finishedAt = Date.now();
         emit(run, events, `run.${run.status}`, actor, { git_ref: run.integrationRef });
       }
     });

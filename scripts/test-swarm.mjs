@@ -150,10 +150,11 @@ const prompt=fs.readFileSync(0,'utf8');
 if(!prompt.includes('Fixture context survives ignored Git files'))process.exit(2);
 if(prompt.includes('Goal: Cancellation fixture')&&prompt.includes('Task: ')){fs.writeFileSync('worker.started','running');setInterval(()=>{},1000);return;}
 let result;
-if(prompt.includes('Create at most')) result={tasks:Array.from({length:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
+if(prompt.includes('Create at most')) result={tasks:Array.from({length:prompt.includes('Goal: Dirty integration fixture')?1:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
 else if(prompt.includes('Task: ')) {
 const task=JSON.parse(prompt.split('Task: ')[1].split('\\n')[0]);
 fs.writeFileSync(task.title+'.txt','OK');
+if(prompt.includes('Goal: Dirty integration fixture')&&task.attempts>1)fs.writeFileSync('repair.txt','OK');
 result={report:'Implemented and checked'};
 } else result={accepted:true,report:'All criteria satisfied'};
 console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}}));
@@ -165,6 +166,11 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
   try {
     const headers = role => ({ authorization: `Bearer ${process.env[`AIF_SWARM_${role}_TOKEN`]}`, 'content-type': 'application/json', 'idempotency-key': 'fixture-key' });
     const api = (route, role = 'OWNER', options = {}) => fetch(server.url + '/v1/swarm/' + route, { ...options, headers: headers(role) });
+    const awaitCompletion = id => waitUntil(async () => {
+      const state = await runtimeEngine.get(id);
+      if (state.status === 'needs_attention') throw new Error(JSON.stringify(await runtimeEngine.store.events(repo, id)));
+      return state.approvals.some(a => a.kind === 'completion') && state.agents.every(a => a.status === 'stopped') ? state : false;
+    });
     assert.equal((await fetch(server.url + '/v1/swarm/runs')).ok, false);
     assert.equal((await api(`runs/${started.id}/cancel`, 'VIEWER', { method: 'POST' })).ok, false);
     assert.equal((await fetch(server.url + '/v1/swarm/runs', { headers: { ...headers('OWNER'), origin: 'https://example.invalid' } })).ok, false);
@@ -195,6 +201,25 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
     await new Promise(resolve => mcp.once('exit', resolve));
     const messages = mcpOutput.trim().split('\n').map(line => JSON.parse(line));
     assert.equal(messages[0].result.serverInfo.name, 'ai-factory-swarm'); assert.equal(messages[1].result.tools.length, 10);
+    const dirtyRun = await runtimeEngine.create({ ...spec, goal: 'Dirty integration fixture', checks: [
+      [process.execPath, '-e', 'const fs=require("fs");if(!fs.existsSync("repair.txt")){fs.writeFileSync("untracked-report.txt","preserved failure evidence");process.exit(1)}'], ...spec.checks,
+    ] }, source);
+    const repaired = await awaitCompletion(dirtyRun.id);
+    assert.equal(repaired.tasks[0].attempts, 2, 'A dirty failed attempt must not poison the next integration');
+    assert.equal(repaired.tasks[0].status, 'done');
+    const failedArtifact = repaired.artifacts.find(a => a.type === 'integration-failure');
+    assert(failedArtifact, 'Keep the failed attempt and its immutable submitted ref discoverable');
+    assert.equal(await fs.readFile(path.join(failedArtifact.metadata.worktree, 'untracked-report.txt'), 'utf8'), 'preserved failure evidence');
+    git('cat-file', '-e', `${failedArtifact.git_ref}^{commit}`);
+    await runtimeEngine.decide(repaired.id, repaired.approvals.find(a => a.kind === 'completion').id, 'approve', 'owner');
+    const rejectionRun = await runtimeEngine.create({ ...spec, goal: 'Final rejection fixture' }, source);
+    const rejected = await awaitCompletion(rejectionRun.id);
+    const rejectionApproval = rejected.approvals.find(a => a.kind === 'completion');
+    assert.equal((await api(`approvals/${rejectionApproval.id}/decision`, 'OWNER', { method: 'POST', body: '{"decision":"reject"}' })).status, 200);
+    const terminalRejection = await runtimeEngine.get(rejectionRun.id);
+    assert.equal(terminalRejection.status, 'failed');
+    assert(Number.isSafeInteger(terminalRejection.finishedAt));
+    assert.equal((await api(`runs/${rejectionRun.id}/resume`, 'OWNER', { method: 'POST' })).ok, false, 'Final rejection is terminal, not a stuck resumable run');
     const cancelledRun = await runtimeEngine.create({ ...spec, goal: 'Cancellation fixture' }, source);
     await waitUntil(async () => {
       const state = await runtimeEngine.get(cancelledRun.id);

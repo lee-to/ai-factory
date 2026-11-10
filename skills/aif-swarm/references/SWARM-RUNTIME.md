@@ -6,6 +6,10 @@ up to five concurrent worker processes, deterministic Git integration and a fina
 independent verifier. Integration is implemented by the Runtime rather than an
 additional model process; failed merges/checks retry the original task with a
 bounded attempt count and failure context.
+Each integration attempt has its own worktree. A failed attempt retains its
+worktree and submitted ref in an `integration-failure` artifact; a subsequent
+attempt starts from the last accepted integration ref, without prior reports or
+other generated files. Successful integration worktrees are removed; refs remain.
 
 ## Storage and recovery
 
@@ -55,6 +59,9 @@ Cancel revokes work and kills managed process groups. Dirty worktrees are retain
 to prevent data loss. Integration branches remain for review; the source branch
 is never merged or pushed automatically. Runs need checks plus a final verifier
 and owner approval; idle workers alone never mean completion.
+Rejecting final completion ends the run as `failed` and records `finishedAt`.
+It cannot be resumed; a revised goal needs a new run. An individual integration
+rejection instead blocks the task and can use the existing resolved-blocker retry.
 
 ## Handoff API v1
 
