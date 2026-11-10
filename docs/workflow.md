@@ -494,11 +494,12 @@ It adds no requirements-validation or quality gate to this workflow.
 
 When executing through the Claude top-level `implement-coordinator`, the quality-gate sidecars include `review-sidecar`, `security-sidecar`, and `rules-sidecar` (`aif-rules-check`) after code changes, plus `best-practices-sidecar` for maintainability checks. In Handoff automation, `HANDOFF_SKIP_REVIEW=1` intentionally skips the review-family gates: `review-sidecar`, `security-sidecar`, and `rules-sidecar`.
 
-### `/aif-verify [--strict]` — check completeness
+### `/aif-verify [--strict] [@<plan path>]` — check completeness
 
 ```
 /aif-verify          # Verify implementation against plan
 /aif-verify --strict # Strict mode — zero tolerance for gaps
+/aif-verify @.ai-factory/plans/<plan>.md  # Verify a specific plan (required for full-stay/fast plans)
 ```
 
 Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it.

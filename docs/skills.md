@@ -394,11 +394,12 @@ Executes the plan:
   - Docs updates are always routed through `/aif-docs`
 - Offers to delete the resolved fast plan path when done
 
-### `/aif-verify [--strict]`
+### `/aif-verify [--strict] [@<plan path>]`
 Verifies completed implementation against the plan:
 ```
 /aif-verify          # Check all tasks were fully implemented
 /aif-verify --strict # Strict mode — zero tolerance before merge
+/aif-verify @.ai-factory/plans/<plan>.md  # Verify a specific plan (required for full-stay/fast plans)
 ```
 
 **Optional step after `/aif-implement`** — when implementation finishes, you'll be asked if you want to verify.

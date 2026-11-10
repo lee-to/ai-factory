@@ -14,6 +14,7 @@ All 8 tasks completed.
 
 Branch: feature/product-search
 Plan artifact: .ai-factory/plans/feature-product-search.md
+
 Files modified:
 - src/services/search.ts (created)
 - src/api/products/search.ts (created)
@@ -24,6 +25,7 @@ What's next?
 
 1. 🔍 /aif-verify — Verify nothing was missed (recommended)
 2. 💾 /aif-commit — Commit the changes directly
+For a full-stay or fast plan, render this suggestion with the explicit artifact path (`/aif-verify @<plan artifact path>`) so verification targets the same plan instead of a branch-stem plan.
 ```
 
 **Check ROADMAP.md progress:**

@@ -1144,7 +1144,7 @@ Plan created with [N] tasks.
 Plan file: <resolved fast plan path>
 
 To start implementation, run:
-/aif-implement @<resolved plan file or ultra directory>
+/aif-implement @<resolved fast plan path>
 
 To view tasks:
 /tasks (or use TaskList)

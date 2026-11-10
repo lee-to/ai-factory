@@ -5,6 +5,12 @@
 /aif-verify
 ```
 
+With an explicit plan (required for full-stay/fast plans whose stem does not match the current branch):
+
+```
+/aif-verify @.ai-factory/plans/add-search.md
+```
+
 ### Strict mode before merge
 ```
 /aif-verify --strict
