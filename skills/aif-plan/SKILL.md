@@ -295,7 +295,7 @@ ultra       → Ultra mode (first word)
 
 **Mode selection (resolve once, independently of the description):**
 
-- An explicit leading `fast`, `full`, `full-stay`, or `ultra` token wins over config. `full-stay` is matched as an exact leading token before `full` and sets `resolved_mode = full` with `full_stay = true`; every other path (other explicit tokens, config, the interactive question, Handoff defaults) sets `full_stay = false`. `full-stay` is CLI/interactive-menu only — `workflow.plan_mode` does not accept it and keeps its existing invalid-value fallback. It never overrides Handoff branch ownership: with `HANDOFF_BRANCH_PREPARED = 1` the Step 0 stem and no-git contract win.
+- An explicit leading `fast`, `full`, `full-stay`, or `ultra` token wins over config. `full-stay` is matched as an exact leading token before `full` and sets `resolved_mode = full` with `full_stay = true`; every other path (other explicit tokens, config, Handoff defaults) sets `full_stay = false`. `full-stay` is CLI/interactive-menu only — `workflow.plan_mode` does not accept it and keeps its existing invalid-value fallback. It never overrides Handoff branch ownership: with `HANDOFF_BRANCH_PREPARED = 1` the Step 0 stem and no-git contract win.
 - Otherwise, `workflow.plan_mode: fast|full|ultra` selects that mode without a mode-selection question. Full/ultra preference questions and git restrictions still apply.
 - Otherwise (`ask`, missing, or invalid config), use `fast` in non-interactive Handoff mode; in an interactive session ask only between full, full-stay, and fast below.
 - Ultra is strictly opt-in. Select it through the leading `ultra` token or `workflow.plan_mode: ultra`; never infer it from task complexity.
@@ -313,6 +313,9 @@ Options:
 2. Full-stay — same as Full, but never creates or switches git branches or worktrees
 3. Fast – quick plan, no branch, saves to the resolved fast plan path
 ```
+
+Menu outcomes: option 1 sets `full_stay = false`; option 2 sets `full_stay = true`; option 3 is fast mode and never sets a `full_stay` flag.
+
 
 **If the description is empty:**
 
@@ -409,7 +412,7 @@ Branch examples (case 2):
 - `refactor/api-error-handling`
 - `chore/upgrade-dependencies`
 
-**Invariant:** branch-based consumer skills compute their lookup stem as `current-branch-with-slashes-replaced`. Cases 1 and 2 above already match that. Case 3 never has a branch, so consumers fall back to the lone full/ultra plan artifact in `<configured plans dir>/` (see `aif-implement` Step 0.2). Producing a `plan_file_stem` outside these rules breaks discovery.
+**Invariant:** branch-based consumer skills compute their lookup stem as `current-branch-with-slashes-replaced`. Cases 1 and 2 above already match that. Case 3 runs on the current branch without creating or switching one, so the plan stem is unrelated to the branch stem: consumers cannot discover case-3/full-stay plans by branch stem. Therefore follow-on consumer commands for such plans MUST receive the explicit resolved artifact path (see `aif-implement` discovery, `@<plan path>`). Producing a `plan_file_stem` outside these rules breaks discovery.
 
 #### 1.2.b — Apply the `workflow.plan_id_format` prefix
 
@@ -1110,10 +1113,10 @@ The canonical template defines the required sections and ordering only. Render a
 **Full/ultra mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` for autonomous end-to-end execution in the separate worktree, carrying Step 1.4's runtime-resource findings and execution limits forward. Unresolved/conflicting runtime-dependent work stays serial or blocked pending the owner's scoped remediation; source editing may continue. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
 
 ```
-/aif-implement
+/aif-implement @<resolved plan file or ultra directory>
 
 CONTEXT FROM /aif-plan:
-- Plan artifact: <resolved plan file or ultra directory>      # see Step 1.2 / Step 5
+- Plan artifact: <resolved plan file or ultra directory>      # bare /aif-implement resolves branch-stem plans; @path is REQUIRED for full-stay plans
 - Testing: yes/no
 - Logging: verbose/standard/minimal
 - Docs: yes/no  # yes => mandatory docs checkpoint, no => warn-only
@@ -1128,7 +1131,7 @@ Plan created with [N] tasks.
 Plan artifact: <resolved plan file or ultra directory>
 
 To start implementation, run:
-/aif-implement
+/aif-implement @<resolved plan file or ultra directory>
 
 To view tasks:
 /tasks (or use TaskList)
@@ -1141,7 +1144,7 @@ Plan created with [N] tasks.
 Plan file: <resolved fast plan path>
 
 To start implementation, run:
-/aif-implement
+/aif-implement @<resolved plan file or ultra directory>
 
 To view tasks:
 /tasks (or use TaskList)

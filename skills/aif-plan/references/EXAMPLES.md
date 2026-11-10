@@ -24,6 +24,7 @@
 -> plan_file_stem=<description slug>; no branch_name is created
 -> Step 1.4 runs no `git checkout`, `git pull`, `git checkout -b`, or `git worktree add`
 -> `workflow.plan_id_format` (including `sequential`) still applies
+-> follow-on commands MUST use the explicit path, e.g. /aif-implement @<configured plans dir>/<slug>.md (discovery cannot find this plan by branch stem)
 ```
 
 ### Ultra mode explicit
