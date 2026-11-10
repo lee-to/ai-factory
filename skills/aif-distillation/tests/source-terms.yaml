@@ -1,0 +1,65 @@
+# Behavioral fixture; npm test does not execute model workflows.
+scenario: source-terms
+description: Preserve known, missing and conflicting terms without deciding permission.
+skill: aif-distillation
+argument: "./material.md --name incident-triage --path ./output"
+max_turns: 35
+fixtures:
+  git_init: false
+  files_unstaged:
+    - path: material.md
+      content: |
+        # Synthetic incident notes (three independent sources)
+        Source A: docs, revision v1, locator https://example.test/triage.
+        Terms: CC-BY-4.0, reference https://example.test/triage/LICENSE.
+        Notice: Credit Example Author. Rule: capture impact before mitigation.
+        Source B: local notes; terms and revision not supplied.
+        Rule: record the operator and time for each mitigation.
+        Source C: tutorial at https://example.test/recovery, revision v3.
+        Header terms: CC-BY-4.0 at https://example.test/recovery#header.
+        Attached terms: All rights reserved at https://example.test/recovery/TERMS.
+        Rule: verify recovery against the original impact signal.
+        User export restriction for all sources: local use only.
+assertions:
+  - id: writes-skill
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'output/incident-triage/SKILL\.md$'
+  - id: exact-known-terms
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'output/incident-triage/references/SOURCE-MAP\.md$'
+      content: 'https://example\.test/triage/LICENSE'
+  - id: unknown-stays-unknown
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      content: '(?i)unknown'
+  - id: conflict-is-unresolved
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      content: '(?i)unresolved conflict'
+  - id: preserves-notice
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      content: 'Credit Example Author'
+  - id: preserves-export-restriction
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      content: '(?i)local (use )?only'
+  - id: no-new-approval-gate
+    type: no_tool_called
+    tool: AskUserQuestion
+    args_match:
+      questions: '(?i)(legal approval|license approval|permission to distill)'
+  - id: stay-in-sandbox
+    type: no_path_escape

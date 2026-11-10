@@ -1,3 +1,4 @@
+import { captureToolPermissionBases, restoreToolPermissionBases } from '../../core/tool-permissions.js';
 import chalk from 'chalk';
 import path from 'path';
 import {realpathSync} from 'fs';
@@ -11,6 +12,7 @@ import {
   buildExtensionAgentFileSources,
   buildManagedSkillsState,
   getAvailableSkills,
+  includeRequiredSkills,
   partitionSkills,
   type ConfigFileUpdateEntry,
   rebuildManagedAgentFilesForAgents,
@@ -20,8 +22,8 @@ import {
   updateSkills,
   updateSubagents,
 } from '../../core/installer.js';
-import {applyExtensionInjections} from '../../core/injections.js';
-import {assertCompatibleSkillTargets} from '../../core/transformer.js';
+import {logSkillTarget, resolveSkillTargets} from '../../core/skill-targets.js';
+import {prepareSkillTargets, withSkillProjectLock} from '../../core/skills-migration.js';
 import {
   installExtensionSkillsForAllAgents,
   installExtensionAgentFilesForAllAgents,
@@ -30,6 +32,7 @@ import {
   mergeAgentFileSources,
   mergeInstalledAgentFiles,
   refreshExtensions,
+  composeInstalledExtensionSkills,
 } from '../../core/extension-ops.js';
 import {fileExists} from '../../utils/fs.js';
 
@@ -39,6 +42,8 @@ interface UpdateCommandOptions {
 
 function formatReason(reason: string): string {
   switch (reason) {
+    case 'required-by-aif':
+      return 'required by /aif security scanning';
     case 'source-hash-changed':
       return 'source changed';
     case 'installed-hash-drift':
@@ -53,6 +58,8 @@ function formatReason(reason: string): string {
       return 'artifact missing';
     case 'package-removed':
       return 'removed from package';
+    case 'skill-not-selected':
+      return 'aif-loop not selected';
     case 'new-skill-not-installed':
       return 'new in package';
     case 'new-in-package':
@@ -83,7 +90,7 @@ async function promptForNewSkills(
     if (excludedSkills.has(skill)) {
       return false;
     }
-    return agents.some(agent => !partitionSkills(agent.installedSkills).base.includes(skill));
+    return agents.some(agent => !includeRequiredSkills(partitionSkills(agent.installedSkills).base).includes(skill));
   });
 
   if (candidates.length === 0) {
@@ -91,17 +98,20 @@ async function promptForNewSkills(
   }
 
   if (!process.stdin.isTTY) {
-    console.log(chalk.dim(`New base skills available but not installed: ${candidates.join(', ')}`));
-    console.log(chalk.dim('Non-interactive mode — skipping new skills. Re-run `ai-factory update` interactively to add them.\n'));
+    console.log(chalk.dim(`Base skills not installed on some agents: ${candidates.join(', ')}`));
+    console.log(chalk.dim('Non-interactive mode — skipping uninstalled base skills. Re-run `ai-factory update` interactively and select them explicitly.\n'));
     return [];
   }
 
-  console.log(chalk.cyan(`New base skills available: ${candidates.join(', ')}`));
+  // These are "installed nowhere / on fewer agents", not "new in this package version": the user may
+  // have intentionally skipped them. Nothing is pre-selected — expanding the managed skill surface
+  // requires explicit opt-in.
+  console.log(chalk.cyan(`Base skills not installed on some agents: ${candidates.join(', ')}`));
   const { selectedNewSkills } = await inquirer.prompt([{
     type: 'checkbox',
     name: 'selectedNewSkills',
-    message: 'Add new base skills to configured agents?',
-    choices: candidates.map(skill => ({ name: skill, value: skill, checked: true })),
+    message: 'Select uninstalled base skills to add (nothing is added by default):',
+    choices: candidates.map(skill => ({ name: skill, value: skill, checked: false })),
   }]);
 
   return Array.isArray(selectedNewSkills) ? selectedNewSkills : [];
@@ -206,6 +216,10 @@ async function selfUpdate(currentVersion: string): Promise<boolean> {
 }
 
 export async function updateCommand(options: UpdateCommandOptions = {}): Promise<void> {
+  return withSkillProjectLock(process.cwd(), () => updateLocked(options));
+}
+
+async function updateLocked(options: UpdateCommandOptions): Promise<void> {
   const projectDir = process.cwd();
   const force = Boolean(options.force);
 
@@ -223,7 +237,8 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
     extensionNames: config.extensions?.map(extension => extension.name) ?? [],
   });
 
-  assertCompatibleSkillTargets(config.agents);
+  await prepareSkillTargets(projectDir, config);
+  const permissionBases = await captureToolPermissionBases(projectDir, config.agents, config.extensions);
 
   const currentVersion = getCurrentVersion();
 
@@ -234,6 +249,8 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
   if (selfUpdated) return;
 
   const extensions = config.extensions ?? [];
+  const refreshedExtensions = new Set<string>();
+  const refreshedCustomSkills = new Map<string, Map<string, string[]>>();
 
   if (force) {
     console.log(chalk.yellow('⚠ Force mode enabled: clean reinstall of installed base skills\n'));
@@ -255,6 +272,8 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
 
     if (extensionSummary.updated.length > 0) {
       for (const r of extensionSummary.updated) {
+        refreshedExtensions.add(r.name);
+        if (r.customSkillInstalls) refreshedCustomSkills.set(r.name, r.customSkillInstalls);
         console.log(chalk.green(`  ✓ ${r.name}: v${r.oldVersion} → v${r.newVersion}`));
       }
     }
@@ -310,15 +329,28 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
 
     const selectedNewSkills = await promptForNewSkills(availableSkills, config.agents, allReplacedSkills);
 
-    for (const agent of config.agents) {
-      const result = await updateSkills(agent, projectDir, {
+    const groups = await resolveSkillTargets(projectDir, config.agents, { select: false });
+    for (const group of groups) {
+      const participants = config.agents.filter(agent => group.targets.some(target => target.id === agent.id));
+      const representative = { ...participants[0], skillsDir: group.skillsDir,
+        installedSkills: [...new Set(participants.flatMap(agent => agent.installedSkills))],
+        managedSkills: Object.assign({}, ...participants.map(agent => agent.managedSkills ?? {})),
+      };
+      const result = await updateSkills(representative, projectDir, {
         excludeSkills: [...allReplacedSkills],
         force,
         installNewSkills: selectedNewSkills,
+        renderContext: group.context,
       });
-      agent.installedSkills = result.installedSkills;
-      skillEntriesByAgent.set(agent.id, result.entries);
+      for (const agent of participants) {
+        const previous = new Set(agent.installedSkills);
+        const selected = new Set(includeRequiredSkills([...agent.installedSkills, ...selectedNewSkills]));
+        agent.installedSkills = result.installedSkills.filter(skill => selected.has(skill));
+        skillEntriesByAgent.set(agent.id, result.entries.filter(entry => previous.has(entry.skill) || !representative.installedSkills.includes(entry.skill)));
+      }
+    }
 
+    for (const agent of config.agents) {
       const subagentResult = await updateSubagents(agent, projectDir, { force });
       agent.installedAgentFiles = subagentResult.installedAgentFiles;
       agent.agentFileSources = subagentResult.agentFileSources;
@@ -334,6 +366,10 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
     // Fix 3: If manifest fails to load, fall back to installing the base skill
     const failedReplacements: string[] = [];
     for (const ext of extensions) {
+      if (refreshedExtensions.has(ext.name)) {
+        logSkillTarget('[FIX:155] update:retain-refreshed-replacements', { extension: ext.name });
+        continue;
+      }
       if (!ext.replacedSkills?.length) continue;
       const extensionDir = path.join(getExtensionsDir(projectDir), ext.name);
       const manifest = extensionManifests.get(ext.name);
@@ -429,21 +465,24 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
 
     // Re-apply extension injections
     if (config.extensions?.length) {
-      let totalInjections = 0;
-      for (const agent of config.agents) {
-        totalInjections += await applyExtensionInjections(projectDir, agent, config.extensions!);
-      }
+      const totalInjections = await composeInstalledExtensionSkills(projectDir, config, {
+        installReplacements: false, customSkillInstalls: refreshedCustomSkills,
+      });
       if (totalInjections > 0) {
         console.log(chalk.green(`✓ Re-applied ${totalInjections} extension injection(s)`));
       }
     }
+
+    await restoreToolPermissionBases(projectDir, config.agents, permissionBases, config.extensions);
 
     // Rebuild managed state after final update + replacement + injection pipeline.
     const finalReplacedSkills = collectReplacedSkills(extensions);
     for (const agent of config.agents) {
       const { base: baseSkills } = partitionSkills(agent.installedSkills);
       const managedBaseSkills = baseSkills.filter(skill => availableSkills.includes(skill) && !finalReplacedSkills.has(skill));
-      agent.managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills);
+      const managedSkills = await buildManagedSkillsState(projectDir, agent, managedBaseSkills,
+        groups.find(group => group.targets.some(target => target.id === agent.id))!.context, config.extensions ?? []);
+      agent.managedSkills = managedSkills;
       if ((agent.configFiles ?? []).length > 0) {
         agent.managedConfigFiles = await buildManagedConfigFilesState(projectDir, agent, agent.installedConfigFiles ?? []);
       } else {
@@ -466,13 +505,20 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
     for (const agent of config.agents) {
       const entries = skillEntriesByAgent.get(agent.id) ?? [];
       const grouped = groupAndSortEntriesByStatus(entries, e => e.skill);
-      const changedWithContextWarnings: string[] = [];
+      const changedWithContextWarnings = new Map<string, string[]>();
 
       for (const entry of grouped.changed) {
-        const skillContextPath = path.join(projectDir, '.ai-factory', 'skill-context', entry.skill, 'SKILL.md');
-        if (await fileExists(skillContextPath)) {
-          changedWithContextWarnings.push(entry.skill);
+        const contextRoot = '.ai-factory/skill-context';
+        const candidates = [`${contextRoot}/global-skill-context.md`];
+        if (['aif-fix', 'aif-implement', 'aif-plan', 'aif-verify', 'aif-improve'].includes(entry.skill)) {
+          candidates.push(`${contextRoot}/build-skill-context.md`);
         }
+        candidates.push(`${contextRoot}/${entry.skill}/SKILL.md`);
+        const existing: string[] = [];
+        for (const candidate of candidates) {
+          if (await fileExists(path.join(projectDir, candidate))) existing.push(candidate);
+        }
+        if (existing.length > 0) changedWithContextWarnings.set(entry.skill, existing);
       }
 
       console.log(chalk.bold(`\n[${agent.id}] Status:`));
@@ -514,10 +560,10 @@ export async function updateCommand(options: UpdateCommandOptions = {}): Promise
         }
       }
 
-      if (changedWithContextWarnings.length > 0) {
+      if (changedWithContextWarnings.size > 0) {
         console.log(chalk.yellow('  WARN: skill-context override may need review for changed skills:'));
-        for (const skill of changedWithContextWarnings) {
-          console.log(chalk.yellow(`    - ${skill} (.ai-factory/skill-context/${skill}/SKILL.md)`));
+        for (const [skill, contexts] of changedWithContextWarnings) {
+          console.log(chalk.yellow(`    - ${skill} (${contexts.join(', ')})`));
         }
       }
 

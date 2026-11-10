@@ -1,20 +1,38 @@
 ---
 name: aif-explore
-description: Enter explore mode to investigate ideas, systems, problems, and requirements before planning. Use explicit ultra mode when the user wants a durable adaptive research bundle with an index and only the justified C4, ADR, or dependency artifacts.
-argument-hint: "[ultra] [topic or plan name]"
-allowed-tools: Read Glob Grep Write Edit Bash Task AskUserQuestion Questions
+description: Enter explore mode to investigate ideas, systems, problems, and requirements before planning. Use ultra mode, explicitly or through config, when the user wants a durable adaptive research bundle with an index and only the justified C4, ADR, or dependency artifacts.
+argument-hint: "[regular|ultra] [topic or plan name]"
+allowed-tools: Read Glob Grep Write Edit Task AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
-**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER implement features or modify project code. If the user asks to implement something, remind them to exit explore mode first (e.g., start with `/aif-plan`). Regular mode may write only the resolved research file after the user chooses to save. Explicit ultra mode may write only its selected research bundle; the leading `ultra` token is the user's request to persist that bundle.
+Shell commands are not pre-approved by this skill. If command evidence is needed,
+use an exposed shell tool under the runtime's existing permissions and request
+approval when required. Never broaden permissions or use another execution path
+to work around a denied command; report missing command evidence explicitly.
+
+**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER implement features or modify project code. If the user asks to implement something, remind them to exit explore mode first (e.g., start with `/aif-plan`). Regular mode may write only the resolved research file after the user chooses to save. Ultra mode may write only its selected research bundle; a leading `ultra` token or `workflow.explore_mode: ultra` is the user's request to persist that bundle.
 
 ---
 
 ## Step 0: Load Config
 
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/aif-explore/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
+- **Command default:** `workflow.explore_mode` (`regular` by default; allowed: `regular`, `ultra`). An absent value uses `regular`; an invalid value/type emits `WARN [config] invalid workflow.explore_mode; falling back to regular` and uses `regular`.
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.research`, `paths.plan`, `paths.plans`, and `paths.rules`
   - Derive `research_bundles_dir = <parent directory of paths.research>/research/`. This keeps ultra research colocated with a relocated legacy research file without adding a second config key.
 - **Language:**
@@ -61,7 +79,7 @@ Apply `technical_terms_policy` while writing summaries and persisted artifacts:
 ## Artifact Ownership
 
 - Primary ownership in regular explore mode: the resolved research path (default: `.ai-factory/RESEARCH.md`) only.
-- Primary ownership in explicit ultra mode: one marked direct child bundle under `research_bundles_dir` only. Do not also update the legacy research file.
+- Primary ownership when the resolved mode is ultra (explicit token or config): one marked direct child bundle under `research_bundles_dir` only. Do not also update the legacy research file.
 - All other context artifacts (`paths.description`, `paths.architecture`, `paths.roadmap`, `paths.rules_file`, plan files) are read-only in this mode.
 - If a discovery should affect another artifact, capture it in the selected `RESEARCH.md` now and route follow-up to the owner command later.
 
@@ -69,15 +87,16 @@ Apply `technical_terms_policy` while writing summaries and persisted artifacts:
 
 ## Mode Selection
 
-Parse only a leading `ultra` token as mode syntax:
+Parse only a leading `regular` or `ultra` token as mode syntax:
 
 - `/aif-explore ultra <topic>` -> ultra mode; strip the token and preserve the remaining topic text.
-- `/aif-explore <topic>` or no arguments -> regular mode; behavior and save prompt remain unchanged.
-- The word `ultra` elsewhere in a topic is ordinary content.
+- `/aif-explore regular <topic>` -> regular mode, even when config defaults to ultra; strip only the leading mode token.
+- `/aif-explore <topic>` or no arguments -> use `workflow.explore_mode`; missing or invalid config keeps regular mode and its save prompt.
+- The words `regular` and `ultra` elsewhere in a topic are ordinary content. Keep configured defaults separate from the topic; never prepend them to `$ARGUMENTS`.
 
-Ultra is strictly opt-in. Never recommend, infer, or auto-select it because a topic looks complex. In ultra mode, read `references/ULTRA-RESEARCH-FORMAT.md` completely before choosing a slug or writing files.
+Ultra is strictly opt-in. Select it through the leading `ultra` token or `workflow.explore_mode: ultra`. Never recommend, infer, or auto-select it because a topic looks complex. In ultra mode, read `references/ULTRA-RESEARCH-FORMAT.md` completely before choosing a slug or writing files.
 
-The explicit ultra invocation is permission to persist the selected bundle, so do not ask the regular "save research?" question. Explore and gather enough evidence first, then create or update the bundle. If no meaningful topic is available, ask for one before writing; never create `research/analysis/`, `research/research/`, or a date-only directory.
+The explicit ultra invocation or configured ultra default is permission to persist the selected bundle, so do not ask the regular "save research?" question. An explicit `regular` overrides that default and restores the save prompt. Explore and gather enough evidence first, then create or update the bundle. If no meaningful topic is available, ask for one before writing; never create `research/analysis/`, `research/research/`, or a date-only directory.
 
 ---
 
@@ -254,7 +273,19 @@ If the user mentions a plan or you detect one is relevant:
    - "Want me to save this to the resolved research path so you can `/clear` and come back later?"
    - "That's an architecture decision — save it to RESEARCH now and we can migrate it to ARCHITECTURE during planning."
 
-4. **The user decides in regular mode** - Offer and move on. Don't pressure. In ultra, the explicit mode token already requests capture.
+4. **The user decides in regular mode** - Offer and move on. Don't pressure. When the resolved mode is ultra, the explicit token or configured default already requests capture. An explicit `regular` restores the save prompt.
+
+### Optional source-linked hypotheses
+
+Only when the user asks to formulate or track a project hypothesis from source
+material, read `references/PROJECT-HYPOTHESES.md`. Use its card template inside
+the selected `RESEARCH.md`; `references/RETRY-HYPOTHESIS.md` shows one local
+synthetic example. Ultra mode alone does not enable hypothesis tracking.
+
+Keep source claims, project inferences, planning acceptance, and observed
+outcomes distinct. Recording a card does not authorize running an experiment;
+explore mode records analysis and supplied evidence, not experiment execution.
+Do not add a command, runner, sidecar, config key, or mandatory workflow gate.
 
 ### Persist exploration context
 
@@ -270,13 +301,17 @@ Before presenting the save or appending its session entry, verify:
 4. Each mismatch quotes verbatim both the affected summary claim and the
    conflicting or qualifying durable passage; a bare assertion is not a finding.
 
+When hypothesis tracking is enabled, also apply the saved-card checks in
+`references/PROJECT-HYPOTHESES.md` as part of this gate. Other research keeps
+the existing criteria.
+
 Correct or qualify mismatches, record insufficient evidence in `Open questions`, then re-run. Append a session with a short pass note only after success; an Active-Summary-only regular save runs the gate without adding a session.
 
 Delegate the read-only pass to a fresh-context subagent when supported, giving it only the durable paths and this gate. If unavailable or failed, run it directly; the criteria do not change, and the gate is never skipped or delayed.
 
 #### Ultra mode: adaptive bundle
 
-For explicit ultra mode, follow `references/ULTRA-RESEARCH-FORMAT.md`:
+When the resolved mode is ultra (from the leading token or `workflow.explore_mode: ultra`), follow `references/ULTRA-RESEARCH-FORMAT.md`:
 
 1. Convert the meaningful topic to a concise English lowercase-kebab slug and resolve `<research_bundles_dir>/<slug>/`.
 2. If that directory exists, treat it as an existing ultra bundle only when `INDEX.md` has the exact marker. Reuse a semantically matching marked bundle; never overwrite an unmarked collision.
@@ -308,12 +343,27 @@ Options:
 3. No
 ```
 
+When hypothesis tracking is enabled, name the card updates in both save options
+(option 2 still omits a new Session) so the user sees what will be persisted.
+
 If user selects (1) or (2):
 - Ensure the parent directory of the resolved research path exists (`mkdir -p "$(dirname "<resolved research path>")"`)
 - If the resolved research path does not exist, create it with this skeleton, localized to `artifact_language` before saving:
 
 ```markdown
 # Research
+
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
 
 Updated: YYYY-MM-DD HH:MM
 Status: active
@@ -336,6 +386,7 @@ Next step:
 
 - Update the `Updated:` timestamp
 - Replace only the content inside `aif:active-summary:start/end`, written in `artifact_language`
+- If hypothesis tracking was explicitly requested, also insert/update its optional section before `## Sessions` according to `references/PROJECT-HYPOTHESES.md`; preserve prior hypothesis revisions and observation records. Otherwise leave all content outside the summary/session markers unchanged.
 - Run the Research Coherence Gate against the updated file
 - If user selected option (1), append a new session entry just before `<!-- aif:sessions:end -->`:
 
@@ -499,7 +550,7 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Don't fake understanding** - If something is unclear, dig deeper
 - **Don't rush** - Discovery is thinking time, not task time
 - **Don't force structure** - Let patterns emerge naturally
-- **Don't auto-capture in regular mode** - Offer to save insights, don't just do it. The explicit `ultra` token already requests bundle persistence.
+- **Don't auto-capture in regular mode** - Offer to save insights, don't just do it. A resolved ultra mode (explicit token or config) already requests bundle persistence; explicit `regular` restores the save prompt.
 - **Do visualize** - A good diagram is worth many paragraphs
 - **Do explore the codebase** - Ground discussions in reality
 - **Do question assumptions** - Including the user's and your own

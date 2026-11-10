@@ -8,7 +8,6 @@ argument: ""
 max_turns: 40
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
 
 fixtures:
@@ -47,7 +46,7 @@ assertions:
       file_path: "(^|/)LEGACY_FULL_RAN\\.txt$"
     weight: 4
   - id: does-not-report-ambiguity
-    type: output_not_contains
+    type: no_output_contains
     pattern: "(?i)multiple.*plan|ambiguous"
   - id: stay-in-sandbox
     type: no_path_escape

@@ -12,6 +12,30 @@ metadata:
 
 # CI — Pipeline Configuration Generator
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules. This skill is config-agnostic: use the conversation language for questions; do not read config.yaml just for question delivery.
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/aif-ci/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 Analyze a project and generate production-grade CI/CD pipeline configuration for GitHub Actions or GitLab CI. Generates separate jobs for linting, static analysis, tests, and security scanning — adapted to the project's language, framework, and existing tooling.
 
 **Three modes based on what exists:**
@@ -500,6 +524,12 @@ Display summary using format from `references/AUDIT-REPORT.md` (Summary Display 
 Suggest: `/aif-build-automation` for CI targets in Makefile/Taskfile, `/aif-dockerize` for containerization.
 
 ## Artifact Ownership and Config Policy
+
+When `/aif-quality-setup` hands off a selected setup, reuse its native check commands,
+exact repository/component CWD, runtime versions, coverage and blocking policy.
+Run full selected checks without autofix in CI. Inspect existing CI before changing
+it; do not regenerate native tool configs or run setup again. Discovery of a command
+does not execute, verify or authorize it. The CI-only ownership below still applies.
 
 - Primary ownership: CI pipeline artifacts such as `.github/workflows/*` and `.gitlab-ci.yml`.
 - Allowed companion updates: none by default outside CI files.

@@ -2,6 +2,365 @@
 
 # Configuration
 
+## Project Completion Hook
+
+`ai-factory completion-hook` is an opt-in adapter for **Claude Code 2.1.318 on
+macOS/Linux**, qualified against the documented synchronous `Stop` command-hook
+protocol with a local fake host. Native macOS `--print` smoke tests also exercised
+the installed adapter with model tools disabled: one successful verifier and one
+intentional failure, each launched once. Interactive TUI behavior remains untested.
+Other versions, runtimes and Windows are unsupported.
+
+The [Claude hooks reference](https://code.claude.com/docs/en/hooks#stop) describes
+`Stop` as the end of a response, with a blocking decision continuing the conversation.
+It does not fire for every cancellation or host failure. Host loop limits, a missing
+adapter executable, disabled hooks, or an outer hook timeout can still allow the
+session to stop. **This is cooperative feedback, not a fail-closed completion or
+permission boundary.** `onFailure` does not provide enforcement for `Stop`.
+The native failure smoke test observed one `failed` receipt followed by eight
+`recursion` receipts. Claude then ended with CLI exit `0` and a session `success`
+result at its continuation limit. The failed verifier receipt remains unsuccessful;
+consumers must use the existing verification gate before finalizing work.
+
+Use the **existing, reviewed project verification entrypoint** used manually and in
+CI. Do not introduce a second checklist. Command catalog discovery, an agent-authored
+PASS, or a repository-provided specification does not authorize execution. Inspect
+the command, its transitive scripts, lifecycle effects and configuration before
+explicitly enabling it. The adapter grants no permissions or isolation: the approved
+command retains the caller's environment and OS access. Choose a read-only verifier;
+the adapter itself never commits, merges, publishes, auto-fixes or finalizes work.
+
+Create a project-relative JSON specification, for example `tools/completion-hook.json`:
+
+```json
+{
+  "schema_version": 1,
+  "runtime": "claude",
+  "version": "2.1.318",
+  "host_executable": "/absolute/canonical/path/to/claude",
+  "role": "required",
+  "executable": "/absolute/canonical/path/to/node",
+  "argv": ["tools/verify.mjs"],
+  "cwd": ".",
+  "source_revision": "FULL_GIT_HEAD_HASH",
+  "inputs": ["tools/verify.mjs", "package.json", "package-lock.json"],
+  "timeout_ms": 30000
+}
+```
+
+Executable paths must be canonical absolute regular-file paths; use `realpath` to
+resolve shims/symlinks first. `argv` is passed without a shell. `cwd` is the exact
+project-relative verifier directory (`.` means root). `source_revision` is the full
+current `git rev-parse HEAD`; dirty source files are fingerprinted at execution.
+`inputs` must list the reviewed command definitions, transitive verifier scripts and
+policy/configuration files, including ignored files that affect verification. This
+explicit list is not a discovered dependency graph. The specification itself,
+input hashes, executable bytes and observed host `--version` are pinned. Changes
+require reviewing the new command/configuration and explicitly enabling again.
+Exclude `.claude/settings.local.json` and adapter storage from `inputs`: enable/run
+mutate them, so pinning their earlier bytes can invalidate verification.
+Do not put credentials in argv/specification; receipts retain command identity.
+
+```bash
+ai-factory completion-hook enable --spec tools/completion-hook.json
+ai-factory completion-hook disable
+```
+
+Enable adds one owned entry to **project-local** `.claude/settings.local.json` and
+writes `.ai-factory/completion-hook/approval.json`; ordinary init/update never enable
+it. Existing hooks and unrelated settings are preserved. Disable removes only the
+exact owned entry and active approval, preserving receipts and user-edited hooks.
+Restart Claude after changing hook settings. These commands do not modify global
+agent or Git settings. Keep the local approval, attempts and receipts out of Git;
+they contain local paths and command metadata. Unsupported enable returns an explicit
+`unsupported` result without changing settings. A retained required hook whose
+approval was disabled returns `unsupported` and requests a block; an observer
+reports the same unsuccessful outcome without requesting a block.
+After moving or renaming the worktree, review absolute paths in the specification
+and re-enable the adapter; the existing hook and approval retain the old path.
+A malformed `.ai-factory/completion-hook/approval.json` makes enable/disable stop;
+restore its known-good contents before retrying. Existing hooks stay untouched when
+the ownership record cannot be read.
+
+Attempts and receipts have no automatic retention or cleanup. After the verification
+workflow no longer needs the evidence, disable the adapter before manually removing
+its `attempts/` and `receipts/` directories under `.ai-factory/completion-hook/`.
+Keep attempt files while an approval is active so cleanup cannot reset its launch limit.
+
+The verifier must exit zero and emit its normal final
+[`aif-gate-result`](quality-gates.md) fence with `gate: "verify"`. A complete `pass`
+allows stopping. A non-blocking `warn` remains a warning and allows stopping under
+the existing gate policy. Blocking reports, nonzero exits (even with a PASS report),
+timeouts, cancellation, missing/invalid reports and incomplete output never become
+PASS. Only whitespace may follow the final complete report fence; trailing output
+or a later unfinished fence makes the report invalid. The aggregate verifier owns which checks are required and whether they were
+completed; the adapter does not infer per-check coverage. `role: "required"` requests
+a block for unsuccessful outcomes; `role: "observer"` only reports them. An observer
+failure stays a failure in its receipt and cannot satisfy a required check.
+
+Execution is bounded to 100–120000 ms, 64 KiB combined stdout/stderr, and **one launch
+per approval and host session**. `stop_hook_active`, an inherited recursion marker,
+and an exclusive attempt file prevent recursive/concurrent/repeated verifier
+launches. Retries require explicit re-enablement; an interrupted launch consumes its
+attempt. Cancellation/timeout/output overflow kill the local process group. A hostile
+program that detaches itself is outside this adapter's process-containment claim.
+The outer host timeout includes 30 seconds of overhead; host termination before the
+receipt is written yields missing evidence, never an authenticated success.
+
+Each invocation writes `.ai-factory/completion-hook/receipts/UUID.json`. Schema v1
+records the installed AI Factory release as `adapter_version`, approval/config digest,
+exact executable/argv/CWD, executable hash, worktree root, source HEAD, Git index and
+file digests, post-execution source digest, observed exit/signal,
+execution outcome, report digest/status, output digests and evidence completeness.
+The adapter version is release metadata; it does not pin local edits made under the
+same package version. Raw output and transcripts are not retained.
+`evidence_complete` describes captured execution/report evidence, not proof of every
+project requirement or instruction.
+The distinct outcomes include `passed`, `warning`, `failed`, `timeout`, `cancelled`,
+`output_limit`, `spawn_error`, `missing_report`, `invalid_report`, `stale`, `recursion`,
+`reentry`, `wrong_cwd`, `wrong_project_or_role`, `changed_command`, `invalid_event`,
+`unsupported` and `error`.
+
+Source inventory includes a digest of Git index entries (staged blob IDs, modes and
+merge stages), plus Git tracked files (including deletions), non-ignored
+untracked files, the specification and explicit inputs. Adapter storage and local
+hook settings are excluded from the source hash to avoid self-invalidation; approval
+identity/configuration are bound separately. Other ignored dependencies, external
+services and environment changes are outside that inventory. Unsupported symlinks,
+submodules, unreadable files or limits fail without launching: 10000 files, 8 MiB per
+source file, 128 MiB total, 512 KiB source evidence, 512 MiB per executable and 1 MiB
+per JSON input. A source change during verification makes the result stale.
+
+```bash
+ai-factory completion-hook inspect .ai-factory/completion-hook/receipts/UUID.json
+```
+
+Inspect recomputes current source and command/configuration pins. Later source,
+HEAD, staged content, input, command or worktree changes make earlier evidence
+stale. Inspecting preserved receipts after disabling the adapter returns `stale`
+with the original receipt intact. Receipts created before index binding also become
+stale on inspection.
+It **only checks freshness**, always returning `authenticity: "not_authenticated"`: local JSON
+can be edited or imported. No receipt import or acceptance path is provided. A
+consumer requiring trusted execution must obtain its observation from the host and
+revalidate scope/freshness; a copied receipt containing PASS is insufficient.
+`/aif-verify` and the existing workflow retain verification/finalization ownership.
+Extension command modules are not imported on any `completion-hook` route,
+including help. Set `AIF_COMPLETION_HOOK_LOG_LEVEL=silent` to suppress progress logs;
+host decisions and local receipt metadata remain available.
+
+## Project Command Catalog
+
+```bash
+ai-factory commands
+ai-factory commands . packages/api packages/web --json
+ai-factory commands --mapping tools/project.json --json
+```
+
+This is a read-only catalog, not a runner. It works without an AI Factory
+installation/configuration in the project. It reads only `package.json` and
+`composer.json` scripts in explicitly selected directories (default: project root),
+plus local package-manager evidence and an optional explicitly selected JSON mapping.
+
+Present Make/Task/just source files are hashed without parsing or executing recipes.
+No recursive workspace glob expansion, Make/Task/just execution, project imports,
+plugins, lifecycle hooks or `--help` probes take place.
+
+The CLI skips extension
+command imports on this route, including its own help. Existing workflows stay intact.
+
+For Node scripts, an explicit `packageManager` or one unambiguous local lock-file
+family selects npm/pnpm/yarn/bun. Unknown managers, conflicting lock families,
+unreadable evidence, unsupported script values and duplicate JSON keys remain
+unresolved. An explicit manager conflicting with a lock family also stays unresolved.
+Composer string/array declarations are cataloged without expanding references,
+callbacks, hooks or external code. No executable/tool availability check is implied.
+
+Both output views contain the same versioned data:
+
+| Field | Meaning |
+|-------|---------|
+| `schema_version` | Currently `1` |
+| `revision_sha256` | Binds all read/missing/unresolved source records, including runner evidence and supported recipe-file fingerprints |
+| `commands[].id` / `name` / `kind` | Exact declaration identity, script label and package/composer/mapping source kind |
+| `cwd` | Project-relative working directory (`.` for root), normalized to forward slashes |
+| `source.path` / `sha256` / `pointer` | Original source location, exact byte revision and JSON pointer; unsupported names use an unresolved ordinal identity |
+| `argv` | Structured invocation tokens, or `null` when unresolved/withheld; never a shell-escaped command string |
+| `inputs` | Explicit mapping input **names**, or `null` when unknown; no input values are collected |
+| `output_mode` | Declared `human` / `json` from a mapping, otherwise `unknown` |
+| `status` / `reason` | `declared` or `unresolved`, with a bounded reason code |
+| `verification` / `effects` | Always `not_run` / `unknown`; declarations cannot claim observed success |
+| `sources` | Read/missing/unresolved source records, including recipe files left unparsed |
+| `ambiguities` | Same-name command IDs with `selection_required: true`; no default is chosen |
+
+Choose an exact ID and CWD, rather than a bare name such as `test`. Use project
+context or ask the user when several definitions apply. Refresh after a source hash
+changes, including catalog `revision_sha256`; previous selection/verification cannot
+silently carry over to new bytes.
+
+These are declaration/evidence fingerprints, not
+a complete dependency graph: scripts, imports and external tools invoked by a command
+still require independent inspection and execution evidence.
+
+Execution requires its own existing authorization and observed evidence. The catalog
+does not grant shell, network, production, commit or publishing access.
+
+### Explicit Project Mappings
+
+Point `--mapping` at an existing project-owned JSON object containing `commands`.
+It can be an existing metadata file with other top-level fields; there is no default
+mapping path, mandatory new config file, schema key, generated registry or config
+rewrite. Example declarations for commands whose Make/Task/just/custom CLI discovery
+is incomplete:
+
+```json
+{
+  "commands": [
+    { "name": "verify", "cwd": ".", "argv": ["make", "verify"], "inputs": ["TEST_FILTER"], "output_mode": "human" },
+    { "name": "diagnostics", "cwd": "packages/api", "argv": ["node", "tools/project.mjs", "diagnose", "--json"], "output_mode": "json" }
+  ]
+}
+```
+
+Entries accept only `name`, `cwd`, `argv`, `inputs` and `output_mode`; they cannot
+declare themselves verified or override an automatically discovered command.
+Their identity includes the mapping path and array index. Existing project owners
+retain ownership of their files; AI Factory only reads them when explicitly selected.
+
+Raw npm/Composer script bodies and unrelated manifest fields are omitted, so embedded
+credentials in those bodies never enter either view. Mapping invocations containing
+credential/authentication markers, URLs, shell substitutions or inline evaluation
+are conservatively withheld as a whole (`argv: null`), rather than partly redacted.
+Command labels containing explicit credential-assignment markers are also withheld.
+
+This is not a general secret detector: arbitrary unlabeled literals cannot be
+classified. Keep literal secrets out of mappings; use runtime environment/secret
+management and inspect any withheld invocation privately before authorized use.
+
+Discovery accepts up to 32 explicit project-relative directories, 2,000 commands,
+1 MiB per read source and 8 MiB total; limit/access/parse failures stay visible in
+source records. It rejects traversal, absolute/drive paths, symbolic links/junctions,
+non-regular sources and malformed/duplicate-key JSON.
+
+Windows separators in relative
+paths are normalized; invocation tokens are not rewritten for another OS. Workspace
+directories and inherited package managers are not guessed: list directories and
+provide local evidence or an explicit mapping. Unknown effects remain unknown.
+
+## Worktree Readiness Diagnostic
+
+```bash
+# Select existing checkout directories; no Git worktree is created or discovered automatically
+ai-factory worktree-check . ../project-feature --json
+ai-factory worktree-check . ../project-feature --mapping tools/project.json
+```
+
+Run this before runtime-dependent work in parallel checkouts. Git worktrees separate
+source files; they do not separate host ports, databases, caches or Docker resources.
+The command only reads declarations and prints to stdout (human or JSON). It creates
+no reports, worktrees, services, volumes or other files. Shell redirection can save an
+explicitly selected report. No Make/Compose commands, package hooks, extension
+imports (including on `--help`), scripts, installations, credential copies, allocation
+or cleanup run. Existing configuration owners retain ownership; no settings change.
+
+Select 1–32 existing directories, relative to the calling directory or absolute;
+checkout numbers in the report follow argument order. Git metadata is not required,
+so disposable synthetic checkouts can also be inspected. Defaults to the current
+directory. This inspects only the selected roots, without recursive workspace scans.
+
+The bounded Compose subset reads root `compose.yaml`, `compose.yml`,
+`docker-compose.yaml`, `docker-compose.yml` and their `.override` variants:
+
+- Literal Compose project names (or the normalized directory basename), fixed
+  `container_name`, named/external volumes and networks, and implicit project-scoped
+  volumes/default networks.
+- Fixed host ports in short/long syntax; protocol participates in identity. Host
+  IPs are conservatively ignored, so different IP bindings can still be potential
+  collisions. Automatic ports, ranges and interpolated ports remain unknown.
+- Short/long bind mounts and named volumes, including read-only access. Relative
+  bind paths resolve lexically against their checkout. External targets are never
+  opened; filesystem aliases, parent/child path overlaps and remote filesystems are
+  not resolved. Backslash bind paths are unsupported in both syntaxes; Windows
+  drive-letter short mounts remain unknown.
+- Literal `DATABASE_URL`, `REDIS_URL` and `CACHE_URL` bindings for PostgreSQL, MySQL
+  and Redis. User/password never participate in identity; host/port/database do.
+  Connection routing/host aliases still produce an explicit unknown. Other
+  database/cache/port/path environment bindings require explicit mappings.
+
+Interpolation, inherited environment, aliases, invalid/duplicate-key YAML/JSON,
+multiple-file Compose merging, includes/extends, unsupported service fields and
+custom resource options stay unknown. Present `.env`, Make/Task/just, npm and
+Composer files are identified as uninspected runtime sources, without reading their
+contents. Neither `.env` nor the process environment is used for interpolation.
+A mapping does not erase these unknowns.
+Full stacks will commonly report `incomplete`; this is expected coverage information,
+not a failed scan. Multiple Compose files are analyzed independently, so potential
+collisions may include declarations that a live merge would replace or remove.
+Runtime overrides such as `COMPOSE_PROJECT_NAME`, `-p` or additional `-f` files are
+not inferred from the caller's environment. Inspect them separately before execution.
+
+### Resource Mappings in an Existing Owner
+
+`--mapping` reads the same project-relative JSON path in each selected checkout.
+Reuse an existing project metadata owner, including the command catalog's mapping
+file or `package.json`; no `config.yaml` key or generated registry is introduced.
+Root Compose discovery filenames are rejected as mappings to preserve Compose analysis.
+Other top-level fields are ignored. `runtimeResources` entries accept only `kind`,
+`identity`, `access`, and optional `sharing`:
+
+```json
+{
+  "runtimeResources": [
+    { "kind": "database", "identity": "local-postgres/app-feature-a", "access": "read-write" },
+    { "kind": "cache", "identity": "local-redis/feature-a", "access": "read-write" },
+    { "kind": "host-port", "identity": "8081/tcp", "access": "read-write" },
+    { "kind": "path", "identity": "../shared-fixtures", "access": "read-only", "sharing": "read-only" }
+  ]
+}
+```
+
+Kinds are `container`, `volume`, `network`, `compose-project`, `host-port`, `path`,
+`database`, and `cache`. Identities are literal project-owner declarations. Use the
+same canonical identifier for the same resource in each checkout; use distinct
+database/cache identifiers only after their namespaces are explicitly configured.
+Container/volume/network/project mappings use the actual literal resource name;
+host ports use `NUMBER/tcp` or `NUMBER/udp`; paths resolve as bind paths do. Arbitrary
+database/cache labels are owner assertions, not verified connection settings.
+
+Sharing is permitted only for `path`, `volume`, `database` and `cache`. Every
+participating checkout must declare `access: read-only` and `sharing: read-only`
+for that identity, and every discovered use must be read-only. A Compose `:ro`
+mount alone does not approve sharing. These declarations do not enforce read-only
+access at runtime and cannot authorize a writable use or shared container/port.
+
+Both views carry `schema_version: 1`, `revision_sha256`, `sources`, and `findings`.
+Each finding has source checkout/path, line where available, exact source-byte
+SHA-256 where read, and certainty (`static`, `owner-declared`, or `unknown`).
+Resource IDs are opaque SHA-256 fingerprints, so raw names, paths, connection
+strings, environment values and parser errors are withheld. Use source locations
+for private inspection. Fingerprints are comparison identifiers, not encrypted
+secret storage; keep secrets out of owner-supplied resource identities.
+
+Finding statuses distinguish `potential-collision`, `allowed-read-only-sharing`,
+`distinct` and `unknown`, with a scoped remediation. `distinct` only means no equal
+static identity in another selected checkout. Summary status prioritizes potential
+collisions, then incomplete coverage, then `no-static-collision`. `coverage` is
+`incomplete` whenever any source/value is unknown or no supported declarations were
+found. `supported-declarations` applies only to the scanned subset; **`isolation`
+is always `not_verified`**. No result guarantees complete or live isolation.
+Use explicit namespaces in the existing owner or run runtime-dependent work serially
+when independence cannot be established; this command grants no execution permission.
+
+Reads reject source symlinks/junctions and non-regular files, and are bounded to
+1 MiB per file and 8 MiB total. Mapping paths must stay within each checkout and
+cannot select environment, credential, private-key or certificate files. Source
+access/parse/size failures are unknown; exceeding 2,000 resource/unknown records
+rejects the diagnostic. Exit 0
+means a report was produced, including collisions/incomplete coverage; exit 1 means
+invalid input, unavailable checkout roots or a fatal limit failure. Consumers must
+inspect `status` and `coverage`. Refresh after source, mapping or checkout changes;
+uninspected source contents have no byte revision and cannot carry a prior pass.
+
 ## `.ai-factory.json`
 
 ```json
@@ -31,6 +390,7 @@
         "plan-coordinator.md",
         "plan-polisher.md",
         "review-sidecar.md",
+        "review-validator.md",
         "rules-sidecar.md",
         "security-sidecar.md"
       ],
@@ -57,6 +417,7 @@
         "plan-coordinator.toml",
         "plan-polisher.toml",
         "review-sidecar.toml",
+        "review-validator.toml",
         "security-sidecar.toml"
       ],
       "installedConfigFiles": ["config.toml"],
@@ -79,6 +440,31 @@
         "chromeDevtools": false,
         "playwright": true
       }
+    },
+    {
+      "id": "antigravity",
+      "skillsDir": ".agents/skills",
+      "agentsDir": ".agents/agents",
+      "installedSkills": ["aif", "aif-plan", "aif-implement", "aif-commit"],
+      "installedAgentFiles": [
+        "best-practices-sidecar.md",
+        "commit-preparer.md",
+        "docs-auditor.md",
+        "implement-coordinator.md",
+        "implement-worker.md",
+        "plan-coordinator.md",
+        "plan-polisher.md",
+        "review-sidecar.md",
+        "rules-sidecar.md",
+        "security-sidecar.md"
+      ],
+      "mcp": {
+        "github": true,
+        "postgres": false,
+        "filesystem": true,
+        "chromeDevtools": false,
+        "playwright": false
+      }
     }
   ],
   "extensions": [
@@ -91,11 +477,42 @@
 }
 ```
 
-The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills. Codex additionally persists `configFiles` / `installedConfigFiles` for managed files such as `.codex/config.toml`; tracked managed config files may be repaired by `ai-factory update` when their managed hashes drift, while untracked pre-existing files are preserved during migration. Codex app is currently skills-first: it installs Codex-style skills into `.agents/skills` and can write MCP config to `.codex/config.toml`, but it does not define a runtime-global `agentsDir`. AI Factory additionally stores internal `managedSkills`, `managedAgentFiles`, `managedConfigFiles`, and `agentFileSources` maps in `.ai-factory.json`; they are omitted from the example above for brevity. `managedAgentFiles` keeps source/install hashes, while `agentFileSources` records whether each tracked agent file comes from the bundled package inventory or from an extension manifest. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys for backward compatibility, but new saves use the universal field names and backfill `agentFileSources` when the source can be recovered from bundled inventory or installed extension manifests.
+The `agents` array can include any built-in agent IDs plus runtime IDs provided by installed extensions. Each agent keeps its own `skillsDir`, installed skills list, and MCP preferences. Runtimes that support custom agent files also persist `agentsDir` and `installedAgentFiles`, so `ai-factory update` can refresh package-managed agent files alongside skills.
 
-Extension-provided agent files can target non-Claude runtimes such as Codex. Those files are often bounded helper workers (for example, one-shot reviewers or plan polishers), not automatic equivalents of the bundled Claude coordinator agents. Documentation and prompts should describe those support boundaries explicitly instead of implying full parity across runtimes. AI Factory copies those runtime-specific agent files verbatim; runtime-local keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` belong in the agent file itself rather than in `.ai-factory.json` or workflow prompts. For bounded Codex helpers, prefer read-only advisory workers unless the runtime-native agent truly owns writes to a specific artifact.
+Optional top-level `useSymlinks` stores the project's opt-in skill sharing choice.
+`skillSymlinks.links` records managed relative links to `.agents/skills/<skill>`;
+`skillSymlinks.shared` records hashes of shared trees created by AI Factory for safe
+cleanup. These are installation metadata, not `config.yaml` settings. Native
+`skillsDir` values and render profiles stay unchanged in this mode. See
+[global skills and project symlinks](getting-started.md#global-skills-and-project-symlinks).
+
+Codex additionally persists `configFiles` / `installedConfigFiles` for managed files such as `.codex/config.toml`. Updates refresh files that still match the saved installation baseline; local modifications and untracked pre-existing config files are preserved. Codex app installs Codex-style skills into `.agents/skills` and can write MCP config to `.codex/config.toml`, but it does not define a runtime-global `agentsDir`.
+
+AI Factory also stores internal `managedSkills`, `managedAgentFiles`, `managedConfigFiles`, and `agentFileSources` maps, omitted above for brevity. Managed entries keep source/install hashes. Skill entries may additionally carry `renderContextHash`, which detects changed template paths or shared-runtime profiles even when package source bytes are unchanged, and `rawInstalledHash`, which includes injection content, extension tool-request metadata, and exact file bytes. These fields do not change native agent/config ownership.
+
+Kilo Code follows the same ownership checks when a runtime is deselected: only tracked workflow files matching their saved raw installation receipt are removed. Untracked or modified workflows are preserved. Installing a skill does not delete legacy directories under `.kilocode/skills/`; their names alone do not prove AI Factory ownership or authorize migration.
+
+Removing a runtime deletes its unneeded skills only when they match the saved raw baseline as well as the normalized install hash. Modified skills and legacy entries without a raw baseline are preserved with a warning. Init, update, and upgrade issue a raw baseline only when the complete installed skill matches the rendered package source, verified registered injections, and the declared native tool requests. Unknown files, links, injection markers, or unavailable injection sources prevent a new deletion baseline, including after a skill was reinstalled.
+
+Extensions may declare skill/runtime-scoped `toolPermissions` in their manifest.
+Claude Code skill fields carry `aif-ext-tools` ownership comments; no global permission
+settings or new `.ai-factory.json` permission map is created.
+
+Updates preserve the
+unowned field while its source owner and extension-native declaration stay unchanged.
+Replacement removal or changed replacement defaults use the current source field
+and recompose remaining requests, without retaining the previous source's grants. Other runtimes are
+reported as unsupported. See [Skill Tool Permissions](extensions.md#skill-tool-permissions)
+for syntax, native policy behavior, and the package-default reconciliation limit.
+
+`agentFileSources` records bundled or extension ownership. `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents` keys; new saves use the universal names and backfill sources when bundled inventory or installed extension manifests provide evidence.
+
+Extension-provided agent files can target non-Claude runtimes such as Codex. Those files are often bounded helper workers (for example, one-shot reviewers or plan polishers), not automatic equivalents of the bundled Claude coordinator agents. Documentation and prompts should describe those support boundaries explicitly instead of implying full parity across runtimes.
+
+AI Factory copies those runtime-specific agent files verbatim; runtime-local keys such as `model`, `model_reasoning_effort`, `sandbox_mode`, and `developer_instructions` belong in the agent file itself rather than in `.ai-factory.json` or workflow prompts. For bounded Codex helpers, prefer read-only advisory workers unless the runtime-native agent truly owns writes to a specific artifact.
 
 Agent-file lifecycle is now consistent across the CLI:
+- Bundled `loop-*` files require `aif-loop` in the runtime's `installedSkills`. `init` and `update` (including `--force`) skip them when absent and remove previously tracked bundled loop files from disk and the `installedAgentFiles`, `agentFileSources`, and `managedAgentFiles` fields. This applies to Claude and Codex bundles; extension-owned and untracked user files are preserved. See [Subagents](subagents.md#migration-note).
 - `extension add` installs the file, records `installedAgentFiles`, records `agentFileSources`, and writes fresh `managedAgentFiles` hashes immediately.
 - `ai-factory update` preserves tracked extension-owned agent files even when an extension manifest is temporarily missing, warns, and skips only the source-driven drift healing that cannot be resolved safely.
 - `extension remove` deletes the runtime-local file and prunes `installedAgentFiles`, `agentFileSources`, and `managedAgentFiles` together.
@@ -109,6 +526,148 @@ Extension refresh uses the saved `source` field:
 - local paths and non-GitHub git sources require `--force` for refresh
 
 When GitHub-backed extension refreshes are frequent, set `GITHUB_TOKEN` to raise the GitHub API rate limit used by these checks.
+
+### Cross-Agent Dispatch
+
+Optional top-level fields configure phase-boundary dispatch for `/aif-loop` and the
+spec-driven workflow (`/aif-implement`, `/aif-review`). `ai-factory init`, `update`,
+and `upgrade` preserve these fields; they are user-owned, not managed installation state.
+
+```json
+{
+  "dispatch": "manual",
+  "phases": {
+    "plan": { "agent": "claude-code", "model": "opus" },
+    "implement": { "agent": "antigravity", "timeoutMs": 900000 }
+  },
+  "dispatchAgents": {
+    "my-agent": { "command": "mycli --model {model} --task {prompt}", "defaultModel": "sonnet" }
+  }
+}
+```
+
+- `dispatch` — `manual` (default) prints instructions and never spawns anything; `auto` spawns the target CLI. Any invalid value behaves as `manual`.
+- `phases.<phase>` — targets per phase. Valid phases: `plan`, `produce`, `prepare`, `evaluate`, `critique`, `refine` (aif-loop) plus `implement`, `review` (spec-driven workflow). `model` falls back to the agent's `defaultModel`; `timeoutMs` is a positive integer cap for auto spawns (default 600000).
+- `dispatchAgents` — per-agent `command` / `defaultModel` overrides. Built-in dispatch ids: `claude-code`, `gemini-cli`, `antigravity`, `chatgpt-cli`, `openrouter-cli`. An agent id that resolves to an installed runtime (including extension-provided ones) maps through its `skillsCliAgent`.
+
+`command` is an **argv template, not a shell string**: it is split on whitespace, then `{model}`, `{phase}`, `{prompt}` are substituted per token in one pass. Values remain literal, including `$$`, `$&` and placeholder-like text inside a prompt/model. Quotes and shell metacharacters have no special meaning, and paths with spaces cannot be expressed as one token; prompts always travel as a single argv element, never through a shell.
+
+`ai-factory dispatch <phase> [--prompt <text>] [--print] [--json]` resolves one phase:
+
+- no dispatch config or no phase entry → exit 0 with empty stdout and stderr (a fully silent no-op, so callers treat it as "continue in-process");
+- manual mode or `--print` → a structured `Command:` / `Args:` block on stdout, one argv element per line, copy-safe for prompts with quotes, `$()`, or semicolons;
+- auto mode → spawns the command without a shell; at `timeoutMs` the direct child is forcibly terminated with SIGKILL and the command exits 1 with a diagnostic on stderr. This is not a process-tree cleanup guarantee;
+- unknown phase or agent → exit 2 with a diagnostic on stderr and empty stdout.
+
+Those stdout rules describe the default text interface. With `--json`, stdout is
+exactly one object with `schema_version: 1`, the requested `phase`, and `status`:
+
+| Status | Meaning | Additional fields |
+|---|---|---|
+| `noop` | Execute the phase in-process | `reason`: `no-config` or `no-phase-entry` |
+| `manual` | No child was started | `agent`, `model`, `command: {file, args}`, `instructions` |
+| `completed` | The child exited successfully | Phase output still requires validation |
+| `error` | Resolution or child execution failed | `reason` or `error`; non-zero exit |
+
+Child stdout is redirected to stderr in JSON mode; it cannot impersonate a
+dispatcher result. `--print --json` returns `manual` even under auto configuration.
+`DEBUG_FIX=1` or `LOG_LEVEL=debug` enables `[FIX:dispatch]` diagnostics on stderr;
+prompts and artifact contents are not logged.
+
+`/aif-loop` Step 4.0 consumes the JSON interface. Non-zero exits and malformed or
+mismatched responses become `phase_error` events and fall back in-process.
+Manual mode records a phase-bound handoff; resume in the target agent executes it
+without redispatch. See [phase dispatch and resume](loop.md#phase-dispatch-and-resume)
+for result validation, state and budget handling.
+
+## Codex Skill Directories and Migration
+
+For Codex CLI, AI Factory selects the skill directory from the project state before the command creates any directories. Codex app keeps its `.agents/skills` default.
+
+| Saved Codex CLI target | Project state at command start | Effective target |
+|---|---|---|
+| Unset or `.codex/skills` | `.agents/` exists as a directory, including an empty one | `.agents/skills` |
+| Unset or `.codex/skills` | `.agents/` is absent or is an ordinary file | `.codex/skills` |
+| `.agents/skills` | Directory exists or needs recreation | `.agents/skills` |
+| Another project-relative path | With or without `.agents/` | Saved path |
+
+The presence of `.codex/` does not override an existing `.agents/` directory. An empty project initialized with both CLI and app retains their separate defaults for that first command, regardless of selection order. A later update sees the app's `.agents/` directory and prepares the CLI migration. Re-init preserves saved shared or custom targets.
+
+### Shared Content and Native Files
+
+CLI and app can use one physical skill directory. AI Factory installs their combined required skill set once, while retaining each runtime's selections and results. Shared content uses `$aif-*`, the effective skill path, `.codex` configuration paths, and a common Codex rendering profile. A singleton keeps its own runtime metadata; sharing does not change either runtime's MCP capabilities.
+
+Custom project paths affect project-local helper references. Home-scope references keep the runtime's normal home skill directory; a project override is not treated as a home override. CLI and app sharing a custom target use the common Codex home profile (`~/.codex/skills`); a singleton app keeps `~/.agents/skills`.
+
+Universal can share a physical skill directory with Codex CLI or Codex app using the common Codex rendering profile and `$aif-*` examples. Universal in its own directory keeps its default profile.
+
+Other incompatible renderers cannot share a physical directory. Nested targets, paths outside the project, unsafe links, and overlaps with native files or migration state are rejected before installed-file changes.
+
+Only skills move. `.codex/agents/`, `.codex/config.toml`, custom native files, and their ownership records stay in place during migration. Later native updates run separately. Removing one runtime preserves skills required by the survivor and preserves `.codex/config.toml` while another runtime still uses it. Moving skills does not guarantee that Codex context-budget warnings disappear.
+
+### Conflicts and Recovery
+
+`init`, `update`, `upgrade`, and mutating extension commands prepare targets before ordinary installation or removal. Preflight compares actual files, including injections, with known bundled or installed extension sources and saved ownership evidence. Compatible copies can be consolidated. A package ships only its own source, so it cannot re-render a copy an older package installed. Such a copy still moves when it matches its saved `installedHash` and its injections match the current composition, but that normalized receipt records observed files and does not prove they are AI Factory's: the new render is written to the target as an ordinary update would write it, the old directory is kept with a warning for you to delete, and files absent from the new source stay in the target. Unknown files, local edits, changed injection content, missing baselines, or unresolved extension sources stop the migration; `--force` does not bypass this check.
+
+If a conflict names two directories, keep both copies and compare the reported skill files with their bundled or installed extension source. Back up local work before resolving it. Restore the proven source revision or reconcile the changes manually, then rerun the command. AI Factory does not merge local edits or invent missing ownership hashes. Unknown entries outside managed skill directories, including empty directories, are retained. Do not delete the whole `.codex` directory.
+
+Migration writes and verifies destination files, atomically saves the new skill target, then removes only proven source files. A project lock prevents concurrent AI Factory mutations. The journal and raw recovery copies live under `.ai-factory/skill-migrations/`; completed operations retain their copies for inspection.
+
+On POSIX systems, migration and rollback preserve file permission bits, including executable scripts and private config files. Conflicting permissions or concurrent permission changes stop migration. Recovery journals and backup files use `0600`; operation directories use `0700`. Ownership, ACLs, and extended attributes are outside this permission guarantee. Legacy journals without permission history cannot recreate prior files safely on POSIX: recovery retains the material and reports the missing metadata instead of guessing permissions.
+
+After an interruption, rerun the command. Recovery rolls back destination writes if the old config is still current, or finishes cleanup if the new config was committed. If files or `.ai-factory.json` changed concurrently, recovery stops and retains its material. Preserve that directory, reconcile the reported file/config revision with the saved copies, and retry. A later extension or native-update error does not roll back an already committed skill migration.
+
+Set `LOG_LEVEL=debug` for target decisions, rendering profiles, and migration diagnostics. Normal output reports conflicts and recovery locations without requiring debug logging. See [Extensions](extensions.md#shared-skill-targets) for replacement and injection behavior.
+
+## Antigravity Directory Layout and Migration
+
+Antigravity 2.0 uses the `.agents/` directory structure for all agent context, skills, autonomous workers, rules, and MCP configurations.
+
+### Directory Structure
+
+```
+your-project/
+└── .agents/
+    ├── skills/           # Modular Agent Skills in standard multi-file format (SKILL.md)
+    │   ├── aif/
+    │   │   └── SKILL.md
+    │   └── aif-plan/
+    │       └── SKILL.md
+    ├── agents/           # Native autonomous workers and quality sidecars (subagent: true)
+    │   ├── implement-coordinator.md
+    │   ├── implement-worker.md
+    │   ├── plan-coordinator.md
+    │   ├── plan-polisher.md
+    │   ├── review-sidecar.md
+    │   ├── security-sidecar.md
+    │   ├── best-practices-sidecar.md
+    │   ├── rules-sidecar.md
+    │   ├── commit-preparer.md
+    │   └── docs-auditor.md
+    ├── rules/            # Project rules with YAML frontmatter triggers
+    │   ├── aif-guardrails.md    (trigger: always_on)
+    │   └── aif-conventions.md   (trigger: model_decision)
+    └── mcp_config.json   # Model Context Protocol configuration
+```
+
+### Migration from Antigravity 1.0 (`.agent/`) and Subagents Layout
+
+When running `ai-factory upgrade`:
+- **Flat Workflow Staging**: Real Antigravity 1.0 installations that have only `.agent/workflows/<name>.md` (no `.agent/skills/` directories) are detected automatically. Unmodified flat workflows are staged into `.agent/skills/<name>/` with managed state before the skill target migration runs, ensuring a smooth upgrade path.
+- **Workflow Cleanup**: AI Factory removes legacy flat workflow files from `.agent/workflows/` only when they match exact historical generator output variants (full package template, simplified frontmatter, or headless). Workflows with user-modified YAML metadata (changed `description:`, added custom fields) or body edits are preserved.
+- **Cross-Agent Skill Protection**: Legacy skill directory removal verifies all files against package templates file-by-file with CRLF normalization. Skill directories belonging to other agents (e.g., `.claude/skills/qa/`) or containing user modifications or untracked files are never deleted.
+- **Rules Cleanup**: Legacy rules in `.agent/rules/` are compared against known rule templates before removal. User-modified rules are preserved with a warning.
+- **Empty Directory Cleanup**: `.agent/workflows/references/`, `.agent/workflows/`, `.agent/rules/`, and `.agent/` are removed bottom-up only when completely empty. If user files exist, the directory structure is preserved.
+- **Subagents Migration**: Any legacy `.agents/subagents/` directory on disk is migrated to `.agents/agents/` file-by-file.
+  - If the destination does not exist, the file is copied and the source is removed.
+  - If the destination exists with identical content, the source copy is removed.
+  - **Collision Safety**: If a file in `.agents/subagents/` collides with a destination file in `.agents/agents/` with differing content, the destination is never overwritten, the source file is preserved in `.agents/subagents/`, and a warning is logged.
+  - `.agents/subagents/` is removed only if all files were cleanly migrated and the directory is empty.
+
+### Native Agent File and Custom Rule Protection
+
+- **Init and Update**: `ai-factory init` and `ai-factory update` detect pre-existing untracked files in `.agents/agents/` and `.agents/rules/`. Untracked user files and locally modified files are preserved with a warning and never overwritten.
+- **Artifact Language Compliance**: Guardrail rules installed in `.agents/rules/aif-guardrails.md` defer generated artifact language to `language.artifacts` in `.ai-factory/config.yaml` (defaulting to English if unspecified), while maintaining code, identifiers, and technical syntax in English, and deferring user communication to `language.ui`.
 
 ## `.ai-factory/config.yaml` — User Preferences
 
@@ -173,8 +732,19 @@ warmup:
 
 # Workflow Settings
 workflow:
+  explore_mode: regular            # regular | ultra; explicit mode wins
+  plan_mode: ask                   # ask | fast | full | ultra; explicit mode wins
+  improve_check: false             # true enables +check; --no-check overrides once
+  fix_mode: ask                    # ask | now | plan; --fix-now / --plan-first wins
+  fix_patch: true                  # learning patch; --patch / --no-patch wins
+  # roadmap_next_mode: full        # optional; otherwise concrete plan_mode or ultra
+  # roadmap_next_capacity:         # optional user-owned positive integer estimates
+  #   fast: 1
+  #   full: 2
+  #   ultra: 3
   auto_create_dirs: true           # Create .ai-factory/ directories when missing
   plan_id_format: slug             # full filename / ultra directory ID: slug | sequential
+  plan_structure: classic          # classic | task-based commit layout
   analyze_updates_architecture: true
   architecture_updates_roadmap: true
   verify_mode: normal              # strict | normal | lenient
@@ -196,9 +766,44 @@ rules:
   # database: .ai-factory/rules/database.md
 ```
 
+For repeated command options, set `workflow.explore_mode: ultra`,
+`workflow.plan_mode: full`, `workflow.improve_check: true`, or
+`workflow.plan_structure: task-based` to put commit tasks inline rather than in
+a classic `## Commit Plan` section. Explicit command arguments override these
+defaults where an explicit override exists; `plan_structure` is config-only.
+Missing settings use their documented defaults.
+See [Command defaults](config-reference.md#command-defaults) for precedence and
+one-invocation overrides.
+
+For bug fixes, `workflow.fix_mode: now` skips the mode question and
+`workflow.fix_mode: plan` creates a fix plan and stops. `workflow.fix_patch: false`
+disables completed-fix learning patches independently of mode. Defaults remain
+`ask` and `true`; `--fix-now` / `--plan-first` and `--patch` / `--no-patch`
+override them once. Existing fix plans still execute before mode selection.
+
+`/aif-plan-overview` is a read-only consumer of plan/archive paths and language.
+`/aif-roadmap-next` also reads roadmap/context paths and optional
+`workflow.roadmap_next_mode` / `workflow.roadmap_next_capacity`. Their commented
+examples are user-owned and preserved on setup reruns; neither advisor writes
+config. See [Roadmap-next defaults](config-reference.md#roadmap-next-defaults).
+
+`/aif-skills-audit` is a read-only config consumer for context paths, scoped rules
+and language. It works without config, introduces no keys, and reports in chat
+unless `--output` names a new report file. See [installed-library auditing](skills.md#aif-skills-audit).
+
 **Current config-aware skills** read `config.yaml` at Step 0. This currently includes:
+- Read-only planning advisors: `/aif-plan-overview`, `/aif-roadmap-next`
 - Core workflow and quality commands: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`, `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-warmup`
-- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
+- Additional utility commands: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-skills-audit`, `/aif-quality-setup`, `/aif-transfer`, `/aif-reference`, `/aif-distillation`, `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
+
+`/aif-quality-setup` reads existing context paths, scoped rules, language and
+`git.enabled`; it adds no config keys and does not write config.yaml. Tool choices
+and context are resolved independently per repository, including custom relative
+paths, skill-context, artifact language and Git preferences; a missing config never
+inherits a sibling's settings. The invocation's UI language remains stable. Choices
+come from the actual repository/component stack and current setup. Its default
+audit is read-only; selected setup writes native tool/manifests/hooks, while CI and
+build-file edits stay with their owner skills. See [quality setup](skills.md#aif-quality-setup-auditsetupenhance-paths).
 
 Other skills are config-agnostic for now and rely on repository context, explicit arguments, or fixed non-configurable paths such as `skill-context`.
 
@@ -209,6 +814,17 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
 - `language.artifacts` controls generated or persisted artifacts, including plans, fix plans, patches, rules, references, security ignore state, documentation, QA outputs, and `/aif-explore` research snapshots in `paths.research`.
 - Explicit `/aif-explore ultra` uses the same language policy and derives named bundles at `<parent(paths.research)>/research/<english-topic-slug>/`; no additional path key is needed.
 - `language.technical_terms` controls whether human-readable terminology is kept, translated, or mixed while commands, paths, identifiers, branch names, config keys, package names, API names, machine-readable metadata keys and enum values, and raw errors stay unchanged where required.
+
+**Optional technical writing:** `/aif-docs` can apply
+`writing.profile: simple-technical` to exact Markdown paths listed in `writing.targets`, including
+runbooks under `paths.docs`. The default is `none` with an empty list. Resolve
+the artifact language first; a Russian conversation does not translate an
+English document or issue. `writing.dictionary` optionally points to a read-only
+project terminology file. Meaning preservation takes priority over style; code,
+commands, identifiers, and quoted errors stay exact. This is an editorial aid,
+not a requirement-correctness gate or a standards certification. `/aif` preserves
+these user-owned settings on reruns. See [Writing settings](config-reference.md#writing)
+for configuration, language precedence, and skip behavior.
 
 **Git workflow semantics:**
 - `git.enabled: false` disables branch/worktree assumptions entirely.
@@ -224,6 +840,14 @@ Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-aut
 - `paths.docs` controls where `/aif-docs` writes the detailed documentation pages. `README.md` remains the landing page in the project root.
 - `warmup.paths` is an ordered list of extra files or directories for `/aif-warmup`. Entries resolve from and must stay inside project root; directories are scanned recursively for readable text files. Missing config is equivalent to an empty list.
 - `paths.qa` controls where `/aif-qa` and `/aif-qa-check` store QA artifacts. A derived branch slug is appended automatically: `<paths.qa>/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`, `qa-check.md`, and browser replay scripts under `browser-replay/`. Agent-mode `/aif-qa-check` also uses root-level `<paths.qa>/agent-context.md` and `<paths.qa>/agent-history.md` to reuse non-sensitive cross-QA setup facts and recurring learnings, including stable browser routes/selectors and safe command/test-filter patterns. Run-specific details such as branch names, QA target paths, summary counts, assertion totals, and one-off command transcripts stay in `<paths.qa>/<branch-slug>/qa-check.md`. The slug is a deterministic, filesystem-safe, stable derived value with mandatory 40-character safe-slug truncation and a short hash suffix for collision resistance — see `skills/aif-qa/SKILL.md` for the full algorithm. `/aif-qa-check` binds results to the tested commit plus working tree digest, or to a manual build identifier when git is unavailable, plus deterministic test-case, target, and proven replay-script digests. Replaced replay files are preserved under `browser-replay/history/`.
+
+`workflow.plan_structure` selects the commit layout for newly generated plans:
+`classic` (default) uses a separate `## Commit Plan` section, while
+`task-based` places explicit, marked commit tasks in the task list and omits
+`## Commit Plan`. The value must be `classic` or `task-based`; a missing value
+defaults to `classic`, and an invalid value/type produces a warning and falls
+back to `classic`. During implementation, a readable saved plan's own layout
+takes precedence over the current setting. See [Plan Files](plan-files.md).
 
 **Current schema limits:** `config.yaml` still leaves `.ai-factory/skill-context/` fixed by command contract. `README.md` and `docs-html/` remain fixed by current documentation workflow.
 
@@ -259,15 +883,15 @@ AI Factory can configure these MCP servers:
 | Chrome Devtools | Browser inspection, debugging, performance | - |
 | Playwright | Browser automation, web testing | - |
 
-Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code and Universal / Other, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.codex/config.toml` for Codex app).
+Configuration saved to agent's settings file (e.g. `.mcp.json` for Claude Code and Universal / Other, `.cursor/mcp.json` for Cursor, `.vscode/mcp.json` for GitHub Copilot, `.roo/mcp.json` for Roo Code, `.kilocode/mcp.json` for Kilo Code, `opencode.json` for OpenCode, `.codex/config.toml` for Codex app, `.agents/mcp_config.json` for Antigravity).
 
 ### Runtime Format Contract
 
 Source of truth for runtime MCP shapes and wrapper examples:
-[`skills/aif/SKILL.md#MCP Configuration`](../skills/aif/SKILL.md#mcp-configuration)
+[`skills/aif/references/SETUP-MCP.md`](../skills/aif/references/SETUP-MCP.md)
 
 Quick key mapping:
-- Standard MCP runtimes use `mcpServers.<server>`
+- Standard MCP runtimes (including Antigravity in `.agents/mcp_config.json`) use `mcpServers.<server>`
 - OpenCode uses `mcp.<server>`
 - GitHub Copilot uses `servers.<server>`
 - Codex app uses TOML tables under `mcp_servers.<server>`
@@ -281,7 +905,7 @@ export GITHUB_TOKEN="ghp_your_token"
 export DATABASE_URL="postgresql://user:pass@localhost:5432/db"
 ```
 
-Runtime-specific wrapper examples are intentionally centralized in the `/aif` skill section above to avoid docs drift.
+Runtime-specific wrapper examples are intentionally centralized in the linked `/aif` MCP reference to avoid docs drift. The setup skill reads it only when configuring selected MCP servers.
 
 ## Project Structure
 
@@ -308,6 +932,7 @@ your-project/
 │   │   ├── plan-coordinator.md
 │   │   ├── plan-polisher.md
 │   │   ├── review-sidecar.md
+│   │   ├── review-validator.md
 │   │   ├── rules-sidecar.md
 │   │   └── security-sidecar.md
 │   ├── skills/
@@ -349,7 +974,7 @@ your-project/
 │   │   └── <ultra-id>/
 │   │       ├── index.md
 │   │       └── phase-01-<slug>.md
-│   ├── skill-context/         # Project-specific rules from /aif-evolve (directly or via /aif-transfer)
+│   ├── skill-context/         # Optional global/build files + individual skill directories; see docs/evolve.md
 │   │   ├── aif-fix/
 │   │   │   └── SKILL.md
 │   │   └── aif-review/

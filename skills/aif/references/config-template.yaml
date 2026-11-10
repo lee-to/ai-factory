@@ -27,6 +27,22 @@ language:
   technical_terms: keep
 
 # =============================================================================
+# Optional Technical Writing Profile (user-owned; /aif preserves on reruns)
+# =============================================================================
+# Used only by /aif-docs, after the artifact language is fixed.
+# Missing section, profile: none, or empty targets means no editorial pass.
+writing:
+  # Options: none, simple-technical (adapted RU/EN SimpleEn-RU rules)
+  profile: none
+  # Exact project-relative Markdown file paths; no globs or directory entries.
+  # Select only README.md or files under paths.docs, including runbooks.
+  # Example: [README.md, docs/runbooks/recovery.md]
+  targets: []
+  # Optional project-relative dictionary file; read-only terminology authority.
+  # Empty means preserve existing terms; the editor never invents a dictionary.
+  dictionary: ""
+
+# =============================================================================
 # Path Configuration
 # =============================================================================
 # Custom paths for AI Factory artifacts.
@@ -155,6 +171,39 @@ warmup:
 # Controls AI Factory workflow behavior.
 
 workflow:
+  # Default /aif-explore mode when no leading mode token is supplied.
+  # Options: regular, ultra. An explicit regular/ultra token overrides this.
+  # ultra opts into persisting a named research bundle without a save prompt.
+  explore_mode: regular
+
+  # Default /aif-plan mode when no leading mode token is supplied.
+  # Options: ask, fast, full, ultra. Explicit fast/full/ultra overrides this.
+  # ask keeps the full/fast question (or fast in non-interactive Handoff mode).
+  plan_mode: ask
+
+  # Run /aif-improve's +check validation by default.
+  # Boolean: true or false. +check enables it; --no-check disables it once.
+  # --list always skips refinement and validation.
+  improve_check: false
+
+  # Default /aif-fix mode when no fix plan exists.
+  # Options: ask, now, plan. --fix-now / --plan-first overrides this.
+  # ask keeps the mode question (or now in non-interactive Handoff mode).
+  fix_mode: ask
+
+  # Create a learning patch after a completed fix (independent of fix_mode).
+  # Boolean: true or false. --patch / --no-patch overrides this once.
+  fix_patch: true
+
+  # Optional user-owned defaults for /aif-roadmap-next (preserved on setup reruns).
+  # If absent: use a concrete plan_mode, otherwise ultra. Explicit mode wins.
+  # roadmap_next_mode: ultra
+  # Positive integer capacity per mode; omitted keys use these built-in values.
+  # roadmap_next_capacity:
+  #   fast: 1
+  #   full: 2
+  #   ultra: 3
+
   # Automatically create .ai-factory/ directories when missing
   # Default: true
   auto_create_dirs: true
@@ -191,6 +240,15 @@ workflow:
   # the branch name. Fast plans (`paths.plan`) and fix plans
   # (`paths.fix_plan`) are single files and ignore this setting.
   plan_id_format: slug
+
+  # Plan structure mode
+  # Options: classic, task-based
+  # Default: classic
+  #
+  # `classic` keeps the separate `## Commit Plan` section.
+  # `task-based` writes explicit commit tasks inside the main task list and
+  # relies on `/aif-implement` to recognize them as commit checkpoints.
+  plan_structure: classic
 
   # Whether the setup/analyze flow updates ARCHITECTURE.md
   # Default: true

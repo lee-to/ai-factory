@@ -27,6 +27,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Core regression tests
+        run: node scripts/test-codex-skill-targets.mjs --group=core
+
       - name: Lint
         run: npm run lint
 
@@ -41,3 +44,9 @@ jobs:
 
       - name: Cleanup helper tests
         run: npm run test:cleanup-helper
+
+      - name: Dispatch tests
+        run: npm run test:dispatch
+
+      - name: Antigravity E2E tests
+        run: npm run test:antigravity

@@ -1,5 +1,5 @@
 import type { AgentTransformer, TransformResult } from '../transformer.js';
-import { rewriteInvocationPrefix } from '../transformer.js';
+import { rewriteInvocationPrefix, rewriteReferenceInvocationPrefix } from '../transformer.js';
 
 function toCodexInvocation(content: string): string {
   return rewriteInvocationPrefix(content, invocation => `$${invocation}`);
@@ -7,6 +7,10 @@ function toCodexInvocation(content: string): string {
 
 export class CodexTransformer implements AgentTransformer {
   constructor(private readonly runtimeName: string = 'Codex CLI') {}
+
+  transformReference(_skillName: string, content: string): string {
+    return rewriteReferenceInvocationPrefix(content, invocation => `$${invocation}`);
+  }
 
   transform(skillName: string, content: string): TransformResult {
     return {

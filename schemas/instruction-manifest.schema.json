@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Factory instruction composition manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "coverage", "recorder", "run", "environment", "policy", "resources", "dependencies", "operations", "observations", "loading", "composition_sha256", "accounting"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["resources", "dependency_discovery", "runtime_loading"],
+      "properties": { "resources": { "const": "declared_only" }, "dependency_discovery": { "const": "unknown" }, "runtime_loading": { "const": "caller_supplied" } }
+    },
+    "recorder": {
+      "type": "object", "additionalProperties": false, "required": ["name", "version"],
+      "properties": { "name": { "const": "ai-factory" }, "version": { "type": "string" } }
+    },
+    "run": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "skill", "task", "stage", "previous_run_id", "status", "initialization", "started_at"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "skill": { "$ref": "#/$defs/id" },
+        "task": { "type": "string" }, "stage": { "type": "string" }, "previous_run_id": { "type": "string" },
+        "status": { "enum": ["open", "complete"] }, "initialization": { "enum": ["capturing", "ready"] },
+        "started_at": { "type": "string" }, "finalized_at": { "type": "string" },
+        "capture_error": {
+          "type": "object", "additionalProperties": false, "required": ["resource_id", "reason"],
+          "properties": { "resource_id": { "$ref": "#/$defs/id" }, "reason": { "type": "string" } }
+        }
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ai_factory_version", "runtime", "settings", "hidden_instructions"],
+      "properties": {
+        "ai_factory_version": { "type": "string" }, "runtime": { "type": "string" }, "hidden_instructions": { "const": "unknown" },
+        "settings": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "model": { "$ref": "#/$defs/setting" }, "reasoning_effort": { "$ref": "#/$defs/setting" },
+            "permission_mode": { "$ref": "#/$defs/setting" }, "sandbox_mode": { "$ref": "#/$defs/setting" }, "runtime_version": { "$ref": "#/$defs/setting" }
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["snapshot_roots", "exclude", "settings_allowlist", "retention", "sensitivity"],
+      "properties": {
+        "snapshot_roots": { "$ref": "#/$defs/paths" }, "exclude": { "$ref": "#/$defs/paths" },
+        "settings_allowlist": { "type": "array", "items": { "enum": ["model", "reasoning_effort", "permission_mode", "sandbox_mode", "runtime_version"] } },
+        "retention": { "const": "manual_no_automatic_deletion" }, "sensitivity": { "const": "local_sensitive" }
+      }
+    },
+    "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
+    "dependencies": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false, "required": ["from", "to", "required", "condition", "declaration", "resolution"],
+        "properties": {
+          "from": { "$ref": "#/$defs/id" }, "to": { "$ref": "#/$defs/id" }, "required": { "type": "boolean" },
+          "condition": { "type": "string" }, "declaration": { "type": "string" },
+          "resolution": { "enum": ["declared", "included", "skipped", "missing", "unknown"] }
+        }
+      }
+    },
+    "operations": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false, "required": ["kind", "inputs", "output", "implementation", "sequence", "provenance"],
+        "properties": {
+          "kind": { "enum": ["replace", "transform", "template", "prepend", "append", "include"] },
+          "inputs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ref" } }, "output": { "$ref": "#/$defs/ref" },
+          "implementation": { "type": "string" }, "sequence": { "type": "integer", "minimum": 1 }, "provenance": { "const": "declared" }
+        }
+      }
+    },
+    "observations": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["sequence", "resource", "kind", "source", "reported_at", "recorded_at", "reported_status", "truncated", "provenance"],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 1 }, "resource": { "$ref": "#/$defs/ref" },
+          "kind": { "enum": ["agent_report", "tool_event", "runtime_event"] }, "source": { "type": "string" },
+          "reported_at": { "type": "string" }, "recorded_at": { "type": "string" }, "reported_status": { "enum": ["complete", "partial", "unknown"] },
+          "truncated": { "oneOf": [{ "type": "boolean" }, { "const": "unknown" }] },
+          "evidence": { "$ref": "#/$defs/ref" }, "delivered": { "$ref": "#/$defs/ref" }, "provenance": { "const": "caller_supplied" },
+          "range": {
+            "type": "object", "additionalProperties": false, "required": ["unit", "start", "end"],
+            "properties": { "unit": { "enum": ["bytes", "lines"] }, "start": { "type": "integer", "minimum": 0 }, "end": { "type": "integer", "minimum": 0 } }
+          }
+        }
+      }
+    },
+    "loading": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false, "required": ["resource", "status", "agent_reports", "authenticated_runtime_load"],
+        "properties": {
+          "resource": { "$ref": "#/$defs/ref" }, "status": { "enum": ["unknown", "evidence_provided"] },
+          "agent_reports": { "type": "integer", "minimum": 0 }, "authenticated_runtime_load": { "const": "unknown" }
+        }
+      }
+    },
+    "composition_sha256": { "$ref": "#/$defs/hash" },
+    "budget": {
+      "type": "object", "additionalProperties": false, "required": ["source", "unit", "scope", "value"],
+      "properties": {
+        "source": { "type": "string" }, "unit": { "enum": ["bytes", "estimated_tokens"] },
+        "scope": { "enum": ["composition", "additions", "observed_load"] }, "value": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "accounting": {
+      "type": "object", "additionalProperties": false,
+      "required": ["bytes", "estimated_tokens", "token_method", "known_unique_resource_bytes", "model_context_bytes", "budget_result"],
+      "properties": {
+        "bytes": { "$ref": "#/$defs/sizes" }, "estimated_tokens": { "$ref": "#/$defs/sizes" }, "token_method": { "type": "string" },
+        "known_unique_resource_bytes": { "type": "integer", "minimum": 0 }, "model_context_bytes": { "const": "unknown" },
+        "budget_result": { "enum": ["not_applicable", "unknown", "overrun", "within"] }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$" },
+    "ref": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}@[1-9][0-9]*$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "setting": { "oneOf": [{ "type": "string" }, { "type": "number" }, { "type": "boolean" }] },
+    "paths": { "type": "array", "items": { "type": "string" } },
+    "size": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "const": "unknown" }] },
+    "sizes": {
+      "type": "object", "additionalProperties": false, "required": ["composition", "additions", "observed_load"],
+      "properties": { "composition": { "$ref": "#/$defs/size" }, "additions": { "$ref": "#/$defs/size" }, "observed_load": { "$ref": "#/$defs/size" } }
+    },
+    "resource": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ref", "id", "revision", "role", "locator", "required", "in_composition", "addition", "captured_at", "status", "preservation"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/ref" }, "id": { "$ref": "#/$defs/id" }, "revision": { "type": "integer", "minimum": 1 },
+        "role": { "enum": ["base", "replacement", "injection", "installed", "project-context", "rules", "reference", "settings", "evidence"] },
+        "locator": { "type": "string" }, "required": { "type": "boolean" }, "in_composition": { "type": "boolean" }, "addition": { "type": "boolean" },
+        "output_path": { "type": "string" }, "captured_at": { "type": "string" }, "status": { "enum": ["captured", "missing", "excluded", "unavailable"] },
+        "sha256": { "$ref": "#/$defs/hash" }, "bytes": { "type": "integer", "minimum": 0 }, "snapshot": { "type": "string", "pattern": "^snapshots/[a-f0-9]{64}$" },
+        "preservation": { "enum": ["snapshot", "not_preserved", "excluded", "unavailable"] }
+      },
+      "oneOf": [
+        {
+          "properties": { "status": { "const": "captured" }, "preservation": { "const": "snapshot" }, "sha256": true, "bytes": true, "snapshot": true },
+          "required": ["sha256", "bytes", "snapshot"]
+        },
+        {
+          "properties": { "status": { "const": "captured" }, "preservation": { "const": "not_preserved" }, "sha256": true, "bytes": true, "snapshot": false },
+          "required": ["sha256", "bytes"]
+        },
+        {
+          "properties": { "status": { "const": "excluded" }, "preservation": { "const": "excluded" }, "sha256": false, "bytes": false, "snapshot": false }
+        },
+        {
+          "properties": { "status": { "enum": ["missing", "unavailable"] }, "preservation": { "const": "unavailable" }, "sha256": false, "bytes": false, "snapshot": false }
+        }
+      ]
+    }
+  }
+}

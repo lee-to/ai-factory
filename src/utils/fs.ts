@@ -162,3 +162,30 @@ export async function removeDirectory(dirPath: string): Promise<void> {
 export async function removeFile(filePath: string): Promise<void> {
   await fs.remove(filePath);
 }
+
+export async function removeEmptyDirBottomUp(dirPath: string): Promise<boolean> {
+  if (!await fileExists(dirPath)) {
+    return true;
+  }
+  let entries: fs.Dirent[];
+  try {
+    entries = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      await removeEmptyDirBottomUp(path.join(dirPath, entry.name));
+    }
+  }
+  try {
+    const remaining = await fs.readdir(dirPath);
+    if (remaining.length === 0) {
+      await removeDirectory(dirPath);
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}

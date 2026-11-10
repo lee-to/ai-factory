@@ -33,7 +33,7 @@ ai-factory init
 - **Spec-driven development** — AI follows plans, not random exploration. Predictable, resumable, reviewable
 - **Community skills** — leverage [skills.sh](https://skills.sh) ecosystem or generate custom skills
 - **Stack-agnostic** — works with any language, framework, or platform
-- **Multi-agent support** — Claude Code, Cursor, Windsurf, Roo Code, Kilo Code, Antigravity, OpenCode, Warp, Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
+- **Multi-agent support** — Claude Code, Cursor, Devin CLI, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity 2.0, ChatGPT CLI, OpenRouter CLI, OpenCode, Warp, Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, or [any agent](docs/getting-started.md#supported-agents)
 
 ---
 
@@ -123,6 +123,14 @@ If you only need the `aif-*` skills without full AI-Factory setup, use:
 npx skills add lee-to/ai-factory --skill '*'
 ```
 
+For global skills available across projects, add `--global`:
+
+```bash
+npx skills add lee-to/ai-factory --skill '*' --global
+```
+
+See [global skills and project symlinks](docs/getting-started.md#global-skills-and-project-symlinks).
+
 > **Disclaimer:** This installs only the skill files. CLI commands (`ai-factory init/update/upgrade`), MCP auto-configuration, agent transformers, and the interactive wizard are **not** available. For the full experience, use the [npm installation](#installation) above.
 
 ---
@@ -135,8 +143,8 @@ npx skills add lee-to/ai-factory --skill '*'
 | [Development Workflow](docs/workflow.md) | Workflow diagram, when to use `explore` vs `grounded`, spec-driven approach |
 | [Research and System Analysis](docs/research.md) | Adaptive ultra research bundles with C4, ADR, dependency, and traceability views |
 | [Reflex Loop](docs/loop.md) | Iterative generate → evaluate → critique → refine workflow |
-| [Subagents](docs/subagents.md) | Bundled Claude subagents and the baseline Codex native agent-file bundle, including managed Codex config |
-| [Core Skills](docs/skills.md) | All slash commands — explore, grounded, plan, fix, implement, evolve, docs, and more |
+| [Subagents](docs/subagents.md) | Bundled Claude, Codex, and Google Antigravity 2.0 native subagent bundles |
+| [Core Skills](docs/skills.md) | All slash commands — explore, grounded, plan, fix, implement, evolve, skills-audit, docs, and more |
 | [Quality Gates](docs/quality-gates.md) | Machine-readable `aif-gate-result` summaries for verify, review, security, and rules gates |
 | [Skill Evolution](docs/evolve.md) | How /aif-fix patches feed into /aif-evolve to generate smarter skill rules |
 | [Plan Files](docs/plan-files.md) | Plan files, self-improvement patches, skill acquisition |
@@ -144,6 +152,7 @@ npx skills add lee-to/ai-factory --skill '*'
 | [Extensions](docs/extensions.md) | Writing and installing extensions — commands, injections, MCP, agents |
 | [Configuration](docs/configuration.md) | `.ai-factory.json`, MCP servers, project structure, best practices |
 | [Config Reference](docs/config-reference.md) | Full `config.yaml` key reference and skill read/write matrix |
+| [Instruction Manifests](docs/instruction-manifests.md) | Explicit invocation records, exact instruction bytes, load evidence, and local restoration |
 
 ## Links
 - [Official Website](https://aif.cutcode.dev) - AI Factory website
@@ -156,7 +165,7 @@ npx skills add lee-to/ai-factory --skill '*'
 - [OpenCode](https://opencode.ai) - Open-source AI coding agent
 - [Roo Code](https://roocode.com) - AI coding agent for VS Code
 - [Kilo Code](https://kilo.ai) - Open-source agentic coding platform
-- [Windsurf](https://windsurf.com) - AI-powered code editor by Codeium
+- [Devin Desktop](https://devin.ai/desktop) - AI-powered code editor by Cognition (formerly Windsurf)
 - [Warp](https://www.warp.dev) - Intelligent terminal with AI agent
 - [Zencoder](https://zencoder.ai) - AI coding agent for VS Code and JetBrains
 - [Codex CLI](https://github.com/openai/codex) - OpenAI's coding agent

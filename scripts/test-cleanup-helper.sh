@@ -30,7 +30,13 @@ fail() { FAILED=$((FAILED + 1)); echo -e "  ${RED}✗${NC} $1"; if [[ -n "${2:-}
 # ─────────────────────────────────────────────
 PYTHON="${PYTHON:-}"
 if [[ -z "$PYTHON" ]]; then
-    PYTHON=$(command -v python3 || command -v python || true)
+    for candidate in python3 python py; do
+        cmd=$(command -v "$candidate" 2>/dev/null || true)
+        if [[ -n "$cmd" ]] && "$cmd" -c "import sys" >/dev/null 2>&1; then
+            PYTHON="$cmd"
+            break
+        fi
+    done
 fi
 if [[ -z "$PYTHON" ]]; then
     echo -e "${RED}ERROR:${NC} python interpreter not found on PATH" >&2
@@ -315,17 +321,18 @@ rm -rf "$TEST_TMPDIR"
 # report it. Fixture is placed at the canonical install location
 # (.claude/skills/<name>/SKILL.md) so all safety checks pass and
 # safe_remove_installed proceeds.
+for skills_root in .claude/skills .devin/skills .windsurf/skills; do
 fresh_tmp
 write_lock "$TEST_TMPDIR" '{
   "version": 1,
   "skills": {"foo": {"source": "x/y"}}
 }'
-mkdir -p "$TEST_TMPDIR/.claude/skills/foo"
-echo "# leftover" > "$TEST_TMPDIR/.claude/skills/foo/SKILL.md"
+mkdir -p "$TEST_TMPDIR/$skills_root/foo"
+printf '%s\n' '---' 'name: foo' '---' '# leftover' > "$TEST_TMPDIR/$skills_root/foo/SKILL.md"
 if "$PYTHON" "$HELPER" --skill foo --root "$TEST_TMPDIR" \
-   --installed-path .claude/skills/foo > "$TEST_TMPDIR/out" 2>&1; then
-    if [[ ! -e "$TEST_TMPDIR/.claude/skills/foo" ]]; then
-        pass "--installed-path leftover under skills/ → exit 0 + dir gone"
+   --installed-path "$skills_root/foo" > "$TEST_TMPDIR/out" 2>&1; then
+    if [[ ! -e "$TEST_TMPDIR/$skills_root/foo" ]]; then
+        pass "--installed-path leftover under $skills_root → exit 0 + dir gone"
     else
         fail "--installed-path leftover under skills/" \
              "helper exited 0 but directory remains: $(cat "$TEST_TMPDIR/out")"
@@ -335,6 +342,7 @@ else
          "helper exited non-zero: $(cat "$TEST_TMPDIR/out")"
 fi
 rm -rf "$TEST_TMPDIR"
+done
 
 # ─────────────────────────────────────────────
 # Test 10: cli_failed downgraded when --installed-path confirms removal
@@ -378,7 +386,7 @@ write_lock "$TEST_TMPDIR" '{
 }'
 # Real leftover at the SANITIZED upstream path:
 mkdir -p "$TEST_TMPDIR/.claude/skills/convex-best-practices"
-echo "# blocked skill" > "$TEST_TMPDIR/.claude/skills/convex-best-practices/SKILL.md"
+printf '%s\n' '---' 'name: Convex Best Practices' '---' '# blocked skill' > "$TEST_TMPDIR/.claude/skills/convex-best-practices/SKILL.md"
 
 # (a) Synthesized path from logical name. Helper must reject this
 #     absent wrong path by identity rather than silently claim cleanup
@@ -689,7 +697,7 @@ write_lock "$TEST_TMPDIR" '{
 }'
 mkdir -p "$TEST_TMPDIR/.claude/skills/blocked"
 mkdir -p "$TEST_TMPDIR/.claude/skills/neighbor"
-echo "# blocked" > "$TEST_TMPDIR/.claude/skills/blocked/SKILL.md"
+printf '%s\n' '---' 'name: blocked' '---' '# blocked' > "$TEST_TMPDIR/.claude/skills/blocked/SKILL.md"
 echo "# neighbor" > "$TEST_TMPDIR/.claude/skills/neighbor/SKILL.md"
 if "$PYTHON" "$HELPER" --skill blocked --root "$TEST_TMPDIR" \
    --installed-path .claude/skills/blocked > "$TEST_TMPDIR/out" 2>&1; then
@@ -715,7 +723,7 @@ if [[ $IS_WINDOWS -eq 0 ]]; then
   "skills": {"foo": {"source": "x/y"}}
 }'
     mkdir -p "$TEST_TMPDIR/.claude/skills/foo/locked"
-    echo "# blocked" > "$TEST_TMPDIR/.claude/skills/foo/SKILL.md"
+    printf '%s\n' '---' 'name: foo' '---' '# blocked' > "$TEST_TMPDIR/.claude/skills/foo/SKILL.md"
     echo "stay" > "$TEST_TMPDIR/.claude/skills/foo/locked/child"
     # Drop write perms on the parent so children cannot be unlinked.
     chmod 555 "$TEST_TMPDIR/.claude/skills/foo/locked"
@@ -947,6 +955,7 @@ if helper_dirs is None:
     sys.exit(1)
 
 agent_dirs = set(re.findall(r"skillsDir:\s*'([^']+)'", agents_path.read_text(encoding='utf-8')))
+agent_dirs.add('.windsurf/skills')  # Supported pre-rebrand installations.
 if helper_dirs != agent_dirs:
     print(f'missing in helper: {sorted(agent_dirs - helper_dirs)}')
     print(f'extra in helper: {sorted(helper_dirs - agent_dirs)}')
@@ -986,6 +995,129 @@ if [[ ${#BAD_LINES[@]} -eq 0 ]]; then
     pass "prompt-contract: no skill doc synthesizes --installed-path from {{skills_dir}}/<name>"
 else
     fail "prompt-contract violation" "$(printf '%s\n' "${BAD_LINES[@]}")"
+fi
+
+# Lock aliases must be captured before npx or physical cleanup removes SKILL.md.
+if "$PYTHON" - "$HELPER" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+from itertools import product
+
+helper = sys.argv[1]
+for (requested, directory, canonical, removed), name_key, prefix in product([
+    ('Convex Best Practices', 'convex-best-practices', 'Convex Best Practices',
+     {'Convex Best Practices', 'convex-best-practices'}),
+    ('convex-best-practices', 'convex-best-practices', 'Convex Best Practices',
+     {'Convex Best Practices', 'convex-best-practices'}),
+    ('convex-best-practices', 'convex-best-practices', 'Convex Best Practices # skill description',
+     {'Convex Best Practices', 'convex-best-practices'}),
+    ('convex-best-practices', 'convex-best-practices', '"Convex Best Practices" # description',
+     {'Convex Best Practices', 'convex-best-practices'}),
+    ('Convex Best Practices', 'installed-alias', "'Convex Best Practices' # description",
+     {'Convex Best Practices', 'convex-best-practices', 'installed-alias'}),
+    ('Convex Best Practices', 'installed-alias', 'Convex Best Practices',
+     {'Convex Best Practices', 'convex-best-practices', 'installed-alias'}),
+    ('convex-best-practices', 'convex-best-practices', 'safe-one',
+     {'convex-best-practices'}),
+], ['name', '"name"', "'name'", r'"na\u006de"'], [
+    '', 'metadata:\n  name: convex-best-practices\n',
+    'description: |\n  name: convex-best-practices\n',
+]):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        installed = root / '.claude/skills' / directory
+        installed.mkdir(parents=True)
+        (installed / 'SKILL.md').write_text(f'---\n{prefix}{name_key}: {canonical}\n---\n')
+        sibling = installed.parent / 'safe-one'
+        sibling.mkdir()
+        (sibling / 'SKILL.md').write_text('---\nname: safe-one\n---\n')
+        lock = root / 'skills-lock.json'
+        original = json.dumps({'version': 1, 'skills': {
+            key: {'source': 'fixture/repo'} for key in removed | {'safe-one'}
+        }})
+        lock.write_text(original)
+        command = [sys.executable, helper, '--root', tmp, '--skill', requested,
+                   '--installed-path', str(installed)]
+        dry = subprocess.run(command + ['--dry-run'], capture_output=True, text=True)
+        assert dry.returncode == 0, dry.stderr
+        assert lock.read_text() == original and installed.exists(), 'dry-run mutated state'
+        result = subprocess.run(command, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert not installed.exists(), 'blocked files remain'
+        assert set(json.loads(lock.read_text())['skills']) == {'safe-one'}, result.stdout
+        assert (sibling / 'SKILL.md').exists(), 'sibling files were removed'
+        # Canonical metadata is unavailable on retries; ordinary sanitized paths stay idempotent.
+        if directory == 'convex-best-practices':
+            retry = subprocess.run(command, capture_output=True, text=True)
+            assert retry.returncode == 0, retry.stderr
+# A retry after files were removed but lock patching failed has no frontmatter.
+# Canonical lock keys that map to the same upstream directory must still be cleared.
+for requested in ['convex-best-practices', 'Convex Best Practices']:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        installed = root / '.claude/skills/convex-best-practices'
+        lock = root / 'skills-lock.json'
+        aliases = {'Convex Best Practices', 'convex-best-practices', 'CONVEX BEST PRACTICES'}
+        siblings = {'Convex Best Practices Plus', 'safe-one'}
+        original = json.dumps({'skills': {key: {} for key in aliases | siblings}})
+        lock.write_text(original)
+        command = [sys.executable, helper, '--root', tmp, '--skill', requested,
+                   '--installed-path', str(installed)]
+        dry = subprocess.run(command + ['--dry-run'], capture_output=True, text=True)
+        assert dry.returncode == 0 and lock.read_text() == original, dry.stderr
+        result = subprocess.run(command, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert set(json.loads(lock.read_text())['skills']) == siblings, result.stdout
+# Unsupported names must stop before files or lock identities are lost.
+for name in ['> # folded name', '"unterminated', '&alias Convex Best Practices']:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        installed = root / '.claude/skills/convex-best-practices'
+        installed.mkdir(parents=True)
+        (installed / 'SKILL.md').write_text(f'---\nname: {name}\n---\n')
+        lock = root / 'skills-lock.json'
+        original = json.dumps({'skills': {'Convex Best Practices': {}}})
+        lock.write_text(original)
+        result = subprocess.run([sys.executable, helper, '--root', tmp,
+                                 '--skill', 'convex-best-practices',
+                                 '--installed-path', str(installed)], capture_output=True, text=True)
+        assert result.returncode == 1, result.stdout
+        assert 'cannot establish canonical skill name' in result.stderr, result.stderr
+        assert installed.exists() and lock.read_text() == original, 'ambiguous cleanup mutated state'
+# Missing, duplicate, or incomplete top-level identities must also fail closed.
+for frontmatter in [
+    '# no frontmatter\n',
+    '---\nmetadata:\n  name: convex-best-practices\n---\n',
+    '---\nname: Convex Best Practices\nname: Other Skill\n---\n',
+    '---\nname: Convex Best Practices\n"name": Convex Best Practices\n---\n',
+    '---\nname: Convex Best Practices\n# no closing delimiter\n',
+    '---\nname: Convex\n  Best Practices\n---\n',
+    '---\n? name\n: Convex Best Practices\n---\n',
+]:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        installed = root / '.claude/skills/convex-best-practices'
+        installed.mkdir(parents=True)
+        (installed / 'SKILL.md').write_text(frontmatter)
+        lock = root / 'skills-lock.json'
+        original = json.dumps({'skills': {'Convex Best Practices': {}, 'safe-one': {}}})
+        lock.write_text(original)
+        result = subprocess.run([sys.executable, helper, '--root', tmp,
+                                 '--skill', 'convex-best-practices',
+                                 '--installed-path', str(installed)], capture_output=True, text=True)
+        assert result.returncode == 1, result.stdout
+        assert 'cannot establish canonical skill name' in result.stderr, result.stderr
+        assert (installed / 'SKILL.md').read_text() == frontmatter
+        assert lock.read_text() == original, 'unresolved identity mutated lock state'
+PY
+then
+    pass "lock aliases: display/canonical/directory names cleaned; siblings and dry-run preserved"
+else
+    fail "lock aliases cleanup regression"
 fi
 
 # Restore PATH for any post-suite work

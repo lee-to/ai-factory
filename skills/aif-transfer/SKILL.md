@@ -16,6 +16,30 @@ metadata:
 
 # Transfer — Reuse Anonymized Project Experience
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/aif-transfer/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 Read fix patches from another AI Factory project, keep only lessons that fit the
 current project, anonymize them, and run the current `/aif-evolve` workflow against
 that sanitized evidence.
@@ -76,10 +100,13 @@ Usage:
 
 1. Parse the first argument as `source_project_path`. Respect quoted paths.
 2. Parse the optional second argument as the evolve target; default to `all`.
+   Reject flags (including `--global`) and extra arguments; do not forward them to evolve.
 3. Resolve and validate that target with `/aif-evolve` Step 0.1, using
    `{{skills_dir}}/aif-evolve/SKILL.md` or the development fallback
    `skills/aif-evolve/SKILL.md`. Stop before source analysis if evolve is unavailable or
-   the target skill does not exist.
+   the target skill does not exist. Keep project scope: reject `--global` and
+   restrict eligible targets to verified AI Factory built-ins with current-project
+   skill-context destinations. Do not delegate direct custom/extension/global edits.
 4. Resolve the current project root and the source root to normalized canonical paths.
    After parsing, refer to the source only as "reference project" in user-visible output;
    never echo the supplied path.
@@ -112,7 +139,7 @@ If `technical_terms_policy` is not one of `keep`, `translate`, or `mixed`, treat
 
 Require the current description artifact. If missing, stop and tell the user to run
 `/aif` first. Read the current description, architecture, resolved rules hierarchy, and
-existing `.ai-factory/skill-context/*/SKILL.md` files needed for the selected target.
+all applicable global, build, and individual skill-context layers for the selected target.
 
 ### Project Context
 
@@ -242,8 +269,9 @@ Use the current evolve workflow loaded in Step 0 from `{{skills_dir}}/aif-evolve
 or the AI Factory development fallback `skills/aif-evolve/SKILL.md`.
 
 Run its current workflow in this invocation so the user does not need to invoke a second
-command. Reuse its stale-rule checks, gap analysis, proposal format, explicit approval,
-skill-context updates, and evolution logging. Apply these narrow overrides:
+command. Reuse its stale-rule checks, gap analysis, rule-candidate comparison, proposal
+format, explicit approval, skill-context updates, and evolution logging. Apply these
+narrow overrides:
 
 1. The sanitized in-memory registry replaces `/aif-evolve` Step 1 patch collection.
 2. Do not read or write the current `paths.patches` for transferred evidence.
@@ -251,13 +279,19 @@ skill-context updates, and evolution logging. Apply these narrow overrides:
 4. Use only `experience-NNN` source labels in proposals and persisted artifacts.
 5. In skill-context metadata, use `Based on: N analyzed prevention candidates` rather
    than claiming the candidates are current-project patches.
-6. Preserve `/aif-evolve` user approval: no skill-context or evolution-log write occurs
-   before the user approves at least one improvement.
+6. Preserve `/aif-evolve` user approval: skill-context writes require approval of an
+   exact validated `accept` revision. An evolution log containing only negative or
+   postponed outcomes requires explicit report-save approval; it applies no rules.
 7. Write only to current-project paths owned by `/aif-evolve`.
+8. Named transfers cannot edit shared layers. For `all`, follow evolve's complete
+   consumer resolution and per-consumer validation before proposing a shared write;
+   apply privacy preflight to the entire shared change and every duplicate removal.
+9. Apply the privacy preflight to all candidate cards and comparison evidence, including
+   rejected revisions and report-only logs. Use current-project or neutral cases only.
 
 ### Step 7: Post-Write Privacy Verification
 
-After `/aif-evolve` applies approved changes:
+After `/aif-evolve` applies approved changes or saves an approved report-only log:
 
 1. Re-read every changed skill-context and evolution-log file.
 2. Run the Step 5 denylist scan again on their complete contents.
@@ -271,8 +305,8 @@ Never print the source identity in the completion summary.
 
 - Direct source ownership: none; the source project is always read-only.
 - Direct current-project ownership: none beyond transient in-memory analysis.
-- Delegated writer: `/aif-evolve` may update `.ai-factory/skill-context/*` and write one
-  log under resolved `paths.evolutions` after user approval.
+- Delegated writer: `/aif-evolve` may update `.ai-factory/skill-context/*` with approved,
+  validated rules and save outcomes under resolved `paths.evolutions` after user approval.
 - `paths.patches`, the evolve patch cursor, description, architecture, rules, roadmap,
   research, plans, source code, and documentation remain read-only.
 

@@ -14,6 +14,10 @@ Create a source inventory:
 | Signal | why it matters for the target skill |
 | Gaps | missing context that may require another source |
 
+Extend this same inventory with the per-source fields and explicit metadata
+states from [Source Use](SOURCE-USE.md). Use only supplied or encountered terms;
+do not invent a license or resolve conflicting terms as permission.
+
 For folders, group files by topic before reading deeply. For books, read the table of contents first, then sample each major part before deep extraction.
 
 When the user passes `--redact-source-map`, keep any exact URLs, local paths,
@@ -76,6 +80,8 @@ integration when the source covers them. A topic can be skipped only with a
 specific reason, such as "covered by checklist only; no reusable code pattern."
 
 When source material conflicts, keep both positions only if the context differs. Otherwise choose the stronger rule and note the reason in a reference.
+This synthesis rule applies to practice advice, never to license/terms conflicts;
+retain those conflicts for the source/package owner under [Source Use](SOURCE-USE.md).
 
 ## 4. Skill Design
 
@@ -204,6 +210,11 @@ unchanged unless the user explicitly asks to remove or rewrite it.
 
 For non-redacted source maps, do not imply that every rule is a direct quote.
 Distillation is synthesis; source maps explain provenance.
+Include current per-source reuse metadata in this existing source map. In
+redaction mode, put only a neutral `Source use` section in `SKILL.md`, following
+[Source Use](SOURCE-USE.md); it must not recreate a source map or reveal hidden
+identifiers. Preserve notices and export restrictions in every affected child
+and downstream handoff, with explicit reduced public traceability when redacted.
 
 ## 8. Quality Gate
 
@@ -223,3 +234,7 @@ Before finishing, check:
 - Split mode only: no generated child is a near-duplicate of another generated or existing sibling skill.
 - Temporary extraction files were removed.
 - No long copyrighted passages were copied.
+- Source-use states, exact known terms references, output relationships, notices,
+  and export restrictions are preserved without fabricated permission.
+- A changed source or recorded terms supersedes the previous metadata revision;
+  redaction checks cover all generated files and downstream handoffs.

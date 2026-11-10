@@ -1,0 +1,164 @@
+# Behavioral fixture; npm test checks assertion sensitivity without running a model.
+scenario: source-use-handoff
+description: Persist current terms and revisions for known and redacted distilled practices without restoring private identifiers.
+skill: aif-explore
+argument: >-
+  regular Read output/incident-triage/SKILL.md and output/incident-retrospective/SKILL.md.
+  Formulate HYP-001 from triage and HYP-002 from retrospective for this project's incident runbooks,
+  then save both now to the configured research file. Keep their source-use records with each card.
+  Use only these packages; do not look up sources, run experiments, or edit project code.
+max_turns: 35
+fixtures:
+  git_init: false
+  files_unstaged:
+    - path: .ai-factory/config.yaml
+      content: |
+        paths:
+          research: .ai-factory/RESEARCH.md
+        language:
+          ui: en
+          artifacts: en
+        git:
+          enabled: false
+    - path: .ai-factory/DESCRIPTION.md
+      content: |
+        # Incident runbooks
+        This project maintains operator runbooks for triage and retrospectives.
+        Investigate whether impact checks and owned corrective actions improve recovery.
+        No observations or baseline measurements have been supplied. Do not invent them.
+    - path: output/incident-triage/SKILL.md
+      content: |
+        ---
+        name: incident-triage
+        description: Capture impact, mitigate reversibly, and verify recovery.
+        ---
+        # Incident triage
+        Independently authored guidance: verify recovery against the original impact signal.
+        Read references/SOURCE-MAP.md for current source-use metadata revision 2.
+    - path: output/incident-triage/references/SOURCE-MAP.md
+      content: |
+        # Source Map
+        Source A: docs at https://example.test/triage, unchanged source revision v1.
+        Metadata revision: 2 (current; supersedes 1).
+        Terms: known — https://example.test/triage/TERMS.
+        Restrictions: local use only; no public export.
+        Notice: known — Credit Example Author.
+        Owner decisions: unresolved — permission for redistribution is not established.
+        Metadata revision: 1 (superseded — terms changed).
+        Historical terms: CC-BY-4.0 at https://example.test/triage/LICENSE.
+    - path: output/incident-retrospective/SKILL.md
+      content: |
+        ---
+        name: incident-retrospective
+        description: Build incident timelines and assign owned corrective actions.
+        ---
+        # Incident retrospective
+        Independently authored guidance: assign an owner and verification date to each corrective action.
+        ## Source use
+        Source B. Metadata revision: 3 (current; supersedes 2).
+        Locator, edition, terms reference and exact notice: redacted.
+        Restrictions: local use only. Preserve the attribution condition; the identifying notice is redacted.
+        Reduced public traceability: source identifiers withheld.
+        Owner decisions: unresolved — public export cannot include the identifying notice under the current disclosure policy.
+        The pre-existing references/SOURCE-MAP.md is a legacy private file excluded from current handoffs.
+    - path: output/incident-retrospective/references/SOURCE-MAP.md
+      content: |
+        # Legacy private source map — superseded, excluded from public handoff
+        Metadata revision: 2 (superseded).
+        Source: Hidden Atlas by Secret Author, hidden-atlas.md.
+        Terms reference: https://hidden.example.test/terms.
+assertions:
+  - id: known-current-revision
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-001(?:(?!HYP-002)[\s\S])*metadata revision[^\n]*\b2\b[^\n]*current'
+  - id: known-current-terms
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: 'HYP-001(?:(?!HYP-002)[\s\S])*https://example\.test/triage/TERMS'
+  - id: known-local-use-only
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-001(?:(?!HYP-002)[\s\S])*local (use )?only'
+  - id: known-no-public-export
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-001(?:(?!HYP-002)[\s\S])*no public export'
+  - id: known-notice
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: 'HYP-001(?:(?!HYP-002)[\s\S])*Credit Example Author'
+  - id: known-owner-decision
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-001(?:(?!HYP-002)[\s\S])*owner decisions?[^\n]*unresolved'
+  - id: redacted-current-revision
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-002(?:(?!HYP-001)[\s\S])*metadata revision[^\n]*\b3\b[^\n]*current'
+  - id: redacted-terms-reference
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-002(?:(?!HYP-001)[\s\S])*terms[^\n]*redacted'
+  - id: redacted-local-use-only
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-002(?:(?!HYP-001)[\s\S])*local (use )?only'
+  - id: redacted-notice
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-002(?:(?!HYP-001)[\s\S])*notice[^\n]*redacted'
+  - id: redacted-reduced-traceability
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-002(?:(?!HYP-001)[\s\S])*reduced public traceability'
+  - id: redacted-owner-decision
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: '\.ai-factory/RESEARCH\.md$'
+      content: '(?i)HYP-002(?:(?!HYP-001)[\s\S])*owner decisions?[^\n]*unresolved'
+  - id: no-hidden-identifiers-written
+    type: no_tool_called
+    tool: Write
+    args_match:
+      content: '(?i)(Hidden Atlas|hidden-atlas|hidden\.example\.test|Secret Author)'
+  - id: no-hidden-identifiers-edited
+    type: no_tool_called
+    tool: Edit
+    args_match:
+      new_string: '(?i)(Hidden Atlas|hidden-atlas|hidden\.example\.test|Secret Author)'
+  - id: writes-only-research
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: '^(?!.*(?:^|/)\.ai-factory/RESEARCH\.md$).+'
+  - id: edits-only-research
+    type: no_tool_called
+    tool: Edit
+    args_match:
+      file_path: '^(?!.*(?:^|/)\.ai-factory/RESEARCH\.md$).+'
+  - id: stay-in-sandbox
+    type: no_path_escape

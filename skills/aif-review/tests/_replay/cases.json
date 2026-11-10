@@ -1,0 +1,4305 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "provenance": "scripted deterministic tool responses; no model calls",
+  "cases": [
+    {
+      "id": "happy-path",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "539adac5252a7952528fb5626f5f5edd39b7a011c3491a9adff842b75bd6cacd",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: modify\nReason: Verified against the recorded diff.\nModified-text: Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 1,
+          "reclassified": 0
+        },
+        "contains": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ]
+      }
+    },
+    {
+      "id": "validator-refusal",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "refusal"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "validator-timeout",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "timeout"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "validator-exception",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "exception"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "validator-empty",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": ""
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "validator-nontext-response",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": {
+              "items": []
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "contains": [
+          "malformed response"
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "partial-missing-verdict",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nReason: Truncated.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-missing-heading",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-missing-reason",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-empty-reason",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason:   \t\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-duplicate-reason",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\nReason: Contradictory reason.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-unknown-verdict",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: maybe\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-unknown-severity",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\nSeverity: urgent\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-missing-modified-text",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: modify\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "partial-duplicate-heading",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": true,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+          "Filtered:",
+          "validator failed"
+        ],
+        "contains": [
+          "item 1 was malformed"
+        ]
+      }
+    },
+    {
+      "id": "pending-then-done",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "539adac5252a7952528fb5626f5f5edd39b7a011c3491a9adff842b75bd6cacd",
+          "response": {
+            "outcome": "pending",
+            "task_id": "validator-1"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "TaskStatus",
+          "args_sha256": "ccf48a5535e2fe89efac1ab8ddc687f7aefa340ffe26d277b8d06693a6dec872",
+          "response": {
+            "outcome": "pending",
+            "task_id": "validator-1"
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "TaskStatus",
+          "args_sha256": "ccf48a5535e2fe89efac1ab8ddc687f7aefa340ffe26d277b8d06693a6dec872",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ]
+      }
+    },
+    {
+      "id": "pending-budget-timeout",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "pending",
+            "task_id": "validator-1"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "TaskStatus",
+          "args_sha256": "ccf48a5535e2fe89efac1ab8ddc687f7aefa340ffe26d277b8d06693a6dec872",
+          "response": {
+            "outcome": "pending",
+            "task_id": "validator-1"
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "TaskStatus",
+          "args_sha256": "ccf48a5535e2fe89efac1ab8ddc687f7aefa340ffe26d277b8d06693a6dec872",
+          "response": {
+            "outcome": "pending",
+            "task_id": "validator-1"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "TaskStatus",
+          "args_sha256": "ccf48a5535e2fe89efac1ab8ddc687f7aefa340ffe26d277b8d06693a6dec872",
+          "response": {
+            "outcome": "pending",
+            "task_id": "validator-1"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "drop-all-confirmed",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "539adac5252a7952528fb5626f5f5edd39b7a011c3491a9adff842b75bd6cacd",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "pass",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "absent": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ]
+      }
+    },
+    {
+      "id": "reclassify-both-directions",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "539adac5252a7952528fb5626f5f5edd39b7a011c3491a9adff842b75bd6cacd",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\nSeverity: suggestion\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\nSeverity: critical\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 2
+        },
+        "contains": [
+          "promoted from Suggestions",
+          "demoted from Critical Issues"
+        ]
+      }
+    },
+    {
+      "id": "context-gate-survives-drop",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": [
+                {
+                  "area": "rules",
+                  "status": "fail",
+                  "text": "Required logging is missing.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "539adac5252a7952528fb5626f5f5edd39b7a011c3491a9adff842b75bd6cacd",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-rules",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "Required logging is missing."
+        ]
+      }
+    },
+    {
+      "id": "marked-refusal",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "167d295ff1ab0537be249b952327c13a7ea127512014268a110e101b6806331a",
+          "response": {
+            "outcome": "refusal"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": null,
+        "validation_failed": true,
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "marked-timeout",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "167d295ff1ab0537be249b952327c13a7ea127512014268a110e101b6806331a",
+          "response": {
+            "outcome": "timeout"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": null,
+        "validation_failed": true,
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "marked-exception",
+      "scenario_file": "check-mode-validator-failure.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "167d295ff1ab0537be249b952327c13a7ea127512014268a110e101b6806331a",
+          "response": {
+            "outcome": "exception"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": null,
+        "validation_failed": true,
+        "counters": null,
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "marked-partial",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "167d295ff1ab0537be249b952327c13a7ea127512014268a110e101b6806331a",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nReason: Truncated.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": null,
+        "validation_failed": true,
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)"
+        ],
+        "absent": [
+          "Filtered:"
+        ]
+      }
+    },
+    {
+      "id": "marked-keep-rejected",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "167d295ff1ab0537be249b952327c13a7ea127512014268a110e101b6806331a",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": null,
+        "validation_failed": true,
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)"
+        ],
+        "contains": [
+          "violated the marked-item contract"
+        ]
+      }
+    },
+    {
+      "id": "marked-multiline-confirmed",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "158bf7b9773e8cc695bc81e00b8a1a4b49a5a06e167fadab6c8c207b6d14126c",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: modify\nReason: Verified against the recorded diff.\nModified-text: Authentication is bypassed.\n`src/handler.ts:4`.\nReturn 401 on invalid tokens.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 1,
+          "adjusted": 1,
+          "reclassified": 0
+        },
+        "contains": [
+          "Authentication is bypassed.\n`src/handler.ts:4`.\nReturn 401 on invalid tokens."
+        ],
+        "absent": [
+          "(confidence: medium)"
+        ]
+      }
+    },
+    {
+      "id": "introduced-marker-rejected",
+      "scenario_file": "check-mode-validator-malformed.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..d0c2319 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,4 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d499681\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,6 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "24aeb9d9567d473f37509bfe82ccb6476ee3e65367e0aeddff902e7ec52c1e06",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "363f3e60a8e3d97fc2785ca58376e1eca8e07958a46e0450893eb49b9253f18b",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: modify\nReason: Verified against the recorded diff.\nModified-text: Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": null,
+        "validation_failed": true,
+        "counters": {
+          "hidden": 1,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails."
+        ],
+        "absent": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails. (confidence: medium)"
+        ]
+      }
+    },
+    {
+      "id": "pr-drop-all-fresh",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+            "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+            "bytes": 24,
+            "content": "# Pinned fixture project"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "86805e503e74ab0703cb3159771fba6c2d95bf368726fbacc319c339b29aea9d",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+                  "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+                  "bytes": 24,
+                  "content": "# Pinned fixture project"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "84c311f1a684205fac118003c34e645809ed514ef378de4398fdd78b2ee83b76",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "pass",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "Review Sources",
+          "Freshness: confirmed"
+        ]
+      }
+    },
+    {
+      "id": "pr-drop-all-unconfirmed",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+            "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+            "bytes": 24,
+            "content": "# Pinned fixture project"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "86805e503e74ab0703cb3159771fba6c2d95bf368726fbacc319c339b29aea9d",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+                  "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+                  "bytes": 24,
+                  "content": "# Pinned fixture project"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "84c311f1a684205fac118003c34e645809ed514ef378de4398fdd78b2ee83b76",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "error": "freshness unavailable"
+          }
+        }
+      ],
+      "expected": {
+        "status": "warn",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "Review Sources",
+          "Freshness: unconfirmed"
+        ]
+      }
+    },
+    {
+      "id": "pr-pinned-project-context",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "8fe059501dddecd3933a65e274d08969f323e8eb",
+            "sha256": "a56a32bec1779196f541855d71bb9347452ed72fa9799957f87fbe74d29dcf61",
+            "bytes": 81,
+            "content": "# Pinned authentication service\nThis description belongs to the recorded PR head."
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "527cb08cca37f8eb9391d3cfa00c0f33eb2ceb4c44e2734dcc61a2df4818e994",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "8fe059501dddecd3933a65e274d08969f323e8eb",
+                  "sha256": "a56a32bec1779196f541855d71bb9347452ed72fa9799957f87fbe74d29dcf61",
+                  "bytes": 81,
+                  "content": "# Pinned authentication service\nThis description belongs to the recorded PR head."
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [],
+              "stale": false
+            },
+            "project_context": "# Pinned authentication service\nThis description belongs to the recorded PR head."
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "2df43f9cc2d3bb537d55bcd6919bc65fc2b1050572b95629b0c2f3ca58d81d5f",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "pass",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "validator_context": "/sandbox\n# Pinned authentication service\nThis description belongs to the recorded PR head.",
+        "pinned_context": "# Pinned authentication service\nThis description belongs to the recorded PR head."
+      }
+    },
+    {
+      "id": "pr-custom-pinned-project-context",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "8e5a52ea4c4716e7a8ec9bcdda82ea8aefb7b5ef",
+            "sha256": "fd8fa9a51c8d614540d6c485d19547b0171a21e4fd347704eff775442f8c5e52",
+            "bytes": 40,
+            "content": "paths:\n  description: \"docs/product.md\"\n"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "19952044ebb8f5ff4bcfe34232466ed002194034366872a4dabadc6b5da6ddc7",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": "docs/product.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "8fe059501dddecd3933a65e274d08969f323e8eb",
+            "sha256": "a56a32bec1779196f541855d71bb9347452ed72fa9799957f87fbe74d29dcf61",
+            "bytes": 81,
+            "content": "# Pinned authentication service\nThis description belongs to the recorded PR head."
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "648932620947e29a999ba6058e04a397109ec06c8d3a5d7fde714b6d77e9b8c2",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": "docs/product.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "8fe059501dddecd3933a65e274d08969f323e8eb",
+                  "sha256": "a56a32bec1779196f541855d71bb9347452ed72fa9799957f87fbe74d29dcf61",
+                  "bytes": 81,
+                  "content": "# Pinned authentication service\nThis description belongs to the recorded PR head."
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "8e5a52ea4c4716e7a8ec9bcdda82ea8aefb7b5ef",
+                  "sha256": "fd8fa9a51c8d614540d6c485d19547b0171a21e4fd347704eff775442f8c5e52",
+                  "bytes": 40,
+                  "content": "paths:\n  description: \"docs/product.md\"\n"
+                }
+              ],
+              "unavailable_context": [],
+              "stale": false
+            },
+            "project_context": "# Pinned authentication service\nThis description belongs to the recorded PR head.",
+            "project_context_path": "docs/product.md"
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "b7c4b8e846a15f4b4bc2e805987e17056cecfaf6afd3d5ab6607ab2fed190b8f",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "pass",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "validator_context": "/sandbox\n# Pinned authentication service\nThis description belongs to the recorded PR head.",
+        "pinned_context": "# Pinned authentication service\nThis description belongs to the recorded PR head.",
+        "description_path": "docs/product.md"
+      }
+    },
+    {
+      "id": "pr-config-unavailable",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason": "Pinned config unavailable"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Reviewer",
+          "args_sha256": "f2554e09448a7fe8bef73a9aab0aab9b2988ac01be721c4134f3e5bd00e06403",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason": "Pinned config unavailable"
+                }
+              ],
+              "unavailable_context": [
+                {
+                  "path": ".ai-factory/config.yaml",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "reason": "Pinned config unavailable"
+                }
+              ],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Task",
+          "args_sha256": "c44249662c128e83bd6cb37f148cc04ca8adfad16558152a555550df75f493da",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "warn",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "Pinned config unavailable"
+        ]
+      }
+    },
+    {
+      "id": "pr-config-unsupported",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "3c3c754e3a68307959128ddb62871068a9c2fa13",
+            "sha256": "9f2c9901e6e34bcaacfe8699a98b4ae73b288f1809fbb92913b5769b4c856bd4",
+            "bytes": 31,
+            "content": "paths: {description: other.md}\n"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Reviewer",
+          "args_sha256": "1b63683448a1b3c8a1a2e3802f4440c8363e4d6557e89fb3342db709e5abe384",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "3c3c754e3a68307959128ddb62871068a9c2fa13",
+                  "sha256": "9f2c9901e6e34bcaacfe8699a98b4ae73b288f1809fbb92913b5769b4c856bd4",
+                  "bytes": 31,
+                  "content": "paths: {description: other.md}\n"
+                }
+              ],
+              "unavailable_context": [
+                {
+                  "path": ".ai-factory/config.yaml",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "reason": "Pinned config syntax/path is unsupported or ambiguous; description path is unknown"
+                }
+              ],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Task",
+          "args_sha256": "bc3737d7fd8061f926a398411aaf53e56c647f3c6e0fbf904765760a1bb10802",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "warn",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "description path is unknown"
+        ]
+      }
+    },
+    {
+      "id": "pr-empty-description-unavailable",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [
+              {
+                "path": ".ai-factory/DESCRIPTION.md",
+                "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "reason": "description unavailable"
+              }
+            ],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "unavailable",
+            "reason": "description unavailable"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "052a8cebaa1f74a2ee003524b3425e36d1be5b71b49d3230d592a121ad27d511",
+          "response": {
+            "review": {
+              "items": [],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "unavailable",
+                  "reason": "description unavailable"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [
+                {
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "reason": "description unavailable"
+                }
+              ],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "warn",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "dispatches": 0,
+        "contains": [
+          "description unavailable"
+        ]
+      }
+    },
+    {
+      "id": "pr-description-unavailable",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [
+              {
+                "path": ".ai-factory/DESCRIPTION.md",
+                "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "reason": "description unavailable"
+              }
+            ],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "unavailable",
+            "reason": "description unavailable"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "052a8cebaa1f74a2ee003524b3425e36d1be5b71b49d3230d592a121ad27d511",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "unavailable",
+                  "reason": "description unavailable"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [
+                {
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "reason": "description unavailable"
+                }
+              ],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "0f2f99f2de7b9f7d41ccbd6ad861633d20fb83aa7c53e9ba68dc133a3dbcc8e3",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "warn",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "Review Sources",
+          ".ai-factory/DESCRIPTION.md",
+          "description unavailable"
+        ]
+      }
+    },
+    {
+      "id": "pr-missing-evidence",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [
+              {
+                "path": "src/dependency.ts",
+                "reason": "unavailable"
+              }
+            ],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+            "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+            "bytes": 24,
+            "content": "# Pinned fixture project"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "cae3856d908fc76e82aaf4120c49635eaf6e79211aa5de6aba6339802a5317c4",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+                  "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+                  "bytes": 24,
+                  "content": "# Pinned fixture project"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [
+                {
+                  "path": "src/dependency.ts",
+                  "reason": "unavailable"
+                }
+              ],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "2b568c0eaf5eeaa5d0ee9b1799acd323dccecf45af366d9e318ebf9aa23e4fa7",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "warn",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "Review Sources",
+          "src/dependency.ts"
+        ]
+      }
+    },
+    {
+      "id": "pr-validator-unavailable-evidence",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+            "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+            "bytes": 24,
+            "content": "# Pinned fixture project"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "86805e503e74ab0703cb3159771fba6c2d95bf368726fbacc319c339b29aea9d",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+                  "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+                  "bytes": 24,
+                  "content": "# Pinned fixture project"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "84c311f1a684205fac118003c34e645809ed514ef378de4398fdd78b2ee83b76",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: drop\nReason: Unverified due to missing pinned context: src/dependency.ts.\n### Item 2 (section: suggestion)\nVerdict: drop\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "warn",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 2,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "Excluded conclusions",
+          "src/dependency.ts"
+        ]
+      }
+    },
+    {
+      "id": "explicit-fallback-boundary",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": false,
+          "read_only_enforced": false
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "0bac6264eb52348b1631e2d14f80a6d084751cf174c557b87ef5b539ee27bf8f",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "full-tool agent"
+        ]
+      }
+    },
+    {
+      "id": "explicit-sandbox-boundary",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": false
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "539adac5252a7952528fb5626f5f5edd39b7a011c3491a9adff842b75bd6cacd",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "contains": [
+          "sandbox-only boundary"
+        ]
+      }
+    },
+    {
+      "id": "empty-items-no-dispatch",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "46748abbbc678fcb3f3a78944fac5509b23e88074891fc821e20544fb2164664",
+          "response": {
+            "review": {
+              "items": [],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "pass",
+        "command": "/aif-commit",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "dispatches": 0
+      }
+    },
+    {
+      "id": "coupling-staged",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "+check +coupling",
+        "project_context": "/sandbox\nDemo authentication service.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        }
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "c9608c6cb4388cfca03d01711de9f44d03ac49c800b95ca0008b514db3d3254e",
+          "response": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n"
+        },
+        {
+          "call_id": 2,
+          "tool": "Reviewer",
+          "args_sha256": "5edb9e54911caad152bbd0bc7b3594c5e9ee198d80c0e47684a40f715304d71b",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            }
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Task",
+          "args_sha256": "cbf4bc9939ba0789355eff92797a72582b3b008cc609a5426f7fc547d392de9e",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ]
+      }
+    },
+    {
+      "id": "coupling-pr",
+      "scenario_file": "check-mode-happy-path.spec.yaml",
+      "original_assertions": false,
+      "request": {
+        "argument": "123 +check +coupling",
+        "project_context": "LOCAL_CONTEXT_SENTINEL: this local description must never reach the PR review.",
+        "validator": {
+          "available": true,
+          "read_only_enforced": true
+        },
+        "repository": "fixture/demo",
+        "working_directory": "/sandbox"
+      },
+      "records": [
+        {
+          "call_id": 1,
+          "tool": "Bash",
+          "args_sha256": "bd1c6d2900f07a83c2020be479bcfd0b68eeb419344e0a6f5ccce94f72f2a68c",
+          "response": {
+            "schema_version": 1,
+            "mode": "pr",
+            "repository": "fixture/demo",
+            "pr": 123,
+            "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "diff": {
+              "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+              "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+              "bytes": 818,
+              "source": "git-objects"
+            },
+            "files": [],
+            "unavailable_context": [],
+            "stale": false
+          }
+        },
+        {
+          "call_id": 2,
+          "tool": "Bash",
+          "args_sha256": "e181d355e370effd727ceb5d7936d440ddda6c21ca8317372707874540e19dd4",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/config.yaml",
+            "status": "unavailable",
+            "reason_code": "not-found",
+            "reason": "Path is absent from the pinned Git tree"
+          }
+        },
+        {
+          "call_id": 3,
+          "tool": "Bash",
+          "args_sha256": "3a0acf27fd8baca657029bec2204c60471ead8a270cd0ddcd4685a141f7f4ca1",
+          "response": {
+            "repository": "fixture/demo",
+            "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "path": ".ai-factory/DESCRIPTION.md",
+            "status": "available",
+            "source": "git-objects",
+            "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+            "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+            "bytes": 24,
+            "content": "# Pinned fixture project"
+          }
+        },
+        {
+          "call_id": 4,
+          "tool": "Reviewer",
+          "args_sha256": "229c2863346aca4efba73d25ade641f18b646694ab6b8c588bf51b6c98a2575e",
+          "response": {
+            "review": {
+              "items": [
+                {
+                  "section": "critical",
+                  "text": "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+                  "files": [
+                    "src/handler.ts"
+                  ]
+                },
+                {
+                  "section": "suggestion",
+                  "text": "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract.",
+                  "files": [
+                    "src/auth.ts"
+                  ]
+                }
+              ],
+              "questions": [
+                "Which clients consume this handler?"
+              ],
+              "positive_notes": [
+                "The verifier is isolated."
+              ],
+              "context_gates": []
+            },
+            "coupling_dependencies": [],
+            "source": {
+              "schema_version": 1,
+              "mode": "pr",
+              "repository": "fixture/demo",
+              "pr": 123,
+              "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+              "diff": {
+                "text": "diff --git a/src/auth.ts b/src/auth.ts\nindex e3308a0..3d47a1b 100644\n--- a/src/auth.ts\n+++ b/src/auth.ts\n@@ -1,3 +1,6 @@\n export function verifyToken(token: string): boolean {\n-  return token === 'expected-token';\n+  // direct equality leaks timing information — a reasonable\n+  // Suggestion-level finding the validator can keep or reword.\n+  if (token === 'expected-token') return true;\n+  return false;\n }\ndiff --git a/src/handler.ts b/src/handler.ts\nnew file mode 100644\nindex 0000000..d19c215\n--- /dev/null\n+++ b/src/handler.ts\n@@ -0,0 +1,8 @@\n+import { verifyToken } from './auth';\n+\n+export function handle(req: { token: string }) {\n+  // verifier return value is ignored: every unauthenticated\n+  // request silently 200s — Critical Issue material.\n+  verifyToken(req.token);\n+  return { status: 200 };\n+}\n",
+                "sha256": "02b86b09cb0d4d42f10999f22b2c609ee3fb21fc23c4076ed9d38940acc2d373",
+                "bytes": 818,
+                "source": "git-objects"
+              },
+              "files": [
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/DESCRIPTION.md",
+                  "status": "available",
+                  "source": "git-objects",
+                  "blob_sha": "ec1257996dddbea355c60e9a2c103cd855ee189b",
+                  "sha256": "39f87880a89509f4116ce90f6f5c3e96de995ba9d5dca724d661a2178763cfe0",
+                  "bytes": 24,
+                  "content": "# Pinned fixture project"
+                },
+                {
+                  "repository": "fixture/demo",
+                  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "path": ".ai-factory/config.yaml",
+                  "status": "unavailable",
+                  "reason_code": "not-found",
+                  "reason": "Path is absent from the pinned Git tree"
+                }
+              ],
+              "unavailable_context": [],
+              "stale": false
+            },
+            "project_context": ""
+          }
+        },
+        {
+          "call_id": 5,
+          "tool": "Task",
+          "args_sha256": "824a94821e83755bc091be9d380737a28e645dddd2574814d6708891cda6993c",
+          "response": {
+            "outcome": "success",
+            "text": "### Item 1 (section: critical)\nVerdict: keep\nReason: Verified against the recorded diff.\n### Item 2 (section: suggestion)\nVerdict: keep\nReason: Verified against the recorded diff.\n"
+          }
+        },
+        {
+          "call_id": 6,
+          "tool": "Bash",
+          "args_sha256": "d2197038ba5353c2f9df8b86a80d9c729faf65b30a52f66a2ec0a455920d1ef0",
+          "response": {
+            "base": {
+              "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "head": {
+              "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ],
+      "expected": {
+        "status": "fail",
+        "command": "/aif-fix",
+        "counters": {
+          "hidden": 0,
+          "adjusted": 0,
+          "reclassified": 0
+        },
+        "preserved": [
+          "Unauthenticated requests return 200 because verifyToken is ignored. `src/handler.ts:4`. Return 401 when verification fails.",
+          "Token comparison deserves a documented timing policy. `src/auth.ts:2`. Document the comparison contract."
+        ]
+      }
+    }
+  ]
+}

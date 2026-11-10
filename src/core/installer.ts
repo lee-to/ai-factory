@@ -1,6 +1,8 @@
 import path from 'path';
+import fs from 'node:fs/promises';
 import { existsSync, lstatSync } from 'fs';
 import { createHash } from 'crypto';
+import chalk from 'chalk';
 import {
   copyDirectory,
   copyFile,
@@ -17,10 +19,13 @@ import {
   fileExists,
   hashDirectory,
 } from '../utils/fs.js';
-import type { AgentFileSource, AgentInstallation, ManagedArtifactState } from './config.js';
+import type { AgentFileSource, AgentInstallation, ExtensionRecord, ManagedArtifactState, ManagedSkillState } from './config.js';
 import { getAgentConfig } from './agents.js';
-import { getExtensionsDir, type ExtensionManifest, type ExtensionAgentFile } from './extensions.js';
-import { processSkillTemplates, buildTemplateVars, processTemplate } from './template.js';
+import { getExtensionsDir, loadAllExtensions, type ExtensionManifest, type ExtensionAgentFile } from './extensions.js';
+import { applyInjection } from './injections.js';
+import { applyManifestToolPermissions, stripToolPermissions } from './tool-permissions.js';
+import { buildTemplateVars, processTemplate } from './template.js';
+import { createSkillRenderContext, logSkillTarget, physicalProjectPath, type SkillRenderContext } from './skill-targets.js';
 import { getTransformer, extractFrontmatterName, replaceFrontmatterName } from './transformer.js';
 
 const EXTENSION_INJECTION_BLOCK_PATTERN = /\n?<!-- aif-ext:[^:]+:[^:]+:[^:]+:start -->\n[\s\S]*?\n<!-- aif-ext:[^:]+:[^:]+:[^:]+:end -->\n?/g;
@@ -84,12 +89,14 @@ export interface UpdateConfigFilesResult {
 }
 
 export interface UpdateSkillsOptions {
+  renderContext?: SkillRenderContext;
   excludeSkills?: string[];
   force?: boolean;
   installNewSkills?: string[];
 }
 
 export interface InstallOptions {
+  renderContext?: SkillRenderContext;
   projectDir: string;
   skillsDir: string;
   skills: string[];
@@ -98,9 +105,13 @@ export interface InstallOptions {
 
 export interface InstallSubagentsOptions {
   projectDir: string;
+  installedSkills: string[];
+  previousInstallation?: AgentInstallation;
   agentId?: string;
   agentsDir?: string;
   subagentsDir?: string;
+  installedAgentFiles?: string[];
+  managedAgentFiles?: Record<string, ManagedArtifactState>;
 }
 
 export interface InstallConfigFilesOptions {
@@ -157,7 +168,7 @@ type PreservableManagedAgentFileStatus =
   | 'missing-source-file';
 
 function normalizeMarkdownForManagedHash(content: string): string {
-  return content
+  return stripToolPermissions(content)
     .replace(/\r\n/g, '\n')
     .replace(EXTENSION_INJECTION_BLOCK_PATTERN, '')
     .trimEnd();
@@ -175,7 +186,7 @@ async function readManagedFileForHash(filePath: string): Promise<Buffer | null> 
   return readFileBuffer(filePath);
 }
 
-async function hashManagedFiles(files: Array<{ absPath: string; relPath: string }>): Promise<string | null> {
+async function hashManagedFiles(files: Array<{ absPath: string; relPath: string }>, raw = false): Promise<string | null> {
   if (files.length === 0) {
     return null;
   }
@@ -184,7 +195,7 @@ async function hashManagedFiles(files: Array<{ absPath: string; relPath: string 
   const hasher = createHash('sha256');
 
   for (const file of sortedFiles) {
-    const content = await readManagedFileForHash(file.absPath);
+    const content = await (raw ? readFileBuffer(file.absPath) : readManagedFileForHash(file.absPath));
     if (!content) {
       return null;
     }
@@ -196,7 +207,7 @@ async function hashManagedFiles(files: Array<{ absPath: string; relPath: string 
   return hasher.digest('hex');
 }
 
-async function hashManagedDirectory(dirPath: string): Promise<string | null> {
+async function hashManagedDirectory(dirPath: string, raw = false): Promise<string | null> {
   const files = await listFilesRecursive(dirPath);
   if (files.length === 0) {
     return null;
@@ -207,10 +218,10 @@ async function hashManagedDirectory(dirPath: string): Promise<string | null> {
     relPath: path.relative(dirPath, absPath).replaceAll('\\', '/'),
   }));
 
-  return hashManagedFiles(mapped);
+  return hashManagedFiles(mapped, raw);
 }
 
-async function hashManagedFile(filePath: string, relPath: string): Promise<string | null> {
+export async function hashManagedFile(filePath: string, relPath: string): Promise<string | null> {
   return hashManagedFiles([{ absPath: filePath, relPath }]);
 }
 
@@ -354,6 +365,9 @@ function getBundledAgentFilesSourceDir(agentId: string): string | null {
   }
 
   if (agentConfig.agentsSourceDir) {
+    if (path.isAbsolute(agentConfig.agentsSourceDir)) {
+      return agentConfig.agentsSourceDir;
+    }
     return getPackagePath(agentConfig.agentsSourceDir);
   }
 
@@ -376,9 +390,9 @@ export function resolveManagedSubagentPaths(
   return resolveAgentFilePaths(projectDir, agentsDir, sourceRoot, relPath);
 }
 
-async function hashInstalledSkill(paths: ResolvedSkillPaths): Promise<string | null> {
+async function hashInstalledSkill(paths: ResolvedSkillPaths, raw = false): Promise<string | null> {
   if (!paths.flat) {
-    return hashManagedDirectory(paths.targetSkillDir);
+    return hashManagedDirectory(paths.targetSkillDir, raw);
   }
 
   const mainFileExists = await fileExists(paths.targetSkillFile);
@@ -403,14 +417,15 @@ async function hashInstalledSkill(paths: ResolvedSkillPaths): Promise<string | n
     });
   }
 
-  return hashManagedFiles(filesToHash);
+  return hashManagedFiles(filesToHash, raw);
 }
 
 async function getManagedSkillState(
   projectDir: string,
   agentInstallation: AgentInstallation,
   skillName: string,
-): Promise<ManagedArtifactState | null> {
+  context = createSkillRenderContext(agentInstallation.id, agentInstallation.skillsDir),
+): Promise<ManagedSkillState | null> {
   const sourceSkillDir = path.join(getSkillsDir(), skillName);
   const sourceHash = await hashDirectory(sourceSkillDir, {
     skipDirectory: skillSourceSkipDirectory(sourceSkillDir),
@@ -421,26 +436,158 @@ async function getManagedSkillState(
 
   const paths = resolveSkillPaths(projectDir, agentInstallation.skillsDir, agentInstallation.id, skillName, sourceSkillDir);
   const installedHash = await hashInstalledSkill(paths);
-  if (!installedHash) {
+  const rawInstalledHash = await hashInstalledSkill(paths, true);
+  if (!installedHash || !rawInstalledHash) {
     return null;
   }
 
   return {
     sourceHash,
     installedHash,
+    rawInstalledHash,
+    renderContextHash: context.hash,
   };
+}
+
+interface ReceiptInjection {
+  target: string;
+  position: 'append' | 'prepend';
+  extensionName: string;
+  content: string;
+}
+
+async function readReceiptSourceFile(projectDir: string, file: string): Promise<Buffer> {
+  const relative = path.relative(path.resolve(projectDir), path.resolve(file));
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Receipt source escapes project: ${file}`);
+  }
+  let current = path.resolve(projectDir);
+  for (const part of relative.split(path.sep)) {
+    current = path.join(current, part);
+    const stat = await fs.lstat(current);
+    if (stat.isSymbolicLink()) throw new Error(`Linked receipt source: ${current}`);
+  }
+  if (!(await fs.lstat(current)).isFile()) throw new Error(`Receipt source is not a file: ${current}`);
+  return fs.readFile(current);
+}
+
+async function loadReceiptInjections(
+  projectDir: string, registeredExtensions: readonly ExtensionRecord[],
+): Promise<{ injections: ReceiptInjection[]; manifests: ExtensionManifest[] }> {
+  const names = registeredExtensions.map(extension => extension.name);
+  const installed = await loadAllExtensions(projectDir, names);
+  if (new Set(names).size !== names.length || installed.length !== names.length) {
+    throw new Error('Missing or ambiguous registered extension manifest');
+  }
+  const injections: ReceiptInjection[] = [];
+  for (const { dir, manifest } of installed) {
+    await readReceiptSourceFile(projectDir, path.join(dir, 'extension.json'));
+    const record = registeredExtensions.find(extension => extension.name === manifest.name);
+    if (!record || record.version !== manifest.version) throw new Error(`Unproven extension revision: ${manifest.name}`);
+    for (const injection of manifest.injections ?? []) {
+      injections.push({ ...injection, extensionName: manifest.name,
+        content: (await readReceiptSourceFile(projectDir, path.join(dir, injection.file))).toString('utf8') });
+    }
+  }
+  return { injections, manifests: installed.map(extension => extension.manifest) };
+}
+
+async function inventoryReceiptFiles(directory: string): Promise<Map<string, Buffer>> {
+  const files = new Map<string, Buffer>();
+  async function visit(current: string, relative: string): Promise<void> {
+    const stat = await fs.lstat(current);
+    if (stat.isSymbolicLink()) throw new Error(`Linked installed skill entry: ${current}`);
+    if (stat.isDirectory()) {
+      for (const name of await fs.readdir(current)) {
+        await visit(path.join(current, name), relative ? `${relative}/${name}` : name);
+      }
+    } else if (stat.isFile() && relative) {
+      files.set(relative, await fs.readFile(current));
+    } else {
+      throw new Error(`Unsupported installed skill entry: ${current}`);
+    }
+  }
+  await visit(directory, '');
+  return files;
+}
+
+async function proveManagedSkillRawHash(
+  projectDir: string, agent: Pick<AgentInstallation, 'id' | 'skillsDir'>, skillName: string, context: SkillRenderContext,
+  composition: { injections: readonly ReceiptInjection[]; manifests: ExtensionManifest[] },
+): Promise<string> {
+  const sourceSkillDir = path.join(getSkillsDir(), skillName);
+  if ((await fs.lstat(sourceSkillDir)).isSymbolicLink()) throw new Error(`Linked bundled skill source: ${skillName}`);
+  const expected = await renderSkillFiles(sourceSkillDir, skillName, agent.id, context);
+  let content = expected.get('SKILL.md')!.toString('utf8');
+  for (const injection of composition.injections) {
+    if (injection.target === skillName) {
+      content = applyInjection(content, injection.content, injection.position, injection.extensionName, skillName);
+    }
+  }
+  content = applyManifestToolPermissions(content, skillName, agent.id, composition.manifests);
+  expected.set('SKILL.md', Buffer.from(content));
+  const paths = resolveSkillPaths(projectDir, agent.skillsDir, agent.id, skillName, sourceSkillDir);
+  let actual: Map<string, Buffer>;
+  if (paths.flat) {
+    // Flat workflows share their references directory. Prove the files belonging
+    // to this source only; removal leaves all references and other workflows in place.
+    const mainName = path.basename(paths.targetSkillFile);
+    expected.set(mainName, expected.get('SKILL.md')!);
+    expected.delete('SKILL.md');
+    for (const relative of expected.keys()) {
+      if (relative !== mainName && !relative.startsWith('references/')) expected.delete(relative);
+    }
+    actual = new Map();
+    for (const relative of expected.keys()) {
+      const target = relative === mainName ? paths.targetSkillFile
+        : path.join(paths.targetRefsDir, relative.slice('references/'.length));
+      actual.set(relative, await readReceiptSourceFile(projectDir, target));
+    }
+  } else {
+    actual = await inventoryReceiptFiles(paths.targetSkillDir);
+  }
+  if (actual.size !== expected.size || [...expected].some(([relative, bytes]) => !actual.get(relative)?.equals(bytes))) {
+    throw new Error('Installed files differ from the complete known source and injection composition');
+  }
+  const hash = createHash('sha256');
+  for (const [relative, bytes] of [...actual].sort(([left], [right]) => left.localeCompare(right))) {
+    hash.update(`path:${relative}\n`);
+    hash.update(bytes);
+    hash.update('\n');
+  }
+  return hash.digest('hex');
 }
 
 export async function buildManagedSkillsState(
   projectDir: string,
   agentInstallation: AgentInstallation,
   baseSkills: string[],
-): Promise<Record<string, ManagedArtifactState>> {
-  const state: Record<string, ManagedArtifactState> = {};
+  context?: SkillRenderContext,
+  registeredExtensions: readonly ExtensionRecord[] = [],
+): Promise<Record<string, ManagedSkillState>> {
+  const state: Record<string, ManagedSkillState> = {};
+  const renderContext = context ?? createSkillRenderContext(agentInstallation.id, agentInstallation.skillsDir);
+  let injections: Awaited<ReturnType<typeof loadReceiptInjections>> | null = null;
+  try {
+    injections = await loadReceiptInjections(projectDir, registeredExtensions);
+  } catch (error) {
+    logSkillTarget('[FIX:155] receipt:unproven-extensions', { runtime: agentInstallation.id, reason: (error as Error).message });
+  }
 
   for (const skillName of baseSkills) {
-    const managed = await getManagedSkillState(projectDir, agentInstallation, skillName);
+    const managed = await getManagedSkillState(projectDir, agentInstallation, skillName, renderContext);
     if (managed) {
+      // Observed bytes support update decisions, but do not prove ownership.
+      // Overlay installs can leave user files even after a successful write.
+      delete managed.rawInstalledHash;
+      if (injections) {
+        try {
+          managed.rawInstalledHash = await proveManagedSkillRawHash(projectDir, agentInstallation, skillName, renderContext, injections);
+          logSkillTarget('[FIX:155] receipt:proven-source', { runtime: agentInstallation.id, skill: skillName });
+        } catch (error) {
+          logSkillTarget('[FIX:155] receipt:unproven-files', { runtime: agentInstallation.id, skill: skillName, reason: (error as Error).message });
+        }
+      }
       state[skillName] = managed;
     }
   }
@@ -457,6 +604,17 @@ export async function getAvailableSubagents(agentId: string = 'claude'): Promise
   const relPaths = files.map(filePath => path.relative(packageSubagentsDir, filePath).replaceAll('\\', '/'));
 
   return relPaths;
+}
+
+function isSubagentSelected(relPath: string, installedSkills: string[]): boolean {
+  return !path.posix.basename(relPath).startsWith('loop-') || installedSkills.includes('aif-loop');
+}
+
+function getTrackedBundledSubagents(agent: AgentInstallation, available: Set<string>): string[] {
+  return (agent.installedAgentFiles ?? []).filter(relPath => {
+    const source = agent.agentFileSources?.[relPath];
+    return source?.kind === 'bundled' || (!source && available.has(relPath));
+  });
 }
 
 export function buildBundledAgentFileSources(relPaths: string[]): Record<string, AgentFileSource> {
@@ -688,15 +846,56 @@ export async function rebuildManagedAgentFilesForAgents(
   }
 }
 
+export async function renderSkillFiles(
+  sourceSkillDir: string,
+  skillName: string,
+  agentId: string,
+  context: SkillRenderContext,
+): Promise<Map<string, Buffer>> {
+  const files = new Map<string, Buffer>();
+  const vars = buildTemplateVars(context.agent);
+  const transformer = getTransformer(context.transformerAgentId ?? agentId);
+  async function visit(directory: string, relative: string): Promise<void> {
+    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      if (!relative && SKILL_INTERNAL_TOP_LEVEL_DIRS.has(entry.name)) continue;
+      const relPath = relative ? `${relative}/${entry.name}` : entry.name;
+      const source = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`Linked skill source cannot be rendered safely: ${source}`);
+      if (entry.isDirectory()) await visit(source, relPath);
+      else if (entry.isFile()) {
+        let bytes = await fs.readFile(source);
+        if (entry.name.endsWith('.md')) {
+          let content = bytes.toString('utf8');
+          if (relPath === 'SKILL.md') {
+            content = replaceFrontmatterName(content, skillName);
+            content = transformer.transform(skillName, content).content;
+          } else if (relPath.startsWith('references/') && relPath !== 'references/GATE-RESULT-CONTRACT.md') {
+            // The shared gate contract defines canonical machine enum values,
+            // not runtime commands; preserve its schema and prose verbatim.
+            content = transformer.transformReference?.(skillName, content) ?? content;
+          }
+          bytes = Buffer.from(processTemplate(content, vars));
+        }
+        files.set(relPath, bytes);
+      } else throw new Error(`Unsupported skill source entry: ${source}`);
+    }
+  }
+  await visit(sourceSkillDir, '');
+  if (!files.has('SKILL.md')) throw new Error(`SKILL.md not found in ${sourceSkillDir}`);
+  return files;
+}
+
 async function installSkillWithTransformer(
   sourceSkillDir: string,
   skillName: string,
   projectDir: string,
   skillsDir: string,
   agentId: string,
-  agentConfig: ReturnType<typeof getAgentConfig>,
+  context: SkillRenderContext,
 ): Promise<void> {
-  const transformer = getTransformer(agentId);
+  const agentConfig = context.agent;
+  logSkillTarget('install:start', { agentId, skillsDir, skillName, renderContextHash: context.hash });
+  const transformer = getTransformer(context.transformerAgentId ?? agentId);
   const skillMdPath = path.join(sourceSkillDir, 'SKILL.md');
   const content = await readTextFile(skillMdPath);
   if (!content) {
@@ -714,11 +913,14 @@ async function installSkillWithTransformer(
     const targetPath = path.join(projectDir, agentConfig.configDir, result.targetDir, result.targetName);
     await writeTextFile(targetPath, processTemplate(result.content, vars));
 
-    // Copy references directory if it exists in the source skill
-    const sourceRefsDir = path.join(sourceSkillDir, 'references');
-    if (await fileExists(sourceRefsDir)) {
-      const targetRefsDir = path.join(projectDir, agentConfig.configDir, result.targetDir, 'references');
-      await copyDirectory(sourceRefsDir, targetRefsDir);
+    // Flat workflows share references; write only this skill's rendered assets.
+    // Use the same renderer as receipt verification and directory installs.
+    const rendered = await renderSkillFiles(sourceSkillDir, skillName, agentId, context);
+    for (const [relative, bytes] of rendered) {
+      if (!relative.startsWith('references/')) continue;
+      const target = path.join(projectDir, agentConfig.configDir, result.targetDir, relative);
+      await ensureDir(path.dirname(target));
+      await fs.writeFile(target, bytes);
     }
   } else {
     const targetSkillDir = path.join(projectDir, skillsDir, result.targetDir);
@@ -730,14 +932,19 @@ async function installSkillWithTransformer(
     } else if (adjustedContent !== content) {
       await writeTextFile(path.join(targetSkillDir, 'SKILL.md'), adjustedContent);
     }
-    await processSkillTemplates(targetSkillDir, agentConfig);
+    const rendered = await renderSkillFiles(sourceSkillDir, skillName, agentId, context);
+    for (const [relative, bytes] of rendered) {
+      await ensureDir(path.dirname(path.join(targetSkillDir, relative)));
+      await fs.writeFile(path.join(targetSkillDir, relative), bytes);
+    }
   }
+  logSkillTarget('install:complete', { agentId, skillsDir, skillName });
 }
 
 export async function installSkills(options: InstallOptions): Promise<string[]> {
   const { projectDir, skillsDir, skills, agentId } = options;
   const installedSkills: string[] = [];
-  const agentConfig = getAgentConfig(agentId);
+  const context = options.renderContext ?? createSkillRenderContext(agentId, skillsDir);
 
   const targetDir = path.join(projectDir, skillsDir);
   await ensureDir(targetDir);
@@ -748,19 +955,61 @@ export async function installSkills(options: InstallOptions): Promise<string[]> 
     const sourceSkillDir = path.join(packageSkillsDir, skill);
 
     try {
-      await installSkillWithTransformer(sourceSkillDir, skill, projectDir, skillsDir, agentId, agentConfig);
+      await installSkillWithTransformer(sourceSkillDir, skill, projectDir, skillsDir, agentId, context);
       installedSkills.push(skill);
     } catch (error) {
       console.warn(`Warning: Could not install skill "${skill}": ${error}`);
     }
   }
 
-  const transformer = getTransformer(agentId);
+  const transformer = getTransformer(context.transformerAgentId ?? agentId);
   if (transformer.postInstall) {
     await transformer.postInstall(projectDir);
   }
 
   return installedSkills;
+}
+
+export function includeRequiredSkills(skills: string[]): string[] {
+  // /aif calls scanner and cleanup scripts shipped by aif-skill-generator.
+  return skills.includes('aif') && !skills.includes('aif-skill-generator')
+    ? [...skills, 'aif-skill-generator']
+    : skills;
+}
+
+export async function assertRequiredSkillTargetsSafe(
+  projectDir: string,
+  agent: Pick<AgentInstallation, 'id' | 'skillsDir' | 'installedSkills' | 'managedSkills'>,
+  requiredSkills: string[],
+): Promise<void> {
+  for (const skill of requiredSkills) {
+    const paths = resolveSkillPaths(projectDir, agent.skillsDir, agent.id, skill, path.join(getSkillsDir(), skill));
+    const target = paths.flat ? paths.targetSkillFile : paths.targetSkillDir;
+    const stat = await fs.lstat(target).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (!stat) continue;
+    const receipt = agent.managedSkills?.[skill]?.rawInstalledHash;
+    if (!stat.isSymbolicLink() && agent.installedSkills.includes(skill)) {
+      if (receipt && receipt === await hashInstalledSkill(paths, true)) continue;
+      if (!receipt) {
+        try {
+          // Legacy tracked installs may lack raw receipts. Accept only a full
+          // source match, never a receipt recovered from arbitrary current bytes.
+          await proveManagedSkillRawHash(projectDir, agent, skill,
+            createSkillRenderContext(agent.id, agent.skillsDir), { injections: [], manifests: [] });
+          continue;
+        } catch {
+          // Unproven legacy bytes must be preserved just like a modified target.
+        }
+      }
+    }
+
+    logSkillTarget('[FIX:44] dependency:conflict', { runtime: agent.id, skill, target });
+    throw new Error(`Required skill "${skill}" conflicts with an untracked or modified target: ${target}. `
+      + 'Preserving existing files. Move or back up this target, then rerun the command.');
+  }
 }
 
 export async function installSubagents(options: InstallSubagentsOptions): Promise<string[]> {
@@ -771,20 +1020,119 @@ export async function installSubagents(options: InstallSubagentsOptions): Promis
     return [];
   }
   const availableSubagents = await getAvailableSubagents(agentId);
+  const selectedSubagents = availableSubagents.filter(relPath => isSubagentSelected(relPath, options.installedSkills));
 
-  if (availableSubagents.length === 0) {
+  if (options.previousInstallation) {
+    const candidateDeselected = getTrackedBundledSubagents(options.previousInstallation, new Set(availableSubagents))
+      .filter(relPath => !isSubagentSelected(relPath, options.installedSkills));
+
+    const cleanDeselected: string[] = [];
+    const previousManaged = options.managedAgentFiles ?? options.previousInstallation.managedAgentFiles ?? {};
+    const effectiveAgentsDir = options.previousInstallation.agentsDir ?? agentsDir;
+
+    for (const relPath of candidateDeselected) {
+      try {
+        const paths = resolveManagedSubagentPaths(projectDir, agentId, effectiveAgentsDir, relPath);
+        const targetExists = await fileExists(paths.targetFile);
+        if (!targetExists) continue;
+
+        const installedHash = await hashManagedFile(paths.targetFile, relPath);
+        const previousState = previousManaged[relPath];
+
+        if (
+          previousState &&
+          installedHash &&
+          previousState.installedHash === installedHash &&
+          previousState.sourceHash === previousState.installedHash
+        ) {
+          cleanDeselected.push(relPath);
+        } else {
+          console.warn(
+            chalk.yellow(
+              `  [${agentId}] Preserved modified agent file: ${relPath} (aif-loop deselected, local modifications preserved)`,
+            ),
+          );
+        }
+      } catch (error) {
+        console.warn(
+          chalk.yellow(
+            `  [${agentId}] Preserved agent file with unverified path "${relPath}": ${(error as Error).message}`,
+          ),
+        );
+      }
+    }
+
+    if (cleanDeselected.length > 0) {
+      const removed = await removeSubagentsByName(projectDir, options.previousInstallation, cleanDeselected);
+      const removedSet = new Set(removed);
+      for (const relPath of cleanDeselected) {
+        if (removedSet.has(relPath)) {
+          console.log(`  [${agentId}] Removed agent file: ${relPath} (aif-loop not selected)`);
+        } else {
+          console.warn(
+            chalk.yellow(
+              `  [${agentId}] Could not remove deselected loop agent file: ${relPath}`,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  if (selectedSubagents.length === 0) {
     return [];
   }
 
   const targetRoot = path.join(projectDir, agentsDir);
   await ensureDir(targetRoot);
 
-  for (const relPath of availableSubagents) {
+  const previousInstalledSet = new Set(options.installedAgentFiles ?? []);
+  const previousManaged = options.managedAgentFiles ?? {};
+  const installed: string[] = [];
+
+  for (const relPath of selectedSubagents) {
     const paths = resolveManagedSubagentPaths(projectDir, agentId, agentsDir, relPath);
+    const targetExists = await fileExists(paths.targetFile);
+
+    if (targetExists) {
+      const sourceHash = await hashManagedFile(paths.sourceFile, relPath);
+      const installedHash = await hashManagedFile(paths.targetFile, relPath);
+      const previousState = previousManaged[relPath];
+
+      if (!previousInstalledSet.has(relPath)) {
+        if (installedHash && sourceHash && installedHash === sourceHash) {
+          installed.push(relPath);
+          continue;
+        }
+        console.log(chalk.yellow(`  [${agentId}] Preserved untracked native agent file: ${relPath}`));
+        continue;
+      }
+
+      if (previousState && installedHash && previousState.installedHash !== installedHash) {
+        console.log(chalk.yellow(`  [${agentId}] Preserved modified native agent file: ${relPath}`));
+        installed.push(relPath);
+        continue;
+      }
+      if (previousState && installedHash && previousState.installedHash === installedHash && previousState.installedHash !== previousState.sourceHash) {
+        installed.push(relPath);
+        continue;
+      }
+      if (!previousState && installedHash && sourceHash && installedHash !== sourceHash) {
+        console.log(chalk.yellow(`  [${agentId}] Preserved modified native agent file: ${relPath}`));
+        installed.push(relPath);
+        continue;
+      }
+      if (!sourceHash && installedHash) {
+        installed.push(relPath);
+        continue;
+      }
+    }
+
     await copyFile(paths.sourceFile, paths.targetFile);
+    installed.push(relPath);
   }
 
-  return availableSubagents;
+  return installed;
 }
 
 export async function installConfigFiles(options: InstallConfigFilesOptions): Promise<string[]> {
@@ -859,15 +1207,15 @@ export async function installExtensionSkills(
   extensionDir: string,
   skillPaths: string[],
   nameOverrides?: Record<string, string>,
+  context = createSkillRenderContext(agentInstallation.id, agentInstallation.skillsDir),
 ): Promise<string[]> {
-  const agentConfig = getAgentConfig(agentInstallation.id);
   const installed: string[] = [];
 
   for (const skillPath of skillPaths) {
     const sourceDir = path.join(extensionDir, skillPath);
     const skillName = nameOverrides?.[skillPath] ?? path.basename(skillPath);
     try {
-      await installSkillWithTransformer(sourceDir, skillName, projectDir, agentInstallation.skillsDir, agentInstallation.id, agentConfig);
+      await installSkillWithTransformer(sourceDir, skillName, projectDir, agentInstallation.skillsDir, agentInstallation.id, context);
       installed.push(skillName);
     } catch (error) {
       console.warn(`Warning: Could not install extension skill "${skillName}": ${error}`);
@@ -902,6 +1250,68 @@ async function removeSkillsByName(
     }
   }
 
+  return removed;
+}
+
+export async function removeOwnedSkills(
+  projectDir: string, agent: AgentInstallation, survivors: readonly AgentInstallation[],
+): Promise<string[]> {
+  const target = await physicalProjectPath(projectDir, agent.skillsDir);
+  const consumers = await Promise.all(survivors.map(async survivor => ({
+    agent: survivor, target: await physicalProjectPath(projectDir, survivor.skillsDir),
+  })));
+  const removed: string[] = [];
+  for (const name of agent.installedSkills.filter(name => !name.includes('/'))) {
+    if (!name || name === '.' || name === '..' || name.includes('\\')) throw new Error(`Unsafe managed skill name: ${name}`);
+    const needed = consumers.some(consumer => consumer.target === target && consumer.agent.installedSkills.includes(name));
+    if (needed) {
+      logSkillTarget('remove:retain', { runtime: agent.id, skill: name, reason: 'surviving-consumer' });
+      continue;
+    }
+    const saved = agent.managedSkills?.[name];
+    const current = await getManagedSkillState(projectDir, agent, name);
+    // Update hashes normalize injections and line endings; only a saved raw
+    // receipt can authorize deletion without losing those local changes.
+    if (!saved || !current || saved.installedHash !== current.installedHash
+      || !saved.rawInstalledHash || saved.rawInstalledHash !== current.rawInstalledHash) {
+      console.warn(`[skill-targets] [FIX:155] Preserving unproven or modified skill: ${agent.skillsDir}/${name}`);
+      continue;
+    }
+    logSkillTarget('[FIX:155] remove:verified-raw-baseline', { runtime: agent.id, skill: name });
+    const transformer = getTransformer(agent.id).transform(name, '');
+    if (transformer.flat) {
+      await removeFile(path.join(projectDir, getAgentConfig(agent.id).configDir, transformer.targetDir, transformer.targetName));
+    } else {
+      const directory = path.join(target, transformer.targetDir);
+      if (lstatSync(directory).isSymbolicLink()) throw new Error(`Linked managed skill cannot be removed: ${directory}`);
+      const files = await listFilesRecursive(directory);
+      const directories = new Set([directory]);
+      // Receipts cover files, so source-owned empty subdirectories have no file
+      // parent from which to discover them. Include them before bottom-up rmdir.
+      async function collectDirectories(current: string): Promise<void> {
+        for (const entry of await fs.readdir(current, { withFileTypes: true })) {
+          const child = path.join(current, entry.name);
+          if (entry.isSymbolicLink()) throw new Error(`Linked skill entry cannot be removed: ${child}`);
+          if (entry.isDirectory()) {
+            directories.add(child);
+            await collectDirectories(child);
+          }
+        }
+      }
+      await collectDirectories(directory);
+      for (const file of files) {
+        if (lstatSync(file).isSymbolicLink()) throw new Error(`Linked skill file cannot be removed: ${file}`);
+        let parent = path.dirname(file);
+        while (parent !== directory && parent.startsWith(`${directory}${path.sep}`)) { directories.add(parent); parent = path.dirname(parent); }
+        await removeFile(file);
+      }
+      for (const parent of [...directories].sort((a, b) => b.length - a.length)) {
+        await fs.rmdir(parent).catch(error => { if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(error.code)) throw error; });
+      }
+    }
+    removed.push(name);
+    logSkillTarget('remove:complete', { runtime: agent.id, skill: name });
+  }
   return removed;
 }
 
@@ -966,13 +1376,17 @@ export async function updateSkills(
   const availableSkills = await getAvailableSkills();
   const availableSet = new Set(availableSkills);
   const excludeSet = new Set(excludeSkills);
-  const installNewSet = new Set(installNewSkills);
+  const installNewSet = new Set(includeRequiredSkills([...agentInstallation.installedSkills, ...installNewSkills]));
 
   const entries: SkillUpdateEntry[] = [];
 
   const { base: previousBaseSkills, custom } = partitionSkills(agentInstallation.installedSkills);
   const previousBaseSet = new Set(previousBaseSkills);
   const previousManaged = agentInstallation.managedSkills ?? {};
+
+  await assertRequiredSkillTargetsSafe(projectDir, agentInstallation,
+    [...installNewSet].filter(skill => skill === 'aif-skill-generator'
+      && !previousBaseSet.has(skill) && !excludeSet.has(skill)));
 
   const removedSkills = previousBaseSkills.filter(s => !availableSet.has(s) && !excludeSet.has(s));
   if (removedSkills.length > 0) {
@@ -1005,6 +1419,7 @@ export async function updateSkills(
       skillsDir: agentInstallation.skillsDir,
       skills: newSkillsToInstall,
       agentId: agentInstallation.id,
+      renderContext: options.renderContext,
     })
     : [];
   const installedNewSet = new Set(installedNewSkills);
@@ -1013,7 +1428,9 @@ export async function updateSkills(
     entries.push({
       skill,
       status: installedNewSet.has(skill) ? 'changed' : 'skipped',
-      reason: installedNewSet.has(skill) ? 'new-in-package' : 'install-failed',
+      reason: installedNewSet.has(skill)
+        ? (skill === 'aif-skill-generator' && !installNewSkills.includes(skill) ? 'required-by-aif' : 'new-in-package')
+        : 'install-failed',
     });
   }
 
@@ -1057,6 +1474,11 @@ export async function updateSkills(
       continue;
     }
 
+    if (previousState.renderContextHash !== (options.renderContext ?? createSkillRenderContext(agentInstallation.id, agentInstallation.skillsDir)).hash) {
+      shouldInstall.set(skillName, { install: true, reason: 'render-context-changed' });
+      continue;
+    }
+
     if (previousState.sourceHash !== sourceHash) {
       shouldInstall.set(skillName, { install: true, reason: 'source-hash-changed' });
       continue;
@@ -1083,6 +1505,7 @@ export async function updateSkills(
       skillsDir: agentInstallation.skillsDir,
       skills: skillsToInstall,
       agentId: agentInstallation.id,
+      renderContext: options.renderContext,
     })
     : [];
 
@@ -1140,29 +1563,92 @@ export async function updateSubagents(
       entries: [],
     };
   }
-  const availableSubagents = await getAvailableSubagents(agentInstallation.id);
+  const bundledSubagents = await getAvailableSubagents(agentInstallation.id);
+  const availableSubagents = bundledSubagents.filter(relPath => isSubagentSelected(relPath, agentInstallation.installedSkills));
   const availableSet = new Set(availableSubagents);
   const previousInstalled = agentInstallation.installedAgentFiles ?? [];
   const previousInstalledSet = new Set(previousInstalled);
   const previousSources = agentInstallation.agentFileSources ?? {};
   const previousManaged = agentInstallation.managedAgentFiles ?? {};
   const entries: SubagentUpdateEntry[] = [];
-  const previousBundledInstalled = previousInstalled.filter(
-    relPath => previousSources[relPath]?.kind === 'bundled' || (!previousSources[relPath] && availableSet.has(relPath)),
-  );
-  const previousNonBundledInstalled = previousInstalled.filter(relPath => previousSources[relPath]?.kind !== 'bundled');
+  const previousBundledInstalled = getTrackedBundledSubagents(agentInstallation, new Set(bundledSubagents));
+  const previousBundledSet = new Set(previousBundledInstalled);
+  const previousNonBundledInstalled = previousInstalled.filter(relPath => !previousBundledSet.has(relPath));
 
   const removedSubagents = previousBundledInstalled.filter(
     (subagent: string) => !availableSet.has(subagent),
   );
   if (removedSubagents.length > 0) {
-    await removeSubagentsByName(projectDir, agentInstallation, removedSubagents);
-    for (const subagent of removedSubagents) {
+    const cleanRemovedSubagents: string[] = [];
+
+    for (const relPath of removedSubagents) {
+      if (!isSubagentSelected(relPath, agentInstallation.installedSkills)) {
+        cleanRemovedSubagents.push(relPath);
+        continue;
+      }
+
+      const previousState = previousManaged[relPath];
+      let installedHash: string | null = null;
+
+      try {
+        const targetFile = resolveInstalledAgentFileTargetPath(projectDir, agentInstallation.agentsDir, relPath);
+        installedHash = await hashManagedFile(targetFile, relPath);
+      } catch {
+        console.warn(
+          chalk.yellow(
+            `Warning: Agent file "${relPath}" was removed from the package, but its target path could not be verified — preserving existing file and dropping managed ownership.`,
+          ),
+        );
+        entries.push({
+          subagent: relPath,
+          status: 'skipped',
+          reason: 'local-modifications-preserved',
+        });
+        continue;
+      }
+
+      if (!installedHash) {
+        entries.push({
+          subagent: relPath,
+          status: 'removed',
+          reason: isSubagentSelected(relPath, agentInstallation.installedSkills) ? 'package-removed' : 'skill-not-selected',
+        });
+        continue;
+      }
+
+      if (previousState && previousState.installedHash === installedHash && previousState.sourceHash === previousState.installedHash) {
+        cleanRemovedSubagents.push(relPath);
+        continue;
+      }
+
+      const warningSuffix = previousState
+        ? 'local changes exist'
+        : 'managed state is missing';
+      console.warn(
+        chalk.yellow(
+          `Warning: Agent file "${relPath}" was removed from the package, but ${warningSuffix} — preserving existing file and dropping managed ownership.`,
+        ),
+      );
       entries.push({
-        subagent,
-        status: 'removed',
-        reason: 'package-removed',
+        subagent: relPath,
+        status: 'skipped',
+        reason: 'local-modifications-preserved',
       });
+    }
+
+    if (cleanRemovedSubagents.length > 0) {
+      const removed = await removeSubagentsByName(projectDir, agentInstallation, cleanRemovedSubagents);
+      const removedSet = new Set(removed);
+
+      for (const relPath of cleanRemovedSubagents) {
+        entries.push({
+          subagent: relPath,
+          status: removedSet.has(relPath) ? 'removed' : 'skipped',
+          reason: removedSet.has(relPath)
+            ? (isSubagentSelected(relPath, agentInstallation.installedSkills) ? 'package-removed' : 'skill-not-selected')
+            : 'local-modifications-preserved',
+        });
+      }
     }
   }
 
@@ -1174,13 +1660,58 @@ export async function updateSubagents(
     const installedHash = await hashManagedFile(paths.targetFile, relPath);
     const previousState = previousManaged[relPath];
 
-    if (force) {
-      shouldInstall.set(relPath, { install: true, reason: 'force-clean-reinstall' });
+    if (!previousInstalledSet.has(relPath)) {
+      const targetExists = await fileExists(paths.targetFile);
+      if (targetExists) {
+        console.log(chalk.yellow(`  [${agentInstallation.id}] Preserved untracked native agent file: ${relPath}`));
+        shouldInstall.set(relPath, { install: false, reason: 'untracked-target-exists' });
+        continue;
+      }
+      shouldInstall.set(relPath, { install: true, reason: 'new-in-package' });
       continue;
     }
 
-    if (!previousInstalledSet.has(relPath)) {
-      shouldInstall.set(relPath, { install: true, reason: 'new-in-package' });
+    const hasLocalCustomization = Boolean(
+      previousState &&
+      installedHash &&
+      previousState.installedHash === installedHash &&
+      previousState.installedHash !== previousState.sourceHash,
+    );
+
+    if (hasLocalCustomization) {
+      if (force) {
+        console.warn(
+          chalk.yellow(`  [${agentInstallation.id}] Previously preserved local customization detected in agent file "${relPath}" — preserving existing file. --force does not overwrite local agent changes.`),
+        );
+      }
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
+      continue;
+    }
+
+    if (previousState && installedHash && previousState.installedHash !== installedHash) {
+      const forceNote = force ? ' --force does not overwrite local agent changes.' : '';
+      console.warn(chalk.yellow(`  [${agentInstallation.id}] Local modifications detected in agent file "${relPath}" — preserving existing file.${forceNote}`));
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
+      continue;
+    }
+
+    if (previousInstalledSet.has(relPath) && !previousState && installedHash) {
+      console.warn(chalk.yellow(`  [${agentInstallation.id}] Pre-existing agent file "${relPath}" has no tracking state — preserving existing file.`));
+      shouldInstall.set(relPath, {
+        install: false,
+        reason: force ? 'force-ignored-local-modifications-preserved' : 'local-modifications-preserved',
+      });
+      continue;
+    }
+
+    if (force) {
+      shouldInstall.set(relPath, { install: true, reason: 'force-clean-reinstall' });
       continue;
     }
 
@@ -1201,12 +1732,6 @@ export async function updateSubagents(
 
     if (previousState.sourceHash !== sourceHash) {
       shouldInstall.set(relPath, { install: true, reason: 'source-hash-changed' });
-      continue;
-    }
-
-    if (previousState.installedHash !== installedHash) {
-      console.warn(`Warning: Local modifications detected in agent file "${relPath}" — will be overwritten by update.`);
-      shouldInstall.set(relPath, { install: true, reason: 'installed-hash-drift' });
       continue;
     }
 
@@ -1250,7 +1775,16 @@ export async function updateSubagents(
     });
   }
 
-  const syncedSubagents = availableSubagents.filter(relPath => installedSet.has(relPath) || previousInstalledSet.has(relPath));
+  const syncedSubagents = availableSubagents.filter(relPath => {
+    if (installedSet.has(relPath)) {
+      return true;
+    }
+    const decision = shouldInstall.get(relPath);
+    if (!decision || decision.install) {
+      return false;
+    }
+    return previousInstalledSet.has(relPath);
+  });
   const syncedInstalledAgentFiles = Array.from(new Set([...previousNonBundledInstalled, ...syncedSubagents])).sort();
   const syncedAgentFileSources: Record<string, AgentFileSource> = {};
 

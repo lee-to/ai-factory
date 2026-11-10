@@ -2,6 +2,7 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import fs from 'fs-extra';
 import * as semver from 'semver';
+import { validateToolPermission } from './tool-permissions.js';
 import { readJsonFile, removeDirectory, ensureDir } from '../utils/fs.js';
 import type { McpServerConfig } from './mcp.js';
 
@@ -374,6 +375,7 @@ export interface ExtensionAgentDef {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: '.md' | '.toml';
   settingsFile: string | null;
@@ -393,6 +395,11 @@ export interface ExtensionMcpServer {
   instruction?: string;
 }
 
+export interface ExtensionToolPermission {
+  target: string;
+  agents: Record<string, string[]>;
+}
+
 export interface ExtensionManifest {
   name: string;
   version: string;
@@ -401,6 +408,7 @@ export interface ExtensionManifest {
   agents?: ExtensionAgentDef[];
   agentFiles?: ExtensionAgentFile[];
   injections?: ExtensionInjection[];
+  toolPermissions?: ExtensionToolPermission[];
   skills?: string[];
   replaces?: Record<string, string>;
   mcpServers?: ExtensionMcpServer[];
@@ -498,6 +506,28 @@ function validateExtensionManifest(manifest: ExtensionManifest): void {
 
   if (!isValidVersionString(manifest.version)) {
     throw new Error(`Invalid extension version: "${manifest.version}". Versions must use SemVer format.`);
+  }
+
+  if (manifest.toolPermissions !== undefined) {
+    if (!Array.isArray(manifest.toolPermissions)) throw new Error('toolPermissions must be an array.');
+    const targets = new Set<string>();
+    for (const permission of manifest.toolPermissions) {
+      if (!permission || typeof permission !== 'object' || typeof permission.target !== 'string') {
+        throw new Error('Each toolPermissions entry requires a target and agents map.');
+      }
+      validateSkillName(permission.target);
+      if (targets.has(permission.target)) throw new Error(`Duplicate toolPermissions target: ${permission.target}`);
+      targets.add(permission.target);
+      if (!permission.agents || typeof permission.agents !== 'object' || Array.isArray(permission.agents)
+          || !Object.keys(permission.agents).length) throw new Error('toolPermissions.agents must be a non-empty runtime map.');
+      for (const [runtime, tools] of Object.entries(permission.agents)) {
+        if (!/^[a-z][a-z0-9-]*$/.test(runtime) || !Array.isArray(tools) || !tools.length
+            || tools.some(tool => typeof tool !== 'string' || !tool || tool.length > 512 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(tool))) {
+          throw new Error(`Invalid toolPermissions tools for runtime ${runtime}.`);
+        }
+        if (runtime === 'claude') tools.forEach(validateToolPermission);
+      }
+    }
   }
 
   if (manifest.replaces) {

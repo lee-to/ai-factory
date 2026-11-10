@@ -110,3 +110,5 @@ assert.deepEqual(
 
 console.log('extension resolver unit tests passed');
 EOF
+
+node "$ROOT_DIR/scripts/test-codex-skill-targets.mjs" --group=extensions

@@ -14,7 +14,7 @@ This script:
      via `safe_remove_installed()` after strict safety validation.
      This is the authoritative cleanup step — the helper is the
      guarantor of physical removal, not the upstream CLI.
-  3. Patches <root>/skills-lock.json to drop the "skills.<skill>" key
+  3. Patches <root>/skills-lock.json to drop the skill's known identity keys
      atomically (tmp + os.replace). No-op if the entry is absent.
   4. Verifies the patched lock file no longer contains the skill entry.
 
@@ -59,14 +59,18 @@ _BUILTIN_AGENT_SKILLS_DIRS = (
     '.agents/skills',
     '.github/skills',
     '.gemini/skills',
+    '.chatgpt/skills',
+    '.openrouter/skills',
     '.junie/skills',
     '.qwen/skills',
+    '.devin/skills',
+    # Saved pre-rebrand installations still use this supported legacy root.
     '.windsurf/skills',
+    '.devin/skills',
     '.warp/skills',
     '.zencoder/skills',
     '.roo/skills',
     '.kilocode/skills',
-    '.agent/skills',
     '.opencode/skills',
 )
 
@@ -101,8 +105,18 @@ def validate_skill_name(name: str):
     return None
 
 
-def patch_lock(lock_path: Path, skill: str, dry_run: bool = False):
-    """Remove skills[<skill>] from skills-lock.json.
+def _matching_lock_keys(skills_section: dict, skill_names: set) -> set:
+    # Lock names that sanitize to the same directory can restore the same blocked
+    # installation, including on retries after SKILL.md was already removed.
+    directories = {_sanitize_skill_name(name) for name in skill_names} - {''}
+    return {
+        name for name in skills_section
+        if name in skill_names or _sanitize_skill_name(name) in directories
+    }
+
+
+def patch_lock(lock_path: Path, skill_names: set, dry_run: bool = False):
+    """Remove known identity keys from skills-lock.json.
 
     Returns (changed: bool, message: str). Raises RuntimeError on invalid JSON.
     Atomic write: writes to <lock>.tmp then os.replace. Preserves 2-space
@@ -125,16 +139,18 @@ def patch_lock(lock_path: Path, skill: str, dry_run: bool = False):
     if not isinstance(skills_section, dict):
         return (False, "no 'skills' object in lock file (nothing to clean)")
 
-    if skill not in skills_section:
+    matched = sorted(_matching_lock_keys(skills_section, skill_names))
+    if not matched:
         available = sorted(skills_section.keys())
         if not available:
-            return (False, f"skill '{skill}' not present; lock file has no skill entries")
-        return (False, f"skill '{skill}' not present in lock file; available keys: {available}")
+            return (False, "skill not present; lock file has no skill entries")
+        return (False, f"skill not present in lock file; available keys: {available}")
 
     if dry_run:
-        return (True, f"would remove '{skill}' from {lock_path}")
+        return (True, f"would remove {matched} from {lock_path}")
 
-    del skills_section[skill]
+    for name in matched:
+        del skills_section[name]
 
     new_text = json.dumps(data, indent=2, ensure_ascii=False)
     if raw.endswith('\n'):
@@ -143,7 +159,7 @@ def patch_lock(lock_path: Path, skill: str, dry_run: bool = False):
     tmp_path = lock_path.with_name(lock_path.name + '.tmp')
     tmp_path.write_text(new_text, encoding='utf-8')
     os.replace(tmp_path, lock_path)
-    return (True, f"removed '{skill}' from {lock_path}")
+    return (True, f"removed {matched} from {lock_path}")
 
 
 def _resolve_npx():
@@ -181,7 +197,7 @@ def run_skills_remove(skill: str, root: Path, dry_run: bool = False) -> int:
     return result.returncode
 
 
-def verify_lock_clean(lock_path: Path, skill: str) -> bool:
+def verify_lock_clean(lock_path: Path, skill_names: set) -> bool:
     """Confirm the skill is absent from skills-lock.json after patching.
 
     Deterministic: re-reads the lock file and inspects the in-memory
@@ -198,7 +214,7 @@ def verify_lock_clean(lock_path: Path, skill: str) -> bool:
     skills_section = data.get('skills')
     if not isinstance(skills_section, dict):
         return True
-    return skill not in skills_section
+    return not _matching_lock_keys(skills_section, skill_names)
 
 
 # Reparse-point bit on Windows. NTFS junctions (created via `mklink /J`)
@@ -328,29 +344,82 @@ def _sanitize_skill_name(name: str) -> str:
     return re.sub(r'[^a-z0-9._]+', '-', name.lower()).strip('.-')
 
 
+def _read_yaml_name_scalar(value: str, skill_md: Path) -> str:
+    """Decode supported single-line name scalars without a YAML dependency."""
+    value = value.strip()
+    if value.startswith("'"):
+        match = re.fullmatch(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?", value)
+        if match and match.group(1):
+            return match.group(1).replace("''", "'")
+    elif value.startswith('"'):
+        match = re.fullmatch(r'("(?:[^"\\]|\\.)*")(?:[ \t]+#.*)?', value)
+        if match:
+            try:
+                decoded = json.loads(match.group(1))
+                if decoded:
+                    return decoded
+            except ValueError:
+                pass
+    else:
+        scalar = re.split(r'\s+#', value, maxsplit=1)[0].strip()
+        if scalar and scalar[0] not in '!&*|>[{#' and ': ' not in scalar:
+            return scalar
+    raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
+
+
 def _read_skill_frontmatter_name(skill_md: Path):
-    """Best-effort parser for a simple `name:` key in YAML frontmatter."""
+    """Read one top-level name; incomplete or unsupported identities fail closed."""
     try:
         lines = skill_md.read_text(encoding='utf-8').splitlines()
-    except OSError:
+    except FileNotFoundError as e:
+        if skill_md.parent.exists():
+            raise RuntimeError(f"cannot establish canonical skill name from {skill_md}") from e
+        # An already-absent installation has no frontmatter on idempotent retries.
         return None
+    except (OSError, UnicodeError) as e:
+        raise RuntimeError(f"cannot establish canonical skill name from {skill_md}") from e
     if not lines or lines[0].strip() != '---':
-        return None
+        raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
 
+    canonical = None
+    last_key = None
     for line in lines[1:]:
         stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        if line[0].isspace():
+            # Nested metadata and block-scalar text cannot nominate a root name.
+            # A continued plain name is outside our supported single-line subset.
+            if last_key == 'name':
+                raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
+            continue
         if stripped == '---':
-            return None
-        if not stripped or stripped.startswith('#') or ':' not in stripped:
-            continue
+            if canonical is not None:
+                return canonical
+            break
+        if ':' not in stripped:
+            raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
         key, value = stripped.split(':', 1)
-        if key.strip() != 'name':
+        key = key.strip()
+        if key.startswith('"'):
+            try:
+                key = json.loads(key)
+            except ValueError as e:
+                raise RuntimeError(f"cannot establish canonical skill name from {skill_md}") from e
+        elif key.startswith("'"):
+            match = re.fullmatch(r"'((?:[^']|'')*)'", key)
+            if not match:
+                raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
+            key = match.group(1).replace("''", "'")
+        elif key and key[0] in '!&*?{[-':
+            raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
+        last_key = key
+        if key != 'name':
             continue
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-            value = value[1:-1]
-        return value
-    return None
+        if canonical is not None:
+            raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
+        canonical = _read_yaml_name_scalar(value, skill_md)
+    raise RuntimeError(f"cannot establish canonical skill name from {skill_md}")
 
 
 def validate_installed_skill_path(installed: Path, root: Path, skill: str) -> ValidatedInstalledPath:
@@ -542,6 +611,21 @@ def main() -> int:
             print(f"error: {e}", file=sys.stderr)
             return 1
 
+    # Capture identity before npx can delete the installed frontmatter.
+    skill_names = {skill, _sanitize_skill_name(skill)} - {''}
+    if validated_installed is not None:
+        skill_names.add(validated_installed.resolved.name)
+        try:
+            canonical = _read_skill_frontmatter_name(validated_installed.resolved / 'SKILL.md')
+        except RuntimeError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        # A downloaded skill cannot nominate an unrelated lock entry for deletion.
+        if canonical and _sanitize_skill_name(canonical) in {
+            _sanitize_skill_name(skill), validated_installed.resolved.name.lower()
+        }:
+            skill_names.add(canonical)
+
     lock_path = root / 'skills-lock.json'
 
     # Step 1: ask the CLI to remove (deletes files; may leave lock stale on project scope).
@@ -593,15 +677,15 @@ def main() -> int:
     # cleanup so a failed deletion cannot leave a stale blocked skill
     # installed with its lock entry already cleared.
     try:
-        _, msg = patch_lock(lock_path, skill, dry_run=args.dry_run)
+        _, msg = patch_lock(lock_path, skill_names, dry_run=args.dry_run)
     except RuntimeError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     print(msg)
 
     # Step 4: verify by re-reading the lock file.
-    if not args.dry_run and not verify_lock_clean(lock_path, skill):
-        print(f"error: '{skill}' is still present in {lock_path} after patch",
+    if not args.dry_run and not verify_lock_clean(lock_path, skill_names):
+        print(f"error: skill identity keys are still present in {lock_path} after patch",
               file=sys.stderr)
         return 1
 

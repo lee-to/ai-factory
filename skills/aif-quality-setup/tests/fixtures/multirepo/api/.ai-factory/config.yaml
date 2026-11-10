@@ -1,0 +1,10 @@
+language:
+  ui: russian
+  artifacts: russian
+paths:
+  description: project-context/description.md
+  rules_file: project-context/rules.md
+rules:
+  base: project-context/base.md
+git:
+  enabled: true

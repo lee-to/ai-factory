@@ -16,9 +16,10 @@ export interface AgentWizardSelection {
 export interface WizardAnswers {
   selectedSkills: string[];
   agents: AgentWizardSelection[];
+  useSymlinks?: boolean;
 }
 
-export async function runWizard(defaultAgentIds: string[] = []): Promise<WizardAnswers> {
+export async function runWizard(defaultAgentIds: string[] = [], useSymlinks = false, askSymlinks = true): Promise<WizardAnswers> {
   const availableSkills = await getAvailableSkills();
   const selectedByDefault = new Set(defaultAgentIds);
 
@@ -50,6 +51,13 @@ export async function runWizard(defaultAgentIds: string[] = []): Promise<WizardA
         value: skill,
         checked: true, // All skills selected by default
       })),
+    },
+    {
+      type: 'confirm',
+      name: 'useSymlinks',
+      message: 'Use symlinks for identical skills (shared in .agents/skills)?',
+      default: useSymlinks,
+      when: answers => askSymlinks && answers.selectedSkills.length > 0,
     },
   ]);
 
@@ -120,5 +128,6 @@ export async function runWizard(defaultAgentIds: string[] = []): Promise<WizardA
   return {
     selectedSkills: answers.selectedSkills,
     agents: selections,
+    useSymlinks: answers.useSymlinks ?? useSymlinks,
   };
 }

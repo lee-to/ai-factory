@@ -12,6 +12,30 @@ metadata:
 
 # Docs - Project Documentation Generator
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/aif-docs/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 Generate, maintain, and improve project documentation following a landing-page README + detailed docs-directory structure.
 
 ## Core Principles
@@ -22,6 +46,7 @@ Generate, maintain, and improve project documentation following a landing-page R
 4. **Navigation.** Every doc file in the resolved docs directory has a header line with prev/next links following the Documentation table order: `[← Previous Page](prev.md) · [Back to README](<docs-to-readme-link>) · [Next Page →](next.md)`. First page has no prev link; last page has no next link. Every page ends with a "See Also" section linking to 2-3 related pages.
 5. **Cross-links use relative paths.** From README: link to the resolved docs directory path (for example `docs/workflow.md` by default). Between doc pages in the same directory: `workflow.md`.
 6. **Scannable.** Use tables, bullet lists, and code blocks. Avoid long paragraphs. Users scan, they don't read.
+7. **Meaning before readability.** Any editorial rewrite of requirements must pass the meaning-preservation gate in `references/REVIEW-CHECKLISTS.md` before readability review. Preserve obligations, permissions, conditions, and uncertainty; clearer wording grants no additional authority or confidence.
 
 ## Workflow
 
@@ -30,6 +55,7 @@ Generate, maintain, and improve project documentation following a landing-page R
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.description`, `paths.architecture`, and `paths.docs`
 - **Language:** `language.ui` for prompts and `language.artifacts` for generated docs
+- **Editorial profile:** `writing.profile`, `writing.targets`, and `writing.dictionary` (optional, disabled by default); `language.technical_terms` remains the fallback terminology policy
 
 If config.yaml doesn't exist, use defaults:
 - DESCRIPTION.md: `.ai-factory/DESCRIPTION.md`
@@ -38,6 +64,19 @@ If config.yaml doesn't exist, use defaults:
 - Language: `en` (English)
 
 **Note:** `README.md` remains the landing page in the project root. Detailed docs are written to the resolved `paths.docs` directory (default: `docs/`).
+
+**Fix each artifact's language before selecting an editorial profile.** An
+explicit instruction for that artifact takes priority. Preserve an existing
+document's language unless translation was requested; for new documents use
+`language.artifacts` (fallback: `language.ui`, then `en`). The conversation
+language never overrides the artifact language. The profile cannot translate.
+
+If `writing.profile` is set to anything other than `none`, read
+`references/WRITING-PROFILE.md` to validate settings before drafting (including
+unknown profiles). A malformed `writing` section yields `WARN [writing]` and
+skips the pass. Missing section/profile defaults to `none`. Activate only a
+valid `simple-technical` profile with non-empty targets; otherwise keep the
+ordinary workflow without loading RU/EN editorial references or running a pass.
 
 **THEN:** Read `.ai-factory/DESCRIPTION.md` (use path from config) if it exists to understand:
 - Tech stack (language, framework, database)
@@ -438,6 +477,18 @@ Proposed fixes:
 Apply fixes?
 ```
 
+### Step 2.4: Optional Technical Writing Pass
+
+When Step 0 activates a valid profile, after drafting, splitting, or improving
+content and before saving final Markdown or rendering HTML, apply
+`references/WRITING-PROFILE.md` only to selected files already authorized for
+this run. Compare the candidate with the pre-editorial draft/source before
+accepting it. For an audit-only request,
+report suggestions without rewriting. Generate-HTML-only skips this pass.
+
+This step adds no files or actions to the approved scope. It does not affect
+chat replies, issues, plans, requirements validation, or quality-gate verdicts.
+
 ### Step 3: Generate HTML Version (--web flag)
 
 When `--web` flag is passed, generate a static HTML site from the markdown docs.
@@ -471,7 +522,7 @@ Show tree of generated files and `open docs-html/index.html` hint.
 
 **Skip this step** only when "Generate HTML only" was chosen — no content was modified, nothing to review.
 
-Read every generated/modified file and evaluate it against both checklists from `references/REVIEW-CHECKLISTS.md`. Two checklists: **Technical Accuracy** and **Readability & Completeness**.
+Read every generated/modified file and evaluate it using `references/REVIEW-CHECKLISTS.md`: **Meaning Preservation** first for requirement rewrites, then **Technical Accuracy** and **Readability & Completeness**. Compare rewritten requirements with their original source, including content moved or split between files. Report an explicit `Meaning preservation: PASS` or `FAIL` before readability results; use `N/A — no requirements rewritten` only when applicable. On failure, restore or repair the affected rewrite and repeat the comparison before proceeding. Missing source or unresolved ambiguity is a failure, not permission to guess.
 
 Fix any issues found before presenting the result to the user. Display results as a compact table with ✅/❌/⚠️ status per item.
 
@@ -541,7 +592,7 @@ Suggest the user to free up context space if needed: `/clear` (full reset) or `/
 ## Artifact Ownership
 
 - Primary ownership: `README.md`, `<resolved docs dir>/*`, and the Documentation section in `AGENTS.md`.
-- Config use: `config.yaml` resolves `paths.description`, `paths.architecture`, `paths.docs`, `language.ui`, and `language.artifacts`.
+- Config use: `config.yaml` resolves `paths.description`, `paths.architecture`, `paths.docs`, `language.ui`, `language.artifacts`, `language.technical_terms`, and optional `writing.profile`, `writing.targets`, `writing.dictionary`. The profile and project dictionary are read-only inputs; targets never grant write ownership.
 - Read-only context: `.ai-factory/DESCRIPTION.md`, `.ai-factory/ARCHITECTURE.md`, roadmap/rules/research artifacts unless the user explicitly asks for broader edits.
 
 ## Important Rules
@@ -549,7 +600,7 @@ Suggest the user to free up context space if needed: `/clear` (full reset) or `/
 1. **Always ask before making changes** to existing documentation — show the plan first
 2. **Never delete content** without moving it somewhere else
 3. **Detect real project info** — don't invent features, read package.json/config files
-4. **Use the project's language** — if project README is in Russian, write docs in Russian
+4. **Resolve language before style** — explicit artifact instruction first; preserve existing document language unless translation was requested; new docs use `language.artifacts`, then `language.ui`, then `en`
 5. **Preserve existing badges/logos** — don't remove them during restructuring
 6. **Add to .gitignore** if generating HTML: add `docs-html/` to .gitignore
 7. **Ownership boundary** — this command owns documentation artifacts (`README.md`, `<resolved docs dir>/*`, and the Documentation section in `AGENTS.md`), not the roadmap, RULES.md, or research artifacts resolved from config

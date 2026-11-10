@@ -1,52 +1,15 @@
-# spec-only fixture (.spec.yaml): describes the contract for a future
-# runner. No existing runner consumes this file, so a green CI does not
-# prove the +check branches below executed.
-
+# Executable replay scenario; run npm run test:review-check (no live runtime).
 scenario: check-mode-validator-failure
-description: |
-  With `+check` enabled but the `Task` tool intentionally NOT in the
-  runner's allowed list — production-equivalent simulation of "validator
-  unavailable" / dispatch failure — `/aif-review` must take the
-  whole-dispatch-failure path described in
-  skills/aif-review/references/CHECK-MODE.md:
-
-    1. Draft the review internally (Critical Issues + Suggestions).
-    2. Attempt to dispatch `Task(subagent_type: general-purpose, ...)`
-       and observe failure (tool denied by the runner).
-    3. Render the review with the original findings UNCHANGED — no
-       drops, no rewrites, no reclassifications.
-    4. SKIP the `Filtered: ... by +check` summary line entirely.
-    5. Append exactly one `WARN [+check]: validator failed (<reason>)`
-       line ABOVE the `aif-gate-result` block.
-    6. Keep `aif-gate-result` last and build it from the UNFILTERED
-       original list — status, blockers, affected_files and
-       suggested_next are NOT recomputed in this path.
-
-  Verifies the fallback contract: the skill never produces a
-  partial-filter output when the validator is unreachable, and the
-  WARN line is always above the gate-result fence.
-
-  Fixture state mirrors check-mode-happy-path.spec.yaml — the only difference
-  is the runner's allowed-tools list, which deliberately omits `Task` so
-  the validator dispatch is denied.
-
-  Runner requirements (checklist for the future runner — same items
-  are spelled out in prose above):
-    - Handle `files_staged:`: write each path to disk AND `git add` it
-      before invoking the skill, so `git diff --cached` is non-empty.
-    - Surface a denied/missing `Task` tool as a dispatch failure
-      (empty response / exception / refusal) so the skill takes the
-      WARN fallback path. Approving the call must NOT be possible.
+description: >
+  Executed offline by scripts/test-review-check.mjs through the skill's shared
+  check-workflow.mjs host protocol. Controlled recordings live in
+  _replay/cases.json. Fixtures are staged in a real temporary Git repository; no
+  inference or live tool fallback is permitted.
 skill: aif-review
-argument: "+check"
+argument: +check
 max_turns: 50
-
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
-  # `Task` is INTENTIONALLY omitted from this list to simulate validator
-  # unavailability. A runner that denies the call must surface the
-  # denial as a dispatch failure so the skill takes the WARN fallback.
   allowed_tools_override:
     - Read
     - Glob
@@ -59,7 +22,8 @@ runner:
     - Bash(printenv *)
     - AskUserQuestion
     - Questions
-
+  runtime: review-replay
+  model: recorded
 fixtures:
   git_init: true
   git_branch: main
@@ -95,28 +59,22 @@ fixtures:
           verifyToken(req.token);
           return { status: 200 };
         }
-
 user_responses: []
-
 assertions:
   - id: warn-fallback-line
     type: output_contains
-    pattern: "WARN \\[\\+check\\]:\\s+validator failed\\s*\\([^)]+\\),\\s+all items kept as-is"
+    pattern: WARN \[\+check\]:\s+validator failed\s*\([^)]+\),\s+all items kept as-is
     weight: 4
-
   - id: no-filtered-summary
-    type: no_output_contains
-    pattern: "Filtered:[^\\n]*by \\+check"
-
+    type: output_contains
+    pattern: ^(?![\s\S]*(?:Filtered:[^\n]*by \+check))[\s\S]*$
   - id: gate-result-block-present
     type: output_contains
     pattern: "```aif-gate-result"
     weight: 3
-
   - id: warn-before-gate-result
     type: output_contains
-    pattern: "WARN \\[\\+check\\][\\s\\S]*```aif-gate-result"
+    pattern: WARN \[\+check\][\s\S]*```aif-gate-result
     weight: 3
-
   - id: stay-in-sandbox
     type: no_path_escape

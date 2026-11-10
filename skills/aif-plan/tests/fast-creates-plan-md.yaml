@@ -8,7 +8,6 @@ skill: aif-plan
 argument: "fast add GET /health endpoint that returns 200 OK"
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   # Keep the run focused — no subagent exploration and no Handoff MCP calls.
   # The skill gracefully degrades when MCP tools aren't available (manual mode,

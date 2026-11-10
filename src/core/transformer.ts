@@ -13,6 +13,7 @@ export interface TransformResult {
 
 export interface AgentTransformer {
   transform(skillName: string, content: string): TransformResult;
+  transformReference?(skillName: string, content: string): string;
   postInstall?(projectDir: string): Promise<void>;
   getWelcomeMessage(): string[];
   getInvocationHint?(): string;
@@ -27,6 +28,9 @@ export interface AgentOnboarding {
 export interface SkillTargetRuntime {
   id: string;
   skillsDir: string;
+  agentsDir?: string;
+  configFiles?: string[];
+  installedAgentFiles?: string[];
 }
 
 export const WORKFLOW_SKILLS = new Set([
@@ -37,7 +41,10 @@ export const WORKFLOW_SKILLS = new Set([
   'aif-implement',
   'aif-improve',
   'aif-plan',
+  'aif-plan-overview',
+  'aif-roadmap-next',
   'aif-rules-check',
+  'aif-skills-audit',
   'aif-verify',
   'aif-warmup',
 ]);
@@ -55,19 +62,6 @@ export function replaceFrontmatterName(content: string, newName: string): string
   return content.replace(/^name:\s*.+$/m, `name: ${newName}`);
 }
 
-export function simplifyFrontmatter(content: string): string {
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!fmMatch) return content;
-
-  const frontmatter = fmMatch[1];
-  const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
-
-  if (!descMatch) return content;
-
-  const newFrontmatter = `---\ndescription: ${descMatch[1].trim()}\n---`;
-  return content.replace(/^---\n[\s\S]*?\n---/, newFrontmatter);
-}
-
 export function removeFrontmatter(content: string): string {
   return content.replace(/^---\n[\s\S]*?\n---\n?/, '');
 }
@@ -82,6 +76,22 @@ export function rewriteInvocationPrefix(
     INVOCATION_PATTERN,
     (_match, prefix: string, invocation: string) => `${prefix}${mapInvocation(invocation)}`,
   );
+}
+
+export function rewriteReferenceInvocationPrefix(
+  content: string,
+  mapInvocation: (invocation: string) => string,
+): string {
+  // Gate JSON is a wire protocol: suggested_next.command stays canonical even
+  // when surrounding human handoffs use a runtime-specific invocation prefix.
+  const gates = /^(`{3,}|~{3,})aif-gate-result[ \t]*\r?\n[\s\S]*?(?:^\1[ \t]*(?=\r?$)|$(?![\s\S]))/gm;
+  let output = '';
+  let offset = 0;
+  for (const match of content.matchAll(gates)) {
+    output += rewriteInvocationPrefix(content.slice(offset, match.index), mapInvocation) + match[0];
+    offset = match.index + match[0].length;
+  }
+  return output + rewriteInvocationPrefix(content.slice(offset), mapInvocation);
 }
 
 interface TransformerRegistration {
@@ -110,21 +120,37 @@ const registry: Record<string, TransformerRegistration> = {
   },
   antigravity: {
     create: () => new AntigravityTransformer(),
-    identity: 'antigravity',
+    identity: 'default',
   },
 };
 
-export function getTransformer(agentId: string): AgentTransformer {
+export function getTransformer(agentId: string, targets: SkillTargetRuntime[] = []): AgentTransformer {
+  if (agentId === 'universal' && resolveTransformerAgentId(agentId, targets) !== agentId) {
+    return new CodexTransformer('Universal / Other (shared Codex skills)');
+  }
   const registration = registry[agentId];
   return registration ? registration.create() : new DefaultTransformer();
 }
 
-export function getTransformerIdentity(agentId: string): string {
-  return registry[agentId]?.identity ?? DEFAULT_TRANSFORMER_IDENTITY;
+export function getTransformerIdentity(agentId: string, targets: SkillTargetRuntime[] = []): string {
+  return registry[resolveTransformerAgentId(agentId, targets)]?.identity ?? DEFAULT_TRANSFORMER_IDENTITY;
 }
 
 function normalizeSkillsDir(skillsDir: string): string {
   return skillsDir.replaceAll('\\', '/').replace(/\/+$/, '');
+}
+
+function resolveTransformerAgentId(agentId: string, targets: SkillTargetRuntime[]): string {
+  const universal = targets.find(target => target.id === 'universal');
+  // Universal is a fallback runtime: when sharing a Codex directory, use
+  // the same content on every write, regardless of the selected agent order.
+  if (agentId === 'universal' && universal && targets.some(target =>
+    ['codex', 'codex-app'].includes(target.id)
+    && normalizeSkillsDir(target.skillsDir) === normalizeSkillsDir(universal.skillsDir),
+  )) {
+    return 'codex';
+  }
+  return agentId;
 }
 
 export function assertCompatibleSkillTargets(targets: SkillTargetRuntime[]): void {
@@ -138,7 +164,7 @@ export function assertCompatibleSkillTargets(targets: SkillTargetRuntime[]): voi
   for (const [skillsDir, groupedTargets] of targetsByDir) {
     const identities = new Map<string, string[]>();
     for (const target of groupedTargets) {
-      const identity = getTransformerIdentity(target.id);
+      const identity = getTransformerIdentity(target.id, targets);
       identities.set(identity, [...(identities.get(identity) ?? []), target.id]);
     }
 
@@ -159,8 +185,8 @@ export function assertCompatibleSkillTargets(targets: SkillTargetRuntime[]): voi
   }
 }
 
-export function getAgentOnboarding(agentId: string): AgentOnboarding {
-  const transformer = getTransformer(agentId);
+export function getAgentOnboarding(agentId: string, targets: SkillTargetRuntime[] = []): AgentOnboarding {
+  const transformer = getTransformer(agentId, targets);
   return {
     welcomeMessage: transformer.getWelcomeMessage(),
     invocationHint: transformer.getInvocationHint?.() ?? null,

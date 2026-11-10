@@ -17,7 +17,6 @@ skill: aif-archive
 argument: "0005_feature-auth"
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   allowed_tools_override:
     - Read
@@ -87,7 +86,7 @@ assertions:
 
   - id: output-mentions-collision
     type: output_contains
-    text: "already exists"
+    pattern: "already exists"
 
   - id: stay-in-sandbox
     type: no_path_escape

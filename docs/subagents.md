@@ -4,22 +4,31 @@
 
 > AI Factory ships bundled runtime-native agent files for **Claude Code** and **Codex CLI**. `ai-factory init` installs Claude markdown agents into `.claude/agents/`, and installs Codex TOML agents into `.codex/agents/` plus a managed `.codex/config.toml`. `ai-factory update` refreshes those managed files without touching user-created custom agents. Extensions may additionally provide agent files for Codex or extension-defined runtimes through the extension manifest. This is baseline native-agent support for Codex, not full parity with the broader Claude bundle.
 
-This page focuses on the bundled Claude and Codex files shipped by the base AI Factory package. The generic agent-files infrastructure for extensions and dynamic runtimes is documented in [Extensions](extensions.md) and [Configuration](configuration.md). Extension-provided Codex helpers can be useful, but they are not automatic equivalents of the top-level Claude coordinator loop described on this page, and their runtime settings live in their own runtime-native agent files rather than being passed from Claude-style coordinator prompts. For bounded Codex helpers, prefer read-only advisory workers over writer roles.
+This page focuses on the bundled Claude and Codex files shipped by the base AI Factory package. The generic agent-files infrastructure for extensions and dynamic runtimes is documented in [Extensions](extensions.md) and [Configuration](configuration.md).
+
+Extension-provided Codex helpers can be useful, but they are not automatic equivalents of the top-level Claude coordinator loop described on this page, and their runtime settings live in their own runtime-native agent files rather than being passed from Claude-style coordinator prompts. For bounded Codex helpers, prefer read-only advisory workers over writer roles.
 
 ## Migration Note
 
+Bundled `loop-*` agent files are installed only when `aif-loop` is selected. This rule applies to Claude Markdown and Codex TOML bundles; the current Codex bundle contains no loop roles.
+
+Rerunning `init` without `aif-loop`, or running `update` when it is absent from `installedSkills`, removes previously tracked bundled loop files and their metadata. `update --force` respects the same selection. Untracked user files and extension-owned helpers are preserved; other bundled agents remain independent of skill selection.
+
 If you have an existing AI Factory project that was initialized before bundled agent-file support was added, running `ai-factory update` will automatically install bundled package agent files into the runtime-specific target directory (`.claude/agents/` for Claude, `.codex/agents/` for Codex). `loadConfig()` still reads legacy Claude-only `subagentsDir`, `installedSubagents`, and `managedSubagents`, but persists the universal `agentsDir`, `installedAgentFiles`, `managedAgentFiles`, and `agentFileSources` fields on the next save.
 
-If you already have custom agents in `.claude/agents/` or `.codex/agents/`, they will not be touched — AI Factory only manages files listed in `installedAgentFiles`, `managedAgentFiles`, `installedConfigFiles`, and `managedConfigFiles` in `.ai-factory.json`. For Codex, that managed set includes `.codex/config.toml`; if drift is detected in that file, `ai-factory update` may overwrite it to restore the package-managed defaults.
+If you already have custom agents in `.claude/agents/` or `.codex/agents/`, they will not be touched. AI Factory tracks its managed files in `installedAgentFiles`, `managedAgentFiles`, `installedConfigFiles`, and `managedConfigFiles` in `.ai-factory.json`. Updates preserve local modifications and untracked pre-existing config files, including `.codex/config.toml`.
 
-If a future AI Factory package version drops a previously bundled source file, `ai-factory update` reports that managed agent file as skipped and preserves the local tracked file instead of deleting it implicitly. Removal of managed agent files is only performed through explicit agent deselection or extension removal flows.
+The [Codex skill-directory migration](configuration.md#codex-skill-directories-and-migration) can move skills to `.agents/skills/`; native agents remain in `.codex/agents/` and their configuration remains in `.codex/config.toml`. Skill migration preserves native bytes and ownership records before a separate native update runs. Runtime deselection also preserves `.codex/config.toml` when Codex app still uses it.
+
+Tracked agent files with unavailable source metadata can be preserved with a warning. Bundled files whose source was removed from the package, or whose required `aif-loop` skill is no longer selected, are removed during update. Explicit agent deselection and extension removal also clean up their managed files.
 
 ## Why This Exists
 
-AI Factory supports many coding agents, but only a subset expose a native agent/subagent system with project-local agent files and predictable orchestration contracts. Today AI Factory ships two such bundles:
+AI Factory supports many coding agents, but only a subset expose a native agent/subagent system with project-local agent files and predictable orchestration contracts. Today AI Factory ships three such bundles:
 
 - **Claude Code** — markdown subagents under `.claude/agents/`
 - **Codex CLI** — TOML agent definitions under `.codex/agents/` plus `.codex/config.toml`
+- **Google Antigravity 2.0** — markdown agents under `.agents/agents/`
 
 This repository uses that feature for six narrow purposes:
 - splitting `/aif-loop` into small, single-responsibility roles so the Reflex Loop stays predictable, cheaper to run, and easier to reason about
@@ -60,14 +69,42 @@ Codex receives the same narrow planning/implementation/review contract shape as 
 | `commit-preparer` | read-only commit-readiness audit | `gpt-5.4-mini` |
 | `docs-auditor` | read-only documentation drift audit | `gpt-5.4-mini` |
 | `review-sidecar` | read-only correctness review | `gpt-5.4-mini` |
+| `review-validator` | read-only validation of drafted `/aif-review` findings against the reviewed diff | `gpt-5.4-mini` |
 | `security-sidecar` | read-only security review | `gpt-5.4-mini` |
 
-Codex also receives a managed `.codex/config.toml` with conservative `[agents]` defaults so native agent orchestration works in freshly initialized projects. That file is intentionally package-managed by AI Factory and is tracked through `installedConfigFiles` / `managedConfigFiles` in `.ai-factory.json`; `ai-factory update` may overwrite local drift in `.codex/config.toml` to restore the managed defaults.
+Codex also receives a managed `.codex/config.toml` with conservative `[agents]` defaults so native agent orchestration works in freshly initialized projects. AI Factory tracks it through `installedConfigFiles` / `managedConfigFiles` in `.ai-factory.json`. Updates can refresh a file that still matches its saved installation baseline; local changes are preserved, including during `--force` updates.
 
 When those agents are used from `aif-handoff`, the bundle is also **handoff-aware**:
 - top-level coordinators understand explicit `HANDOFF_MODE`, `HANDOFF_TASK_ID`, and `HANDOFF_SKIP_REVIEW` context passed by the parent runtime
 - autonomous Handoff runs stay non-interactive and do not perform Handoff MCP sync from inside the Codex agent itself
 - worker and sidecar agents explicitly keep Handoff sync coordinator-owned
+
+## Google Antigravity 2.0 Bundled Agents
+
+Antigravity 2.0 receives native markdown agent files in `.agents/agents/` with YAML frontmatter, model tiers (`pro`, `flash`, `inherit`), autonomy configuration (`permissionMode: acceptEdits`, `commandExecutionPolicy: auto`), worktree isolation (`Workspace: "branch"`), tool access, and `send_message` IPC with Reactive Wakeup:
+
+| Agent | Purpose | Model | Autonomy & Frontmatter | Tools |
+|---|---|---|---|---|
+| `plan-coordinator` | own parent planning session and coordinate plan polish passes | `inherit` | `mainAgent: true, subagent: true, permissionMode: acceptEdits, commandExecutionPolicy: auto` | `invoke_subagent, send_message, manage_subagents, view_file, grep_search, find_by_name, list_dir` |
+| `plan-polisher` | explore codebase, refine plan, and critique tasks | `inherit` | `subagent: true` | `view_file, write_to_file, replace_file_content, grep_search, find_by_name, list_dir, run_command, send_message` |
+| `implement-coordinator` | orchestrate parallel task execution, worker delegation, and sidecars | `inherit` | `mainAgent: true, subagent: true, permissionMode: acceptEdits, commandExecutionPolicy: auto` | `invoke_subagent, send_message, manage_subagents, view_file, write_to_file, replace_file_content, grep_search, find_by_name, list_dir, run_command` |
+| `implement-worker` | execute bounded implementation task in isolated workspace (`Workspace: "branch"`) | `inherit` | `subagent: true` | `view_file, write_to_file, replace_file_content, grep_search, find_by_name, list_dir, run_command, send_message` |
+| `best-practices-sidecar` | read-only maintainability and architecture audit | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `commit-preparer` | read-only inspection of git diff and atomic commit messages | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, run_command, send_message` |
+| `docs-auditor` | read-only documentation drift audit | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `review-sidecar` | read-only correctness and regression review | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `rules-sidecar` | read-only project rules compliance audit | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+| `security-sidecar` | read-only security and secret leak review | `inherit` | `subagent: true` | `view_file, grep_search, find_by_name, list_dir, send_message` |
+
+### Antigravity 2.0 CLI Invocation
+Coordinators can be invoked directly from the terminal with native CLI flags:
+```bash
+# Start plan coordinator
+agy --agent plan-coordinator "implement oauth login"
+
+# Start implementation coordinator
+agy --agent implement-coordinator
+```
 
 ## Current Bundled Agents
 
@@ -81,6 +118,7 @@ When those agents are used from `aif-handoff`, the bundle is also **handoff-awar
 | `commit-preparer` | background read-only commit preparation sidecar for current implementation scope | `sonnet` | `Read, Glob, Grep` |
 | `docs-auditor` | background read-only documentation drift sidecar for current implementation scope | `sonnet` | `Read, Glob, Grep` |
 | `review-sidecar` | background read-only code review sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
+| `review-validator` | validate drafted `/aif-review` findings or `/aif-improve` refinements using the calling prompt's output contract. Claude enforces the read-only allowlist. Improve never dispatches without it; review retains its explicit `+check` fallback policy | `inherit` | `Read, Glob, Grep` |
 | `security-sidecar` | background read-only security audit sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
 | `rules-sidecar` | background read-only project rules sidecar for current implementation scope | `inherit` | `Read, Glob, Grep` |
 | `loop-orchestrator` | decide the next loop phase from `run.json` state | `sonnet` | `Read, Glob, Grep` |

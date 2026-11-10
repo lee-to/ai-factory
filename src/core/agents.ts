@@ -1,3 +1,5 @@
+import os from 'node:os';
+import path from 'node:path';
 import { loadAllExtensions } from './extensions.js';
 
 export type AgentFileExtension = '.md' | '.toml';
@@ -5,6 +7,8 @@ export type AgentFileExtension = '.md' | '.toml';
 export const AGENT_IDS = {
   claude: 'claude',
   codex: 'codex',
+  devin: 'devin',
+  antigravity: 'antigravity',
 } as const;
 
 export interface AgentConfig {
@@ -12,6 +16,7 @@ export interface AgentConfig {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: AgentFileExtension;
   settingsFile: string | null;
@@ -29,6 +34,7 @@ export interface RuntimeDefinitionInput {
   displayName: string;
   configDir: string;
   skillsDir: string;
+  homeSkillsDir?: string;
   agentsDir?: string;
   agentFileExtension?: AgentFileExtension;
   settingsFile: string | null;
@@ -39,6 +45,26 @@ export interface RuntimeDefinitionInput {
 export interface RuntimeManifestInput {
   name: string;
   agents?: RuntimeDefinitionInput[];
+}
+
+export function resolveDevinHomeSkillsDir(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
+  home = os.homedir(),
+): string {
+  if (platform === 'win32') {
+    const appData = env.APPDATA;
+    const configHome = appData && path.win32.isAbsolute(appData)
+      ? appData
+      : path.win32.join(home, 'AppData', 'Roaming');
+    return path.win32.join(configHome, 'devin', 'skills');
+  }
+
+  const xdgConfigHome = env.XDG_CONFIG_HOME;
+  const configHome = xdgConfigHome && path.isAbsolute(xdgConfigHome)
+    ? xdgConfigHome
+    : path.join(home, '.config');
+  return path.join(configHome, 'devin', 'skills');
 }
 
 const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
@@ -132,12 +158,24 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
   },
   windsurf: {
     id: 'windsurf',
-    displayName: 'Windsurf',
-    configDir: '.windsurf',
-    skillsDir: '.windsurf/skills',
+    displayName: 'Devin Desktop (formerly Windsurf)',
+    configDir: '.devin',
+    skillsDir: '.devin/skills',
+    homeSkillsDir: '.config/devin/skills',
     settingsFile: null,
     supportsMcp: false,
-    skillsCliAgent: 'windsurf',
+    skillsCliAgent: 'devin',
+    source: 'builtin',
+  },
+  [AGENT_IDS.devin]: {
+    id: AGENT_IDS.devin,
+    displayName: 'Devin',
+    configDir: '.devin',
+    skillsDir: '.devin/skills',
+    homeSkillsDir: resolveDevinHomeSkillsDir(),
+    settingsFile: null,
+    supportsMcp: false,
+    skillsCliAgent: 'devin',
     source: 'builtin',
   },
   warp: {
@@ -180,14 +218,37 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsCliAgent: 'kilo',
     source: 'builtin',
   },
-  antigravity: {
-    id: 'antigravity',
-    displayName: 'Antigravity',
-    configDir: '.agent',
-    skillsDir: '.agent/skills',
+  [AGENT_IDS.antigravity]: {
+    id: AGENT_IDS.antigravity,
+    displayName: 'Antigravity 2.0',
+    configDir: '.agents',
+    skillsDir: '.agents/skills',
+    agentsDir: '.agents/agents',
+    agentFileExtension: '.md',
+    agentsSourceDir: 'subagents/antigravity/agents',
+    settingsFile: '.agents/mcp_config.json',
+    supportsMcp: true,
+    skillsCliAgent: 'antigravity',
+    source: 'builtin',
+  },
+  chatgpt: {
+    id: 'chatgpt',
+    displayName: 'ChatGPT CLI',
+    configDir: '.chatgpt',
+    skillsDir: '.chatgpt/skills',
     settingsFile: null,
     supportsMcp: false,
-    skillsCliAgent: 'antigravity',
+    skillsCliAgent: 'chatgpt-cli',
+    source: 'builtin',
+  },
+  openrouter: {
+    id: 'openrouter',
+    displayName: 'OpenRouter CLI',
+    configDir: '.openrouter',
+    skillsDir: '.openrouter/skills',
+    settingsFile: null,
+    supportsMcp: false,
+    skillsCliAgent: 'openrouter-cli',
     source: 'builtin',
   },
   opencode: {
@@ -243,6 +304,7 @@ function normalizeRuntimeDefinition(
     displayName: definition.displayName,
     configDir: definition.configDir,
     skillsDir: definition.skillsDir,
+    homeSkillsDir: definition.homeSkillsDir,
     agentsDir: definition.agentsDir,
     agentFileExtension: definition.agentFileExtension,
     settingsFile: definition.settingsFile,

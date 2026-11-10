@@ -1,6 +1,6 @@
 {
   "name": "ai-factory",
-  "version": "2.19.0",
+  "version": "2.23.0",
   "type": "module",
   "description": "CLI tool for automating AI agent context setup in projects",
   "main": "dist/cli/index.js",
@@ -12,12 +12,38 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "node scripts/run-bash-test.mjs scripts/test-skills.sh",
+    "test:runtime-questions": "node scripts/test-runtime-questions.mjs",
+    "test:distillation-source-use": "node scripts/test-distillation-source-use.mjs",
+    "test:skills-audit": "node scripts/test-skills-audit.mjs",
+    "test:quality-setup": "node scripts/test-quality-setup.mjs",
+    "test:quality-setup:native": "node scripts/test-quality-setup-native.mjs",
     "test:init": "node scripts/run-bash-test.mjs scripts/test-init.sh",
+    "test:aif-explore-installation": "node scripts/test-aif-explore-installation.mjs",
+    "test:evolve-ownership": "node scripts/test-evolve-ownership.mjs",
+    "test:plan-advisors": "node scripts/test-plan-advisors.mjs",
+    "test:shared-skill-context": "node scripts/test-shared-skill-context.mjs",
+    "test:command-catalog": "node scripts/test-command-catalog.mjs",
+    "test:completion-hook": "node scripts/test-completion-hook.mjs",
+    "test:worktree-readiness": "node scripts/test-worktree-readiness.mjs",
+    "test:api-compatibility": "node scripts/test-api-compatibility.mjs",
+    "test:coupling": "node scripts/test-coupling.mjs",
+    "test:shared-skills": "npm run build && node scripts/test-shared-skill-targets.mjs",
+    "test:skill-symlinks": "npm run build && node scripts/test-skill-symlinks.mjs",
+    "test:loop-subagents": "node scripts/test-loop-subagents.mjs",
+    "test:codex-targets": "node scripts/test-codex-skill-targets.mjs --group=control,targets,core,preflight,migration,extensions,ownership,cli,upgrade && node scripts/test-managed-skill-receipts.mjs && node scripts/test-skill-migration-modes.mjs",
     "test:update": "node scripts/run-bash-test.mjs scripts/test-update.sh",
+    "test:extension-tool-permissions": "node scripts/test-extension-tool-permissions.mjs",
     "test:extension-schema": "node scripts/test-extension-schema.mjs",
     "test:extensions": "node scripts/run-bash-test.mjs scripts/test-extensions.sh",
     "test:cleanup-helper": "node scripts/run-bash-test.mjs scripts/test-cleanup-helper.sh",
+    "test:dispatch": "node scripts/test-dispatch-regressions.mjs && node scripts/run-bash-test.mjs scripts/test-dispatch.sh",
     "test:ultra-contract": "node scripts/test-ultra-plan-contract.mjs",
+    "test:selective-references": "npm run build && node scripts/test-selective-skill-references.mjs",
+    "test:review-check": "node scripts/test-review-check.mjs",
+    "record:review-check": "node scripts/capture-review-check.mjs --write",
+    "test:workflow-defaults-config": "node scripts/test-workflow-defaults-config.mjs",
+    "test:antigravity": "node scripts/test-antigravity-e2e.mjs",
+    "test:simulate": "node scripts/simulate-real-world-lifecycle.mjs",
     "lint:unused": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "lint:dead": "knip --reporter compact",
     "lint": "npm run lint:unused && npm run lint:dead",
@@ -34,6 +60,7 @@
     "opencode",
     "kilocode",
     "windsurf",
+    "devin",
     "warp",
     "zencoder",
     "junie",
@@ -43,6 +70,11 @@
     "copilot",
     "roocode",
     "antigravity",
+    "chatgpt",
+    "chatgpt-cli",
+    "openrouter",
+    "openrouter-cli",
+    "cross-agent-dispatch",
     "claude-code",
     "ai",
     "skills",
@@ -68,7 +100,9 @@
     ],
     "ignore": [
       "examples/**",
-      "skills/aif/references/update-config.mjs"
+      "skills/aif-quality-setup/tests/fixtures/**",
+      "skills/aif/references/update-config.mjs",
+      "skills/aif-review/references/pr-source.mjs"
     ],
     "ignoreDependencies": [
       "@cutcode/ai-tester"
@@ -82,7 +116,8 @@
     "commander": "^12.1.0",
     "fs-extra": "^11.2.0",
     "inquirer": "^9.2.15",
-    "semver": "^7.7.4"
+    "semver": "^7.7.4",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@cutcode/ai-tester": "^0.2.0",
@@ -93,5 +128,10 @@
     "ajv": "^8.20.0",
     "knip": "^5.85.0",
     "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": {
+      "@hono/node-server": "^1.19.18"
+    }
   }
 }

@@ -388,6 +388,7 @@ Existing project agents in `.claude/agents/`:
 | `loop-invariant-prep` | invariants/consistency prep | `haiku` | `Read, Glob, Grep` |
 | `plan-polisher` | run `/aif-plan`, critique the result, and loop `/aif-improve` until stable. Accepts `tests`/`docs` params (`yes`/`no`/`infer`; default `infer` — auto-detects from project) | `inherit` | `Read, Write, Edit, Glob, Grep, Bash` |
 | `review-sidecar` | background read-only review worker | `inherit` | `Read, Glob, Grep` |
+| `review-validator` | read-only validator of drafted `/aif-review` findings and `/aif-improve` refinements, using the caller's output contract. Read-only by enforced allowlist because inputs contain untrusted evidence | `inherit` | `Read, Glob, Grep` |
 | `security-sidecar` | background read-only security worker | `inherit` | `Read, Glob, Grep` |
 | `rules-sidecar` | background read-only project rules worker | `inherit` | `Read, Glob, Grep` |
 

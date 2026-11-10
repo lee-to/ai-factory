@@ -10,7 +10,7 @@ description: |
     1. Run the read-only discovery procedure from
        skills/aif-improve/references/LIST-MODE.md.
     2. NEVER dispatch the +check validator — no
-       `Task(subagent_type: general-purpose, ...)` call at any point in
+       `Task(subagent_type: review-validator, ...)` call at any point in
        the run, even though `Task` is in the allowed-tools list (the
        silent-ignore contract must hold even when the tool is available).
     3. NEVER modify any file, plan, or task list (read-only `--list`
@@ -33,7 +33,6 @@ argument: "--list +check"
 max_turns: 30
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   # `Task` IS in the allowed list on purpose. The contract is that the
   # skill must not USE it in --list mode regardless of availability;
@@ -93,8 +92,6 @@ assertions:
   - id: validator-not-dispatched
     type: no_tool_called
     tool: Task
-    args_match:
-      subagent_type: "^general-purpose$"
     weight: 4
 
   - id: list-output-rendered

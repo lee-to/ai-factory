@@ -1,0 +1,76 @@
+# Behavioral fixture; npm test does not execute model workflows.
+scenario: updated-source-terms
+description: Terms-only changes supersede prior source-use metadata even at the same source version.
+skill: aif-distillation
+argument: "./new-material.md --name incident-triage --path ./output --update"
+max_turns: 35
+fixtures:
+  git_init: false
+  files_unstaged:
+    - path: output/incident-triage/SKILL.md
+      content: |
+        ---
+        name: incident-triage
+        description: Triage incidents and verify recovery.
+        ---
+        # Incident triage
+        Capture impact, mitigate reversibly, verify recovery.
+        See references/SOURCE-MAP.md for source-use metadata revision 1.
+    - path: output/incident-triage/references/SOURCE-MAP.md
+      content: |
+        # Source Map
+        Source A: docs at https://example.test/triage, revision v1.
+        Metadata revision: 1 (current).
+        Terms: CC-BY-4.0 at https://example.test/triage/LICENSE.
+        Relation: independently authored triage workflow.
+    - path: new-material.md
+      content: |
+        Source A: docs at https://example.test/triage, unchanged revision v1.
+        Updated supplied terms at https://example.test/triage/TERMS:
+        Local use only; no public export. These replace the old terms.
+        Practice unchanged: capture impact, mitigate reversibly, verify recovery.
+assertions:
+  - id: new-revision-supersedes-old
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      new_string: '(?i)(revision[^\n]*2[\s\S]*supersede|supersede[\s\S]*revision[^\n]*2)'
+  - id: new-revision-is-current
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      new_string: '(?i)revision[^\n]*\b2\b[^\n]*current'
+  - id: updated-terms-reference
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      new_string: 'https://example\.test/triage/TERMS'
+  - id: updated-local-use-restriction
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      new_string: '(?i)local (use )?only'
+  - id: updated-no-public-export
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      new_string: '(?i)no public export'
+  - id: old-revision-is-historical
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      new_string: '(?i)(revision[^\n]*\b1\b[^\n]*(superseded|historical)|(superseded|historical)[^\n]*revision[^\n]*\b1\b)'
+  - id: old-terms-are-historical
+    type: tool_called
+    tool: Edit
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+      new_string: '(?i)((historical|superseded)(?:(?!metadata revision[^\n]*\b2\b[^\n]*current)[\s\S])*CC-BY-4\.0|CC-BY-4\.0[^\n]*(historical|superseded))'
+  - id: stay-in-sandbox
+    type: no_path_escape

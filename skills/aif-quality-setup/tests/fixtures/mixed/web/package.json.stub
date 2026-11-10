@@ -1,0 +1,5 @@
+{
+  "name": "quality-fixture-web",
+  "private": true,
+  "devDependencies": { "typescript": "^5.3.3" }
+}

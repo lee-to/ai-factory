@@ -52,21 +52,65 @@
 -> remove worktree, STOP
 ```
 
-### No mode provided
+### No mode provided (interactive, `plan_mode: ask` or absent)
 
 ```text
 /aif-plan Add user authentication
 -> ask full/fast interactively, description="Add user authentication"
--> ultra is not shown or inferred; it requires the explicit leading token
+-> ultra is not shown or inferred; select it with a leading token or a configured ultra default
 ```
 
-### No mode + no description (defaults from RESEARCH.md)
+### No mode + no description (interactive, `plan_mode: ask` or absent)
+
+Assume the configured research file has a usable Active Summary topic.
 
 ```text
 /aif-plan
--> ask mode interactively
+-> ask full/fast once
 -> description defaults to .ai-factory/RESEARCH.md Active Summary Topic (if present)
+-> keep the selected mode; omit Original Request and commit Research Context
 ```
+
+### Configured mode, with or without a description
+
+Each row assumes no explicit mode token and a valid `workflow.plan_mode`.
+Preference questions (tests/logging/docs) still follow the selected mode.
+
+| Config | Invocation | Result |
+|--------|------------|--------|
+| `fast` | `/aif-plan Add user authentication` | Fast plan; no mode question; exact description is Original Request |
+| `full` | `/aif-plan Add user authentication` | Full plan; no mode question; exact description is Original Request |
+| `ultra` | `/aif-plan Add user authentication` | Ultra bundle; no mode question; exact description is Original Request |
+| `fast` | `/aif-plan` with a usable research topic | Fast plan from that topic; no mode question or Original Request |
+| `full` | `/aif-plan` with a usable research topic | Full plan from that topic; no mode question or Original Request |
+| `ultra` | `/aif-plan` with a usable research topic | Ultra bundle from that topic; no mode question or Original Request |
+
+Research-backed rows include committed Research Context. Configured defaults
+never become part of the description or Original Request.
+
+### Explicit mode overrides configured ultra
+
+```text
+# workflow.plan_mode: ultra
+/aif-plan fast Add user authentication
+-> mode=fast; Original Request is exactly "Add user authentication"
+/aif-plan full
+-> mode=full; reuse the research topic if available; no mode question
+```
+
+### Non-interactive Handoff fallback
+
+```text
+# HANDOFF_MODE=1; no explicit mode; a usable research topic is available
+# workflow.plan_mode: ask, absent, or invalid
+/aif-plan
+-> mode=fast; reuse a usable research topic; no questions
+-> invalid config additionally emits WARN [config]; absent/ask do not
+# With a valid configured fast/full/ultra, retain that mode instead.
+```
+
+An invalid `plan_mode` also falls back to `ask` in an interactive session and
+emits `WARN [config]`; the interactive examples above then apply.
 
 ## Flow Scenarios
 
@@ -121,12 +165,12 @@
 -> Auto-invokes /aif-implement (parallel = autonomous)
 ```
 
-### Scenario 4: Interactive mode selection
+### Scenario 4: Interactive mode selection (`plan_mode: ask` or absent)
 
 ```text
 /aif-plan Add user authentication
 
--> No mode keyword found
+-> No mode keyword found; configured preference resolves to ask; session is interactive
 -> Asks: Full (Recommended) or Fast?
 -> User picks Full
 -> Continues as full mode flow

@@ -2,7 +2,7 @@
 
 # Extensions
 
-Extensions let third-party developers add new capabilities to AI Factory — custom CLI commands, MCP servers, skill injections, runtime definitions, runtime-specific agent files, and more. Extensions survive `ai-factory update` (injections and managed agent files are automatically re-applied after skills are refreshed).
+Extensions let third-party developers add new capabilities to AI Factory — custom CLI commands, MCP servers, skill injections, runtime definitions, runtime-specific agent files, scoped tool requests, and more. Extensions survive `ai-factory update` (injections, tool requests, and managed agent files are automatically re-applied after skills are refreshed).
 
 ## For Users
 
@@ -246,7 +246,7 @@ If your extension project installs `ai-factory` as a local dependency and you wa
 }
 ```
 
-The schema validates the public manifest shape: commands, runtime definitions, runtime-aware `agentFiles`, injections, skills, replacements, and MCP server templates. Install-time semantics still run in AI Factory itself, including runtime existence, safe relative paths, extension matching, duplicate ownership, and whether a runtime supports managed agent files.
+The schema validates the public manifest shape: commands, runtime definitions, runtime-aware `agentFiles`, injections, `toolPermissions`, skills, replacements, and MCP server templates. Install-time semantics still run in AI Factory itself, including runtime existence, safe relative paths, extension matching, duplicate ownership, and whether a runtime supports managed agent files.
 
 ### Manifest Fields
 
@@ -260,6 +260,7 @@ The schema validates the public manifest shape: commands, runtime definitions, r
 | `agents` | `array` | Runtime definitions that become available to `ai-factory init`, `--agents`, and core runtime lookups once the extension is installed. |
 | `agentFiles` | `array` | Runtime-aware agent assets copied into `agentsDir` for built-in or extension-defined runtimes. |
 | `injections` | `array` | Content to inject into existing skill files. |
+| `toolPermissions` | `array` | Native tool requests for specific skills and runtimes; currently Claude Code only. |
 | `skills` | `array` | Paths to skill directories within the extension. |
 | `replaces` | `object` | Maps extension skill paths to base skill names they replace (e.g. `{"skills/my-commit": "aif-commit"}`). |
 | `mcpServers` | `array` | MCP server configurations to merge into agent settings. |
@@ -342,6 +343,80 @@ After completing each task:
 
 ---
 
+### Skill Tool Permissions
+
+Instructions injected into a skill do not change its YAML frontmatter. An extension
+can separately declare the native tool permissions needed by a specific skill:
+
+```json
+{
+  "toolPermissions": [
+    {
+      "target": "aif-implement",
+      "agents": {
+        "claude": ["Bash(ai-factory hello *)"]
+      }
+    }
+  ]
+}
+```
+
+Declare each `target` once, with a non-empty `agents` map of runtime IDs to tool
+arrays. The target is an installed skill name, not a path. The CLI reports requested
+skills/runtimes/tools before applying them. Missing targets are reported and skipped.
+Extensions without this field retain their existing behavior.
+
+**Runtime support:** Claude Code receives the exact declared entries in that skill's
+`allowed-tools`. Other runtimes are explicitly reported as unsupported and receive no
+permission changes. AI Factory does not translate an unsupported request into broad
+shell access or write global/session permission settings. A Claude root shared with
+another configured runtime is rejected because a runtime-specific grant cannot be
+isolated there.
+
+Claude requests support native tool names such as `Read` or `mcp__server__tool`,
+scoped non-shell rules such as `Read(src/**)`, and literal Bash executable/subcommand prefixes such as `Bash(ai-factory hello *)`.
+Unrestricted `Bash`, `Bash(*)`, wildcard tool names, command chaining, multiline rules,
+and unsupported rule syntax are rejected. Existing broader user entries are preserved;
+AI Factory does not infer additional permissions from injected prose.
+
+Claude's field provides native pre-approvals during the invoking turn; it does not
+restrict the available tool pool. Managed settings, deny/ask rules, and other native
+policies still apply. See [Claude Code's skill permission documentation](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill).
+
+**Ownership and updates:** the field is rendered as a YAML flow list with an
+`aif-ext-tools` comment containing its original field and extension requests. Keep this
+comment intact. Entries already present in the original field stay user/base-owned;
+an extension never claims them. Shared requests produce one entry and remain until
+all requesting extensions are removed. Removing an extension removes only its owned
+entries, including when its installed manifest is missing. User additions, duplicate
+entries, and edited entries are preserved. Removing the ownership comment relinquishes
+automatic cleanup rather than authorizing deletion of unproven entries.
+
+Reinstall, extension refresh, `init`, `update` (including `--force`), and `upgrade`
+preserve the existing unowned field while the source owner and its extension-native
+tool declaration remain unchanged, and recompose active requests. This includes user
+removals; changed bundled package defaults for that field require manual reconciliation.
+
+Removing a replacement uses the restored bundled skill's own declaration. Refreshing
+a replacement with a different source or native tool declaration uses the new source
+field, including on same-version local refreshes. Captured native grants and edits
+from the previous source are not carried over; remaining extensions' requests are
+recomposed with their ownership intact.
+
+Applied replacement records and installed
+extension sources establish the source identity, rather than a manifest claim alone.
+
+Permission targets participate in extension rollback. Managed receipts include the
+exact known permission composition; user changes are not promoted into proven package
+ownership.
+
+String, quoted-string, flow-list, and block-list fields are accepted. Invalid or
+ambiguous YAML, permission aliases/anchors, unsafe paths, and symbolic/hard-linked skill entries
+fail without granting permissions. Other frontmatter fields and the skill body retain
+their bytes.
+
+---
+
 ### MCP Servers
 
 Extensions can provide MCP (Model Context Protocol) server configurations that are automatically merged into each agent's settings file.
@@ -390,6 +465,7 @@ Extensions can declare new runtime configurations. Once the extension is install
   "displayName": "My Agent",
   "configDir": ".my-agent",
   "skillsDir": ".my-agent/skills",
+  "homeSkillsDir": ".config/my-agent/skills",
   "settingsFile": ".my-agent/mcp.json",
   "supportsMcp": true,
   "skillsCliAgent": "my-agent"
@@ -402,6 +478,7 @@ Extensions can declare new runtime configurations. Once the extension is install
 | `displayName` | Human-readable name shown in prompts. |
 | `configDir` | Directory for agent configuration (e.g. `.my-agent`). |
 | `skillsDir` | Where skills are installed (e.g. `.my-agent/skills`). |
+| `homeSkillsDir` | Optional global skills filesystem path exposed as `{{home_skills_dir}}` (relative paths are prefixed with `~/`; absolute paths are preserved). Use `{{shell_home_skills_dir}}` in Bash commands: relative paths retain home expansion and absolute paths are quoted as needed. Built-in Devin skills instead resolve project skill references and helper commands against the project skill directory, so committed project skills do not retain the installer's home or config path. |
 | `settingsFile` | Path to the agent's MCP settings file, or `null`. |
 | `supportsMcp` | Whether this agent supports MCP server configuration. |
 | `skillsCliAgent` | Value for `--agent` flag in skills CLI, or `null`. |
@@ -487,11 +564,27 @@ The replacement skill is installed **under the base skill name**. For example, `
 **On update** (`ai-factory update`):
 1. Replaced base skills are **skipped** during reinstallation
 2. Extension replacement skills are re-installed from `.ai-factory/extensions/`
-3. If the extension manifest is missing/broken, the base skill is **restored** automatically
+3. If the extension manifest is missing/broken, the ordinary update can restore the base skill. A pending skill-directory migration instead stops before changing installed files because it cannot prove the replacement's source.
 
 **On remove** (`extension remove`):
 1. The replacement skill is removed (by its base name)
 2. The original base skill is **restored** — unless another extension still replaces it
+
+#### Shared Skill Targets
+
+When Codex CLI and Codex app share a physical skill directory, each installation phase groups work by target. Results still count both runtimes, and each append/prepend injection marker occurs once.
+
+During update, a replacement installed by a successful extension refresh is retained; otherwise it is installed in the replacement phase, with base-skill fallback on failure.
+
+Installing or refreshing an extension captures each replacement's pre-install state: a partial write failure restores that state, including an initially absent skill, while successful sibling replacements remain installed.
+
+Final composition retries custom skills only on targets where refresh did not install them successfully, then restores injections. Re-init and upgrade also restore the registered extension composition after base installation.
+
+Extensions must have unambiguous skill ownership. Two different custom sources with the same basename conflict, even within one extension. A custom skill cannot claim a bundled name unless the manifest explicitly declares `replaces`. These conflicts and incompatible shared renderers are checked before installed skill changes.
+
+During [skill migration](configuration.md#codex-skill-directories-and-migration), the installed extension version and actual replacement/custom/injection bytes must be provable. Old bundled helpers left beneath a replacement are removed only when their source can also be verified. Unknown or modified files block migration. A failed extension refresh restores the previous shared skill bytes; failure after a completed migration keeps the committed target.
+
+The shared profile applies only when CLI and app use the same physical directory. Singleton metadata and runtime-specific MCP support remain unchanged. Removing an extension restores eligible base skills and removes its injection markers from the actual target, including name-based marker cleanup when the manifest is missing and no migration is pending.
 
 #### Example
 
@@ -561,6 +654,8 @@ Extensions are tracked in `.ai-factory.json`:
 
 ## Security Considerations
 
+Extensions can call the opt-in [instruction manifest recorder](instruction-manifests.md) to register invocations, provide composition/dependency declarations, and append load evidence. The recorder does not evaluate dependency conditions or authenticate runtime events. No `context.provider` contract is needed.
+
 - **Extension names are validated** — names containing `..`, absolute paths, or special characters are rejected to prevent path traversal.
 - **Only registered extensions are loaded** — extensions must be listed in `.ai-factory.json` to have their commands executed. A rogue directory in `.ai-factory/extensions/` is ignored.
 - **Shell commands use argument arrays** — `git clone` and `npm pack` use `execFileSync` (no shell interpolation) to prevent command injection via malicious source URLs.
@@ -573,8 +668,9 @@ Extensions built by the community. To add yours, submit a PR to this file.
 | Extension | Description | Install |
 |-----------|-------------|---------|
 | [Remote Skills](https://github.com/dealenx/ai-factory-extension-remote-skills) | Install and manage skills from GitHub repositories. Supports branch selection, interactive removal, and sync with active agents. | `ai-factory extension add https://github.com/dealenx/ai-factory-extension-remote-skills.git` |
+| [aif-ext-memlab](https://github.com/sattva2020/aif-ext-memlab) | Project memory via the [memlab](https://github.com/sattva2020/memlab) MCP server (local, Apache 2.0): past decisions (ADRs, postmortems, notes) and the code a change touches. Registers the server and adds an optional memory step to `/aif-warmup`, `/aif-explore`, `/aif-plan` and `/aif-fix`; without memlab each skill behaves as in core. Requires `pip install git+https://github.com/sattva2020/memlab` (Python 3.11+). | `ai-factory extension add https://github.com/sattva2020/aif-ext-memlab.git` |
 | [AIF Extension Creator](https://github.com/dealenx/ai-factory-extension-aif-extension-creator-skill) |An AI Factory extension that provides an interactive skill for scaffolding new AI Factory extensions. | `ai-factory extension add https://github.com/dealenx/ai-factory-extension-aif-extension-creator-skill.git` |
-| [Implementation Notes](https://github.com/sattva2020/aif-ext-implementation-notes) | Append-only decision journal for `/aif-implement` — records decisions, deviations, tradeoffs, surprises and open questions (markdown canon + auto-generated HTML view). Feeds notes into `/aif-commit` bodies, adds a WARN-only coverage gate to `/aif-verify`, and archives the journal with the plan via `/aif-archive`. | `ai-factory extension add https://github.com/sattva2020/aif-ext-implementation-notes.git` |
+| [aif-ext-sattva](https://github.com/sattva2020/aif-ext-sattva) | Extension bundle. **implementation-notes:** append-only decision journal for `/aif-implement` (markdown canon + auto-generated HTML view), fed into `/aif-commit` bodies, WARN-only coverage gate in `/aif-verify`, archived with the plan via `/aif-archive`. **loop-budget:** optional best-effort token budget for `/aif-loop` (stop reason `token_budget_exceeded`; complements the core time budget). Supersedes `aif-ext-implementation-notes`: if it is installed, run `ai-factory extension remove aif-ext-implementation-notes` first — keeping both applies the journal injections twice. | `ai-factory extension add https://github.com/sattva2020/aif-ext-sattva.git` |
 
 ## See Also
 

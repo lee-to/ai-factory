@@ -1,6 +1,6 @@
 # aif-explore Ultra Research Bundle
 
-Use this reference only for an explicit `/aif-explore ultra <topic>` request.
+Use this reference when ultra mode is selected by an explicit `/aif-explore ultra <topic>` request or `workflow.explore_mode: ultra`.
 Ultra research is a durable analysis bundle, not an implementation plan. Its
 purpose is to preserve evidence, system boundaries, decisions, and unresolved
 questions without forcing every topic through the same documentation set.
@@ -106,6 +106,11 @@ superseded in the index/file, or ask before removing it.
   that changes requirements or planning scope must also be reflected compactly
   in the `RESEARCH.md` Active Summary before `/aif-plan` consumes it.
 - Do not duplicate full findings across files; link to the owning artifact.
+
+When explicitly requested, source-linked hypothesis cards and observations stay
+inside `RESEARCH.md` according to `PROJECT-HYPOTHESES.md`. No sidecar is added.
+Their material planning conclusions follow the same Active Summary promotion
+and saved-content coherence contract; details outside the summary are not hashed.
 
 ## `INDEX.md` Template
 

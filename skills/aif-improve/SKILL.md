@@ -1,12 +1,37 @@
 ---
 name: aif-improve
 description: Refine an existing implementation plan with a second iteration. Re-analyzes the codebase for gaps, missing tasks, and wrong dependencies. Use after /aif-plan or to improve an /aif-fix plan. Optional +check flag validates refinements via a fresh-context subagent.
-argument-hint: "[--list] [+check] [@plan-file-or-directory] [improvement prompt or empty for auto-review]"
+argument-hint: "[--list] [+check|--no-check] [@plan-file-or-directory] [improvement prompt or empty for auto-review]"
 allowed-tools: Read Write Edit Glob Grep Bash(git *) Bash(shasum -a 256 *) Bash(sha256sum *) Task Agent TaskCreate TaskUpdate TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 ---
 
 # Improve - Plan Refinement (Second Iteration)
+
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/build-skill-context.md` — only fix, implement, plan, verify, improve.
+3. `.ai-factory/skill-context/aif-improve/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
 
 Refine an existing plan by re-analyzing it against the codebase. Finds gaps, missing tasks, wrong dependencies, and enhances task quality.
 
@@ -25,6 +50,7 @@ enhanced plan with better tasks, correct dependencies, more detail
 ### Step 0: Load Config & Parse Arguments
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
+- **Command default:** `workflow.improve_check` (boolean, default: `false`). An absent value uses `false`; an invalid value/type (including quoted boolean strings) emits `WARN [config] invalid workflow.improve_check; falling back to false` and uses `false`.
 - **Paths:** `paths.plan`, `paths.plans`, `paths.fix_plan`, `paths.research`, `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.rules_file`, `paths.rules`, `paths.patches`, and `paths.archive`; derive `research_bundles_dir = <parent directory of paths.research>/research/`
 - **Language:** `language.ui` for prompts and summaries, `language.artifacts` for plan artifact updates, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`
@@ -74,13 +100,14 @@ Templates and examples define structure, not fixed English output. If `artifact_
 ```
 - --list    → list available plans only (read-only, then STOP)
 - +check    → after refinement, validate findings via a fresh-context subagent
+- --no-check → skip findings validation for this invocation, overriding config
 - @<path>   → explicit plan file, ultra directory, or ultra `index.md` override (highest priority)
 - remaining argument text → optional improvement prompt
 ```
 
-`+check` is orthogonal to the other flags and may appear anywhere in `$ARGUMENTS`. Strip it from the argument string before resolving `@<path>` and the improvement prompt.
+`+check` and `--no-check` are standalone control tokens and may appear anywhere in `$ARGUMENTS`. Strip only those tokens before resolving `@<path>` and the improvement prompt; do not remove substrings inside paths or prose. Resolve `check_enabled` from the explicit flag, otherwise from `workflow.improve_check`. If both flags occur, the last one wins. Never prepend configured defaults to `$ARGUMENTS` or the improvement prompt.
 
-When `--list` is present, it wins and no refinement is executed. `+check` is silently ignored in `--list` mode (there is nothing to validate before refinement runs).
+When `--list` is present, it wins and no refinement is executed. Both validation flags and `workflow.improve_check` are silently ignored in `--list` mode (there is nothing to validate before refinement runs). Everywhere below, “`+check` is set” means resolved `check_enabled = true`, whether enabled by config or the explicit flag.
 
 ### Step 0.list: List Available Plans (`--list`)
 
@@ -193,12 +220,12 @@ Otherwise, select at most one relevant research source using the same conservati
 
 Use patches as fallback context, not the default source:
 
-- If `.ai-factory/skill-context/aif-improve/SKILL.md` does not exist and the resolved patches dir exists:
+- If `.ai-factory/skill-context/aif-improve/SKILL.md` is absent and the resolved patches dir exists (even when global/build context exists):
   - `Glob: <resolved patches dir>/*.md`
   - Sort patch filenames ascending (lexical), then select the last **10** (or fewer if less exist)
   - Read those selected patch files only
   - Focus on reusable Prevention/Root Cause patterns that affect planning quality
-- If skill-context exists, do **not** read all patches by default.
+- If the individual skill-context exists, do **not** read all patches by default.
   - Optionally inspect a small targeted subset when refining around a known recurring issue.
 
 **Read `.ai-factory/skill-context/aif-improve/SKILL.md`** — MANDATORY if the file exists.
@@ -326,7 +353,7 @@ Compare the plan against what you found. Use `## Original Request` as the origin
 
 **4.7: User-prompted improvements (if $ARGUMENTS provided)**
 
-If the user provided specific improvement instructions in `$ARGUMENTS` (excluding `--list`, `+check`, and `@<path>` tokens):
+If the user provided specific improvement instructions in `$ARGUMENTS` (excluding `--list`, `+check`, `--no-check`, and `@<path>` tokens):
 - Apply the user's feedback to the plan
 - Look for tasks that need modification based on the prompt
 - Add new tasks if the user's prompt requires them
@@ -335,9 +362,14 @@ This is a dispatcher step, not a separate finding category. Each finding it prod
 
 ### Optional: `+check` validation between Step 4 and Step 5
 
-When the `+check` flag is set (and `--list` is not), run the validation procedure from `references/CHECK-MODE.md` here, between Step 4 and Step 5. It re-reads cited files via a fresh-context subagent, then drops invented items, rewrites partially-correct ones, and recomputes dependencies on the filtered list. For ultra, the validator must receive the entrypoint plus all linked phase files as the plan artifact; validating `index.md` alone is incomplete. Without `+check`, skip this entirely — the output has no validator-related lines and the Summary block stays in its default shape without the two `+check` counter rows.
+When `check_enabled = true` (and `--list` is not), run the validation procedure from `references/CHECK-MODE.md` here, between Step 4 and Step 5. It re-reads cited files via a fresh-context subagent, then drops invented items, rewrites partially-correct ones, and recomputes dependencies on the filtered list. For ultra, the validator must receive the entrypoint plus all linked phase files as the plan artifact; validating `index.md` alone is incomplete. When `check_enabled = false`, skip this entirely — the output has no validator-related lines and the Summary block stays in its default shape without the two `+check` counter rows.
 
 ### Step 5: Present Improvements
+
+Run the meaning-preservation gate from Step 6.5 on proposed editorial rewrites
+before presenting them. This gate is mandatory even
+when optional `+check` validation is disabled; report its verdict before any
+readability assessment. Recheck the final wording before saving.
 
 Show the user what you found in a clear format. The emoji-grouped sections are kept for scannability, but the items inside "🆕 Missing Tasks", "📝 Task Improvements", "🗑️ Removals", and "💡 Out of scope" all follow the same prose shape — no labeled `Why:` / `Issue:` / `Fix:` fields:
 
@@ -348,13 +380,14 @@ Show the user what you found in a clear format. The emoji-grouped sections are k
 
 The "🔗 Dependency Fixes" group is **not** restated in this shape — it is always computed after the four other groups (and after `+check` filtering when the flag is set, see `references/CHECK-MODE.md`) and uses the short legacy form: `Task #X should depend on Task #Y. Reason: …`. The dependency entries reference only tasks that survived filtering.
 
-The Step 5 report template below defines structure only. Render all human-readable text in this user-facing response in `ui_language`. Preserve command names, paths, task IDs, section structure, option structure, task counts, numeric counts, `WARN`/`INFO` labels, and raw errors unchanged.
+The Step 5 report template below defines structure only. Render all human-readable text in this user-facing response in `ui_language`. Preserve command names, paths, task IDs, section structure, option structure, task counts, numeric counts, `WARN`/`INFO` labels, and raw errors unchanged. Keep the `Meaning preservation:` label and `PASS` / `FAIL` / `N/A` verdict tokens fixed; localize explanations only.
 
 ```
 ## Plan Refinement Report
 
 Plan: [plan artifact path]
 Tasks analyzed: N
+Meaning preservation: [PASS|FAIL|N/A]
 
 ### Findings
 
@@ -449,6 +482,25 @@ The difference between the two is the report only. `removals` are dead-weight du
 
 **6.5: Update the plan artifact**
 
+**Meaning-preservation gate:** Before saving an editorial requirement rewrite,
+compare it with the original passage and committed requirements. Preserve modal
+meaning and obligation levels; keep RFC 2119 keywords verbatim. Preserve conditions,
+exceptions, negations, numbers/units, identifiers, links, and uncertainty. Do not
+merge check/verify/confirm/validate unless the source defines equivalence.
+Possibility stays possibility, recommendation stays recommendation, permission
+does not imply completion, and suspected or unknown causes do not become facts.
+State a cause only when known and supported. "Check only while the service is
+stopped" does not authorize stopping the service to enable the check. Editorial
+clarity grants no extra authority or confidence and cannot strengthen or weaken
+the contract. Keep the label `Meaning preservation:` and verdicts `PASS`, `FAIL`,
+and `N/A` fixed; localize explanations only. Report `Meaning preservation: PASS`
+or `FAIL` before presenting proposed rewrites or any readability assessment;
+use `N/A — no requirements rewritten` only when applicable. On failure,
+restore or repair the affected rewrite and repeat the comparison before saving
+or presenting it as ready. Missing source or unresolved ambiguity fails the
+gate: keep the original wording and report the gap. User-approved behavioral
+changes must be identified separately from editorial rewrites.
+
 **CRITICAL:** After all changes, update the selected plan artifact to reflect the new state:
 
 - Add new tasks to the correct phase with `- [ ]` checkboxes
@@ -457,6 +509,7 @@ The difference between the two is the report only. `removals` are dead-weight du
 - Remove deleted tasks
 - Update commit checkpoints if task count changed significantly
 - Preserve any `- [x]` checkboxes for already completed tasks
+- Preserve all selected `Milestone:` and `Also completes:` entries in `## Roadmap Linkage` (including clear localized equivalents) on edits/regeneration unless the user explicitly changes the linked scope.
 - Preserve existing `## Original Request` exactly, including heading, body text, whitespace, and line breaks. Do not translate, summarize, normalize, trim, or rewrite it; this section is raw source input and is exempt from `artifact_language` rewriting.
 - Preserve existing `## Research Context` and its `Source:` / revision marker exactly on any rewrite, unless the user explicitly asks to rebase the plan to current research
 - Preserve or update `## Requirements Reconciliation` from the plan's committed

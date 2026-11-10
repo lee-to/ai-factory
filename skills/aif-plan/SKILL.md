@@ -1,13 +1,26 @@
 ---
 name: aif-plan
 description: Plan a feature or task in fast, full, or ultra mode. Ultra creates an indexed multi-file bundle with deeply specified phases for execution by a smaller model. Use for "plan", "new feature", "start feature", "create tasks", or exhaustive implementation planning.
-argument-hint: "[fast | full | ultra] [--parallel | --list | --cleanup <branch>] <description>"
+argument-hint: "[fast | full | ultra] [+coupling] [--parallel | --list | --cleanup <branch>] <description>"
 allowed-tools: Read Write Glob Grep Bash(git *) Bash(cd *) Bash(cp *) Bash(mkdir *) Bash(basename *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskCreate TaskUpdate TaskList AskUserQuestion Questions Task mcp__handoff__handoff_sync_status mcp__handoff__handoff_push_plan mcp__handoff__handoff_get_task mcp__handoff__handoff_list_tasks mcp__handoff__handoff_update_task
 disable-model-invocation: false
 version: 1.0.0
 ---
 
 # Plan - Implementation Planning
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/build-skill-context.md` — only fix, implement, plan, verify, improve.
+3. `.ai-factory/skill-context/aif-plan/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
 
 Create an implementation plan for a feature or task. Three modes:
 
@@ -17,6 +30,16 @@ Create an implementation plan for a feature or task. Three modes:
 
 For ultra layout, detail requirements, integrity checks, and consumer behavior,
 read `references/ULTRA-FORMAT.md` before creating or modifying the bundle.
+
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
 
 ## Workflow
 
@@ -44,8 +67,8 @@ Bash: printenv HANDOFF_BRANCH_NAME || true
 
 The Handoff coordinator already manages status transitions and DB writes directly. Do NOT call MCP tools (`handoff_sync_status`, `handoff_push_plan`). Instead:
 
-- **No interactive questions:** Do not use `AskUserQuestion` — use sensible defaults (verbose logging, yes to tests, yes to docs, skip roadmap linkage).
-- **Mode default:** If mode is not specified, default to `fast`.
+- **No interactive questions:** Do not use `AskUserQuestion` — use sensible defaults (verbose logging, yes to tests, yes to docs, skip roadmap linkage unless the user already selected exact milestones).
+- **Mode default:** Resolve explicit mode → valid `workflow.plan_mode` → `fast`. The `ask` default falls back to `fast` in non-interactive Handoff mode; never ask a mode question there. Resolve config in Step 0 before applying this fallback.
 - **Plan annotation (MANDATORY):** If `HANDOFF_TASK_ID` is non-empty, you MUST insert `<!-- handoff:task:<HANDOFF_TASK_ID> -->` as the very first line of the plan entrypoint (`index.md` for ultra; the plan file otherwise), before the title. This annotation links the plan to its Handoff task for bidirectional sync. **Omitting this annotation when HANDOFF_TASK_ID is set is a bug — verify before completing.**
 
 ##### Branch ownership under Handoff (CRITICAL)
@@ -90,11 +113,13 @@ Preserve the `<!-- handoff:task:<id> -->` annotation on the first line when rewr
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 
+- **Command default:** `workflow.plan_mode` (`ask` by default; allowed: `ask`, `fast`, `full`, `ultra`). An absent value uses `ask`; an invalid value/type emits `WARN [config] invalid workflow.plan_mode; falling back to ask` and uses `ask`.
 - **Paths:** `paths.description`, `paths.architecture`, `paths.roadmap`, `paths.research`, `paths.rules_file`, `paths.plan`, `paths.plans`, `paths.patches`, `paths.evolutions`, `paths.specs`, `paths.rules`, and `paths.archive`
   - Derive `research_bundles_dir = <parent directory of paths.research>/research/` for opt-in ultra research bundles. No additional config key is required.
 - **Language:** `language.ui` for AskUserQuestion prompts, `language.artifacts` for generated plan files, and `language.technical_terms` for human-readable technical terminology in plan artifacts
 - **Git:** `git.enabled`, `git.base_branch`, `git.create_branches`, and `git.branch_prefix`
 - **Workflow:** `workflow.plan_id_format` — controls the full/ultra plan identifier shape. Allowed values: `slug` (default), `timestamp`, `uuid`, `sequential`. Only `slug` and `sequential` are active; `timestamp` and `uuid` are **reserved** and currently behave like `slug` (with an `INFO` log). The `sequential` value writes a full plan as `<NNNN>_<plan_file_stem>.md` and an ultra bundle as `<NNNN>_<plan_file_stem>/index.md` (see Step 1.2 for the canonical stem and algorithm). Treat any unknown value as `slug` and emit `WARN [aif-plan] unknown workflow.plan_id_format=<value>; falling back to slug`.
+- **Workflow:** `workflow.plan_structure` (default: `classic`) — controls the commit layout of new plans. Allowed values are `classic` and `task-based`. If absent, use `classic`; if the value has the wrong type or is unknown, emit `WARN [config] invalid workflow.plan_structure; falling back to classic` and use `classic`. Saved plans remain authoritative during implementation.
 
 If config.yaml doesn't exist, use defaults:
 
@@ -103,7 +128,7 @@ If config.yaml doesn't exist, use defaults:
 - `artifact_language`: `en`
 - `technical_terms_policy`: `keep`
 - Git: `enabled: true`, `base_branch: main`, `create_branches: true`, `branch_prefix: feature/`
-- Workflow: `plan_id_format: slug`
+- Workflow: `plan_id_format: slug`, `plan_structure: classic`
 
 Resolved language values:
 - `ui_language = language.ui || "en"`
@@ -117,7 +142,7 @@ All AskUserQuestion prompts, progress updates, summaries, and next-step guidance
 Generated plan artifacts under `paths.plan` or `paths.plans` MUST be written in `artifact_language`.
 For ultra this applies to `index.md` and every linked phase file.
 
-Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Apply `technical_terms_policy` to other human-readable terminology.
+Templates and examples define structure, not fixed English output. If `artifact_language` is not `en`, translate human-readable headings, labels, task prose, roadmap rationale, research summaries, settings explanations, and dependency notes before saving. Preserve markdown structure, checkbox syntax, task IDs, branch names, commit messages, commands, file paths, config keys, package names, API names, `WARN`/`INFO` labels, raw errors, and the exact ultra marker `<!-- aif:plan-mode:ultra -->` unchanged. Keep `## Research Context`, `Source:`, `Active Summary`, `Updated:`, and `SHA256:` exact because downstream research drift checks parse them as compatibility tokens. Keep `## Requirements Reconciliation` exact because downstream workflow checks parse it as a compatibility token. Keep the plan-control tokens `## Settings`, `Commit strategy:`, `Development methodology:`, and `TDD granularity:` exact and untranslated; their values must use the canonical identifiers shown in the template. Apply `technical_terms_policy` to other human-readable terminology.
 
 Exception: the section heading and body of `## Original Request` are fixed raw-source structure and must not be translated, summarized, normalized, or rewritten.
 
@@ -187,6 +212,7 @@ If any rule is violated — fix the output before presenting it to the user.
 - Read an ultra `INDEX.md` first, then its linked `RESEARCH.md`. Read C4/ADR/dependency artifacts only for rationale needed by this plan. They are not independent requirement sources; material conclusions must already be reflected in the Active Summary.
 - Store the chosen file as `selected_research_path`. Treat its `## Active Summary (input for /aif-plan)` as an additional requirements source.
 - Carry over constraints/decisions into tasks and plan settings.
+- When research contains opt-in hypothesis cards, only explicitly accepted actions/experiments become tasks. Proposed claims remain qualified context/open questions; planning acceptance does not mean the expected outcome is confirmed. Use their self-contained Active Summary input, not uncommitted card details, as scope.
 - Prefer the summary over raw notes; use `## Sessions` and linked optional artifacts only when you need deeper rationale.
 - No-description fallback is the deliberate backward-compatibility exception to the topic-based priority: use the configured `paths.research` Active Summary topic when available. Otherwise use a single active marked ultra bundle; if several active bundles exist, ask the user to choose rather than guessing.
 - Track whether research content influenced this plan. Set `research_influenced_plan = true` only when the Active Summary supplies the default description or when constraints, decisions, goals, open questions, or session rationale from the research artifact shape the plan scope, tasks, settings, or tradeoffs. If the research artifact exists but is stale or unrelated to the user's requested task, leave `research_influenced_plan = false`, ignore it for plan requirements, and do not add `## Research Context`.
@@ -224,6 +250,7 @@ Extract flags and mode from `$ARGUMENTS`:
 --parallel  → Enable parallel worktree mode (full/ultra only; requires `git.enabled=true` and `git.create_branches=true`)
 --list      → Show all active worktrees, then STOP (git-only)
 --cleanup <branch> → Remove worktree and optionally delete branch, then STOP (git-only)
++coupling  → Optional architectural coupling methodology (default off; leading option segment only)
 fast        → Fast mode (first word)
 full        → Full mode (first word)
 ultra       → Ultra mode (first word)
@@ -231,20 +258,63 @@ ultra       → Ultra mode (first word)
 
 **Parsing rules:**
 
+- Recognize exact standalone `+coupling` only in the leading option segment:
+  after an explicit leading fast/full/ultra token, or at the beginning when no
+  mode is given, and before the first description word. Existing control flags
+  retain their rules and may share that segment. Repeated `+coupling` there is
+  idempotent. Once description starts, preserve every literal `+coupling`, all
+  internal whitespace and line breaks. Do not strip substrings from a URL/ref.
+  Resolve the mode independently using the existing explicit/config/Handoff
+  priority; the modifier never selects or reopens a mode.
+- When selected (and not returning from --list/--cleanup), read only the local
+  `references/COUPLING-PLAN.md` before analyzing the change. It is self-contained;
+  do not require aif-review. Carry relevant producer/consumer boundaries,
+  alternatives with costs and source limitations into existing tasks/acceptance,
+  without a new plan schema, review invocation or automatic refactor. Use the
+  existing question contract for material decisions and preserve Handoff branch
+  ownership and research snapshot rules. When off, do not load this reference or
+  add coupling questions, source reads, logging, or agents. If enabled diagnostics
+  are used, record activation/scope only, never source bodies.
+
 - Strip only recognized command tokens in command positions from `$ARGUMENTS`:
   - `fast`, `full`, or `ultra` only when used as the leading mode token
   - recognized control flags `--parallel`, `--list`, and `--cleanup <branch>`
+  - `+coupling` only in the leading option segment defined above; keep literal occurrences in the request
   - do not remove matching words inside the user's actual request text
 - Remaining text becomes the description
+- Resolve configured defaults separately; never prepend them to `$ARGUMENTS` or include them in `original_user_request`.
 - Preserve the remaining text as `original_user_request` when it is non-empty: trim only outer whitespace introduced by command parsing, but keep internal whitespace, line breaks, wording, casing, and punctuation exactly. This is the user's original planning request and MUST be saved into the plan entrypoint later.
 - `--list` and `--cleanup` execute immediately and **STOP** (do NOT continue to Step 1+)
 - If `git.enabled = false`, reject `--parallel`, `--list`, and `--cleanup` with a short explanation instead of trying git commands
 - If `--parallel` is set while `git.create_branches = false`, reject it with a short explanation because parallel mode requires branch creation
 
+**If `--list` is present**, jump to [--list Subcommand](#--list-subcommand).
+**If `--cleanup` is present**, jump to [--cleanup Subcommand](#--cleanup-subcommand).
+
+**Mode selection (resolve once, independently of the description):**
+
+- An explicit leading `fast`, `full`, or `ultra` token wins over config.
+- Otherwise, `workflow.plan_mode: fast|full|ultra` selects that mode without a mode-selection question. Full/ultra preference questions and git restrictions still apply.
+- Otherwise (`ask`, missing, or invalid config), use `fast` in non-interactive Handoff mode; in an interactive session ask only between full and fast below.
+- Ultra is strictly opt-in. Select it through the leading `ultra` token or `workflow.plan_mode: ultra`; never infer it from task complexity.
+- Store the selected mode as `resolved_mode`. Description resolution below must not reopen mode selection or change `resolved_mode`.
+- `--list` and `--cleanup` keep their early-return behavior regardless of the configured mode.
+
+Ask this question only when no explicit mode was supplied, the configured preference resolves to `ask`, and the session is interactive:
+
+```
+AskUserQuestion: Which planning mode?
+
+Options:
+1. Full (Recommended) — richer plan, asks preferences, optional branch/worktree flow when git settings allow it
+2. Fast – quick plan, no branch, saves to the resolved fast plan path
+```
+
 **If the description is empty:**
 
 - If the configured `paths.research` file exists and its Active Summary has a non-empty `Topic:`, default the description to that topic (no extra user input required), set it as `selected_research_path`, and leave `original_user_request` empty.
 - Otherwise, if exactly one marked active ultra bundle exists and its linked `RESEARCH.md` has a non-empty `Topic:`, use that topic and file. If multiple marked active bundles exist, ask the user to select a topic/source.
+- When research supplies the description, mention the selected Active Summary topic and continue in `resolved_mode`, including configured ultra, without another mode question or a description prompt.
 - Plans created from a selected `RESEARCH.md` without an explicit user request MUST NOT include an `Original Request` section.
 - Otherwise, ask the user for a short feature description. Preserve the user's answer verbatim as `original_user_request` and save it into the plan entrypoint later.
 
@@ -255,32 +325,22 @@ ultra       → Ultra mode (first word)
 - If the description was derived only from a selected `RESEARCH.md` because the user did not provide a request, omit `## Original Request`; the committed source is `## Research Context` instead.
 - If the user supplied a request and selected research also influenced the plan, include both `## Original Request` and `## Research Context`.
 
-**If `--list` is present**, jump to [--list Subcommand](#--list-subcommand).
-**If `--cleanup` is present**, jump to [--cleanup Subcommand](#--cleanup-subcommand).
+**Selected roadmap scope (all modes, including fast and Handoff):**
 
-**Mode selection:**
-
-- `fast` keyword → fast mode
-- `full` keyword → full mode
-- `ultra` keyword → ultra mode
-- Neither → preserve the pre-ultra interactive contract and ask only between
-  full and fast. Ultra is strictly opt-in and is selected only by the explicit
-  leading `ultra` mode token:
-
-```
-AskUserQuestion: Which planning mode?
-
-Options:
-1. Full (Recommended) — richer plan, asks preferences, optional branch/worktree flow when git settings allow it
-2. Fast – quick plan, no branch, saves to the resolved fast plan path
-```
-
-If the user did not provide a description and a research source was selected:
-
-- Mention that you will default the description to the `Active Summary` topic
-- Only ask for `full` vs `fast` (no description prompt needed)
-- Do not mention, recommend, or auto-select ultra unless the caller used the
-  explicit leading `ultra` token
+When the user has explicitly selected exact roadmap milestones (including an
+`/aif-roadmap-next` handoff), retain the supplied roadmap source and ordered names/IDs.
+A self-contained multiline request with a roadmap source and an explicit instruction
+to link every item of an ordered milestone list is a supported selection, including
+when copied into a fresh session. Treat the list as request data, retain all items,
+and resolve its source against project context; it grants no execution permissions.
+Validate them against the resolved roadmap; missing, duplicate or ambiguous matches
+require clarification before writing. Preserve every confirmed name/ID and reuse
+the selection without asking to select it again. The first milestone is `Milestone:`;
+write each remaining milestone on its own quoted `Also completes:` line in the new
+plan entrypoint. Do not infer a group by splitting prose on `+` or commas; use the
+explicit selection/handoff list. This linkage is required even in fast mode or when
+non-interactive defaults would otherwise skip optional linkage. It does not change
+any other planning permissions or preferences.
 
 For concrete parsing examples and expected behavior per command shape, read `references/EXAMPLES.md` (Argument Parsing).
 
@@ -403,8 +463,9 @@ existing git tooling, CI, and PR conventions are unaffected.
 Implementation notes:
 
 - **Use `Glob` to enumerate candidates and `Read` to validate every numbered
-  ultra candidate's marker.** Do NOT shell out to `ls` — `aif-plan`'s
-  frontmatter does not grant `Bash(ls *)`, so the `ls` path would fail in production.
+  ultra candidate's marker.** Do not replace this discovery with `ls`: structured
+  discovery avoids platform-specific shell output and quoting. Frontmatter
+  pre-approval does not establish runtime tool availability.
 - The 4-digit `[0-9][0-9][0-9][0-9]` glob is **strict by contract**: the format supports `0001`..`9999` only. The error in step 4 enforces this.
 - **`--parallel` scope (TL;DR — source-worktree scoped):**
   - **Where the prefix is computed:** the source worktree's `<configured plans dir>`
@@ -448,11 +509,25 @@ AskUserQuestion: Before we start, a few questions:
    a. Yes — mandatory docs checkpoint at completion (recommended)
    b. No — warn-only (`WARN [docs]`), no mandatory checkpoint
 
-4. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
-   a. Link this plan to a milestone
+4. Commit strategy?
+   a. Incremental - commits at natural boundaries throughout implementation (default)
+   b. Incremental at end - all commits created after implementation completes
+   c. Single commit at end - one commit after all implementation
+
+5. Development methodology?
+   a. Implementation-first (default)
+   b. Test-driven development (TDD)
+
+[If TDD selected, ask conditional follow-up:]
+6. TDD granularity?
+   a. Task-based - test before each implementation task
+   b. Feature-based - all tests for phase before implementation
+
+7. Roadmap milestone linkage (only if the resolved roadmap artifact exists and no exact selection was already supplied):
+   a. Link this plan to one or more milestones
    b. Skip — no linkage (allowed; `/aif-verify --strict` should report WARN, not fail, for missing linkage alone)
 
-5. Any specific requirements or constraints?
+8. Any specific requirements or constraints?
 ```
 
 **Default to verbose logging.** AI-generated code benefits greatly from extensive logging because:
@@ -463,6 +538,30 @@ AskUserQuestion: Before we start, a few questions:
 
 Store all preferences — they will be used in the plan entrypoint and passed to `/aif-implement`.
 
+**New preferences explanation:**
+
+- **Commit strategy**: Controls how commits are structured in the plan
+  - `incremental`: Creates commit tasks at natural boundaries throughout implementation (default)
+  - `incremental-at-end`: Creates commit tasks at natural boundaries but places them after all implementation tasks
+  - `single-commit`: Creates one commit task at the very end depending on all implementation tasks
+  - This affects whether commits are interspersed with implementation or grouped at the end
+
+- **Development methodology**: Controls the order of implementation and testing
+  - `implementation-first`: Traditional approach where implementation comes before tests (default)
+  - `tdd`: Test-driven development where tests are written before implementation
+  - When TDD is selected, a follow-up question asks about TDD granularity
+
+- **TDD granularity**: Controls the granularity of test-first cycles (only shown when TDD is selected)
+  - `task-based`: Write a failing test before each individual implementation task, then implement to pass, then refactor
+  - `feature-based`: Write all tests for a phase/feature first, then implement all tasks in that phase, then refactor
+  - Both approaches produce comprehensive test coverage but with different task organization
+
+The `## Settings` heading and the `Commit strategy:`, `Development methodology:`,
+and `TDD granularity:` labels are machine-readable plan-control tokens. Keep
+them exact and untranslated in every artifact language, and write their values
+using the canonical identifiers (`incremental`, `incremental-at-end`,
+`single-commit`, `implementation-first`, `tdd`, `task-based`, `feature-based`).
+
 Docs policy semantics:
 
 - `Docs: yes` → `/aif-implement` MUST show a mandatory documentation checkpoint and route docs changes through `/aif-docs`
@@ -471,8 +570,8 @@ Docs policy semantics:
 **If the resolved roadmap artifact exists and the user chose milestone linkage:**
 
 - Read the resolved roadmap artifact and list candidate milestones (prefer unchecked items)
-- Ask the user to pick one milestone (or type a custom one)
-- Store the selected milestone name and a 1-sentence rationale for inclusion in the plan entrypoint
+- Reuse any already explicit selection; otherwise ask the user to pick one or more milestones (or type a custom one)
+- Store every selected name/ID in order and a 1-sentence rationale for inclusion in the plan entrypoint; never reduce a selected group to its first milestone
 
 ### Step 1.4: Optional Branch / Worktree Setup
 
@@ -542,6 +641,34 @@ To manage worktrees later:
   /aif-plan --cleanup <branch-name>
 ```
 
+#### Runtime Resource Readiness
+
+Before independent runtime-dependent tasks start, use the existing worktree paths
+from `git worktree list` to select the source checkout, new checkout and any relevant
+concurrent checkouts. Run the installed read-only CLI diagnostic:
+
+```bash
+ai-factory worktree-check "<source-checkout>" "${WORKTREE}" --json
+```
+
+Use `--mapping <project-relative-json>` only for an existing mapping explicitly
+provided by the configuration owner; never create/rewrite settings for discovery.
+Read `status`, `coverage`, findings and source revisions; exit 0 only means a report
+was produced. A worktree does not isolate ports, databases, caches, mutable external
+paths or container resources. Static `distinct` results are not live isolation proof;
+`isolation` is always `not_verified`. Shared read-only resources need explicit owner
+approval in every participating checkout and no discovered writable use.
+
+If the CLI feature is unavailable, report that gap and inspect only bounded literal
+declarations read-only, retaining dynamic/unsupported settings as unknown. Do not
+install tooling or execute Make/Compose/package hooks/scripts to discover resources.
+For potential collisions or incomplete coverage, suggest a specific namespace change
+through its existing configuration owner or serial runtime-dependent execution.
+Independent source editing/planning may continue, but do not automatically start
+conflicting or unresolved parallel environments/tests. No resource allocation,
+environment setup, credential copying, cleanup, permission expansion or live
+two-environment test is authorized by this diagnostic.
+
 Continue to Step 2.
 
 **If no `--parallel` → create branch normally:**
@@ -590,7 +717,8 @@ gap behind vague instructions.
 
 ### Step 1: Ask About Preferences
 
-Ask a shorter set of questions:
+Ask a shorter set of questions; if milestone linkage is chosen without an existing
+selection, read the roadmap and retain every selected name/ID in order as in Step 1.3:
 
 ```
 AskUserQuestion: Before we start:
@@ -601,8 +729,8 @@ AskUserQuestion: Before we start:
 
 2. Any specific requirements or constraints?
 
-3. Roadmap milestone linkage (only if the resolved roadmap artifact exists):
-   a. Link this plan to a milestone
+3. Roadmap milestone linkage (only if the resolved roadmap exists and no exact selection was already supplied):
+   a. Link this plan to one or more milestones
    b. Skip — no linkage (allowed; `/aif-verify --strict` should report WARN, not fail, for missing linkage alone)
 ```
 
@@ -649,6 +777,26 @@ implementation:
 4. Do not edit source requirements while creating the plan. Report stale or
    contradictory artifacts and route them to their owner command or the user.
 
+**Meaning-preservation gate (all planning inputs):** Apply in every mode,
+including requirements from the user request (`## Original Request`) when no
+pre-existing requirement artifact exists. When rephrasing requirements into tasks,
+compare each candidate with its source before readability review. Preserve modal
+meaning and obligation levels; keep RFC 2119 keywords verbatim. Preserve conditions,
+exceptions, negations, numbers/units, identifiers, links, and uncertainty. Keep
+check/verify/confirm/validate distinct unless the source defines equivalence.
+Possibility is not a command, recommendation is not obligation, permission is
+not completion, and a suspected cause is not established fact. State a cause
+only when known and supported. An applicability condition ("check only while
+the service is stopped") never authorizes stopping a service to satisfy it.
+Keep the label `Meaning preservation:` and verdicts `PASS`, `FAIL`, and `N/A`
+fixed; localize explanations only. Report `Meaning preservation: PASS` or `FAIL`
+before presenting the plan or any readability assessment;
+use `N/A — no requirements rewritten` only when applicable. On failure, repair
+or retain the source wording and repeat the comparison before presenting the
+plan as ready. Missing source or unresolved ambiguity fails the gate and follows
+the requirement-conflict handling above. Editorial clarity grants no extra
+authority or confidence and cannot strengthen or weaken the contract.
+
 When behavior depends on two or more independent selectors, states, modes, or
 input shapes, enumerate the supported combinations before writing tasks. Cover
 only combinations allowed by the requirements, not a speculative Cartesian
@@ -673,6 +821,18 @@ applicable combination table, and verification evidence. Omit it for simple
 work where none of these signals applies.
 
 ### Step 3: Explore Codebase
+
+**Existing project commands (read-only):** Before choosing build/test/verification
+steps, use `ai-factory commands --json` from project root if that installed command
+is available and permitted. Pass explicit project-relative directories for monorepos
+and `--mapping <existing-project-json>` only when the project already supplies one.
+Otherwise inspect bounded package manifests directly; do not install tooling or run
+Make/Task/just, imports, lifecycle scripts, plugins, or `--help` to discover commands.
+Select the exact command ID and CWD; unresolved entries or multiple applicable
+definitions need source inspection/user selection, not a guessed default. Record the
+source path/hash and catalog `revision_sha256` with planned commands; refresh after
+either changes. `declared`
+and `not_run` are not proof of runnability or authorization to execute anything.
 
 Before planning, understand the existing code through **parallel exploration**.
 
@@ -732,6 +892,125 @@ Create tasks using `TaskCreate` with clear, actionable items.
 - In ultra, keep TaskCreate descriptions concise but include the matching phase
   file link; the bundle remains the durable detailed source after context resets
 
+**Task Generation Based on Preferences:**
+
+When generating tasks, consider the user's preferences:
+
+- **Commit strategy preference**:
+  - `incremental`: Create commit tasks at natural boundaries throughout implementation (after related impl/test/doc groups)
+  - `incremental-at-end`: Create commit tasks at natural boundaries but place them after all implementation tasks
+  - `single-commit`: Create one commit task at the very end depending on all implementation tasks
+  - Commit tasks should be explicit tasks in the plan with dependencies on related implementation/test/doc tasks
+
+- **Development methodology preference**:
+  - `implementation-first`: Generate tasks in traditional order (implementation → tests → docs)
+  - `tdd`: Generate tasks with test-first ordering
+    - `task-based TDD`: Generate test task before each implementation task (test → implement → refactor cycle per task)
+    - `feature-based TDD`: Generate batch of test tasks at start of each phase before implementation tasks (test batch → implementation batch → refactor per phase)
+
+- **Task organization**:
+  - Co-locate related implementation, test, and documentation tasks together within feature-oriented phases
+  - Use task dependencies to ensure proper ordering (tests depend on implementation when implementation-first, implementation depends on tests when TDD)
+  - Group commits with their related implementation/test/doc tasks rather than in a separate section
+
+**TDD Task Generation Implementation:**
+
+When `Development methodology: tdd` is selected:
+
+1. **Task-based TDD** (when `TDD granularity: task-based`):
+   - For each implementation task, create a preceding test task
+   - Test task description: "Write failing unit test for [specific functionality]"
+   - Implementation task description: "Implement [functionality] to make test pass"
+   - After 2-3 implementation cycles, add a refactoring task: "Refactor [area] while keeping all tests passing"
+   - Dependencies: test task → implementation task → next test task (or refactor task)
+   - Example cycle: Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor
+
+2. **Feature-based TDD** (when `TDD granularity: feature-based`):
+   - For each phase/feature, create a batch of test tasks at the start
+   - Then create all implementation tasks for that phase
+   - Add a refactoring task at the end of the phase
+   - Dependencies: test batch → implementation batch → refactor task
+   - Example: Test #1, Test #2, Test #3 → Implement #1, Implement #2, Implement #3 → Refactor
+
+3. **TDD task descriptions**:
+   - Test tasks: Explicitly state "Write failing test for X"
+   - Implementation tasks: Reference the specific test they need to pass
+   - Refactoring tasks: Emphasize "keep all tests passing"
+   - Include logging requirements for each task type
+
+4. **TDD logging requirements**:
+   - Test tasks: Log test creation, test execution failures
+   - Implementation tasks: Log implementation progress, test validation
+   - Refactoring tasks: Log refactoring changes, test validation after refactoring
+
+**Commit Task Generation Implementation:**
+
+When generating tasks based on commit strategy preference:
+
+1. **Respect `workflow.plan_structure` config option**:
+   - If `plan_structure: classic` (default): Use a separate `## Commit Plan` section; do not add explicit commit tasks.
+   - If `plan_structure: task-based`: Omit `## Commit Plan` and use marked commit tasks as explicit tasks in the plan.
+   - This config option is the default for new plans only; saved plans always resolve execution from their own artifact shape first
+   - Existing plans continue to use their original structure
+   - The strategy-specific commit-task rules below apply only to task-based plans. For classic plans, write the ordered commit groups only in `## Commit Plan`, following the classic strategy behavior below.
+
+2. **Stable commit-task marker**:
+   - Every explicit commit task MUST include a stable, language-independent marker immediately before the task line:
+     `<!-- aif:task-kind:commit -->`
+   - Render the marker as a standalone HTML comment line immediately before the real `- [ ] Task N: ...` checkbox. Never make the marker its own checkbox.
+   - The task still keeps a human-readable title such as `Commit changes with message "feat: ..."`, but the marker is the canonical signal for commit-task dispatch.
+   - A commit task without the marker is treated as a normal implementation task even if the prose contains the word "commit".
+   - Reject a marked commit task with no extractable commit message instead of guessing.
+
+3. **Incremental commit strategy** (default):
+   - Create commit tasks at natural boundaries throughout implementation
+   - Place commit tasks after related implementation/test/documentation groups
+   - Each commit task depends on every task it commits; those dependency IDs define its exact task group
+   - Commit task description: "Commit changes with message '<conventional commit message>'"
+   - Example: After implementing user service, tests, and docs → commit task
+   - Give every implementation/test/doc task a `Files:` hint. Where multiple groups change the same file, specify task-level hunk/section ownership; if that cannot be defined, do not claim the groups can be committed independently.
+
+4. **Incremental at end commit strategy**:
+   - Create commit tasks at natural boundaries but place them after all implementation tasks
+   - Identify logical groupings of implementation/test/doc work
+   - Create commit tasks for each grouping
+   - Place all commit tasks at the end of the plan after all implementation/test/doc tasks
+   - Each commit task depends on every task in its exact group; those dependency IDs define the group
+   - Example: All implementation done → commit user service → commit auth middleware → commit API routes
+   - Dependencies: commit tasks depend on their related work, but appear at the end
+
+   - When `Docs: yes`, reserve a final documentation task for the mandatory
+     `/aif-docs` checkpoint. Give it explicit documentation `Files:` hints and
+     make it depend on all implementation/test tasks. Place it in a dedicated
+     final commit group; other implementation groups must not claim those
+     documentation files. For task-based plans, the documentation commit task
+     depends on this documentation task.
+
+5. **Single commit at end strategy**:
+   - Create one commit task at the very end of the plan
+   - The commit task depends on all implementation/test/documentation tasks
+   - When `Docs: yes`, include the reserved `/aif-docs` documentation task in
+     this dependency group, with explicit documentation `Files:` hints
+   - Commit task description: "Commit all changes with message '<conventional commit message>'"
+   - Example: All tasks complete → single commit task
+   - Dependencies: commit task depends on all implementation/test/doc tasks
+
+6. **Commit task naming**:
+   - Use self-descriptive task names: "Commit changes with message 'feat: ...'"
+   - Include the commit message in the task description
+   - Make it clear what is being committed
+   - The marker and task-id/dependency metadata are the authoritative dispatch signals; the prose remains human-facing only
+
+7. **Classic format compatibility**:
+   - Include `## Commit Plan` only in classic plans; it must not appear in task-based plans.
+   - For classic `incremental` plans, list ordered task-range checkpoints as before; each is eligible at its task-range boundary.
+   - For classic `incremental-at-end` plans, list one ordered entry per logical group, but mark every entry as deferred until all implementation/test/documentation tasks are complete. When `Docs: yes`, include a final documentation task in its own last group. `/aif-implement` must not offer or create these commits at intermediate task-range boundaries; it processes the groups in order after the docs checkpoint.
+   - For classic `single-commit` plans, list exactly one group covering all implementation/test/documentation tasks, including the reserved documentation task when `Docs: yes`, deferred until all such tasks are complete.
+   - For deferred plans with `Docs: yes`, reserve an explicit final documentation task with `Files:` hints for the `/aif-docs` checkpoint. These hints define the documentation group boundary; do not let other groups claim the same files. If the actual docs diff cannot be mapped to the reserved hints, `/aif-implement` must stop and ask to adjust grouping before any deferred commit.
+   - Classic plans with `## Commit Plan` continue to work as before when their strategy is absent or `incremental`.
+   - Render only the selected structure, never a template containing both alternatives.
+   - `/aif-implement` must resolve execution by saved-plan format first, then fall back to current config only when the plan is ambiguous or legacy (see Step 3.8.1)
+
 Use `TaskUpdate` to set `blockedBy` relationships:
 
 - Task 2 blocked by Task 1 if it depends on Task 1's output
@@ -781,7 +1060,7 @@ For ultra also create the resolved bundle directory before writing its files.
 - `Research Context` section (optional, only if research content influenced this plan)
 - `Requirements Reconciliation` section (conditional, when required by the gate in Step 2)
 - `Tasks` section grouped by phases; in ultra this is the only task-checkbox source
-- `Commit Plan` section when there are 5+ tasks
+- For `workflow.plan_structure: classic`, a `Commit Plan` section when commits are planned; never include this section in task-based plans.
 
 If `original_user_request` is non-empty:
 
@@ -791,7 +1070,7 @@ If `original_user_request` is non-empty:
 
 If the resolved roadmap artifact exists:
 
-- If the user linked a milestone, write `## Roadmap Linkage` with `Milestone: "..."` and `Rationale: ...`
+- If the user linked milestones, write `## Roadmap Linkage` with the first as `Milestone: "..."`, each remaining name/ID on a separate quoted `Also completes: "..."` line, and `Rationale: ...`. Preserve the complete selected group in fast/full files and ultra `index.md`; omit `Also completes:` for a single milestone. Verify every selected milestone is present before presenting the saved plan.
 - If the user skipped linkage, write `## Roadmap Linkage` with `Milestone: "none"` and `Rationale: "Skipped by user"`
 
 If research content influenced this plan:
@@ -810,16 +1089,18 @@ task mapping, dependency, and phase file before completion.
 
 The canonical template defines the required sections and ordering only. Render all human-readable plan content in `artifact_language` before writing the file, applying `technical_terms_policy` and preserving stable tokens as described in Step 0.
 
-**Commit Plan Rules:**
+**Commit layout rules:**
 
-- **5+ tasks** → add commit checkpoints every 3-5 tasks
-- **Less than 5 tasks** → single commit at the end, no commit plan needed
+- **Classic** → use only the separate `## Commit Plan` section for planned commit checkpoints.
+- **Task-based** → use only marked commit tasks in `## Tasks`; provide each task's explicit owned group and dependencies.
+- **5+ tasks** → add commit checkpoints every 3-5 tasks when appropriate.
+- **Less than 5 tasks** → a final commit may be planned; include its description in the selected layout only.
 - Group logically related tasks into one commit
 - Suggest meaningful commit messages following conventional commits
 
 ### Step 6: Next Steps
 
-**Full/ultra mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` — the whole point of parallel is autonomous end-to-end execution in an isolated worktree. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
+**Full/ultra mode + parallel (`--parallel`):** Automatically invoke `/aif-implement` for autonomous end-to-end execution in the separate worktree, carrying Step 1.4's runtime-resource findings and execution limits forward. Unresolved/conflicting runtime-dependent work stays serial or blocked pending the owner's scoped remediation; source editing may continue. If `HANDOFF_BRANCH_PREPARED = 1`, treat `--parallel` as disabled and do not auto-invoke `/aif-implement`.
 
 ```
 /aif-implement

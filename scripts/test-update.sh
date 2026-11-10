@@ -102,6 +102,9 @@ FORCE_OUTPUT="$TMPDIR/update-force.log"
 run_update normal "$FIRST_OUTPUT"
 assert_contains "$FIRST_OUTPUT" "\[universal\] Status:" "status section must be printed"
 assert_contains "$FIRST_OUTPUT" "changed: [0-9]+" "changed counter must be printed"
+assert_exists "$PROJECT_DIR/.agents/skills/aif-skill-generator/scripts/security-scan.py" "update must heal a legacy aif-only selection"
+assert_exists "$PROJECT_DIR/.agents/skills/aif-skill-generator/scripts/cleanup-blocked-skill.py" "update must install the cleanup helper"
+node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync(process.argv[1],'utf8')).agents[0];if(!a.installedSkills.includes('aif-skill-generator')||!a.managedSkills['aif-skill-generator'])process.exit(1);" "$PROJECT_DIR/.ai-factory.json"
 assert_contains "$FIRST_OUTPUT" "skipped: [0-9]+" "skipped counter must be printed"
 assert_contains "$FIRST_OUTPUT" "removed: [0-9]+" "removed counter must be printed"
 assert_contains "$FIRST_OUTPUT" "aif-nonexistent \(removed from package\)" "removed package skill must be reported"
@@ -163,6 +166,9 @@ inquirer.prompt = async (questions) => {
     return { shouldUpdate: false };
   }
   if (first?.name === 'selectedNewSkills') {
+    if (!first.choices?.length || first.choices.some(choice => choice.checked !== false)) {
+      throw new Error('Uninstalled skills must all require explicit opt-in');
+    }
     return { selectedNewSkills: ['aif-plan'] };
   }
   throw new Error(`Unexpected prompt: ${JSON.stringify(questions)}`);
@@ -180,7 +186,7 @@ try {
 }
 EOF
 
-assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "New base skills available:" "update must announce newly available base skills"
+assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "Base skills not installed on some agents:" "update must announce uninstalled base skills without preselecting them"
 assert_contains "$NEW_SKILL_PROMPT_OUTPUT" "aif-plan \(new in package\)" "accepted new skill must be reported as installed"
 assert_exists "$NEW_SKILL_PROMPT_PROJECT_DIR/.agents/skills/aif-plan/SKILL.md" "accepted new skill must be installed"
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(!Array.isArray(a.installedSkills)||!a.installedSkills.includes('aif-plan'))process.exit(1);if(!a.managedSkills||!a.managedSkills['aif-plan'])process.exit(1);" "$NEW_SKILL_PROMPT_PROJECT_DIR/.ai-factory.json"
@@ -242,9 +248,9 @@ assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skil
 assert_exists "$CODEX_APP_PROJECT_DIR/.agents/skills/custom/local-helper/SKILL.md" "codex-app force update must preserve custom skills"
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='codex-app')process.exit(1);if(a.skillsDir!=='.agents/skills')process.exit(1);if(!Array.isArray(a.installedSkills)||!a.installedSkills.includes('custom/local-helper'))process.exit(1);if(!a.managedSkills||!a.managedSkills.aif||!a.managedSkills['aif-plan'])process.exit(1);" "$CODEX_APP_PROJECT_DIR/.ai-factory.json"
 
-CONFLICT_UPDATE_PROJECT_DIR="$TMPDIR/update-smoke-codex-app-universal-conflict"
-mkdir -p "$CONFLICT_UPDATE_PROJECT_DIR"
-cat > "$CONFLICT_UPDATE_PROJECT_DIR/.ai-factory.json" << 'EOF'
+SHARED_UPDATE_PROJECT_DIR="$TMPDIR/update-smoke-codex-app-universal-shared"
+mkdir -p "$SHARED_UPDATE_PROJECT_DIR"
+cat > "$SHARED_UPDATE_PROJECT_DIR/.ai-factory.json" << 'EOF'
 {
   "version": "2.4.0",
   "agents": [
@@ -277,13 +283,8 @@ cat > "$CONFLICT_UPDATE_PROJECT_DIR/.ai-factory.json" << 'EOF'
 }
 EOF
 
-if (cd "$CONFLICT_UPDATE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$TMPDIR/update-codex-app-conflict.log" 2>&1); then
-  echo "Assertion failed: update must reject universal and codex-app sharing .agents/skills"
-  cat "$TMPDIR/update-codex-app-conflict.log"
-  exit 1
-fi
-assert_contains "$TMPDIR/update-codex-app-conflict.log" "universal, codex-app" "update conflict error must include both runtime ids"
-assert_contains "$TMPDIR/update-codex-app-conflict.log" "\.agents/skills" "update conflict error must include the shared skillsDir"
+(cd "$SHARED_UPDATE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$TMPDIR/update-codex-app-shared.log" 2>&1)
+assert_contains "$SHARED_UPDATE_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skill-generator' "legacy shared config update must use Codex invocations"
 
 echo "codex app update smoke tests passed"
 
@@ -297,11 +298,11 @@ mkdir -p "$AG_PROJECT_DIR"
 
 cat > "$AG_PROJECT_DIR/.ai-factory.json" << 'EOF'
 {
-  "version": "2.4.0",
+  "version": "2.19.0",
   "agents": [
     {
       "id": "antigravity",
-      "skillsDir": ".agent/skills",
+      "skillsDir": ".agents/skills",
       "installedSkills": ["aif", "aif-docs", "custom/workflow-ref"],
       "mcp": {
         "github": false,
@@ -322,17 +323,21 @@ AG_FORCE_OUTPUT="$TMPDIR/update-antigravity-force.log"
 (cd "$AG_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$AG_FIRST_OUTPUT" 2>&1)
 assert_contains "$AG_FIRST_OUTPUT" "\[antigravity\] Status:" "antigravity status section must be printed"
 
-mkdir -p "$AG_PROJECT_DIR/.agent/workflows/references/custom"
-cat > "$AG_PROJECT_DIR/.agent/workflows/references/custom/keep.md" << 'EOF'
+mkdir -p "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref"
+cat > "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref/SKILL.md" << 'EOF'
+---
+name: custom-ref
+description: custom reference skill
+---
 # custom reference
 keep-me
 EOF
 
-mkdir -p "$AG_PROJECT_DIR/.agent/skills/aif-docs/references"
-cat > "$AG_PROJECT_DIR/.agent/skills/aif-docs/stale.txt" << 'EOF'
+mkdir -p "$AG_PROJECT_DIR/.agents/skills/aif-docs/references"
+cat > "$AG_PROJECT_DIR/.agents/skills/aif-docs/stale.txt" << 'EOF'
 stale
 EOF
-cat > "$AG_PROJECT_DIR/.agent/skills/aif-docs/references/stale.md" << 'EOF'
+cat > "$AG_PROJECT_DIR/.agents/skills/aif-docs/references/stale.md" << 'EOF'
 stale-ref
 EOF
 
@@ -343,10 +348,10 @@ assert_contains "$AG_FORCE_OUTPUT" "aif \(force reinstall\)" "workflow skill sho
 assert_contains "$AG_FORCE_OUTPUT" "aif-docs \(force reinstall\)" "non-workflow skill should be force reinstalled"
 assert_contains "$AG_FORCE_OUTPUT" "\[antigravity\] Custom skills \(preserved\):" "custom skills section should be printed"
 assert_contains "$AG_FORCE_OUTPUT" "custom/workflow-ref" "custom skill reference should be preserved in config"
-assert_exists "$AG_PROJECT_DIR/.agent/workflows/references/custom/keep.md" "custom workflow reference must survive force update"
-assert_contains "$AG_PROJECT_DIR/.agent/workflows/references/custom/keep.md" "keep-me" "custom workflow reference content must be preserved"
-assert_not_exists "$AG_PROJECT_DIR/.agent/skills/aif-docs/stale.txt" "stale file in .agent/skills/<skill> must be cleaned on force update"
-assert_not_exists "$AG_PROJECT_DIR/.agent/skills/aif-docs/references/stale.md" "stale reference in .agent/skills/<skill> must be cleaned on force update"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref/SKILL.md" "custom skill must survive force update"
+assert_contains "$AG_PROJECT_DIR/.agents/skills/custom/workflow-ref/SKILL.md" "keep-me" "custom skill content must be preserved"
+assert_not_exists "$AG_PROJECT_DIR/.agents/skills/aif-docs/stale.txt" "stale file in .agents/skills/<skill> must be cleaned on force update"
+assert_not_exists "$AG_PROJECT_DIR/.agents/skills/aif-docs/references/stale.md" "stale reference in .agents/skills/<skill> must be cleaned on force update"
 
 echo "antigravity force smoke tests passed"
 
@@ -410,7 +415,7 @@ cat > "$CLAUDE_PROJECT_DIR/.ai-factory.json" << 'EOF'
     {
       "id": "claude",
       "skillsDir": ".claude/skills",
-      "installedSkills": ["aif"],
+      "installedSkills": ["aif", "aif-loop"],
       "mcp": {
         "github": false,
         "filesystem": false,
@@ -447,10 +452,41 @@ echo "<!-- drift -->" >> "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.m
 
 (cd "$CLAUDE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CLAUDE_SECOND_OUTPUT" 2>&1)
 assert_contains "$CLAUDE_SECOND_OUTPUT" "Local modifications detected in agent file" "local drift warning must be printed"
-assert_contains "$CLAUDE_SECOND_OUTPUT" "loop-orchestrator\\.md \(local drift\)" "agent file drift must be repaired on update"
-assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "name: loop-orchestrator" "reinstalled agent file content must be restored"
+assert_contains "$CLAUDE_SECOND_OUTPUT" "loop-orchestrator\\.md \(local changes preserved\)" "agent file drift must be preserved on update"
+assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "<!-- drift -->" "local agent file modifications must be preserved"
+assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "name: loop-orchestrator" "agent file content must remain valid"
 
 echo "claude agent files smoke tests passed"
+
+# Removing the loop skill from the selected set also retires its managed agent
+# files, and --force must not bring them back. User-created loop roles survive.
+node --input-type=module - "$CLAUDE_PROJECT_DIR" <<'EOF'
+import fs from 'node:fs';
+import path from 'node:path';
+const project = process.argv[2];
+const file = path.join(project, '.ai-factory.json');
+const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+config.agents[0].installedSkills = config.agents[0].installedSkills.filter(skill => skill !== 'aif-loop');
+fs.writeFileSync(file, JSON.stringify(config));
+fs.writeFileSync(path.join(project, '.claude/agents/loop-custom.md'), 'user-owned loop role\n');
+EOF
+(cd "$CLAUDE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$TMPDIR/update-claude-without-loop.log" 2>&1)
+assert_contains "$TMPDIR/update-claude-without-loop.log" "loop-orchestrator\\.md \\(aif-loop not selected\\)" "update must explain removal of unselected loop subagents"
+(cd "$CLAUDE_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update --force > "$TMPDIR/update-claude-without-loop-force.log" 2>&1)
+assert_not_exists "$CLAUDE_PROJECT_DIR/.claude/agents/loop-orchestrator.md" "forced update must not restore unselected loop subagents"
+assert_contains "$CLAUDE_PROJECT_DIR/.claude/agents/loop-custom.md" "user-owned loop role" "loop cleanup must preserve custom agents"
+node --input-type=module - "$CLAUDE_PROJECT_DIR" <<'EOF'
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const project = process.argv[2];
+const agent = JSON.parse(fs.readFileSync(path.join(project, '.ai-factory.json'), 'utf8')).agents[0];
+for (const files of [agent.installedAgentFiles, Object.keys(agent.agentFileSources), Object.keys(agent.managedAgentFiles)]) {
+  assert(!files.some(file => file.startsWith('loop-')), 'Loop metadata must be pruned');
+}
+assert.deepEqual(fs.readdirSync(path.join(project, '.claude/agents')).filter(file => file.startsWith('loop-')), ['loop-custom.md']);
+EOF
+echo "update preserves loop subagent selection smoke tests passed"
 
 # -------------------------------------------------------------------
 # Codex bundled agent files and config smoke
@@ -757,8 +793,9 @@ echo "# drift" >> "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator
 
 (cd "$CODEX_AGENT_DRIFT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" update > "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" 2>&1)
 assert_contains "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" "Local modifications detected in agent file" "Codex agent drift warning must be printed"
-assert_contains "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" "plan-coordinator\\.toml \(local drift\)" "Codex agent drift must be repaired on update"
-assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "name = \"plan-coordinator\"" "Codex agent TOML content must be restored"
+assert_contains "$CODEX_AGENT_DRIFT_SECOND_OUTPUT" "plan-coordinator\\.toml \(local changes preserved\)" "Codex agent drift must be preserved on update"
+assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "# drift" "Codex agent local drift must be preserved"
+assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "name = \"plan-coordinator\"" "Codex agent TOML content must be preserved"
 assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "HANDOFF_MODE" "Codex plan coordinator handoff guidance must survive update repair"
 assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/plan-coordinator.toml" "HANDOFF_TASK_ID" "Codex plan coordinator task identity guidance must survive update repair"
 assert_contains "$CODEX_AGENT_DRIFT_PROJECT_DIR/.codex/agents/implement-coordinator.toml" "HANDOFF_SKIP_REVIEW" "Codex implement coordinator handoff guidance must remain installed"
@@ -956,3 +993,6 @@ assert_contains "$MALFORMED_BOUNDED_UPDATE_OUTPUT" 'agent file manifest missing'
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const codex=c.agents.find(a=>a.id==='codex');if(!codex)process.exit(1);if(!Array.isArray(codex.installedAgentFiles)||!codex.installedAgentFiles.includes('bounded-plan-polisher.toml'))process.exit(1);if(!codex.managedAgentFiles||!codex.managedAgentFiles['bounded-plan-polisher.toml'])process.exit(1);if(!codex.agentFileSources||codex.agentFileSources['bounded-plan-polisher.toml']?.extensionName!=='aif-ext-bounded-helpers')process.exit(1);" "$BOUNDED_PROJECT_DIR/.ai-factory.json"
 
 echo "bounded helper extension update smoke tests passed"
+
+node "$ROOT_DIR/scripts/test-codex-skill-targets.mjs" --group=migration,upgrade
+node "$ROOT_DIR/scripts/test-skill-migration-modes.mjs"

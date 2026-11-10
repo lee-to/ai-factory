@@ -1,0 +1,93 @@
+scenario: commit-task-receipt-clear-resume
+description: |
+  Complete and commit task group A, persist its captured manifest and verified
+  commit receipt, clear the conversation, then resume at group B. Resume must
+  prove A from the durable receipt and must not require the old execution
+  context or recapture A's changes.
+skill: aif-implement
+argument: ""
+
+runner:
+  permission_mode: bypassPermissions
+  allowed_tools_override:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash(git *)
+    - AskUserQuestion
+    - Questions
+    - TaskCreate
+    - TaskUpdate
+    - TaskList
+
+fixtures:
+  git_init: true
+  git_branch: feature/receipt-resume
+  files_committed:
+    - path: .ai-factory/plans/feature-receipt-resume.md
+      content: |
+        # Implementation Plan: Durable commit receipt resume
+
+        ## Settings
+        - Testing: yes
+        - Logging: verbose
+        - Docs: no
+        - Commit strategy: incremental
+
+        ## Tasks
+        - [x] Task 1: Implement group A
+          Files: src/a.js
+        <!-- aif:task-kind:commit -->
+        - [x] Task 2: Commit group A with message "feat: implement group A"
+          Depends on: 1
+        - [ ] Task 3: Implement group B
+          Files: src/b.js
+        <!-- aif:task-kind:commit -->
+        - [ ] Task 4: Commit group B with message "feat: implement group B"
+          Depends on: 3
+        <!-- aif:commit-receipt:start id="task-2" -->
+        {"state":"verified","pre_head":"__PRE_HEAD__","commit":"__COMMIT_A__","manifest_sha256":"3b42aa15693369f1a297b82ebe2ea378d82f88826027c2522e412594bd4fdc08","manifest_b64":"eyJ2ZXJzaW9uIjoxLCJjaGFuZ2VzIjpbeyJwYXRoIjoic3JjL2EuanMiLCJiYXNlX21vZGUiOiIxMDA2NDQiLCJiYXNlX2NvbnRlbnRfYjY0IjoiWlhod2IzSjBJR052Ym5OMElHRWdQU0JtWVd4elpUc0siLCJyZXN1bHRfbW9kZSI6IjEwMDY0NCIsInJlc3VsdF9jb250ZW50X2I2NCI6IlpYaHdiM0owSUdOdmJuTjBJR0VnUFNCMGNuVmxPd289Iiwic3RhZ2VkIjp0cnVlLCJ1bnN0YWdlZCI6ZmFsc2V9XX0="}
+        <!-- aif:commit-receipt:end id="task-2" -->
+    - path: src/a.js
+      content: "export const a = false;\n"
+  files_staged:
+    - path: src/a.js
+      content: "export const a = true;\n"
+  setup_commands:
+    - >-
+      pre_head=$(git rev-parse HEAD) &&
+      git commit -m 'feat: implement group A' &&
+      commit_a=$(git rev-parse HEAD) &&
+      sed -i "s|__PRE_HEAD__|$pre_head|; s|__COMMIT_A__|$commit_a|" .ai-factory/plans/feature-receipt-resume.md
+
+assertions:
+  - id: reads-persisted-group-a-receipt-before-resuming
+    type: tool_called
+    tool: Read
+    args_match:
+      file_path: "\\.ai-factory/plans/feature-receipt-resume\\.md$"
+    weight: 3
+  - id: verifies-committed-group-a-from-receipt
+    type: tool_call_sequence
+    sequence:
+      - tool: Bash
+        args_match:
+          command: "(?i)^git (show|diff-tree|diff)"
+      - tool: Bash
+        args_match:
+          command: "(?i)^git (show|diff-tree|diff)"
+      - tool: TaskUpdate
+        args_match:
+          taskId: "(?i)^(?:2|task[-_ ]?2)$"
+          status: "completed"
+    weight: 4
+  - id: does-not-recommit-group-a
+    type: no_tool_called
+    tool: Bash
+    args_match:
+      command: "^git commit .*feat: implement group A"
+  - id: resumes-at-group-b
+    type: output_contains
+    pattern: "(?i)(resume|continu).{0,80}group B|Task 3"

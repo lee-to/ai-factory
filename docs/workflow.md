@@ -4,46 +4,59 @@
 
 AI Factory has two phases: **configuration** (one-time project setup) and the **development workflow** (repeatable loop of explore → plan → improve → implement → verify → commit → evolve).
 
+All bundled interactive skills embed the [runtime-aware question contract](skills.md#questions-across-runtimes): use the current session's supported tool/schema, fall back to plain text when needed, and return unresolved required decisions from autonomous workers to their caller. The policy covers linked references while preserving each workflow's question scope and explicit confirmation gates.
+
+Extensions and runtime adapters can explicitly register an invocation with `ai-factory instructions` to preserve its instruction composition and load reports. This is opt-in and does not alter ordinary skill execution. See [Instruction Manifests](instruction-manifests.md) for capture policy, provenance limits, and verification.
+
 ## Project Configuration
 
 Run once per project. Sets up context files that all workflow skills depend on.
 
 During `/aif`, the initial `.ai-factory/config.yaml` is created from the commented template, and setup reruns refresh only the managed keys so manual comments and unrelated customizations survive.
 
+For local quality tooling, use [`/aif-quality-setup`](skills.md#aif-quality-setup-auditsetupenhance-paths).
+It detects the current stack and existing checks, explains suitable options, then
+configures the user's selection. Audit is read-only; setup supports JS/TS, PHP,
+Python, Rust and mixed/multiple repositories. Requested CI/build changes go through
+their owner skills with the selected native commands. Normal commits use installed
+hooks; quality setup is not an automatic stage of every feature or commit.
+
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                       PROJECT CONFIGURATION                             │
-└─────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                     PROJECT CONFIGURATION                                      │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-  ┌──────────────┐      ┌──────────────┐      ┌──────────────────────────┐
-  │              │      │   claude     │      │                          │
-  │ ai-factory   │ ───▶ │ (or any AI   │ ───▶│      /aif                │
-  │    init      │      │    agent)    │      │   (setup context)        │
-  │              │      │              │      │                          │
-  └──────────────┘      └──────────────┘      │  DESCRIPTION.md          │
-                                              │  AGENTS.md               │
-                                              │  Skills + MCP configured │
-                                              └────────────┬─────────────┘
-                                                           │
-                                                           ▼
-                                              ┌──────────────────────────┐
-                                              │ /aif-architecture        │
-                                              │  (ARCHITECTURE.md)       │
-                                              └────────────┬─────────────┘
-                                                           │
-                                         ┌─────────────────┼─────────────────┐
-                                         │                 │                 │
-                                         ▼                 ▼                 ▼
-                                  ┌───────────────┐  ┌──────────────┐  ┌─────────────┐
-                                  │ /aif-rules    │  │ /aif-roadmap │  │  /aif-docs  │
-                                  │ (optional)    │  │(recommended) │  │ (optional)  │
-                                  └───────────────┘  └──────────────┘  └─────────────┘
 
-                                  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐
-                                  │ /aif-dockerize│  │  /aif-ci     │  │ /aif-build-  │
-                                  │ (optional)    │  │ (optional)   │  │  automation  │
-                                  └───────────────┘  └──────────────┘  │ (optional)   │
-                                                                       └──────────────┘
+┌────────────────┐       ┌──────────────────┐       ┌────────────────────────────────────┐
+│   ai-factory   │       │      claude      │       │                /aif                │
+│      init      │──────▶│    (or any AI    │──────▶│          (setup context)           │
+│                │       │      agent)      │       │                                    │
+└────────────────┘       └──────────────────┘       │           DESCRIPTION.md           │
+                                                    │             AGENTS.md              │
+                                                    │      Skills + MCP configured       │
+                                                    └────────────────────────────────────┘
+                                                                       │
+                                                                       │
+                                                                       │
+                                                                       ▼
+                                                    ┌────────────────────────────────────┐
+                                                    │         /aif-architecture          │
+                                                    │         (ARCHITECTURE.md)          │
+                                                    └────────────────────────────────────┘
+                                                                       │
+                                                                       │
+                                  ┌─────────────────────────┬──────────┴──────────────┐
+                                  ▼                         ▼                         ▼
+                      ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+                      │      /aif-rules      │  │     /aif-roadmap     │  │      /aif-docs       │
+                      │      (optional)      │  │    (recommended)     │  │      (optional)      │
+                      └──────────────────────┘  └──────────────────────┘  └──────────────────────┘
+
+
+                      ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+                      │    /aif-dockerize    │  │       /aif-ci        │  │/aif-build-automation │
+                      │      (optional)      │  │      (optional)      │  │      (optional)      │
+                      └──────────────────────┘  └──────────────────────┘  └──────────────────────┘
 ```
 
 ## Development Workflow
@@ -53,6 +66,11 @@ The repeatable development loop. Each skill feeds into the next, sharing context
 Path examples below show the default `.ai-factory/` locations. `config.yaml` can relocate plan, fix, reference, security, patch, evolution, loop, and qa artifacts while keeping the same ownership flow.
 
 Optional discovery step: use `/aif-explore` before planning to investigate ideas, compare options, and clarify requirements.
+
+Before choosing build/test/verification commands, planning and implementation can
+read the [project command catalog](configuration.md#project-command-catalog).
+Select an exact declaration and working directory; discovery neither runs a command
+nor proves it runnable. Ambiguities and source changes require a fresh decision.
 
 Session startup: use `/aif-warmup` to load the core project artifacts, applicable instructions, and optional extra files/directories from `warmup.paths` into a compact handoff before choosing the next workflow command. The warmed session can then continue directly or be forked.
 
@@ -70,114 +88,126 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 ![workflow](https://github.com/lee-to/ai-factory/raw/2.x/art/workflow.png)
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                       DEVELOPMENT WORKFLOW                              │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                               DEVELOPMENT WORKFLOW                                               │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-   Need to think first?                         Need certainty first?
-          │                                             │
-          ▼                                             ▼
-   ┌───────────────┐                            ┌────────────────┐
-   │ /aif-explore  │                            │ /aif-grounded  │
-   │ clarify scope │                            │ verify facts   │
-   │ compare paths │                            │ reject guesses │
-   └───────┬───────┘                            └────────┬───────┘
-           │                                             │
-           └──────────────────────┬──────────────────────┘
-                                  ▼
+          Need to think first?                        Need certainty first?
 
-               ┌──────────────────────────┐                         ┌──────────────┐
-               │                          │                         │              │
-               │    /aif-plan             │                         │ /aif-fix     │
-               │                          │                         │              │
-               │  fast → no branch,       │                         │              │
-               │         PLAN.md          │                         │ Bug fixes    │
-               │  full → git branch,      │                         │ Optional plan│
-               │         plans/<br>.md    │                         │ With logging │
-               │                          │                         │              │
-               └────────────┬─────────────┘                         └───────┬──────┘
-                            │                                               │
-                            │                                               ▼
-                            │                                      ┌──────────────────┐
-                            │                                      │ .ai-factory/     │
-                            │                                      │   patches/       │
-                            │                                      │ Self-improvement │
-                            └───────────┬──────────────────────────└────────┬─────────┘
-                                        │                                   │
-                                        ▼                                   │
-                             ┌─────────────────────┐                        │
-                             │                     │                        │
-                             │ /aif-improve        │                        │
-                             │    (optional)       │                        │
-                             │                     │                        │
-                             │ Refine plan with    │                        │
-                             │ deeper analysis     │                        │
-                             │                     │                        │
-                             └──────────┬──────────┘                        │
-                                        │                                   │
-                                        ▼                                   │
-                             ┌──────────────────────┐                       │
-                             │                      │◀── skill-context  ────┘
-                             │ /aif-implement       │       (+limited patch fallback)
-                             │ ──── error?          │
-                             │  ──▶ /aif-fix        │
-                             │  Execute tasks       │
-                             │  Commit checkpoints  │
-                             │                      │
-                             └──────────┬───────────┘
-                                        │
-                                        ├─────────────────────────────────────────────────┐
-                                        │                                                 │
-                                        ▼                                                 ▼
-                             ┌──────────────────────────────────────┐       ┌───────────────────────────┐
-                             │                                      │       │                           │
-                             │ /aif-verify                          │       │ /aif-qa                   │
-                             │    (optional)                        │       │    (optional)             │
-                             │                                      │       │                           │
-                             │ Check completeness                   │       │ Manual QA artifacts:      │
-                             │ Build / test / lint                  │       │ → change-summary          │
-                             │    ↓                                 │       │ → test-plan               │
-                             │ → /aif-security-checklist            │       │ → test-cases              │
-                             │ → /aif-review                        │       │                           │
-                             │                                      │       │ paths.qa/<branch-slug>/   │
-                             └──────────────────┬───────────────────┘       └───────────────────────────┘
-                                        │
-                                        ▼
-                             ┌─────────────────────┐
-                             │                     │
-                             │ /aif-commit         │
-                             │                     │
-                             └──────────┬──────────┘
-                                        │
-                        ┌───────────────┴───────────────┐
-                        │                               │
-                        ▼                               ▼
-                   More work?                        Done!
-                   Loop back ↑                          │
-                                                        ▼
-                                             ┌─────────────────────┐
-                                             │                     │
-                                             │ /aif-evolve         │
-                                             │ or /aif-transfer    │
-                                             │                     │
-                                             │ Patches/experience  │
-                                             │ + current context   │
-                                             │       ↓             │
-                                             │ Improves skills     │
-                                             │                     │
-                                             └─────────────────────┘
-
+        ┌────────────────────────────┐              ┌────────────────────────────┐
+        │        /aif-explore        │              │       /aif-grounded        │
+        │       clarify scope        │              │        verify facts        │
+        │       compare paths        │              │       reject guesses       │
+        └────────────────────────────┘              └────────────────────────────┘
+                       │                                           │
+                       │                                           │
+                       └─────────────────────┬─────────────────────┘
+                                             │
+                                             ▼
+                        ┌────────────────────────────────────────┐                  ┌──────────────────────────────┐
+                        │               /aif-plan                │                  │           /aif-fix           │
+                        │                                        │                  │                              │
+                        │       fast → no branch, PLAN.md        │                  │          Bug fixes           │
+                        │    full → git branch, plans/<br>.md    │                  │        Optional plan         │
+                        └────────────────────────────────────────┘                  │         With logging         │
+                                             │                                      └──────────────────────────────┘
+                                             │                                                      │
+                                             │                                                      │
+                                             │                                                      │
+                                             │                                                      ▼
+                                             │                                      ┌──────────────────────────────┐
+                                             │                                      │         .ai-factory/         │
+                                             ├◀─────────────────────────────────────│           patches/           │
+                                             │                                      │       Self-improvement       │
+                                             │                                      └──────────────────────────────┘
+                                             │                                                      │
+                                             │                                                      │
+                                             │                                                      │
+                                             ▼                                                      │
+                        ┌────────────────────────────────────────┐                                  │
+                        │              /aif-improve              │                                  │
+                        │               (optional)               │                                  │
+                        │                                        │                                  │
+                        │            Refine plan with            │                                  │
+                        │            deeper analysis             │                                  │
+                        └────────────────────────────────────────┘                                  │
+                                             │                                                      │
+                                             │                                                      │
+                                             │                                                      │
+                                             ▼                                                      │
+                        ┌────────────────────────────────────────┐                                  │
+                        │             /aif-implement             │      skill-context               │
+                        │                                        │◀─────────────────────────────────┘
+                        │           error? → /aif-fix            │   (+limited patch fallback)
+                        │             Execute tasks              │
+                        │           Commit checkpoints           │
+                        └────────────────────────────────────────┘
+                                             │
+                                             │
+                                             │
+                                             ├──────────────────────────────────────────────────────┐
+                                             │                                                      │
+                                             │                                                      │
+                                             ▼                                                      ▼
+                        ┌────────────────────────────────────────┐                  ┌──────────────────────────────┐
+                        │              /aif-verify               │                  │           /aif-qa            │
+                        │               (optional)               │                  │          (optional)          │
+                        │                                        │                  │                              │
+                        │           Check completeness           │                  │     Manual QA artifacts:     │
+                        │          Build / test / lint           │                  │       → change-summary       │
+                        │                   ↓                    │                  │         → test-plan          │
+                        │       → /aif-security-checklist        │                  │         → test-cases         │
+                        │             → /aif-review              │                  │                              │
+                        └────────────────────────────────────────┘                  │   paths.qa/<branch-slug>/    │
+                                             │                                      └──────────────────────────────┘
+                                             │
+                                             │
+                                             ▼
+                        ┌────────────────────────────────────────┐
+                        │              /aif-commit               │
+                        └────────────────────────────────────────┘
+                                             │
+                       ┌─────────────────────┴──────────────────────────────────┐
+                       │                                                        │
+                       ▼                                                        ▼
+                  More work?                                                  Done!
+                  Loop back ↑                                                   │
+                                                                                │
+                                                                                │
+                                                                                ▼
+                                                           ┌────────────────────────────────────────┐
+                                                           │              /aif-evolve               │
+                                                           │            or /aif-transfer            │
+                                                           │                                        │
+                                                           │           Patches/experience           │
+                                                           │           + current context            │
+                                                           │                   ↓                    │
+                                                           │           Compare rule cases           │
+                                                           └────────────────────────────────────────┘
 ```
 
 ## When to Use What?
 
+Two read-only advisors support the existing loop:
+
+```text
+/aif-roadmap-next → user selects scope → /aif-plan → /aif-plan-overview → /aif-implement
+```
+
+The first recommends ready, unclaimed roadmap work within an estimated mode capacity;
+the second explains the existing plan and planned file changes. Neither mutates
+project artifacts. Planning begins only after the user selects a scope and start.
+
 | Command | Use Case | Creates Branch? | Creates Plan? |
 |---------|----------|-----------------|---------------|
 | `/aif-warmup` | Load essential project context at session start or before a fork | No | No |
+| `/aif-quality-setup` | Detect stack, propose and configure selected code checks and Git hooks | No | No (audit reports in chat; setup writes selected native configs/hooks) |
 | `/aif-explore` | Discovery, option comparison, and requirements clarification before planning | No | No (optional `paths.research` on request) |
 | `/aif-explore ultra` | Durable system analysis with adaptive C4/ADR/dependency coverage | No | No (creates `<parent(paths.research)>/research/<english-slug>/`) |
 | `/aif-grounded` | Evidence-only answers, strict verification, and high-stakes questions where guessing is unacceptable | No | No |
 | `/aif-roadmap` | Strategic planning, milestones, long-term vision | No | `paths.roadmap` (default: `.ai-factory/ROADMAP.md`) |
+| `/aif-roadmap-next` | Choose the next ready roadmap scope, accounting for dependencies and active plans | No | No (optional separate `/aif-plan` handoff after selection) |
+| `/aif-plan-overview` | Explain a fast/full/ultra/fix plan and its declared file map | No | No |
 | `/aif-rules` | Capture project conventions or add area-specific rules before planning and implementation | No | No (`paths.rules_file` or `paths.rules/<area>.md`) |
 | `/aif-plan fast` | Small tasks, quick fixes, experiments | No | `paths.plan` (default: `.ai-factory/PLAN.md`) |
 | `/aif-plan full` | Full features, stories, epics | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see [Plan Files](plan-files.md)) |
@@ -195,7 +225,19 @@ Optional conventions step: use `/aif-rules` to append or refine project-wide axi
 | `/aif-qa-check` | Execute QA cases manually or through automated agent checks | No | `paths.qa/<branch-slug>/qa-check.md` and browser replay scripts; agent mode also maintains `paths.qa/agent-context.md` and `paths.qa/agent-history.md` |
 | `/aif-archive` | Archive completed plans and trim closed roadmap milestones | No | `paths.archive/plans/*`, `paths.archive/roadmap/*.md` (default: `.ai-factory/archive/`) |
 
-`/aif-qa change-summary` normally derives context from git diffs. When `git.enabled=false` or the target/base refs cannot be resolved locally or through `origin/<base_branch>`, it asks for manual change context instead of failing on git commands. `/aif-qa-check` consumes the resulting `test-cases.md`; human mode asks for one result at a time, and agent mode uses the appropriate execution surface for each case: browser, CLI, API, automated tests, or file/document checks. Browser/UI cases still require live browser execution, preferring the in-app Browser and falling back to Playwright MCP. Their dependency-free replay scripts are reused only when case, approved-target, and proven-content digests match; a new or changed script runs once as proof, while stateful repeat execution requires restored preconditions and renewed authorization. Original scripts/errors are preserved before repair, and selector failures remain product failures unless only locator mechanics demonstrably changed. Replay is followed by a recorded decision to run or skip one bounded exploratory pass based on concrete change-risk signals, so saved scripts do not become the only source of browser coverage. Non-browser cases are not blocked merely because browser automation is unavailable. Agent mode reads `agent-context.md` and `agent-history.md` first, asks the user for missing recoverable execution context before blocking, records only reusable non-sensitive cross-QA facts in those root-level files, and offers human-mode continuation only for human-verifiable blocked cases. Run-specific details stay in branch-specific `qa-check.md`. QA check results are bound to the tested commit plus worktree digest, or to a manual build identifier when git is unavailable, plus source/case/replay digests, so stale passes are not counted after the branch, dirty working tree, target, replay script, or test cases change.
+`/aif-qa change-summary` normally derives context from git diffs. When `git.enabled=false` or the target/base refs cannot be resolved locally or through `origin/<base_branch>`, it asks for manual change context instead of failing on git commands.
+
+`/aif-qa-check` consumes the resulting `test-cases.md`; human mode asks for one result at a time, and agent mode uses the appropriate execution surface for each case: browser, CLI, API, automated tests, or file/document checks.
+
+Browser/UI cases still require live browser execution, preferring the in-app Browser and falling back to Playwright MCP.
+
+Their dependency-free replay scripts are reused only when case, approved-target, and proven-content digests match; a new or changed script runs once as proof, while stateful repeat execution requires restored preconditions and renewed authorization.
+
+Original scripts/errors are preserved before repair, and selector failures remain product failures unless only locator mechanics demonstrably changed. Replay is followed by a recorded decision to run or skip one bounded exploratory pass based on concrete change-risk signals, so saved scripts do not become the only source of browser coverage. Non-browser cases are not blocked merely because browser automation is unavailable.
+
+Agent mode reads `agent-context.md` and `agent-history.md` first, asks the user for missing recoverable execution context before blocking, records only reusable non-sensitive cross-QA facts in those root-level files, and offers human-mode continuation only for human-verifiable blocked cases. Run-specific details stay in branch-specific `qa-check.md`.
+
+QA check results are bound to the tested commit plus worktree digest, or to a manual build identifier when git is unavailable, plus source/case/replay digests, so stale passes are not counted after the branch, dirty working tree, target, replay script, or test cases change.
 
 ## Artifact Ownership and Context Gates
 
@@ -212,7 +254,7 @@ Ownership is command-scoped to avoid conflicting writers:
 | `/aif-reference`                          | `paths.references/*`, `paths.references/INDEX.md`                                             | knowledge references from external sources                |
 | `/aif-distillation`                       | current agent skills directory by default, or `--path <directory>` as an output root (`<root>/<skill-name>/`, or prefixed child dirs in `--split` mode) | distilled skills from explicit source material            |
 | `/aif-fix`                                | `paths.fix_plan`, `paths.patches/*.md`                                                        | bug-fix learning loop artifacts                           |
-| `/aif-evolve`                             | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`, `.ai-factory/skill-context/*`  | skill-context overrides + evolution logs + cursor state   |
+| `/aif-evolve`                             | `paths.evolutions/*.md`, `paths.evolutions/patch-cursor.json`, `.ai-factory/skill-context/*`  | skill-context overrides + evolution logs + cursor state; verified user-owned target files after approval   |
 | `/aif-transfer`                           | delegates approved writes to `/aif-evolve`; no source or patch ownership                     | source read-only; current patches and cursor untouched    |
 | `/aif-qa`                                 | `paths.qa/<branch-slug>/change-summary.md`, `test-plan.md`, `test-cases.md`                   | derived branch slug as subdirectory (see aif-qa SKILL.md) |
 | `/aif-qa-check`                           | `paths.qa/<branch-slug>/qa-check.md`, `paths.qa/<branch-slug>/browser-replay/`, `paths.qa/agent-context.md`, `paths.qa/agent-history.md` | executes `/aif-qa` test cases; canonical and preserved replay scripts provide target/content-bound evidence; source QA artifacts stay read-only |
@@ -230,9 +272,11 @@ Context-gate defaults for `/aif-commit`, `/aif-review`, `/aif-verify`:
 
 ## Workflow Skills
 
+The setup, implement, verify, and fix entrypoints select their detailed references by mode. Load the selected procedure before its step; do not read every reference at startup. Mode boundaries, artifact ownership, ultra marker checks, regression-first fallbacks, and exact handoffs remain mandatory. Missing selected references stop the dependent step. See [selective workflow references](skills.md#workflow-skills) for installation details and reproducible footprint measurements.
+
 These skills form the development pipeline. Each one feeds into the next.
 
-### `/aif-explore [ultra] [topic or plan name]` — discovery before planning
+### `/aif-explore [regular|ultra] [topic or plan name]` — discovery before planning
 
 ```
 /aif-explore real-time collaboration
@@ -244,12 +288,22 @@ These skills form the development pipeline. Each one feeds into the next.
 Thinking-partner mode for exploring ideas, constraints, and trade-offs without
 implementing code. Reads resolved context plus relevant active plan artifacts.
 If you want the context to persist after `/clear`, save it to `paths.research`.
-Explicit ultra mode persists an English-slug topic bundle. It always writes a
-manifest `INDEX.md` and plan-compatible `RESEARCH.md`, then adds C4 views, ADRs,
+
+Ultra mode, selected explicitly or through `workflow.explore_mode: ultra`,
+persists an English-slug topic bundle. A leading `regular` overrides the default.
+Ultra always writes a manifest `INDEX.md` and plan-compatible `RESEARCH.md`, then adds C4 views, ADRs,
 or a dependency graph only when evidence crosses their inclusion thresholds.
+
 Ultra additionally checks that Active Summary claims have self-contained bundle
 support and material supporting conclusions are reflected back into the summary.
 When direction is clear, transition to `/aif-plan fast`, `full`, or `ultra`.
+
+On explicit request, exploration can also track source-linked project
+hypotheses inside `RESEARCH.md`. Accepted experiment inputs pass through the
+same Active Summary and Research Context; implementation completion remains
+separate from measured outcomes. Execution uses a separately authorized task
+and existing runner. See [Optional Project Hypotheses](research.md#optional-project-hypotheses)
+for cards, provenance, and revision-bound results.
 
 ### `/aif-grounded [question or task]` — certainty before action
 
@@ -273,31 +327,69 @@ High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROAD
 ### `/aif-plan [fast|full|ultra] <description>` — plan the work
 
 ```
-/aif-plan Add user authentication with OAuth       # Asks which mode
+/aif-plan Add user authentication with OAuth       # Uses config, otherwise asks which mode
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
 /aif-plan ultra Rebuild billing around a ledger    # Multi-file, implementation-complete plan
 /aif-plan full --parallel Add Stripe checkout      # Parallel worktree
+/aif-plan full +coupling Change receipt pricing    # Optional boundary analysis
 ```
+
+The optional `+coupling` modifier is independent of the selected mode. It loads
+the [local planning methodology](../skills/aif-plan/references/COUPLING-PLAN.md)
+only in the leading option segment; once the description starts, literal
+`+coupling` text is preserved. It adds relevant boundary decisions and acceptance
+checks to the existing plan without invoking review or implementation.
 
 Three modes — **fast** (quick single file), **full** (rich single file), and
 **ultra** (a directory whose `index.md` owns scope/progress and whose phase files
 specify implementation in code-level detail). Full and ultra share testing,
-logging, docs, roadmap, branch, and worktree preferences. Sequential IDs put
+logging, docs, roadmap, branch, and worktree preferences.
+
+Before parallel runtime-dependent work, planning runs the read-only
+[`worktree-check` diagnostic](configuration.md#worktree-readiness-diagnostic) against
+selected existing checkouts. Fixed/shared ports, names, paths and database/cache
+bindings require independent namespaces or explicitly approved read-only sharing.
+Dynamic/unsupported declarations remain incomplete. Resolve conflicts through the
+existing configuration owner or run runtime-dependent work serially; a worktree
+and a static scan do not guarantee live isolation or authorize environment setup.
+
+In every mode, an explicitly
+selected milestone group is persisted as `Milestone:` plus `Also completes:` lines;
+completion checks each linked milestone separately, and archived completed plans
+with open roadmap links remain pending reconciliation. Sequential IDs put
 `NNNN_` on the full filename or ultra directory and count active full files plus
 directories whose `index.md` contains the stable ultra marker.
-Ultra is strictly opt-in through the explicit leading `ultra` token. Omitting
-the mode preserves the existing interactive choice between full and fast.
+
+A leading mode token overrides `workflow.plan_mode`. With its default `ask`,
+omitting the mode preserves the full/fast question (fast in non-interactive
+Handoff mode). Ultra requires a leading `ultra` token or `workflow.plan_mode: ultra`.
+See [Command defaults](config-reference.md#command-defaults).
+
+If the description comes from a research Active Summary, keep the resolved mode
+(including configured ultra) without asking for the mode again.
 Ultra discovery uses the exact untranslated
 `<!-- aif:plan-mode:ultra -->` entrypoint marker, so artifact localization cannot
 change bundle recognition.
+
 All modes preserve an explicit `Original Request`; research-backed plans commit
 a revisioned `Research Context`. Ultra additionally requires exact paths and
 symbols, ordered edits, contracts, errors/logging, test policy, acceptance
 criteria, verification, and bundle-integrity checks so a smaller model does not
 have to reconstruct architecture. See [Plan Files](plan-files.md).
 
-### `/aif-improve [--list] [+check] [@plan-file-or-directory] [prompt]` — refine the plan
+Full and ultra plans also capture commit strategy (`incremental`,
+`incremental-at-end`, or `single-commit`) and development methodology
+(`implementation-first` or TDD with task-/feature-based granularity).
+Task-based layout encodes commits as marked plan tasks; classic layout uses
+`## Commit Plan`. Deferred strategies in either layout commit only after all
+implementation, test, and documentation tasks are complete.
+When `Docs: yes`, the planner reserves a documentation task/group; `/aif-implement`
+runs `/aif-docs` before deferred commits and checks the resulting diff against
+that reserved ownership. If it cannot be mapped safely, finalization stops for
+a grouping adjustment.
+
+### `/aif-improve [--list] [+check|--no-check] [@plan-file-or-directory] [prompt]` — refine the plan
 
 ```
 /aif-improve
@@ -311,13 +403,20 @@ have to reconstruct architecture. See [Plan Files](plan-files.md).
 Second-pass analysis. Finds missing tasks, fixes dependencies, removes redundant
 work, and reports useful-but-out-of-scope ideas. Discovery priority is explicit
 file/ultra directory, branch-based full/ultra artifact, single named artifact,
-fast plan, then fix plan. Ultra refinement reads and updates `index.md` plus all
+fast plan, then fix plan.
+
+Ultra refinement reads and updates `index.md` plus all
 linked phase files as one bundle, preserves task progress in the index, and
 reruns link/task/dependency integrity checks. `Original Request` stays verbatim;
 revisioned Research Context remains committed scope and drift produces
 `WARN [research-drift]`. `--list` is read-only.
 
-Optional `+check` runs a single fresh-context `general-purpose` subagent on the refinements (`missing` / `improvements` / `removals` / `out_of_scope` groups), drops invented items, rewrites partially-correct ones, and appends `Hidden by +check` / `Adjusted by +check` counters to the Step 5 Summary block. Dependency fixes are recomputed against the filtered list after validation. Combined with `--list`, the flag is silently ignored — there is no refinement to validate.
+Optional `+check` (also enabled by `workflow.improve_check: true`, overridden
+for one invocation with `--no-check`) runs a single fresh-context `review-validator` with a runtime-enforced `Read`, `Glob`, `Grep` allowlist on the refinements (`missing` / `improvements` / `removals` / `out_of_scope` groups), drops invented items, rewrites partially-correct ones, and appends `Hidden by +check` / `Adjusted by +check` counters to the Step 5 Summary block. Dependency fixes are recomputed against the filtered list after validation.
+
+If that allowlist is unavailable or unenforced (including Codex), no validator is dispatched: findings stay unchanged, counters are omitted, and `WARN [+check]` explains the limitation. There is no full-tool fallback.
+
+Combined with `--list`, validation flags and the configured default are silently ignored — there is no refinement to validate.
 
 ### `/aif-loop [new|resume|status|stop|list|history|clean] [task or alias]` — iterative quality loop
 
@@ -330,7 +429,24 @@ Optional `+check` runs a single fresh-context `general-purpose` subagent on the 
 /aif-loop clean courses-api-ddd
 ```
 
-Runs a strict Reflex Loop with 6 phases: PLAN -> PRODUCE||PREPARE -> EVALUATE -> CRITIQUE -> REFINE. PRODUCE and PREPARE run in parallel via `Task` tool; EVALUATE runs check groups in parallel. Before iteration 1, it always asks for explicit confirmation of success criteria, max iterations, and a non-`none` time budget (even if they are already in task text). Keeps one active loop pointer under `paths.evolution/current.json` and per-task run state in `paths.evolution/<alias>/run.json` with append-only events in `history.jsonl` and latest output in `artifact.md`. Stops by a fixed precedence contract — `threshold_reached`, `no_major_issues`, `user_stop`, `stagnation`, `budget_exceeded`, `iteration_limit` (default max iterations: 4) — where the optional soft budget (`run.json.max_completed_phase_seconds`) is checked at phase boundaries only, never interrupts a running phase, and counts completed segments alone. If loop stops on max iterations or the time budget without passing criteria, final summary includes distance-to-success metrics (threshold gap + remaining blocking fail-rules). Use `list` to see all loop runs, `history` to view events, `clean` to remove old loop runs.
+Runs a strict Reflex Loop with 6 phases: PLAN -> PRODUCE||PREPARE -> EVALUATE -> CRITIQUE -> REFINE. PRODUCE and PREPARE run in parallel via `Task` tool; EVALUATE runs check groups in parallel.
+
+Before iteration 1, it always asks for explicit confirmation of success criteria, max iterations, and a non-`none` time budget (even if they are already in task text).
+
+Keeps one active loop pointer under `paths.evolution/current.json` and per-task run state in `paths.evolution/<alias>/run.json` with append-only events in `history.jsonl` and latest output in `artifact.md`.
+
+Stops by a fixed precedence contract — `threshold_reached`, `no_major_issues`, `user_stop`, `stagnation`, `budget_exceeded`, `iteration_limit` (default max iterations: 4) — where the optional soft budget (`run.json.max_completed_phase_seconds`) is checked at phase boundaries only, never interrupts a running phase, and counts completed segments alone.
+
+If loop stops on max iterations or the time budget without passing criteria, final summary includes distance-to-success metrics (threshold gap + remaining blocking fail-rules). Use `list` to see all loop runs, `history` to view events, `clean` to remove old loop runs.
+
+Each phase boundary attempts optional cross-agent dispatch through
+`ai-factory dispatch <phase> --json`. An explicit `noop` runs in-process; `manual`
+persists a handoff that the target agent accepts with `/aif-loop resume` without
+redispatching that phase; `completed` requires validating and persisting the
+external phase result before advancing. Non-zero exits and invalid responses
+fall back in-process. The plain CLI keeps its silent no-op behavior. See
+[Cross-Agent Dispatch](configuration.md#cross-agent-dispatch) and
+[phase dispatch and resume](loop.md#phase-dispatch-and-resume).
 
 For full contracts and state transition rules, see [Reflex Loop](loop.md).
 
@@ -346,13 +462,28 @@ For full contracts and state transition rules, see [Reflex Loop](loop.md).
 ```
 
 Reads skill-context rules first, then uses limited recent patch fallback when
-needed. Executes tasks one by one with commit checkpoints. Discovery supports an
+needed. Executes tasks one by one with strategy-aware commit checkpoints.
+Incremental commits run at their planned boundaries; `incremental-at-end` runs
+its ordered commit groups only after all implementation/test/documentation tasks,
+while `single-commit` creates one final commit. TDD plans preserve test-first
+ordering and require the relevant tests to pass before implementation tasks
+complete. For deferred strategies with `Docs: yes`, the docs checkpoint runs
+before commits and its changes must fit the reserved docs task/group.
+Discovery supports an
 explicit plan file or ultra directory, branch/single named full or ultra
 artifact, fast plan, then fix-plan redirect. For ultra, it reads the complete
 phase file before executing a task and updates progress only in `index.md`.
+
 `Original Request` supplies original scope; committed Research Context supplies
 revisioned requirements. `--list` is read-only. Docs policy remains
 `Docs: yes` → mandatory `/aif-docs` checkpoint; `no`/unset → `WARN [docs]`.
+
+Within an authorized `/aif-docs` task, the optional
+[technical writing profile](config-reference.md#writing) can edit selected
+documentation/runbooks after their language is fixed. It is disabled by default
+and preserves meaning and project terminology before improving readability.
+It adds no requirements-validation or quality gate to this workflow.
+
 When executing through the Claude top-level `implement-coordinator`, the quality-gate sidecars include `review-sidecar`, `security-sidecar`, and `rules-sidecar` (`aif-rules-check`) after code changes, plus `best-practices-sidecar` for maintainability checks. In Handoff automation, `HANDOFF_SKIP_REVIEW=1` intentionally skips the review-family gates: `review-sidecar`, `security-sidecar`, and `rules-sidecar`.
 
 ### `/aif-verify [--strict]` — check completeness
@@ -362,7 +493,11 @@ When executing through the Claude top-level `implement-coordinator`, the quality
 /aif-verify --strict # Strict mode — zero tolerance for gaps
 ```
 
-Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it. If the plan contains `Original Request`, `/aif-verify` uses it as original scope context while the task list and committed Research Context remain the executable verification inputs. If the plan references `RESEARCH.md`, `/aif-verify` verifies against the embedded Research Context and checks the exact legacy or bundled source only for revision drift. Checks build, tests, lint, looks for leftover TODOs, undocumented env vars, and plan-vs-code drift. If gaps are found, it first suggests `/aif-fix <issue summary>` (recommended). If verification is clean, it suggests `/aif-security-checklist` and `/aif-review`. Use `--strict` before merging to the configured base branch.
+Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it.
+
+If the plan contains `Original Request`, `/aif-verify` uses it as original scope context while the task list and committed Research Context remain the executable verification inputs. If the plan references `RESEARCH.md`, `/aif-verify` verifies against the embedded Research Context and checks the exact legacy or bundled source only for revision drift.
+
+Checks build, tests, lint, looks for leftover TODOs, undocumented env vars, and plan-vs-code drift. If gaps are found, it first suggests `/aif-fix <issue summary>` (recommended). If verification is clean, it suggests `/aif-security-checklist` and `/aif-review`. Use `--strict` before merging to the configured base branch.
 
 Also runs read-only context gates against the resolved architecture, roadmap, and RULES.md artifacts. In normal mode, roadmap/milestone linkage gaps are warnings; in strict mode, clear roadmap mismatch is a failure, while missing `feat`/`fix`/`perf` milestone linkage remains a warning. The final output appends an `aif-gate-result` JSON block for orchestrators.
 
@@ -372,13 +507,54 @@ Checks only rules compliance for staged changes, working-tree changes, or a prov
 
 ### `/aif-review [PR number or URL] [+check]` — code review with read-only context gates
 
+Add `+coupling` to opt into the [architectural coupling methodology](../skills/aif-review/references/COUPLING-REVIEW.md),
+for example `/aif-review 123 +coupling +check`. It connects a concrete producer,
+shared knowledge/contract and consumer, explains change propagation, and compares
+bounded alternatives with costs, including keeping a justified dependency. It is
+off by default and preserves existing severity, gates and validator permissions.
+Declared additional PR evidence is independently rechecked within the pinned
+repository and bounded file/byte limits; external consumers stay unknown when
+their sources are unavailable. See the [skill reference](skills.md) for limits,
+flag examples and offline-test scope.
+
+Explicit `+check` is driven by the shared executable host protocol in [CHECK-MODE.md](../skills/aif-review/references/CHECK-MODE.md). Its source → internal reviewer → validator → gate sequence is exercised offline by `npm run test:review-check`, also included in `npm test`, using deterministic tool responses and versioned reports. [Replay maintenance](../skills/aif-review/tests/README.md) describes the recording format and failure checks.
+
+Protocol v3 independently collects config and description at the pinned head before Reviewer. A nonempty excerpt and its file record must match that independent result, including the description path resolved from pinned config; Reviewer-supplied content and hashes alone cannot establish provenance; an unavailable description is recorded explicitly and retains source uncertainty. Validator blocks with missing, blank, or duplicate `Reason` keep the original finding and emit a warning.
+
 Reviews staged changes or PR diff and reports correctness/security/performance findings. Includes read-only architecture/roadmap/rules gate notes in review output (`WARN` for non-blocking inconsistencies, `ERROR` only for explicitly blocking criteria), then appends an `aif-gate-result` JSON block.
 
-Optional `+check` runs a single fresh-context `general-purpose` subagent on the drafted findings (Critical Issues and Suggestions only): drops invented items, rewrites partially-correct ones in place, and may reclassify items between the two severity levels — promote a suggestion to "Critical Issues" when the cited behavior is actually merge-blocking, or demote a critical finding to "Suggestions" when the framing was too harsh. Severity definitions and the promotion/demotion rules live in `skills/aif-review/references/SEVERITY.md`. The rendered review gains a final line `Filtered: N hidden, M adjusted, K reclassified by +check`. The `aif-gate-result` block is rebuilt **after** filtering — from the surviving findings merged with the unchanged context-gate result, so a failing context gate keeps `status` at `fail` even when no Critical Issues remain; `suggested_next` is recomputed (`/aif-commit` when no blockers remain; otherwise `/aif-fix`, or the failing gate's own command — `/aif-rules`, `/aif-architecture`, `/aif-roadmap` — when a single context gate is the sole blocker). If the validator call fails entirely the unfiltered review is kept and a single `WARN [+check]` line is appended above the `aif-gate-result` block (which always stays last).
+For application API changes, the [API compatibility reference](../skills/aif-review/references/API-COMPATIBILITY.md) adds a bounded comparison of supported contract revisions and actual consumers. It separates wire compatibility from semantics and preserves the existing findings, validation, source and gate contracts.
+
+In PR mode, the review and validator share one source package bound to full base/head/merge-base SHAs and the exact diff hash. Additional code and versioned context artifacts come from that tree without switching branches.
+
+**Review Sources** lists file versions, local discrepancies, unavailable context and PR freshness. Missing evidence remains a visible limitation (`warn` at minimum), including empty-item runs and validation failure; actionable hypotheses retain the existing confidence-marker lifecycle. See the [review reference](skills.md) and [source package contract](../skills/aif-review/references/PR-SOURCE.md).
+
+The finding stage is **coverage-first**: it reports uncertain and low-severity findings instead of pre-filtering them. Severity picks the section by impact, and confidence is carried separately as a `(confidence: low)` / `(confidence: medium)` marker on the item text.
+
+A marker never reaches the published gate: a review that produced at least one marker runs the `+check` validation automatically, even when the flag was not given. Each marked finding is either confirmed — returned without the marker and counted as an ordinary finding of its section, so a confirmed critical is a blocker and drives `fail` — or refuted and dropped.
+
+The `aif-gate-result` block is computed from the post-validation findings, so it never encodes an unverified potential blocker (`warn` plus `suggested_next.command: null`).
+
+If the pass fails to resolve a marker — a contract-violating or malformed validator response for that item, or a whole-dispatch failure while markers are present — the gate reports the failure itself rather than a verdict: `status: fail`, `blocking: true`, a `review-validation-failed` blocker, the unresolved findings excluded from `blockers`, and `suggested_next.command: null` with a reason to re-run `/aif-review +check`; a `WARN [+check]` line names the cause.
+
+Optional `+check` runs a single fresh-context `review-validator` subagent — on Claude Code the bundled agent allowlisted to `Read`, `Glob`, `Grep`; on Codex a read-only-sandbox agent without a tool allowlist — on the drafted findings (Critical Issues and Suggestions only): drops invented items, rewrites partially-correct ones in place, and may reclassify items between the two severity levels — promote a suggestion to "Critical Issues" when the cited behavior is actually merge-blocking, or demote a critical finding to "Suggestions" when the framing was too harsh.
+
+Severity definitions and the promotion/demotion rules live in `skills/aif-review/references/SEVERITY.md`. The rendered review gains a final line `Filtered: N hidden, M adjusted, K reclassified by +check`.
+
+The `aif-gate-result` block is rebuilt **after** filtering — from the surviving findings merged with the unchanged context-gate result, so a failing context gate keeps `status` at `fail` even when no Critical Issues remain; `suggested_next` is recomputed (`/aif-commit` when no blockers remain; otherwise `/aif-fix`, or the failing gate's own command — `/aif-rules`, `/aif-architecture`, `/aif-roadmap` — when a single context gate is the sole blocker).
+
+If the validator call fails entirely the unfiltered review is kept and a single `WARN [+check]` line is appended above the `aif-gate-result` block (which always stays last); a marker-free review then keeps its pre-validation gate, a review with markers publishes the `review-validation-failed` gate described above.
+
+A run that markers made automatic takes that same failure path when `review-validator` is not installed or its runtime does not enforce the tool allowlist (Codex), rather than falling back to a weaker boundary — the prompt carries the reviewed diff verbatim, and an unflagged run must not let the reviewed content reach a wider tool set than the review itself had.
 
 ### `/aif-commit` — conventional commit with read-only context gates
 
-Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; for ultra plans it reads the relevant phase files and maps group tasks through `Files to Change` plus the task specifications. Unmapped staged files trigger a question before staging or committing, and no commit plan leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
+Creates conventional commits from staged changes and runs read-only architecture/roadmap/rules checks before finalizing the message. When an active plan contains `## Commit Plan`, it can use the planned commit groups first; task-based plans provide explicit commit tasks and groups. For ultra plans it reads the relevant phase files and maps group tasks through `Files to Change` plus the task specifications. In ordinary mode, unmapped staged files trigger a question before staging or committing; in task-bound mode, unclear or unrelated staged work stops the commit without changing staging. No active plan grouping leaves staged-diff behavior unchanged. If the same file spans multiple groups, `/aif-commit` must use hunk-level staging or stop before changing staging. Whole-file staging is allowed only when grouped files do not overlap unstaged worktree paths. By default this remains warning-first (no implicit strict mode). For `feat`/`fix`/`perf` commits, missing roadmap milestone linkage is reported as warning.
+
+For task-based plans, `/aif-implement` passes the exact marked commit task,
+dependency IDs, plan path, and file/hunk map. `/aif-commit` commits only that
+selected group, preserves unrelated staged and unstaged changes, and stops
+without changing the index when ownership is unclear.
 
 ### `/aif-fix [bug description]` — fix and learn
 
@@ -386,7 +562,9 @@ Creates conventional commits from staged changes and runs read-only architecture
 /aif-fix TypeError: Cannot read property 'name' of undefined
 ```
 
-Two modes — choose when you invoke:
+Two modes — selected by `workflow.fix_mode` (`ask` by default), or by
+`--fix-now` / `--plan-first` for one invocation:
+
 - **Fix now** — investigates, applies the Canonical Regression-First Policy when needed, fixes with logging, then reruns the same regression check when available
 - **Plan first** – creates `paths.fix_plan` with analysis and fix checklist, then stops for review
 
@@ -401,16 +579,51 @@ After successful execution, `/aif-fix` deletes only the default `.ai-factory/FIX
 
 If a fix plan references `RESEARCH.md`, `/aif-fix` executes against the embedded Research Context and checks the exact legacy or bundled source only for revision drift.
 
-Every fix creates a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`). Patches improve future workflow runs primarily through `/aif-evolve` (which distills them into `.ai-factory/skill-context/*`).
+Completed fixes create a **self-improvement patch** in `paths.patches` (default: `.ai-factory/patches/`) unless `workflow.fix_patch: false` or `--no-patch` disables it; `--patch` enables it once. Mode and patch policy are independent. Plan-first stops before patch creation; later plan execution resolves patch policy anew. Existing plans take priority over mode defaults, and disabling patches preserves verification, logging, Handoff sync, and plan cleanup. Patches improve future workflow runs primarily through `/aif-evolve` (which distills them into `.ai-factory/skill-context/*`).
 
 ### `/aif-evolve` — improve skills from experience
 
 ```
-/aif-evolve          # Evolve all skills
+/aif-evolve          # Evolve project skills only
 /aif-evolve fix      # Evolve only the fix skill
+/aif-evolve all --global # Only existing user-global skills
 ```
 
-Reads patches incrementally using an evolve cursor, analyzes project patterns, and proposes targeted skill improvements. Closes the learning loop: **fix → patch → evolve → better skills → fewer bugs**.
+First resolves canonical skill targets and installation ownership. Project built-ins
+use skill-context; verified user-owned skills use their exact approved paths.
+
+Shared project layers load global → build (fix/implement/plan/verify/improve only) →
+individual, with individual taking precedence. Project `all` evolution can consolidate
+rules only after validating every affected consumer; named runs stay individual.
+See [Shared Evolution and Consolidation](evolve.md#shared-evolution-and-consolidation).
+
+Extension-managed and unknown targets are skipped. Global user-owned edits require
+`--global` and approval stating their cross-project reach; global built-ins are skipped.
+See [Skill Ownership and Write Destinations](evolve.md#skill-ownership-and-write-destinations).
+
+Reads patches incrementally using an evolve cursor, analyzes project patterns, and creates
+rule candidates. Each candidate is compared with the current effective instructions on
+the same original case, counterexample, and relevant regressions, with extra cost recorded.
+
+Only an exact revision with demonstrated benefit and no detected regression is offered
+for user approval. Narrowed/refined rules require another comparison; missing execution
+evidence means postpone.
+
+Logs preserve negative results, including "the new rule did
+not improve behavior", without adding those instructions to active skill-context.
+See [Comparing Rule Candidates](evolve.md#comparing-rule-candidates).
+
+### `/aif-skills-audit` — inspect the installed library
+
+Run `/aif-skills-audit` explicitly to review overlaps, stale instructions and context
+growth across built-in, extension and third-party skills. Its report starts with
+final composition and explains the dependencies and surviving duty owners for any
+merge/removal candidate. Missing usage observations mean **not measured**, never
+**useless**.
+
+The audit applies no recommendations and executes no audited skills or commands.
+Output stays in chat unless `--output "<new-report.md>"` is supplied; `--online`
+enables read-only external checks. See [the audit reference](skills.md#aif-skills-audit).
 
 ### `/aif-transfer` — reuse anonymized experience
 

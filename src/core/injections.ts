@@ -202,8 +202,8 @@ export async function stripInjectionsByExtensionName(
   // Search agent configDir recursively — covers skills/*/SKILL.md,
   // flat workflow files (e.g. .agent/workflows/*.md), and rules
   const agentConfig = getAgentConfig(agent.id);
-  const configDir = path.join(projectDir, agentConfig.configDir);
-  const files = await findMarkdownFiles(configDir);
+  const roots = [agent.skillsDir, `${agentConfig.configDir}/workflows`, `${agentConfig.configDir}/rules`];
+  const files = [...new Set((await Promise.all(roots.map(root => findMarkdownFiles(path.join(projectDir, root))))).flat())];
 
   for (const filePath of files) {
     const content = await readTextFile(filePath);

@@ -16,6 +16,30 @@ metadata:
 
 # Distillation
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/aif-distillation/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 Turn source material into a useful skill. The output is not a summary dump: it is an operational skill that captures the best practices, decision rules, workflows, checks, and examples from the material.
 
 ## Step 0: Load Config and Skill Context
@@ -71,6 +95,7 @@ Do not save distilled skills into the package `skills/` directory unless the use
 ## Workflow
 
 1. Prepare sources.
+   - Record source kind, permitted locator, edition/revision/digest, output relationship, and known license/terms using `references/SOURCE-USE.md`. Keep `known`, `unknown`, `not-applicable`, and `redacted` distinct; record conflicting terms without deciding permission.
    - For normal text, markdown, JSON, YAML, HTML, or code files, read directly.
    - For large folders or PDFs, use `{{skills_dir}}/aif-distillation/scripts/material-prep.py` only when a working Python 3 interpreter is available. Detect it with `python3 --version`, `python --version`, `py -3 --version`, then `py --version`; use the first command that exits successfully and reports Python major version 3.
    - When invoking the helper, expand the selected interpreter to the concrete command shape, such as `python3 ...material-prep.py` or `py -3 ...material-prep.py`. Do not run arbitrary Python payloads; the pre-approved tool contract only covers version probes and `material-prep.py` execution.
@@ -78,6 +103,7 @@ Do not save distilled skills into the package `skills/` directory unless the use
    - For URLs, fetch the source and any critical linked pages needed to understand the topic.
 
 2. Distill, do not copy.
+   - Separate short quoted/referenced material, agent interpretation, and independently authored guidance. Preserve relevant notices and explicit user/project export restrictions; independent authorship is not legal approval.
    - Extract transferable principles, workflows, heuristics, checklists, terminology, and failure modes.
    - Inventory examples from the source, especially code snippets, before deciding the output structure.
    - Group source examples by topic so coverage can be checked later.
@@ -116,6 +142,7 @@ Do not save distilled skills into the package `skills/` directory unless the use
    - In split mode, also check existing sibling skills under `<output-root>` for matching triggers. Update a matching skill with `--update` instead of creating a new near-duplicate child.
 
 6. Validate usefulness.
+   - Validate source-use metadata against `references/SOURCE-USE.md`, including revision invalidation on source/terms changes, split children, and redacted output. Missing terms do not block local distillation or imply redistribution permission.
    - The skill must tell an agent what to do, when to do it, what good output looks like, and what mistakes to avoid.
    - The name and description must be invocation-ready. If a user would ask "what does this skill actually do?", rename it or rewrite the trigger before finishing.
    - References must be dense and navigable.
@@ -126,10 +153,30 @@ Do not save distilled skills into the package `skills/` directory unless the use
    - Generated quality-gate skills must follow the `aif-gate-result` contract from `/aif-verify` references.
    - In split mode, every child skill must have a distinct activation trigger. If two children would activate for the same request and tell the agent to do the same work, merge them before finishing.
 
+## Optional project application handoff
+
+If the user wants to evaluate a distilled practice in a specific project,
+suggest `/aif-explore` to formulate a source-linked hypothesis. Preserve source
+conditions and carry forward disclosure restrictions, including
+`--redact-source-map`; do not reintroduce restricted identifiers in the handoff.
+Carry the current source-use metadata revision, relevant notices, export
+restrictions, conflicts, and unresolved owner decisions into any downstream
+handoff. Redacted handoffs must explicitly retain reduced public traceability.
+Distillation still writes only the selected skill outputs, does not write
+RESEARCH/PLAN/RULES/config, and does not authorize a separate installation or
+experiment run.
+
+Publication is a separate explicit opt-in by the source/package owner. Local
+distillation does not automatically publish sources or skills, install a skill
+separately, train a model, or copy full books. No registry, network license lookup,
+or new mandatory legal-approval gate is required; unresolved reuse decisions stay
+with the owner.
+
 ## Required Supporting Guidance
 
 Read these before generating or updating a distilled skill:
 - `references/DISTILLATION-PROTOCOL.md`
+- `references/SOURCE-USE.md`
 - `references/OUTPUT-STRUCTURE.md`
 - `references/LARGE-MATERIALS.md`
 

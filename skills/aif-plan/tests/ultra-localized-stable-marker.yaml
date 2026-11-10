@@ -8,7 +8,6 @@ argument: "ultra добавить поиск товаров"
 max_turns: 60
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
 
 fixtures:

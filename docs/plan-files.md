@@ -20,8 +20,9 @@ Ultra is intended for planning with a stronger model and implementation with a
 smaller model. The planner commits implementation decisions into a bundle:
 
 Ultra is additive and strictly opt-in. Updating AI Factory does not migrate
-existing plan files or change fast/full artifact shapes; only an explicit
-`/aif-plan ultra ...` creates a bundle.
+existing plan files or change fast/full artifact shapes. A leading `ultra` token
+or `workflow.plan_mode: ultra` selects a bundle; an explicit `fast` or `full`
+overrides the configured default.
 
 ```text
 .ai-factory/plans/feature-billing-ledger/
@@ -34,9 +35,11 @@ existing plan files or change fast/full artifact shapes; only an explicit
 `index.md` is the manifest and only progress ledger. It owns the original
 request, settings, research/roadmap context, phase table of contents,
 cross-phase dependencies, task checkboxes, commit plan, and definition of done.
+
 It also contains the exact machine-readable marker
 `<!-- aif:plan-mode:ultra -->`. The marker is never localized; consumers use it
 instead of the human-readable `Mode` label when discovering bundle directories.
+
 Each phase file specifies exact code evidence, paths and symbols, ordered edits,
 interfaces, data flow, errors and logging, test policy, risks, acceptance
 criteria, and verification commands.
@@ -52,6 +55,107 @@ setting. `workflow.plan_id_format` applies to the bundle directory name.
 Sequential allocation counts both numbered full-plan files and numbered ultra
 directories whose `index.md` contains the stable marker. Numbered directories
 without the marker do not consume plan IDs.
+
+## Plan Structure Modes
+
+AI Factory supports two plan structure modes, controlled by `workflow.plan_structure` in `config.yaml`:
+
+| Mode | Description | Commit Handling |
+|------|-------------|-----------------|
+| `classic` (default) | Separate `## Commit Plan` section for commit checkpoints | `/aif-implement` parses commit checkpoints and prompts for commits |
+| `task-based` | Commits are explicit tasks in the plan, co-located with related work | `/aif-implement` recognizes marked tasks and invokes `/aif-commit` with that task's selected group |
+
+**Classic format** (backward compatible):
+```markdown
+## Commit Plan
+- **Commit 1** (tasks 1-3): "feat: add user model"
+- **Commit 2** (tasks 4-6): "feat: implement auth service"
+
+## Tasks
+- [ ] Task 1: Create User model
+- [ ] Task 2: Add auth types
+- [ ] Task 3: Implement registration
+```
+
+`## Commit Plan` is only valid in classic plans. A plan uses exactly one layout;
+task-based plans omit that section and do not include classic checkpoints.
+
+**Task-based format**:
+```markdown
+## Settings
+- Commit strategy: incremental
+- Development methodology: implementation-first
+
+## Tasks
+- [ ] Task 1: Create User model
+- [ ] Task 2: Add auth types
+<!-- aif:task-kind:commit -->
+- [ ] Task 3: Commit changes with message "feat: add user model" (depends on 1,2)
+- [ ] Task 4: Implement registration
+<!-- aif:task-kind:commit -->
+- [ ] Task 5: Commit changes with message "feat: implement auth service" (depends on 4)
+```
+
+Each marker is a standalone comment immediately above the real commit-task
+checkbox. The comment is not itself a task or checkbox.
+
+## Commit Strategies
+
+`/aif-plan` offers three commit strategies for either plan structure:
+
+| Strategy | Description | Example |
+|----------|-------------|---------|
+| `incremental` (default) | Commits at natural boundaries throughout implementation | Commit after each feature component |
+| `incremental at end` | All commits created after implementation completes | Complete all work, then commit in logical groups |
+| `single commit at end` | One commit after all implementation | Complete all work, then single final commit |
+
+The commit strategy is selected via preference questions during `/aif-plan` and affects how commit tasks are generated and placed in the plan. With `Docs: yes` and a deferred strategy (`incremental-at-end` or `single-commit`), the plan reserves a documentation task with explicit `Files:` hints. `/aif-implement` runs the mandatory `/aif-docs` checkpoint after implementation/test tasks but before deferred commits, then verifies its changed paths/hunks belong to the reserved task and group. An unclear or out-of-scope docs diff stops finalization until the user adjusts the grouping. `incremental-at-end` uses a dedicated final documentation group; `single-commit` includes the documentation task in its one group.
+
+## TDD Support
+
+AI Factory supports Test-Driven Development (TDD) with two granularity options:
+
+| Granularity | Description | Task Ordering |
+|-------------|-------------|---------------|
+| `task-based` | Test before each implementation task | Test #1 → Implement #1 → Test #2 → Implement #2 → Refactor |
+| `feature-based` | All tests for a phase before implementation | Test batch → Implementation batch → Refactor |
+
+**Task-based TDD example:**
+```markdown
+- [ ] Task 1: Write failing unit test for user login
+- [ ] Task 2: Implement user login to make test pass (depends on 1)
+- [ ] Task 3: Write failing unit test for user registration
+- [ ] Task 4: Implement user registration to make test pass (depends on 3)
+- [ ] Task 5: Refactor authentication logic (depends on 2,4)
+```
+
+**Feature-based TDD example:**
+```markdown
+- [ ] Task 1: Write failing unit test for user login
+- [ ] Task 2: Write failing unit test for user registration
+- [ ] Task 3: Write failing integration test for auth flow
+- [ ] Task 4: Implement user login (depends on 1)
+- [ ] Task 5: Implement user registration (depends on 2)
+- [ ] Task 6: Implement auth flow (depends on 3)
+- [ ] Task 7: Refactor authentication logic (depends on 4,5,6)
+```
+
+When TDD is selected, `/aif-implement` ensures test execution before marking implementation tasks complete and validates that all tests still pass after refactoring.
+
+## Co-located Task Organization
+
+The new task-based structure co-locates related implementation, testing, and documentation tasks within feature-oriented phases:
+
+```markdown
+### Phase 1: User Authentication System
+- [ ] Task 1: Implement user service
+- [ ] Task 2: Write unit tests for user service (depends on 1)
+- [ ] Task 3: Document user service API (depends on 1)
+<!-- aif:task-kind:commit -->
+- [ ] Task 4: Commit changes with message "feat: implement user service" (depends on 1,2,3)
+```
+
+This organization reduces context switching during implementation and makes the relationship between implementation, tests, and documentation explicit.
 
 ## Archive Lifecycle
 
@@ -71,6 +175,32 @@ paths.plans/<plan>/    →  (index tasks [x]) → paths.archive/plans/<plan>/
 
 Roadmap snapshots: `/aif-archive --roadmap` trims closed milestones from `ROADMAP.md` into dated snapshots under `paths.archive/roadmap/`.
 
+## Read-only Plan Overview
+
+`/aif-plan-overview [@path | plan-name | --archived]` explains an existing plan
+without changing it. Discovery is explicit path → branch/sequential full or ultra
+artifact → sole named plan → fast → fix, with ambiguity reported. Names can search
+active and archived roots; automatic discovery excludes archives, including a
+relocated archive nested under the plans directory.
+
+An ultra overview reads the full index and only linked phase titles/Objectives/
+Files to Change sections. Phase bodies and unlinked files are not preloaded.
+Progress comes from task checkboxes in the entrypoint and is not execution evidence.
+Missing sections remain missing rather than inferred from application code.
+
+The file map uses source `Files:` declarations or phase file tables. It preserves
+explicit actions/references, merges duplicate paths, expands `{a,b}`, and leaves
+wildcards/generated placeholders literal. Unknown or multiple actions remain visible.
+
+The optional stdlib formatter runs with isolated imports and no bytecode writes;
+it reads only JSON stdin and does not inspect/create project files. Flat workflows
+receive it through the existing references asset mechanism. Without Python, the
+same map is rendered manually. Counts describe planned paths, not verified files.
+
+The suggested continuation is implementation, fix ownership, or verification for
+completed tasks; archived plans remain historical. No command is invoked, no plan
+is rewritten, and no Handoff/TaskList/branch state changes occur.
+
 ## Artifact Ownership Quick Map
 
 To avoid ownership conflicts, artifact writers are command-scoped:
@@ -81,7 +211,7 @@ To avoid ownership conflicts, artifact writers are command-scoped:
 | `.ai-factory/ARCHITECTURE.md`                                             | `/aif-architecture`   | `/aif-implement` may update structure notes when implementation changes structure              |
 | `.ai-factory/ROADMAP.md`                                                  | `/aif-roadmap`        | `/aif-implement` may mark completed milestones with evidence                                   |
 | `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules` | top-level conventions plus area-rule files and registration                         |
-| `paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle | `/aif-explore` | regular single file or explicit ultra bundle with conditional supporting artifacts |
+| `paths.research` (default `.ai-factory/RESEARCH.md`) or derived `<parent>/research/<english-slug>/` bundle | `/aif-explore` | regular single file or ultra bundle (token or config) with conditional supporting artifacts |
 | `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phases | `/aif-plan`          | `/aif-improve` refines existing single-file plans and ultra bundles                             |
 | `paths.fix_plan` and `paths.patches/*.md`                                 | `/aif-fix`            | defaults shown; actual paths come from `paths.fix_plan` and `paths.patches`                    |
 | `.ai-factory/skill-context/*`                                             | `/aif-evolve`         | project-specific skill overrides; `/aif-transfer` delegates approved anonymized inputs          |
@@ -150,7 +280,9 @@ ai-factory audit-artifacts --strict
 ai-factory audit-artifacts --json
 ```
 
-Default discovery scans `.ai-factory`, `docs`, `README.md`, and `AGENTS.md` when those paths exist. Recursive default discovery skips noisy or generated subdirectories such as `qa`, `evolution`, and `evolutions`; pass those paths explicitly when you want to audit them. This default is intentionally default-layout first; projects that relocate artifact directories through `config.yaml` should pass those paths explicitly until the command becomes config-aware.
+Default discovery scans `.ai-factory`, `docs`, `README.md`, and `AGENTS.md` when those paths exist. Recursive default discovery skips noisy or generated subdirectories such as `qa`, `evolution`, and `evolutions`; pass those paths explicitly when you want to audit them.
+
+This default is intentionally default-layout first; projects that relocate artifact directories through `config.yaml` should pass those paths explicitly until the command becomes config-aware.
 
 Positional paths are explicit audit targets. Missing or outside-project explicit targets are failures so CI cannot pass after a typo or file rename. Missing default targets are skipped because many projects do not have every default file. Symlinked targets are canonicalized with `realpath`; a symlink that resolves outside the project is not scanned. For default targets this is a warning, and for explicit targets it is a failure.
 
@@ -222,7 +354,9 @@ derived from the parent of configured `paths.research`, so relocating that file
 also relocates ultra bundles without a second config key. See
 [Research and System Analysis](research.md).
 
-When research influences a plan, `/aif-plan` copies the relevant Active Summary from the selected legacy or bundled `RESEARCH.md` into `## Research Context`. The canonical `Source:` line wraps the exact path in backticks so spaces and brackets remain parseable. That embedded copy is the committed requirements snapshot for implementation and verification. Downstream skills compare its SHA256 revision and warn on drift instead of applying newer research or sibling bundle artifacts to an older plan; `Updated:` is a legacy fallback only when no hash exists.
+When research influences a plan, `/aif-plan` copies the relevant Active Summary from the selected legacy or bundled `RESEARCH.md` into `## Research Context`. The canonical `Source:` line wraps the exact path in backticks so spaces and brackets remain parseable. That embedded copy is the committed requirements snapshot for implementation and verification.
+
+Downstream skills compare its SHA256 revision and warn on drift instead of applying newer research or sibling bundle artifacts to an older plan; `Updated:` is a legacy fallback only when no hash exists.
 
 Plans created before revision markers were introduced may contain a `Source:` or `Reference:` line to `RESEARCH.md` without `Updated:` or `SHA256:` metadata. Downstream skills intentionally treat that as an unverified research link and emit a legacy compatibility `WARN [research-drift]`; they still execute against the embedded plan context instead of silently applying the current Active Summary.
 
@@ -233,6 +367,16 @@ Typical structure:
 Before either regular or ultra research is saved as current context,
 `/aif-explore` runs its content-coherence gate. The later SHA256 in a plan detects
 revision drift; it does not replace this earlier semantic check.
+
+Opt-in [project hypothesis cards](research.md#optional-project-hypotheses) stay
+outside the summary markers in `RESEARCH.md`. Only explicitly accepted actions
+or experiments become tasks. Their material planning facts, including exact
+hypothesis/source/experiment revisions and current outcome, must be promoted
+into a self-contained Active Summary before planning.
+
+The hash tracks that
+summary, not all observations; implementation completion does not confirm the
+hypothesis or silently update the plan's committed Research Context.
 
 ## Original Request
 
@@ -247,10 +391,51 @@ After command tokens are removed, `/aif-plan` trims only outer whitespace introd
 
 This section is omitted only when the plan is created solely from `RESEARCH.md` without an explicit user request; in that case `## Research Context` is the committed source.
 
+## Meaning Preservation in Requirement Rewrites
+
+When `/aif-plan` turns requirements into tasks or `/aif-improve` rewords them,
+the editorial rewrite must preserve modal meaning and obligation levels,
+conditions, exceptions, negations, numbers and units, identifiers, links, and
+uncertainty. RFC 2119 keywords remain verbatim. Check, verify, confirm, and
+validate remain distinct unless the source defines them as equivalent.
+
+For example, "check the config only while the service is stopped" does not
+authorize stopping the service. Permission does not imply completion, a
+recommendation does not become mandatory, and an unknown cause stays unknown.
+Clearer wording cannot increase confidence or change the contract.
+
+The rewrite gets an explicit `Meaning preservation: PASS` or `FAIL` before
+presentation of the plan or readability results. The `Meaning preservation:`
+label and `PASS` / `FAIL` / `N/A` verdict tokens stay fixed across languages;
+explanations follow the configured output language.
+
+Failed comparisons must be
+repaired or restored before
+the rewrite is presented as ready; missing source or unresolved ambiguity
+fails the gate. `/aif-improve` checks proposed edits even without `+check` and
+rechecks before saving. Explicitly approved behavioral changes remain separate
+from editorial changes.
+
+`/aif-docs` applies the same gate to documentation
+rewrites, including translation, splitting, and consolidation. When no
+requirements were rewritten, the verdict is `N/A — no requirements rewritten`.
+
 ## Roadmap Linkage (Optional)
 
 If `.ai-factory/ROADMAP.md` exists, `/aif-plan` may include a `## Roadmap Linkage` section in the plan file.
 This makes milestone alignment explicit for `/aif-implement` completion marking and `/aif-verify` roadmap gates.
+
+A selected group is saved in fast/full plans and ultra `index.md` as one primary
+`Milestone:` plus one quoted `Also completes:` line per additional milestone. Names/IDs
+are preserved, including commas inside quoted names. `/aif-improve` retains the group;
+implementation and verification assess completion of each linked milestone separately.
+Completed plans with still-open links remain pending reconciliation even after archiving.
+
+The English linkage/task headings and labels in examples are structural; artifact
+language still applies. Advisors and completion/verification recognize clear
+localized equivalents while preserving exact milestone names/IDs and task IDs.
+Roadmap-next's copyable request carries the source path and every selection in an
+explicit ordered list; joining names into a prose description alone is insufficient.
 
 **Example plan file:**
 
@@ -292,7 +477,7 @@ Open questions: Do we need refresh tokens?
 
 ## Self-Improvement Patches
 
-AI Factory has a built-in learning loop. Every bug fix creates a **patch** — a structured knowledge artifact that helps AI avoid the same mistakes in the future.
+AI Factory has a built-in learning loop. By default, each completed bug fix creates a **patch** — a structured knowledge artifact that helps AI avoid the same mistakes in the future. Learning patches can be disabled independently of fix mode.
 
 ```
 /aif-fix → finds bug → fixes it → creates patch → /aif-evolve distills new patches into skill-context → smarter future runs
@@ -300,10 +485,15 @@ AI Factory has a built-in learning loop. Every bug fix creates a **patch** — a
 
 **How it works:**
 
-1. `/aif-fix` fixes a bug and creates a patch file in `paths.patches/YYYY-MM-DD-HH.mm.md`
+1. `/aif-fix` fixes a bug and, when its learning patch policy is enabled (default), creates a patch file in `paths.patches/YYYY-MM-DD-HH.mm.md`; `workflow.fix_patch: false` or `--no-patch` skips creation
 2. Each patch documents: **Problem**, **Root Cause**, **Solution**, **Prevention**, and **Tags**
-3. `/aif-evolve` reads patches incrementally using `paths.evolutions/patch-cursor.json` (first run reads all)
-4. Workflow skills (`/aif-implement`, `/aif-fix`, `/aif-improve`) prefer skill-context rules and use only limited recent patch fallback when needed
+3. `/aif-evolve` reads patches incrementally using `paths.evolutions/patch-cursor.json` (first run reads all). Targets are project-scoped by default; existing user-global skills require explicit `--global`. See [ownership and destinations](evolve.md#skill-ownership-and-write-destinations)
+4. Before approval, candidate rules are compared with the current effective instructions on the same problem and control cases; only validated revisions enter active skill-context
+5. Evolution logs retain exact candidate versions, cases, results, extra cost, regressions, and all outcomes, including no improvement or insufficient data; report-only saves do not advance the cursor by default
+6. Workflow skills (`/aif-implement`, `/aif-fix`, `/aif-improve`) prefer skill-context rules. When their individual context file is absent, they still read the latest ten patches (or fewer if available), even when global/build context exists; a shared rule alone does not establish that patch lessons were distilled.
+
+Applicable learned context includes optional global/build layers, not just individual
+files. Existing individual files need no migration. See [shared context and precedence](evolve.md#how-skills-use-context).
 
 **Example patch** (`paths.patches/2026-02-07-14.30.md`):
 
@@ -333,10 +523,10 @@ Added optional chaining: `user.avatar?.url` with fallback.
 
 The more you use `/aif-fix`, the smarter AI becomes on your project. Patches accumulate and create a project-specific knowledge base.
 
-**Periodic evolution** -- run `/aif-evolve` to analyze new patches and automatically improve skills:
+**Periodic evolution** -- run `/aif-evolve` to analyze new patches, compare candidate rules, and approve demonstrated improvements:
 
 ```
-/aif-evolve      # Analyze patches + project → improve all skills
+/aif-evolve      # Analyze patches + project → improve project skills
 ```
 
 This closes the full learning loop: **fix → patch → evolve → better skills → fewer bugs → smarter fixes**.

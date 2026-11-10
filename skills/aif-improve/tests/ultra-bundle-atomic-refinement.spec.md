@@ -1,5 +1,10 @@
-# Spec-only fixture: the current npm test command validates skill contracts but
-# does not execute model-driven scenario files.
+# Ultra bundle atomic refinement — scenario specification
+
+This is a draft contract, not an executable ai-tester scenario. The assertions
+below describe intended behavior and still need concrete assertion definitions.
+Keep this specification in Markdown so ai-tester does not discover it as YAML.
+
+```yaml
 scenario: ultra-bundle-atomic-refinement
 description: |
   /aif-improve given an ultra directory or index.md must read every linked phase
@@ -36,3 +41,4 @@ assertions:
   - reads_phase_before_refining
   - updates_index_and_phase_consistently
   - no_task_checkboxes_in_phase_file
+```

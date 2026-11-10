@@ -24,9 +24,12 @@ import {
   removeExtensionSkills,
   rebuildManagedAgentFilesForAgents,
 } from './installer.js';
-import { applySingleExtensionInjections, stripAllExtensionInjections, stripInjectionsByExtensionName } from './injections.js';
+import { applyExtensionInjections, applySingleExtensionInjections, stripAllExtensionInjections, stripInjectionsByExtensionName } from './injections.js';
 import { configureExtensionMcpServers, removeExtensionMcpServers, validateMcpTemplate, type McpServerConfig } from './mcp.js';
 import { copyDirectory, ensureDir, fileExists, readJsonFile, removeDirectory } from '../utils/fs.js';
+import { applyExtensionToolPermissions, captureToolPermissionBases, removeExtensionToolPermissions, restoreToolPermissionBases } from './tool-permissions.js';
+import { logSkillTarget, resolveSkillTargets } from './skill-targets.js';
+import { captureSharedSkillRollback, collectSkillOwners, prepareSkillTargets, withSkillProjectLock } from './skills-migration.js';
 
 export interface ExtensionAssetInstallResult {
   replacedSkills: string[];
@@ -77,9 +80,48 @@ export async function installSkillsForAllAgents(
   agents: AgentInstallation[],
   skills: string[],
 ): Promise<void> {
-  for (const agent of agents) {
-    await installSkills({ projectDir, skillsDir: agent.skillsDir, skills, agentId: agent.id });
+  for (const group of await resolveSkillTargets(projectDir, agents, { select: false })) {
+    await installSkills({ projectDir, skillsDir: group.skillsDir, skills, agentId: group.targets[0].id, renderContext: group.context });
   }
+}
+
+export async function composeInstalledExtensionSkills(
+  projectDir: string, config: AiFactoryConfig, options: {
+    installReplacements?: boolean;
+    customSkillInstalls?: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
+  } = {},
+): Promise<number> {
+  const installed = await loadAllExtensions(projectDir, (config.extensions ?? []).map(extension => extension.name));
+  await collectSkillOwners(installed);
+  const groups = await resolveSkillTargets(projectDir, config.agents, { select: false });
+  for (const { dir, manifest } of installed) {
+    const replaced = new Set(config.extensions?.find(extension => extension.name === manifest.name)?.replacedSkills ?? []);
+    const replacementPaths = options.installReplacements === false ? []
+      : Object.entries(manifest.replaces ?? {}).filter(([, name]) => replaced.has(name)).map(([relative]) => relative);
+    if (options.installReplacements === false && replaced.size) {
+      logSkillTarget('[FIX:155] compose:retain-installed-replacements', { extension: manifest.name, skills: [...replaced] });
+    }
+    for (const group of groups) {
+      const completed = options.customSkillInstalls?.get(manifest.name);
+      const customPaths = (manifest.skills ?? []).filter(relative => !manifest.replaces?.[relative]);
+      const pendingCustomPaths = customPaths.filter(relative => !group.targets.every(target => completed?.get(target.id)?.includes(path.basename(relative))));
+      if (pendingCustomPaths.length < customPaths.length) {
+        logSkillTarget('[FIX:155] compose:retain-installed-custom-skills', { extension: manifest.name, target: group.skillsDir, skipped: customPaths.length - pendingCustomPaths.length });
+      }
+      const paths = [...replacementPaths, ...pendingCustomPaths];
+      if (!paths.length) continue;
+      const agent = { ...config.agents.find(candidate => candidate.id === group.targets[0].id)!, skillsDir: group.skillsDir };
+      const results = await installExtensionSkills(projectDir, agent, dir, paths, manifest.replaces, group.context);
+      if (results.length !== paths.length) throw new Error(`Incomplete installed skill composition for extension "${manifest.name}" at "${group.skillsDir}".`);
+    }
+  }
+  let injections = 0;
+  for (const group of await resolveSkillTargets(projectDir, config.agents, { select: false })) {
+    const agent = { ...config.agents.find(candidate => candidate.id === group.targets[0].id)!, skillsDir: group.skillsDir };
+    injections += await applyExtensionInjections(projectDir, agent, config.extensions ?? []);
+  }
+  await applyExtensionToolPermissions(projectDir, config.agents, installed.map(extension => extension.manifest));
+  return injections;
 }
 
 /**
@@ -91,9 +133,10 @@ export async function removeSkillsForAllAgents(
   skillNames: string[],
 ): Promise<Map<string, string[]>> {
   const results = new Map<string, string[]>();
-  for (const agent of agents) {
-    const removed = await removeExtensionSkills(projectDir, agent, skillNames);
-    results.set(agent.id, removed);
+  for (const group of await resolveSkillTargets(projectDir, agents, { select: false })) {
+    const agent = agents.find(candidate => candidate.id === group.targets[0].id)!;
+    const removed = await removeExtensionSkills(projectDir, { ...agent, skillsDir: group.skillsDir }, skillNames);
+    for (const target of group.targets) results.set(target.id, [...removed]);
   }
   return results;
 }
@@ -109,9 +152,10 @@ export async function installExtensionSkillsForAllAgents(
   nameOverrides?: Record<string, string>,
 ): Promise<Map<string, string[]>> {
   const results = new Map<string, string[]>();
-  for (const agent of agents) {
-    const installed = await installExtensionSkills(projectDir, agent, extensionDir, skillPaths, nameOverrides);
-    results.set(agent.id, installed);
+  for (const group of await resolveSkillTargets(projectDir, agents, { select: false })) {
+    const agent = agents.find(candidate => candidate.id === group.targets[0].id)!;
+    const installed = await installExtensionSkills(projectDir, { ...agent, skillsDir: group.skillsDir }, extensionDir, skillPaths, nameOverrides, group.context);
+    for (const target of group.targets) results.set(target.id, [...installed]);
   }
   return results;
 }
@@ -548,7 +592,9 @@ export async function stripInjectionsForAllAgents(
   extensionName: string,
   manifest?: ExtensionManifest | null,
 ): Promise<void> {
-  for (const agent of agents) {
+  await removeExtensionToolPermissions(projectDir, agents, extensionName);
+  for (const group of await resolveSkillTargets(projectDir, agents, { select: false })) {
+    const agent = { ...agents.find(candidate => candidate.id === group.targets[0].id)!, skillsDir: group.skillsDir };
     if (manifest) {
       await stripAllExtensionInjections(projectDir, agent, extensionName, manifest);
     } else {
@@ -595,20 +641,14 @@ export async function installExtensionAssetsForAllAgents(
 
     if (manifest.replaces && Object.keys(manifest.replaces).length > 0) {
       const nameOverrides: Record<string, string> = { ...manifest.replaces };
-      const replacePaths = Object.keys(manifest.replaces);
-      const perAgentResults = new Map<string, number>();
-
-      for (const agent of agents) {
-        const installed = await installExtensionSkills(projectDir, agent, extensionDir, replacePaths, nameOverrides);
-        for (const name of installed) {
-          perAgentResults.set(name, (perAgentResults.get(name) ?? 0) + 1);
-        }
-      }
-
       const agentCount = agents.length;
       for (const [extSkillPath, baseSkillName] of Object.entries(manifest.replaces)) {
+        // A failed installer may already have written files. Capture each skill
+        // independently so its rollback cannot undo a successful sibling.
+        const restoreSkill = await captureSharedSkillRollback(projectDir, agents, [baseSkillName], { includeSingletons: true });
+        const replacementResults = await installExtensionSkillsForAllAgents(projectDir, agents, extensionDir, [extSkillPath], nameOverrides);
         replacesPaths.add(extSkillPath);
-        const successCount = perAgentResults.get(baseSkillName) ?? 0;
+        const successCount = agents.filter(agent => replacementResults.get(agent.id)?.includes(baseSkillName)).length;
 
         if (successCount === agentCount) {
           partialResult.replacedSkills.push(baseSkillName);
@@ -622,9 +662,9 @@ export async function installExtensionAssetsForAllAgents(
           continue;
         }
 
+        await restoreSkill();
+        logSkillTarget('[FIX:155] replacement:restore-failed-write', { skill: baseSkillName, successCount, agentCount });
         if (successCount > 0) {
-          await removeSkillsForAllAgents(projectDir, agents, [baseSkillName]);
-          await restoreBaseSkills(projectDir, agents, [baseSkillName], new Set());
           partialResult.replacementOutcomes.push({
             baseSkillName,
             extensionSkillPath: extSkillPath,
@@ -663,10 +703,13 @@ export async function installExtensionAssetsForAllAgents(
     }
 
     if (manifest.injections?.length) {
-      for (const agent of agents) {
+      for (const group of await resolveSkillTargets(projectDir, agents, { select: false })) {
+        const agent = { ...agents.find(candidate => candidate.id === group.targets[0].id)!, skillsDir: group.skillsDir };
         partialResult.injectionCount += await applySingleExtensionInjections(projectDir, agent, extensionDir, manifest);
       }
     }
+
+    await applyExtensionToolPermissions(projectDir, agents, [manifest]);
 
     if (manifest.mcpServers?.length) {
       for (const server of manifest.mcpServers) {
@@ -703,7 +746,24 @@ export async function installExtensionAssetsForAllAgents(
 export async function commitResolvedExtension(
   projectDir: string,
   options: CommitResolvedExtensionOptions,
-): Promise<{ manifest: ExtensionManifest; extensionDir: string; record: ExtensionRecord }> {
+): Promise<{ manifest: ExtensionManifest; extensionDir: string; record: ExtensionRecord; customSkillInstalls: Map<string, string[]> }> {
+  return withSkillProjectLock(projectDir, () => commitResolvedExtensionLocked(projectDir, options));
+}
+
+async function commitResolvedExtensionLocked(
+  projectDir: string,
+  options: CommitResolvedExtensionOptions,
+): Promise<{ manifest: ExtensionManifest; extensionDir: string; record: ExtensionRecord; customSkillInstalls: Map<string, string[]> }> {
+  const prospectiveExtensions = await loadAllExtensions(projectDir, (options.config.extensions ?? [])
+    .filter(extension => extension.name !== options.resolved.manifest.name).map(extension => extension.name));
+  await collectSkillOwners([...prospectiveExtensions, { dir: options.resolved.sourceDir, manifest: options.resolved.manifest }]);
+  const priorManifest = await loadInstalledExtensionManifest(path.join(getExtensionsDir(projectDir), options.resolved.manifest.name));
+  assertNoConfiguredRuntimeOrphans(options.config,
+    getManifestRuntimeIds(priorManifest).filter(id => !getManifestRuntimeIds(options.resolved.manifest).includes(id)), options.resolved.manifest.name, 'update');
+  await assertNoAgentFileConflicts(projectDir, options.config, options.resolved.manifest);
+  await resolveSkillTargets(projectDir, options.config.agents, { select: options.config.useSymlinks === undefined });
+  await hydrateProjectAgentRegistry(projectDir, { extensionNames: (options.config.extensions ?? []).map(extension => extension.name) });
+  await prepareSkillTargets(projectDir, options.config);
   const { config, source, resolved } = options;
   const log = options.log ?? (() => {});
   const manifest = resolved.manifest;
@@ -732,9 +792,22 @@ export async function commitResolvedExtension(
     backupDir = backupCandidateDir;
   }
 
+  const permissionBases = await captureToolPermissionBases(projectDir, config.agents, config.extensions);
+  for (const permission of manifest.toolPermissions ?? []) for (const [runtime, tools] of Object.entries(permission.agents)) {
+    log('info', `Requested tool permissions: ${manifest.name} -> ${runtime}/${permission.target}: ${tools.join(', ')}`);
+  }
   let assetInstall: ExtensionAssetInstallResult;
   const oldAgentFileTargets = collectManifestAgentFileTargets(oldManifest);
   const newAgentFileSources = buildExtensionAgentFileSources(manifest);
+  const restoreSharedSkills = await captureSharedSkillRollback(projectDir, config.agents, [
+    ...Object.values(manifest.replaces ?? {}), ...(manifest.skills ?? []),
+    ...Object.values(oldManifest?.replaces ?? {}), ...(oldManifest?.skills ?? []),
+    ...(manifest.injections ?? []).map(injection => injection.target),
+    ...(oldManifest?.injections ?? []).map(injection => injection.target),
+    ...(manifest.toolPermissions ?? []).map(permission => permission.target),
+    ...(oldManifest?.toolPermissions ?? []).map(permission => permission.target),
+  ], { includeSingletons: Boolean(manifest.toolPermissions?.length || oldManifest?.toolPermissions?.length || permissionBases.length) });
+  let discardBackup = true;
 
   try {
     await commitExtensionInstall(projectDir, resolved);
@@ -744,21 +817,35 @@ export async function commitResolvedExtension(
     }
 
     assetInstall = await installExtensionAssetsForAllAgents(projectDir, config.agents, extensionDir, manifest);
+    const overwritten = new Set([...Object.values(manifest.replaces ?? {}), ...(manifest.skills ?? []).map(skill => path.basename(skill))]);
+    await applyExtensionToolPermissions(projectDir, config.agents, prospectiveExtensions.map(({ manifest: other }) => ({
+      ...other, toolPermissions: other.toolPermissions?.filter(permission => overwritten.has(permission.target)),
+    })));
+    await restoreToolPermissionBases(projectDir, config.agents, permissionBases, [
+      ...extensions.filter(extension => extension.name !== manifest.name),
+      { name: manifest.name, source, version: manifest.version, replacedSkills: assetInstall.replacedSkills },
+    ]);
   } catch (error) {
     const partialAssetInstall = error instanceof ExtensionAssetInstallError
       ? error.partialResult
       : null;
-    await rollbackFailedExtensionInstall(projectDir, config.agents, {
-      extensionDir,
-      backupDir,
-      oldRecord,
-      oldManifest,
-      newManifest: manifest,
-      partialAssetInstall,
-    });
+    try {
+      await rollbackFailedExtensionInstall(projectDir, config.agents, {
+        extensionDir,
+        backupDir,
+        oldRecord,
+        oldManifest,
+        newManifest: manifest,
+        partialAssetInstall,
+      });
+      await restoreSharedSkills();
+    } catch (rollbackError) {
+      discardBackup = false;
+      throw new Error(`Extension rollback failed: ${(rollbackError as Error).message}. Preserve backup ${backupDir ?? '(none)'}. Original error: ${(error as Error).message}`);
+    }
     throw error;
   } finally {
-    if (backupDir) {
+    if (backupDir && discardBackup) {
       await removeDirectory(backupDir);
     }
   }
@@ -774,9 +861,9 @@ export async function commitResolvedExtension(
     if (outcome.status === 'installed') {
       log('info', `Replaced skill "${outcome.baseSkillName}" with "${path.basename(outcome.extensionSkillPath)}"`);
     } else if (outcome.status === 'rolled-back') {
-      log('warn', `Replacement "${outcome.baseSkillName}" only installed on ${outcome.successCount}/${outcome.agentCount} agents - rolled back, base skill restored`);
+      log('warn', `Replacement "${outcome.baseSkillName}" only installed on ${outcome.successCount}/${outcome.agentCount} agents - rolled back, prior skill state restored`);
     } else {
-      log('warn', `Failed to replace skill "${outcome.baseSkillName}" - base skill preserved`);
+      log('warn', `Failed to replace skill "${outcome.baseSkillName}" - prior skill state preserved`);
     }
   }
 
@@ -820,7 +907,7 @@ export async function commitResolvedExtension(
 
   config.extensions = extensions;
 
-  return { manifest, extensionDir, record };
+  return { manifest, extensionDir, record, customSkillInstalls: assetInstall.customSkillInstalls };
 }
 
 export interface ExtensionRefreshResult {
@@ -829,6 +916,7 @@ export interface ExtensionRefreshResult {
   oldVersion: string;
   newVersion: string | null;
   failureReason?: string;
+  customSkillInstalls?: Map<string, string[]>;
 }
 
 export interface ExtensionRefreshSummary {
@@ -938,7 +1026,7 @@ export async function refreshExtensions(
           );
         }
 
-        const { manifest } = await commitResolvedExtension(projectDir, {
+        const { manifest, customSkillInstalls } = await commitResolvedExtension(projectDir, {
           config,
           source,
           resolved,
@@ -950,6 +1038,7 @@ export async function refreshExtensions(
           status: 'updated',
           oldVersion: currentVersion,
           newVersion: manifest.version,
+          customSkillInstalls,
         });
 
         log('info', `Updated ${extName}: v${currentVersion} → v${manifest.version}`);

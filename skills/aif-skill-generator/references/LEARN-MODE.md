@@ -18,6 +18,8 @@ When a non-URL argument is also present (like `my-skill-name`), use it as the sk
 
 ## Learn Mode Workflow
 
+Run the Install Preflight in `SKILL.md` before Phase 1. A supported Python 3 command and both readable security helpers are required. If unavailable, STOP before fetching sources or generating a skill; Level 2-only review of an existing local path does not authorize Learn Mode.
+
 ### Phase 1: Collect & Study
 
 For EACH URL provided:
@@ -90,7 +92,7 @@ Combine all gathered material into a structured knowledge base:
 
 ### Phase 4: Clarify with User
 
-Ask the user 2-3 targeted questions using `AskUserQuestion`:
+Read and follow the Runtime-Aware Questions contract in `BEST-PRACTICES.md` before asking the user 2-3 targeted questions. Use only a question tool exposed and permitted in this session with its actual schema; if none is usable, ask in plain text with numbered options and allow free-text input. Pause dependent work for required decisions. In an autonomous/background run, return unresolved required decisions to the parent/caller under the same contract.
 
 1. **Skill name** — suggest a name based on the studied material, let user confirm or override
 2. **Skill type** — based on content analysis, recommend the best type:
@@ -121,6 +123,7 @@ Using the synthesized knowledge, generate a complete skill package:
    - Clear workflow steps based on what was learned
    - Inline examples from the sources
    - Reference to detailed docs in `references/`
+   - For every generated interactive skill, copy the self-contained `## Runtime-aware questions` section from `BEST-PRACTICES.md` into its `SKILL.md`; a reference link alone is insufficient
 
 3. **Write references/GUIDE.md** — the full synthesized knowledge base:
    - Comprehensive reference material
@@ -138,7 +141,7 @@ Using the synthesized knowledge, generate a complete skill package:
 
 ### Phase 6: Validate & Present
 
-1. Run validation on the generated skill
+1. Run validation on the generated skill; for an interactive output, verify that its `SKILL.md` includes the complete Runtime-aware questions section before presenting it
 2. Present a summary to the user:
    - What was learned from each source
    - Generated skill structure

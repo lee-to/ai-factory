@@ -2,6 +2,10 @@
 
 # Getting Started
 
+Selecting `aif` also installs `aif-skill-generator`: the setup skill requires its security scanner and blocked-skill cleanup helpers. You can still select the generator independently. Existing installations missing this dependency are repaired by `ai-factory update`.
+
+If automatic installation finds an untracked or modified generator at the target path, it preserves the files and reports a conflict. Move or back up that target before retrying, including when using `update --force`.
+
 ## What is AI Factory?
 
 AI Factory is a **stack-agnostic** CLI tool and skill system that works with any language, framework, or platform:
@@ -19,26 +23,47 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 |-------|-----------------|-----------------|
 | Claude Code | `.claude/` | `.claude/skills/` |
 | Cursor | `.cursor/` | `.cursor/skills/` |
-| Windsurf | `.windsurf/` | `.windsurf/skills/` |
+| Devin CLI | `.devin/` | `.devin/skills/` |
+| Devin Desktop (formerly Windsurf) | `.devin/` | `.devin/skills/` |
 | Roo Code | `.roo/` | `.roo/skills/` |
 | Kilo Code | `.kilocode/` | `.kilocode/skills/`, `.kilocode/workflows/` |
-| Antigravity | `.agent/` | `.agent/skills/`, `.agent/workflows/` |
+| Antigravity | `.agents/` | `.agents/skills/` |
+| ChatGPT CLI | `.chatgpt/` | `.chatgpt/skills/` |
+| OpenRouter CLI | `.openrouter/` | `.openrouter/skills/` |
 | OpenCode | `.opencode/` | `.opencode/skills/` |
 | Warp | `.warp/` | `.warp/skills/` |
 | Zencoder | `.zencoder/` | `.zencoder/skills/` |
-| Codex CLI | `.codex/` | `.codex/skills/` |
-| Codex app | `.agents/` | `.agents/skills/` |
-| GitHub Copilot | `.github/` | `.github/skills/` |
-| Gemini CLI | `.gemini/` | `.gemini/skills/` |
-| Junie | `.junie/` | `.junie/skills/` |
-| Qwen Code | `.qwen/` | `.qwen/skills/` |
-| Universal / Other | `.agents/` | `.agents/skills/` |
+| Codex CLI | `.codex/` | `.agents/skills/` when `.agents/` already exists; otherwise `.codex/skills/` |
+| Codex app         | `.agents/`       | `.agents/skills/`                           |
+| GitHub Copilot    | `.github/`       | `.github/skills/`                           |
+| Gemini CLI        | `.gemini/`       | `.gemini/skills/`                           |
+| Junie             | `.junie/`        | `.junie/skills/`                            |
+| Qwen Code         | `.qwen/`         | `.qwen/skills/`                             |
+| Universal / Other | `.agents/`       | `.agents/skills/`                           |
 
-When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. When Codex CLI is selected, AI Factory also installs bundled Codex native agent TOML files into `.codex/agents/` plus a managed `.codex/config.toml`. That Codex bundle is currently the baseline planning / implementation / review layer, not full parity with the broader Claude bundle, and `.codex/config.toml` is intentionally AI-Factory-managed. Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex package inventory is documented separately in [Subagents](subagents.md).
+Devin Desktop [replaced Windsurf](https://cognition.com/blog/introducing-devin-desktop)
+on June 2, 2026. AI Factory keeps the `windsurf` agent ID for CLI/config
+compatibility (`ai-factory init --agents windsurf`). New installations use
+`.devin/skills/`, global references use `~/.config/devin/skills/` (shared with
+Devin CLI), and external `npx skills` commands use `--agent devin`.
 
-Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. Slash-command runtimes keep `/aif-*` examples. Because Codex app and Universal both write to `.agents/skills/` with different invocation styles, select one of those runtimes per project.
+Existing installations retain their saved skills directory and Windsurf template
+settings during `init` and `update`, including `--agent windsurf` for external
+skills. Devin Desktop [still reads `.windsurf/skills/`](https://docs.devin.ai/desktop/cascade/skills),
+so no file migration is required. Older configuration records without `skillsDir`
+continue to resolve `.windsurf/skills/`.
 
-MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, Codex app, and Universal / Other. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
+When Claude Code is selected, AI Factory installs bundled Claude agent files into `.claude/agents/` and tracks them in `.ai-factory.json` with the universal `agentsDir`, `installedAgentFiles`, and `managedAgentFiles` fields. When Codex CLI is selected, AI Factory also installs bundled Codex native agent TOML files into `.codex/agents/` plus a managed `.codex/config.toml`.
+
+When Antigravity is selected, AI Factory installs bundled Antigravity agent files into `.agents/agents/`, triggered rules into `.agents/rules/`, and configures MCP in `.agents/mcp_config.json`.
+
+Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex/Antigravity package inventory is documented separately in [Subagents](subagents.md).
+
+Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. They can share `.agents/skills/` with Universal / Other: shared skills use the Codex `$aif-*` format, while all selected agents remain separate entries with their own MCP settings.
+
+Universal selected alone and other slash-command runtimes keep `/aif-*` examples. See [Codex skill directories and migration](configuration.md#codex-skill-directories-and-migration) for first-init defaults, saved overrides, and conflict recovery.
+
+MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, Codex app, Antigravity, and Universal / Other. Antigravity writes standard MCP settings to `.agents/mcp_config.json`. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
 
 ## Your First Project
 
@@ -64,7 +89,51 @@ ai-factory init
 /aif-plan Add user authentication with OAuth
 ```
 
-If scope is unclear, start with `/aif-explore` (optionally save results to `paths.research`, default: `.ai-factory/RESEARCH.md`). Use `/aif-explore ultra <topic>` when the investigation needs a durable system-analysis bundle with adaptive C4/ADR/dependency views. If the task is clear but the answer must be strictly verified, use `/aif-grounded`; if the direction is already clear, jump straight to `/aif-plan`. From there, AI Factory builds a plan, optionally creates a branch/worktree when git settings allow it, and you run `/aif-implement` to execute it step by step.
+If scope is unclear, start with `/aif-explore` (optionally save results to `paths.research`, default: `.ai-factory/RESEARCH.md`). Use `/aif-explore ultra <topic>` when the investigation needs a durable system-analysis bundle with adaptive C4/ADR/dependency views.
+
+If the task is clear but the answer must be strictly verified, use `/aif-grounded`; if the direction is already clear, jump straight to `/aif-plan`. From there, AI Factory builds a plan, optionally creates a branch/worktree when git settings allow it, and you run `/aif-implement` to execute it step by step.
+
+## Global Skills and Project Symlinks
+
+Installing the CLI with `npm install -g ai-factory` makes the command available
+globally. `ai-factory init` still configures the current project.
+
+To install only skills across projects, use the [skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add lee-to/ai-factory --skill '*' --global
+```
+
+This installs skill files without AI Factory's runtime transformations, MCP setup,
+or bundled agent files. Global skills are managed by the skills CLI.
+
+For a project with several agents, `ai-factory init` offers symlinks immediately
+after skill selection. You can also use:
+
+```bash
+ai-factory init --agents claude,cursor --symlinks
+```
+
+Identical bundled skill directories with proven source receipts share a copy in
+the project's `.agents/skills/`. Custom and extension replacement skills stay native.
+Each agent keeps its native skills directory, with relative links for matching
+skills. All files, permissions, and empty directories must match. Different runtime
+templates, invocation formats, and flat workflows keep independent copies. Existing
+native `.agents/skills/` consumers keep their own format; otherwise Codex is preferred
+when selected. A conflicting shared skill is preserved and other versions stay native.
+
+The choice persists for `init`, `update`, `upgrade`, and extension operations.
+Before mutations, managed links become copies; after successful operations, identical
+skills are linked again. Untracked or modified files never authorize new links or
+shared-copy cleanup. Editing a linked skill edits its shared copy for every consumer.
+
+Run `ai-factory init --agents claude,cursor --no-symlinks` to restore independent
+copies in the saved native directories. Later init, update, upgrade, and extension
+operations keep those paths even when `.agents/` remains from sharing.
+If the OS denies link creation, installation keeps copies and reports it;
+on Windows, directory symlinks may require Developer Mode or elevated privileges.
+For instruction inventory, select the canonical `.agents/skills/<skill>` path;
+the recorder continues to reject symlinked input paths.
 
 ## CLI Commands
 
@@ -76,6 +145,7 @@ ai-factory init
 ai-factory init --agents claude,codex --mcp playwright,github
 ai-factory init --agents cursor --skills commit,plan
 ai-factory init --agents claude --no-skills --mcp github
+ai-factory init --agents claude,cursor --symlinks
 
 # Update skills to latest version (also checks for CLI updates)
 ai-factory update
@@ -88,6 +158,26 @@ ai-factory upgrade
 
 # Audit artifact metadata links (frontmatter id/depends_on/affects/etc.)
 ai-factory audit-artifacts
+
+# Discover declared project commands without executing them
+ai-factory commands
+ai-factory commands . packages/api packages/web --json
+
+# Diagnose static runtime conflicts between existing checkouts without launching environments
+ai-factory worktree-check . ../project-feature --json
+
+# Resolve a workflow phase to an external agent (prints instructions or spawns it)
+ai-factory dispatch plan --prompt "Run the plan phase of the aif-loop"
+ai-factory dispatch implement --print
+ai-factory dispatch plan --json --prompt "Execute only this plan phase"
+
+# Record an explicitly registered skill invocation and verify its instruction bytes
+ai-factory instructions start --spec composition.json
+ai-factory instructions verify RUN
+
+# Connect an explicitly approved project verifier to the qualified Claude Stop hook
+ai-factory completion-hook enable --spec tools/completion-hook.json
+ai-factory completion-hook disable
 
 # Install an extension (local path, git URL, or npm package)
 ai-factory extension add ./my-extension
@@ -105,14 +195,26 @@ ai-factory extension update my-extension --force
 ai-factory extension remove my-extension
 ```
 
+See [Project Completion Hook](configuration.md#project-completion-hook) for runtime qualification,
+explicit command approval, receipt limits and reversal.
+
 See [Plan Files](plan-files.md) for the artifact frontmatter schema, default scan paths, `--json` output, `--strict` exit behavior, and path boundary rules.
+
+See [Instruction Manifests](instruction-manifests.md) for preparing `composition.json`, snapshot capture policy, load evidence, and restoration. Recording is opt-in; ordinary skill invocations remain unchanged.
 
 ### `ai-factory init` Flags
 
 - `--agents` - Comma-separated target agents (for example `claude,codex`)
 - `--skills` - Comma-separated skill set to install instead of full defaults
-- `--no-skills` - Skip base skill installation (useful when only MCP setup is needed)
+- `--no-skills` - Select no base skills (useful when only MCP setup is needed); on reruns, removes unchanged base skills with verified ownership
+- `--symlinks` / `--no-symlinks` - Share identical managed skills through `.agents/skills/`, or restore independent copies. The wizard asks after skill selection; new installations default to copies and reruns keep the saved choice.
 - `--mcp` - Comma-separated MCP servers to configure (`github`, `postgres`, `filesystem`, `chrome-devtools`, `playwright`)
+
+Rerunning `init` removes deselected base skills only when their saved raw ownership receipt proves that the installed contents are unchanged. This also applies to flat workflow files.
+
+Modified skills, extra user files inside a tracked skill directory, and installations without a verifiable receipt are preserved with a warning; the deselected skill is removed from CLI tracking. Cleanup also preserves custom skills, untracked files, and extension replacements.
+
+Bundled `loop-*` agent files require `aif-loop` to be selected; `init` and `update` remove previously tracked bundled loop agents when that skill is absent. Other bundled agent files are installed independently of the base skill selection.
 
 ### Upgrade from v1 to v2
 
@@ -123,8 +225,17 @@ Run `ai-factory upgrade` to migrate old bare-named skills (`commit`, `feature`, 
 - Checks for extension updates from their sources (npm, GitHub, etc.) before updating base skills
 - Prints per-agent status buckets for base skills (`changed`, `unchanged`, `skipped`, `removed`)
 - For runtimes with managed agent files, refreshes bundled package-managed agent files and prints a separate `Agent files` status block
-- For Codex CLI, also refreshes managed `.codex/config.toml` and prints a separate `Config files` status block; drift in that file may be overwritten to restore AI-Factory-managed defaults
+- For Codex CLI, prepares any required skill-directory migration before extension or native-file updates; unresolved migration conflicts stop the update, including with `--force`
+- For Codex CLI, also refreshes managed `.codex/config.toml` and prints a separate `Config files` status block; local modifications and untracked pre-existing config files are preserved
 - Skills newly available in the package but not previously installed are shown as `skipped` (not auto-installed)
+
+The [project command catalog](configuration.md#project-command-catalog) reads
+supported declarations and optional existing JSON mappings. It never executes
+commands, imports project extensions, installs tooling, or rewrites configuration.
+
+The [worktree readiness diagnostic](configuration.md#worktree-readiness-diagnostic)
+compares static runtime resource declarations and existing owner mappings before
+parallel work. Unknown settings remain incomplete; it never guarantees live isolation.
 
 ### Documentation Commands
 

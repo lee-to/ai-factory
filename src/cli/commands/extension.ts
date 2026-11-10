@@ -1,12 +1,15 @@
+import { applyExtensionToolPermissions, captureToolPermissionBases, restoreToolPermissionBases } from '../../core/tool-permissions.js';
 import chalk from 'chalk';
 import path from 'path';
 import { hydrateAgentFileSources, loadConfig, saveConfig, type AiFactoryConfig } from '../../core/config.js';
 import { hydrateProjectAgentRegistry } from '../../core/agents.js';
+import { prepareSkillTargets, withSkillProjectLock } from '../../core/skills-migration.js';
 import {
   resolveExtension,
   removeExtensionFiles,
   getExtensionsDir,
   loadInstalledExtensionManifest,
+  loadAllExtensions,
 } from '../../core/extensions.js';
 import { removeExtensionMcpServers } from '../../core/mcp.js';
 import {
@@ -49,6 +52,10 @@ async function loadHydratedExtensionConfig(
 }
 
 export async function extensionAddCommand(source: string): Promise<void> {
+  return withSkillProjectLock(process.cwd(), () => extensionAddLocked(source));
+}
+
+async function extensionAddLocked(source: string): Promise<void> {
   const projectDir = process.cwd();
 
   console.log(chalk.bold.blue('\n🏭 AI Factory - Install Extension\n'));
@@ -96,13 +103,19 @@ export async function extensionAddCommand(source: string): Promise<void> {
 }
 
 export async function extensionRemoveCommand(name: string): Promise<void> {
+  return withSkillProjectLock(process.cwd(), () => extensionRemoveLocked(name));
+}
+
+async function extensionRemoveLocked(name: string): Promise<void> {
   const projectDir = process.cwd();
 
   console.log(chalk.bold.blue('\n🏭 AI Factory - Remove Extension\n'));
 
   const config = await loadHydratedExtensionConfig(projectDir);
+  await prepareSkillTargets(projectDir, config);
   await hydrateAgentFileSources(projectDir, config);
 
+  const permissionBases = await captureToolPermissionBases(projectDir, config.agents, config.extensions);
   const extensions = config.extensions ?? [];
   const index = extensions.findIndex(e => e.name === name);
 
@@ -179,6 +192,11 @@ export async function extensionRemoveCommand(name: string): Promise<void> {
 
     extensions.splice(index, 1);
     config.extensions = extensions;
+    const remaining = await loadAllExtensions(projectDir, extensions.map(extension => extension.name));
+    await applyExtensionToolPermissions(projectDir, config.agents, remaining.map(({ manifest: other }) => ({
+      ...other, toolPermissions: other.toolPermissions?.filter(permission => extRecord.replacedSkills?.includes(permission.target)),
+    })));
+    await restoreToolPermissionBases(projectDir, config.agents, permissionBases, config.extensions);
     await saveConfig(projectDir, config);
 
     console.log(chalk.green(`✓ Extension "${name}" removed`));
@@ -228,6 +246,10 @@ export async function extensionListCommand(): Promise<void> {
 }
 
 export async function extensionUpdateCommand(name?: string, options?: { force?: boolean }): Promise<void> {
+  return withSkillProjectLock(process.cwd(), () => extensionUpdateLocked(name, options));
+}
+
+async function extensionUpdateLocked(name?: string, options?: { force?: boolean }): Promise<void> {
   const projectDir = process.cwd();
   const force = options?.force ?? false;
 
@@ -238,6 +260,7 @@ export async function extensionUpdateCommand(name?: string, options?: { force?: 
   }
 
   const config = await loadHydratedExtensionConfig(projectDir, { showInitHint: true });
+  await prepareSkillTargets(projectDir, config);
 
   const extensions = config.extensions ?? [];
 

@@ -709,24 +709,45 @@ else
     pass "aif-distillation helper tests skipped ${YELLOW}(Python 3 not found)${NC}"
 fi
 
+if node "$ROOT_DIR/scripts/test-distillation-source-use.mjs"; then
+    pass "source-use assertions reject update, split-child, and handoff regressions (no inference)"
+else
+    fail "source-use assertion sensitivity checks"
+fi
+
+# Portable question instructions cover every interactive skill, including standalone renderings.
+if node "$ROOT_DIR/scripts/test-runtime-questions.mjs"; then
+    pass "runtime-aware question contracts cover all interactive skills and built-in renderers"
+else
+    fail "runtime-aware question contract inventory and rendering"
+fi
+
 # /aif localization contract regression checks
-AIF_SKILL="$ROOT_DIR/skills/aif/SKILL.md"
+# Inventory includes directly linked references; route loading is tested separately.
+AIF_SKILL="$TMPDIR/aif-contract.md"
+node "$ROOT_DIR/scripts/lib/skill-contract-source.mjs" "$ROOT_DIR/skills/aif/SKILL.md" > "$AIF_SKILL"
 AIF_EXPLORE_SKILL="$ROOT_DIR/skills/aif-explore/SKILL.md"
 AIF_EXPLORE_ULTRA_REF="$ROOT_DIR/skills/aif-explore/references/ULTRA-RESEARCH-FORMAT.md"
 AIF_PLAN_SKILL="$ROOT_DIR/skills/aif-plan/SKILL.md"
 AIF_PLAN_FORMAT_REF="$ROOT_DIR/skills/aif-plan/references/TASK-FORMAT.md"
 AIF_PLAN_ULTRA_REF="$ROOT_DIR/skills/aif-plan/references/ULTRA-FORMAT.md"
-AIF_IMPLEMENT_SKILL="$ROOT_DIR/skills/aif-implement/SKILL.md"
+# Inventory includes directly linked references; route loading is tested separately.
+AIF_IMPLEMENT_SKILL="$TMPDIR/aif-implement-contract.md"
+node "$ROOT_DIR/scripts/lib/skill-contract-source.mjs" "$ROOT_DIR/skills/aif-implement/SKILL.md" > "$AIF_IMPLEMENT_SKILL"
 AIF_IMPROVE_SKILL="$ROOT_DIR/skills/aif-improve/SKILL.md"
 AIF_IMPROVE_CHECK_REF="$ROOT_DIR/skills/aif-improve/references/CHECK-MODE.md"
 AIF_IMPROVE_EXAMPLES_REF="$ROOT_DIR/skills/aif-improve/references/EXAMPLES.md"
 AIF_IMPROVE_LIST_REF="$ROOT_DIR/skills/aif-improve/references/LIST-MODE.md"
-AIF_FIX_SKILL="$ROOT_DIR/skills/aif-fix/SKILL.md"
+# Inventory includes directly linked references; route loading is tested separately.
+AIF_FIX_SKILL="$TMPDIR/aif-fix-contract.md"
+node "$ROOT_DIR/scripts/lib/skill-contract-source.mjs" "$ROOT_DIR/skills/aif-fix/SKILL.md" > "$AIF_FIX_SKILL"
 AIF_RULES_SKILL="$ROOT_DIR/skills/aif-rules/SKILL.md"
 AIF_REFERENCE_SKILL="$ROOT_DIR/skills/aif-reference/SKILL.md"
 AIF_SECURITY_SKILL="$ROOT_DIR/skills/aif-security-checklist/SKILL.md"
 AIF_TRANSFER_SKILL="$ROOT_DIR/skills/aif-transfer/SKILL.md"
-AIF_VERIFY_SKILL="$ROOT_DIR/skills/aif-verify/SKILL.md"
+# Inventory includes directly linked references; route loading is tested separately.
+AIF_VERIFY_SKILL="$TMPDIR/aif-verify-contract.md"
+node "$ROOT_DIR/scripts/lib/skill-contract-source.mjs" "$ROOT_DIR/skills/aif-verify/SKILL.md" > "$AIF_VERIFY_SKILL"
 AIF_WARMUP_SKILL="$ROOT_DIR/skills/aif-warmup/SKILL.md"
 SKILL_HINTS="$ROOT_DIR/src/cli/wizard/skill-hints.ts"
 AIF_VERIFY_OWNERSHIP_REF="$ROOT_DIR/skills/aif-verify/references/CONTEXT-GATES-AND-OWNERSHIP.md"
@@ -1194,12 +1215,12 @@ fi
 
 AIF_PLAN_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_PLAN_SKILL" || true)
 AIF_IMPROVE_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_IMPROVE_SKILL" || true)
-AIF_FIX_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_FIX_SKILL" || true)
 if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
    && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && [[ "$AIF_IMPROVE_ALLOWED_TOOLS_LINE" == *'Bash(sha256sum *)'* ]] \
-   && [[ "$AIF_FIX_ALLOWED_TOOLS_LINE" == *'Bash'* ]] \
+   && grep -Fq 'Shell commands are not pre-approved by this skill.' "$AIF_FIX_SKILL" \
+   && grep -Fq "under the runtime's existing permissions" "$AIF_FIX_SKILL" \
    && grep -Fq 'Normalize the copied Active Summary before hashing' "$AIF_PLAN_SKILL" \
    && grep -Fq 'use the same normalization algorithm' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'use the same normalization algorithm as the drift check' "$AIF_FIX_SKILL" \
@@ -1215,9 +1236,9 @@ if [[ "$AIF_PLAN_ALLOWED_TOOLS_LINE" == *'Bash(shasum -a 256 *)'* ]] \
    && grep -Fq 'end with exactly one final newline' "$AIF_PLAN_SKILL" \
    && grep -Fq 'end with one newline' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'end with one newline' "$AIF_FIX_SKILL"; then
-    pass "research-backed plan producers can calculate SHA256 revisions without temp artifacts"
+    pass "research-backed plan producers retain SHA256 normalization and execution policy without temp artifacts"
 else
-    fail "research-backed plan producers lack SHA256 tools, normalization instructions, or temp-artifact guard"
+    fail "research-backed plan producers lack SHA256 policy, normalization instructions, or temp-artifact guard"
 fi
 
 if grep -Fq '[Enhanced, clear description of the project in English]' "$AIF_SKILL"; then
@@ -1404,7 +1425,7 @@ else
     fail "/aif-commit active plan discovery priority missing"
 fi
 
-if grep -Fq 'If active plan contains `## Commit Plan`' "$AIF_COMMIT_SKILL" \
+if grep -Fq 'Otherwise, if active plan contains `## Commit Plan`' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Compare staged files/hunks with planned groups' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Follow Commit Plan' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'Commit everything together' "$AIF_COMMIT_SKILL" \
@@ -1415,9 +1436,72 @@ else
     fail "/aif-commit Commit Plan grouping contract missing"
 fi
 
+if grep -Fq 'Classic-group task-bound mode' "$AIF_COMMIT_SKILL" \
+   && grep -Fq '`classic-group` mode and supplying' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Reject missing, duplicate, ambiguous, or mismatched group' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'For classic groups, invoke `/aif-commit classic-group`' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Do not run the ordinary' "$AIF_COMMIT_SKILL"; then
+    pass "/aif-commit supports isolated classic-group task-bound commits"
+else
+    fail "/aif-commit classic-group task-bound contract missing"
+fi
+
+if grep -Fq 'reserve an explicit final documentation task' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'before any deferred commit' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Compare post-checkpoint staged/unstaged diffs and untracked' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'reserved task' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'do not widen' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'runs `/aif-docs` before deferred commits' "$WORKFLOW_DOC"; then
+    pass "deferred docs checkpoint precedes commits and enforces planned ownership"
+else
+    fail "deferred docs checkpoint ordering or ownership gate missing"
+fi
+
+if grep -Fq 'Route marked commit tasks' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'TaskUpdate(taskId, status: "completed")' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'On resume, reconcile the checkbox, task status,' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Before generic uncommitted-change recovery, resolve the active plan' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Reconcile every pending task-based or classic-group receipt' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'including deferred groups not' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'Only after all receipts are resolved may changes proven' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'git merge-base --is-ancestor <commit-hash> HEAD' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'outside saved groups' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'exact plan path' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'dependency task IDs' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'Preserve unrelated staged and' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'do not offer' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'stop before changing the index' "$AIF_COMMIT_SKILL"; then
+    pass "/aif-implement dispatches and reconciles commits before task completion"
+else
+    fail "/aif-implement commit execution ordering or task-bound scope missing"
+fi
+
+if grep -Fq -- '- [ ] <!-- aif:task-kind:commit -->' "$AIF_PLAN_FORMAT_REF" "$PLAN_FILES_DOC"; then
+    fail "commit marker must not be rendered as an empty checkbox"
+elif grep -Fq '<!-- aif:task-kind:commit -->' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq '<!-- aif:task-kind:commit -->' "$PLAN_FILES_DOC" \
+   && grep -Fq 'Render exactly one commit layout' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fq 'only valid in classic plans' "$PLAN_FILES_DOC" \
+   && grep -Fq 'immediately before the actual task checkbox' "$AIF_PLAN_FORMAT_REF" \
+   && awk '/^<!-- aif:task-kind:commit -->$/ { if (getline <= 0 || $0 !~ /^- \[ \] Task [0-9]+:/) exit 1; found++ } END { if (found == 0) exit 1 }' "$AIF_PLAN_FORMAT_REF" \
+   && awk '/^<!-- aif:task-kind:commit -->$/ { if (getline <= 0 || $0 !~ /^- \[ \] Task [0-9]+:/) exit 1; found++ } END { if (found == 0) exit 1 }' "$PLAN_FILES_DOC"; then
+    pass "plan templates use one selected commit layout and standalone markers"
+else
+    fail "plan template commit-layout or marker-placement contract missing"
+fi
+
+if grep -Fq '`workflow.plan_structure` (default: `classic`)' "$AIF_PLAN_SKILL" \
+   && grep -Fq '`workflow.plan_structure` (default: `classic`)' "$AIF_IMPLEMENT_SKILL" \
+   && grep -Fq 'invalid workflow.plan_structure; falling back to classic' "$AIF_PLAN_SKILL" \
+   && grep -Fq '`workflow.plan_structure` selects the commit layout' "$CONFIGURATION_DOC"; then
+    pass "plan_structure is resolved and documented by both workflow skills"
+else
+    fail "plan_structure Step 0 contract or configuration documentation missing"
+fi
+
 if grep -Fq 'disjoint file set' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'When one file spans multiple planned groups, use hunk-level staging (`git add -p` or `git apply --cached`) for each group.' "$AIF_COMMIT_SKILL" \
-   && grep -Fq 'If hunk-level staging cannot be applied confidently, stop before changing staging and ask the user to adjust grouping or commit everything together.' "$AIF_COMMIT_SKILL" \
+   && grep -Fq 'If hunk-level staging cannot be applied confidently, stop before changing staging.' "$AIF_COMMIT_SKILL" \
    && grep -Fq 'same file spans multiple groups' "$WORKFLOW_DOC" \
    && grep -Fq 'hunk-level staging' "$SKILLS_DOC"; then
     pass "/aif-commit prevents whole-file staging leakage across planned groups"
@@ -1435,7 +1519,7 @@ else
     fail "/aif-commit missing guard against staging unstaged WIP in grouped files"
 fi
 
-if grep -Fq 'If no active plan resolves or the active plan has no `## Commit Plan`, keep current staged-diff behavior unchanged.' "$AIF_COMMIT_SKILL"; then
+if grep -Fq 'active plan has neither a `## Commit Plan` section nor explicit task-based commit tasks' "$AIF_COMMIT_SKILL"; then
     pass "/aif-commit preserves fallback without Commit Plan"
 else
     fail "/aif-commit fallback without Commit Plan missing"
@@ -1464,7 +1548,7 @@ else
 fi
 
 if grep -Fq 'active plan contains `## Commit Plan`' "$WORKFLOW_DOC" \
-   && grep -Fq 'Unmapped staged files' "$WORKFLOW_DOC" \
+   && grep -Fq 'unclear or unrelated staged work stops the commit without changing staging' "$WORKFLOW_DOC" \
    && grep -Fq 'staged-diff behavior unchanged' "$WORKFLOW_DOC" \
    && grep -Fq 'reads the relevant phase files' "$WORKFLOW_DOC" \
    && grep -Fq 'active plan `## Commit Plan`' "$SKILLS_DOC" \
@@ -1477,12 +1561,12 @@ fi
 
 # No hardcoded agent-specific values (must use {{template_vars}})
 # skills_dir patterns
-HARDCODED_SKILLS_DIR=$(grep -rE '\.(claude|cursor|codex|github|gemini|junie|qwen|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+HARDCODED_SKILLS_DIR=$(grep -rE '\.(claude|cursor|codex|github|gemini|junie|qwen|devin|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
 if [[ "$HARDCODED_SKILLS_DIR" -eq 0 ]]; then
     pass "no hardcoded skills_dir in skills/ and subagents/"
 else
     fail "found $HARDCODED_SKILLS_DIR hardcoded skills_dir values (use {{skills_dir}} or {{home_skills_dir}})"
-    grep -rEn '\.(claude|cursor|codex|github|gemini|junie|qwen|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+    grep -rEn '\.(claude|cursor|codex|github|gemini|junie|qwen|devin|windsurf|warp)/skills' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
 fi
 
 # settings_file patterns
@@ -1499,7 +1583,7 @@ AIF_MCP_SECTION=$(awk '
   /^## MCP Configuration$/ { capture=1; next }
   capture && /^---$/ { exit }
   capture { print }
-' "$ROOT_DIR/skills/aif/SKILL.md")
+' "$ROOT_DIR/skills/aif/references/SETUP-MCP.md")
 DOCS_MCP_SECTION=$(awk '
   /^## MCP Configuration$/ { capture=1; next }
   capture && /^## / { exit }
@@ -1542,7 +1626,7 @@ else
     pass "docs MCP Configuration section present"
 fi
 
-if grep -Fq '../skills/aif/SKILL.md#mcp-configuration' <<< "$DOCS_MCP_SECTION" && grep -Fq 'Source of truth' <<< "$DOCS_MCP_SECTION"; then
+if grep -Fq '../skills/aif/references/SETUP-MCP.md' <<< "$DOCS_MCP_SECTION" && grep -Fq 'Source of truth' <<< "$DOCS_MCP_SECTION"; then
     pass "docs MCP section links to canonical /aif MCP source-of-truth"
 else
     fail "docs MCP section must link to canonical /aif MCP source-of-truth"
@@ -1561,12 +1645,12 @@ else
 fi
 
 # skills_cli_agent_flag patterns
-HARDCODED_AGENT_FLAG=$(grep -rE '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
+HARDCODED_AGENT_FLAG=$(grep -rE --include='*.md' -- '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|devin|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" 2>/dev/null | grep -v '{{' | wc -l | tr -d ' ' || true)
 if [[ "$HARDCODED_AGENT_FLAG" -eq 0 ]]; then
     pass "no hardcoded skills_cli_agent_flag in skills/ and subagents/"
 else
     fail "found $HARDCODED_AGENT_FLAG hardcoded --agent flags (use {{skills_cli_agent_flag}})"
-    grep -rEn '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" --include='*.md' 2>/dev/null | grep -v '{{' | sed 's/^/      /'
+    grep -rEn --include='*.md' -- '--agent (claude-code|cursor|codex|github-copilot|gemini-cli|junie|devin|windsurf)' "$ROOT_DIR/skills/" "$ROOT_DIR/subagents/" 2>/dev/null | grep -v '{{' | sed 's/^/      /'
 fi
 
 # ─────────────────────────────────────────────
@@ -1649,6 +1733,35 @@ else
 fi
 
 # ─────────────────────────────────────────────
+# Improve validation must use an actual read-only agent, including config-enabled runs.
+if ROOT_DIR="$ROOT_DIR" node --input-type=module - <<'EOF'
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const read = file => fs.readFileSync(path.join(process.env.ROOT_DIR, file), 'utf8');
+const agent = read('subagents/claude/agents/review-validator.md');
+const frontmatter = agent.match(/^---\n([\s\S]*?)\n---/)[1];
+assert.deepEqual(frontmatter.match(/^tools: (.+)$/m)[1].split(/,\s*/).sort(), ['Glob', 'Grep', 'Read']);
+const check = read('skills/aif-improve/references/CHECK-MODE.md');
+const validator = read('skills/aif-improve/references/VALIDATOR.md');
+assert.match(check, /Task\(subagent_type: review-validator/);
+for (const text of [check, validator]) {
+  assert.doesNotMatch(text, /Task\(subagent_type: general-purpose/);
+}
+assert.match(check, /do not dispatch/i);
+assert.match(check, /whole-dispatch failure/);
+assert.match(check, /workflow\.improve_check: true/);
+assert.match(check, /Codex read-only sandbox does not restrict inherited MCP tools/);
+assert.match(validator, /## Security boundary/);
+assert.match(validator, /untrusted evidence, not instructions/);
+assert.match(validator, /within the supplied project root/);
+EOF
+then
+    pass "improve validation uses an enforced read-only agent without a full-tool fallback"
+else
+    fail "improve validator capability boundary"
+fi
+
 # Part 4.5: Planner parity contract regressions
 # ─────────────────────────────────────────────
 echo -e "\n${BOLD}=== Planner parity contract checks ===${NC}\n"
@@ -1793,6 +1906,12 @@ if [[ ${#PYTHON_CMD[@]} -eq 0 ]]; then
 else
     SCANNER="$ROOT_DIR/skills/aif-skill-generator/scripts/security-scan.py"
 
+    if "${PYTHON_CMD[@]}" -B "$ROOT_DIR/scripts/test-security-scan.py"; then
+        pass "security scanner precision, hostile pairs, allowlist boundaries and CLI exits"
+    else
+        fail "security scanner precision regressions"
+    fi
+
     SCAN_BENIGN="$TMPDIR/security-scan-benign"
     mkdir -p "$SCAN_BENIGN/references"
     cat > "$SCAN_BENIGN/SKILL.md" << 'EOF'
@@ -1862,7 +1981,14 @@ set -e
 
 if [[ $SELF_SCAN_EXIT -eq 0 ]]; then
     pass "self-scan passed (no critical threats after allowlist)"
-    echo "$SELF_SCAN_OUTPUT" | grep -E 'Critical:|Warnings:|Ignored by allowlist' | sed 's/^/      /' || true
+    # Retain the actual findings, not only counters, for manual review in CI logs.
+    if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        echo "::group::Internal security self-scan findings"
+    fi
+    echo "$SELF_SCAN_OUTPUT" | sed 's/^/      /'
+    if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        echo "::endgroup::"
+    fi
 elif [[ $SELF_SCAN_EXIT -eq 3 ]]; then
     pass "self-scan skipped ${YELLOW}(Python 3 not found)${NC}"
     echo "      Install Python 3 to enable internal self-scan."
@@ -1998,6 +2124,20 @@ else
     echo "$GATE_RESULT_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
+echo -e "\n${BOLD}=== Review +check recorded workflow scenarios ===${NC}\n"
+
+set +e
+REVIEW_REPLAY_OUTPUT=$(node "$ROOT_DIR/scripts/test-review-check.mjs" 2>&1)
+REVIEW_REPLAY_EXIT=$?
+set -e
+
+if [[ $REVIEW_REPLAY_EXIT -eq 0 ]]; then
+    pass "review +check recorded workflow scenarios"
+else
+    fail "review +check recorded workflow scenarios"
+    echo "$REVIEW_REPLAY_OUTPUT" | sed 's/^/      /'
+fi
+
 echo -e "\n${BOLD}=== Loop budget contract smoke tests ===${NC}\n"
 
 set +e
@@ -2012,6 +2152,80 @@ else
     echo "$LOOP_BUDGET_SMOKE_OUTPUT" | sed 's/^/      /'
 fi
 
+echo -e "\n${BOLD}=== API compatibility examples and reference installation ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-coupling.mjs"; then
+    pass "coupling methodology, provenance and standalone/combined reference installation"
+else
+    fail "coupling methodology, provenance or reference installation"
+fi
+
+if node "$ROOT_DIR/scripts/test-api-compatibility.mjs"; then
+    pass "API compatibility example data and standalone reference installation"
+else
+    fail "API compatibility examples or reference installation"
+fi
+
+echo -e "\n${BOLD}=== Evolve ownership reference installation ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-evolve-ownership.mjs"; then
+    pass "evolve ownership and candidate validation reference installation"
+else
+    fail "evolve ownership or candidate validation reference installation"
+fi
+
+echo -e "\n${BOLD}=== Plan overview and roadmap-next advisors ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-plan-advisors.mjs"; then
+    pass "plan advisors, file tree, runtime installation and config preservation"
+else
+    fail "plan advisors, formatter or config preservation"
+fi
+
+echo -e "\n${BOLD}=== Shared skill-context installation and lifecycle ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-shared-skill-context.mjs"; then
+    pass "shared skill-context installation and CLI lifecycle"
+else
+    fail "shared skill-context installation or CLI lifecycle"
+fi
+
+echo -e "\n${BOLD}=== Read-only project command catalog ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-command-catalog.mjs"; then
+    pass "project command catalog and zero-effect CLI discovery"
+else
+    fail "project command catalog or discovery boundaries"
+fi
+
+if node "$ROOT_DIR/scripts/test-completion-hook.mjs"; then
+    pass "completion hook bounded verifier and receipt lifecycle"
+else
+    fail "completion hook bounded verifier or receipt lifecycle"
+fi
+
+echo -e "\n${BOLD}=== Read-only worktree readiness ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-worktree-readiness.mjs"; then
+    pass "worktree resource diagnostic and read-only boundaries"
+else
+    fail "worktree resource diagnostic or read-only boundaries"
+fi
+
+echo -e "\n${BOLD}=== Review confidence lifecycle tests ===${NC}\n"
+
+set +e
+REVIEW_LIFECYCLE_OUTPUT=$(bash "$ROOT_DIR/scripts/test-review-confidence-lifecycle.sh" 2>&1)
+REVIEW_LIFECYCLE_EXIT=$?
+set -e
+
+if [[ $REVIEW_LIFECYCLE_EXIT -eq 0 ]]; then
+    pass "review confidence lifecycle tests"
+else
+    fail "review confidence lifecycle tests"
+    echo "$REVIEW_LIFECYCLE_OUTPUT" | sed 's/^/      /'
+fi
+
 echo -e "\n${BOLD}=== audit-artifacts command smoke tests ===${NC}\n"
 
 set +e
@@ -2024,6 +2238,42 @@ if [[ $AUDIT_ARTIFACTS_SMOKE_EXIT -eq 0 ]]; then
 else
     fail "audit-artifacts smoke tests"
     echo "$AUDIT_ARTIFACTS_SMOKE_OUTPUT" | sed 's/^/      /'
+fi
+
+echo -e "\n${BOLD}=== Extension tool permission lifecycle ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-extension-tool-permissions.mjs"; then
+    pass "extension tool permission ownership and lifecycle"
+else
+    fail "extension tool permission ownership or lifecycle"
+fi
+
+echo -e "\n${BOLD}=== Selective workflow references ===${NC}\n"
+set +e
+SELECTIVE_REFERENCES_OUTPUT=$(node "$ROOT_DIR/scripts/test-selective-skill-references.mjs" 2>&1)
+SELECTIVE_REFERENCES_EXIT=$?
+set -e
+if [[ $SELECTIVE_REFERENCES_EXIT -eq 0 ]]; then
+    pass "selective references, runtime rendering, update receipts, and route budgets"
+else
+    fail "selective workflow references"
+    echo "$SELECTIVE_REFERENCES_OUTPUT" | sed 's/^/      /'
+fi
+
+echo -e "\n${BOLD}=== Installed skill audit packaging and docs ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-skills-audit.mjs"; then
+    pass "skills audit installation and documentation tests"
+else
+    fail "skills audit installation and documentation tests"
+fi
+
+echo -e "\n${BOLD}=== Quality setup packaging and installation ===${NC}\n"
+
+if node "$ROOT_DIR/scripts/test-quality-setup.mjs"; then
+    pass "quality setup discovery, installation, rendering and package inventory"
+else
+    fail "quality setup packaging or installation"
 fi
 
 echo -e "\n${BOLD}=== Results ===${NC}"

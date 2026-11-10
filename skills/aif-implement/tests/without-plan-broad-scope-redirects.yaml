@@ -27,7 +27,6 @@ argument: >-
 max_turns: 20
 
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   allowed_tools_override:
     - Read

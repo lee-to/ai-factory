@@ -1,72 +1,14 @@
-# spec-only fixture (.spec.yaml): describes the contract for a future
-# runner. No existing runner consumes this file, so a green CI does not
-# prove the +check branches below executed.
-
+# Executable replay scenario; run npm run test:review-check (no live runtime).
 scenario: check-mode-validator-malformed
-description: |
-  With `+check` enabled and the Task tool available, but with the
-  validator returning a per-item malformed response (heading missing,
-  no `Verdict` line, unknown verdict token, unknown `Severity` value,
-  or missing `Modified-text` when `Verdict` is `modify`), `/aif-review`
-  must take the per-item-malformed branch of the procedure described in
-  skills/aif-review/references/CHECK-MODE.md (distinct from the
-  whole-dispatch failure path covered by
-  check-mode-validator-failure.spec.yaml):
-
-    1. Dispatch the validator exactly once (the dispatch itself
-       succeeds — the failure is per-item, not at the dispatch level).
-    2. Parse the response by `### Item N` headings. For every
-       well-formed item, apply `Verdict` and `Severity` normally
-       (drops/modifies/reclassifications take effect).
-    3. For every malformed item, treat it as `Verdict: keep` with
-       `Severity: unchanged` and emit ONE line of the exact form
-       `WARN [+check]: validator response for item N was malformed,
-       kept as-is` AFTER all review sections and ABOVE the
-       `aif-gate-result` fence. Continue processing remaining items.
-    4. Emit the
-       `Filtered: N hidden, M adjusted, K reclassified by +check`
-       summary normally — only the malformed item(s) are forced to
-       `keep`. This is NOT the whole-dispatch failure path; do NOT
-       emit `validator failed` here.
-    5. Recompute `aif-gate-result` from the post-filter findings as in
-       the happy path — the per-item malformed branch does NOT switch
-       back to the unfiltered original list.
-
-  Runner contract: the validator response must be partially malformed
-  for this fixture to exercise its branch. The runner is expected to
-  inject a mocked Task subagent response where at least one
-  `### Item N` block lacks a required field (e.g., omit `Verdict:`)
-  and at least one other block is well-formed, so both code paths
-  (well-formed item filtered, malformed item kept-with-WARN) are
-  exercised in a single run.
-
-  Spec extension: like check-mode-happy-path.spec.yaml and
-  check-mode-validator-failure.spec.yaml, this fixture uses a `files_staged:`
-  block (parallel to `files_committed:`) so that `git diff --cached`
-  produces non-empty input for the no-arguments staged-mode review.
-  No existing runner consumes this field today; introducing it is part
-  of the contract this fixture documents.
-
-  Fixture state mirrors check-mode-happy-path.spec.yaml — same baseline
-  commit + same staged diff. Only the validator response shape differs.
-
-  Runner requirements (checklist for the future runner — same items
-  are spelled out in prose above):
-    - Handle `files_staged:`: write each path to disk AND `git add` it
-      before invoking the skill, so `git diff --cached` is non-empty.
-    - Support mock injection for the dispatched subagent response — at
-      least one `### Item N` block must be returned malformed (missing
-      `Verdict:` / unknown verdict token / unknown `Severity` value /
-      missing `Modified-text` when `Verdict` is `modify`) AND at least
-      one other block must be well-formed, so both code paths
-      (well-formed item filtered, malformed item kept-with-WARN) run
-      in a single dispatch.
+description: >
+  Executed offline by scripts/test-review-check.mjs through the skill's shared
+  check-workflow.mjs host protocol. Controlled recordings live in
+  _replay/cases.json. Fixtures are staged in a real temporary Git repository; no
+  inference or live tool fallback is permitted.
 skill: aif-review
-argument: "+check"
+argument: +check
 max_turns: 50
-
 runner:
-  model: claude-sonnet-4-6
   permission_mode: bypassPermissions
   allowed_tools_override:
     - Read
@@ -82,7 +24,8 @@ runner:
     - Agent
     - AskUserQuestion
     - Questions
-
+  runtime: review-replay
+  model: recorded
 fixtures:
   git_init: true
   git_branch: main
@@ -118,40 +61,33 @@ fixtures:
           verifyToken(req.token);
           return { status: 200 };
         }
-
 user_responses: []
-
 assertions:
   - id: dispatches-check-validator
     type: tool_called
     tool: Task
     args_match:
-      subagent_type: "^general-purpose$"
+      subagent_type: ^review-validator$
     weight: 3
-
   - id: per-item-malformed-warn-line
     type: output_contains
-    pattern: "WARN \\[\\+check\\]:\\s+validator response for item \\d+ was malformed,\\s+kept as-is"
+    pattern: WARN \[\+check\]:\s+validator response for item \d+ was
+      malformed,\s+kept as-is
     weight: 4
-
-  - id: renders-filtered-summary
+  - id: no-success-summary-on-partial
     type: output_contains
-    pattern: "Filtered:\\s+\\d+\\s+hidden,\\s+\\d+\\s+adjusted,\\s+\\d+\\s+reclassified\\s+by\\s+\\+check"
+    pattern: ^(?![\s\S]*(?:Filtered:\s+\d+\s+hidden,\s+\d+\s+adjusted,\s+\d+\s+reclassified\s+by\s+\+check))[\s\S]*$
     weight: 4
-
   - id: gate-result-block-present
     type: output_contains
     pattern: "```aif-gate-result"
     weight: 3
-
   - id: warn-before-gate-result
     type: output_contains
-    pattern: "WARN \\[\\+check\\][\\s\\S]*```aif-gate-result"
+    pattern: WARN \[\+check\][\s\S]*```aif-gate-result
     weight: 3
-
   - id: not-whole-dispatch-failure
-    type: no_output_contains
-    pattern: "validator failed"
-
+    type: output_contains
+    pattern: ^(?![\s\S]*(?:validator failed))[\s\S]*$
   - id: stay-in-sandbox
     type: no_path_escape

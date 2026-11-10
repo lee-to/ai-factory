@@ -186,6 +186,10 @@ For AI Factory-style skills, also include:
 | `GLOSSARY.md` | Terms that affect interpretation |
 
 Prefer stable, obvious filenames over clever names.
+Add the per-source metadata from [Source Use](SOURCE-USE.md) to the existing
+`SOURCE-MAP.md`, and link it from `SKILL.md`. Do not generate a parallel registry
+or infer a package license from a source license. Every affected split child
+carries its own relevant records, notices, and restrictions.
 
 When `--redact-source-map` is present:
 
@@ -195,6 +199,9 @@ When `--redact-source-map` is present:
 - in `--update` mode, leave an existing non-empty `SOURCE-MAP.md` unchanged
   unless the user explicitly asks to remove or rewrite it
 - keep source coverage checks in the private working notes only
+- include a neutral `Source use` section in `SKILL.md` for metadata states,
+  current revision, safe notices, export restrictions, and reduced public
+  traceability; never copy hidden identifiers into this section
 
 ## Example File Roles
 
@@ -230,6 +237,10 @@ When `--update` is present:
 4. Patch matching files.
 5. Add new files only for new topics.
 6. Report what changed and what was intentionally left untouched.
+7. Compare source and terms inputs with the prior source-use record. If changed,
+   mark the old metadata revision superseded and create a current revision;
+   follow [Source Use](SOURCE-USE.md) even when an old non-empty source map must
+   remain unchanged under redaction.
 
 In split mode with `--update`, treat every proposed child skill independently:
 

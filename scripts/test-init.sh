@@ -73,7 +73,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 
 const promptQueue = [
-  { selectedAgents: ['claude'], selectedSkills: ['aif'] },
+  { selectedAgents: ['claude'], selectedSkills: ['aif', 'aif-loop'] },
   { configureMcp: false },
 ];
 
@@ -99,6 +99,10 @@ try {
 EOF
 
 assert_contains "$INIT_OUTPUT" "Claude Code:" "Claude Code summary must be printed"
+assert_contains "$INIT_OUTPUT" "Including aif-skill-generator" "init must explain the security dependency"
+assert_exists "$PROJECT_DIR/.claude/skills/aif-skill-generator/scripts/security-scan.py" "aif-only selection must include scanner"
+assert_exists "$PROJECT_DIR/.claude/skills/aif-skill-generator/scripts/cleanup-blocked-skill.py" "aif-only selection must include cleanup helper"
+node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync(process.argv[1],'utf8')).agents[0];if(!a.installedSkills.includes('aif-skill-generator')||!a.managedSkills['aif-skill-generator'])process.exit(1);" "$PROJECT_DIR/.ai-factory.json"
 assert_contains "$INIT_OUTPUT" "Agent files directory:" "Claude init summary must include agent files directory"
 assert_contains "$INIT_OUTPUT" "Installed agent files: ${EXPECTED_AGENT_FILES}" "Claude init summary must report installed agent files"
 assert_exists "$PROJECT_DIR/.claude/agents/best-practices-sidecar.md" "Claude init must install best-practices sidecar"
@@ -126,6 +130,138 @@ EXPECTED_AGENT_FILES="$EXPECTED_AGENT_FILES" node -e "const fs=require('fs');con
 
 echo "claude init smoke tests passed"
 
+if ! AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$TMPDIR/init-devin" node --input-type=module > "$TMPDIR/init-devin.log" 2>&1 <<'EOF'
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const root = process.env.AIF_TEST_ROOT_DIR;
+const { initCommand } = await import(pathToFileURL(path.join(root, 'dist/cli/commands/init.js')));
+const { updateCommand } = await import(pathToFileURL(path.join(root, 'dist/cli/commands/update.js')));
+const { buildTemplateVars } = await import(pathToFileURL(path.join(root, 'dist/core/template.js')));
+const { getAgentConfig, getAgentChoices } = await import(pathToFileURL(path.join(root, 'dist/core/agents.js')));
+
+assert.ok(getAgentChoices().some(choice => choice.value === 'windsurf' && choice.name.includes('Devin Desktop')));
+assert.equal(buildTemplateVars(getAgentConfig('windsurf')).home_skills_dir, '~/.config/devin/skills');
+
+for (const mode of ['new', 'legacy', 'legacy-single', 'legacy-array']) {
+  const legacy = mode !== 'new';
+  const project = `${process.env.AIF_TEST_PROJECT_DIR}-${mode}`;
+  await mkdir(project);
+  process.chdir(project);
+  const skillsDir = legacy ? '.windsurf/skills' : '.devin/skills';
+  const agent = getAgentConfig('windsurf');
+  const current = { ...agent };
+  if (legacy) Object.assign(agent, {
+    displayName: 'Windsurf', configDir: '.windsurf', skillsDir,
+    homeSkillsDir: undefined, skillsCliAgent: 'windsurf',
+  });
+  await initCommand({ agents: 'windsurf', skills: 'aif' });
+  Object.assign(agent, current);
+  const expectedFlag = legacy ? '--agent windsurf' : '--agent devin';
+  for (const operation of ['update', 'init']) {
+    if (mode === 'legacy-single' || mode === 'legacy-array') {
+      const saved = JSON.parse(await readFile('.ai-factory.json', 'utf8'));
+      delete saved.agents[0].skillsDir;
+      await writeFile('.ai-factory.json', JSON.stringify(mode === 'legacy-single'
+        ? { version: saved.version, agent: 'windsurf', installedSkills: saved.agents[0].installedSkills, mcp: saved.agents[0].mcp }
+        : saved));
+    }
+    if (operation === 'update') await updateCommand();
+    else await initCommand({ agents: 'windsurf', skills: 'aif' });
+    const config = JSON.parse(await readFile('.ai-factory.json', 'utf8'));
+    assert.equal(config.agents[0].id, 'windsurf');
+    assert.equal(config.agents[0].skillsDir, skillsDir, `${mode}: ${operation} must preserve the legacy target`);
+    const skill = await readFile(`${skillsDir}/aif/SKILL.md`, 'utf8');
+    assert.ok(existsSync(`${skillsDir}/aif-skill-generator/scripts/security-scan.py`));
+    assert.ok(skill.includes(expectedFlag));
+    assert.equal(existsSync(legacy ? '.devin' : '.windsurf'), false);
+  }
+}
+EOF
+then
+  cat "$TMPDIR/init-devin.log"
+  exit 1
+fi
+echo "Devin Desktop init/update smoke tests passed (new and legacy directories)"
+
+AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$TMPDIR/init-smoke-skill-selection" node --input-type=module > "$TMPDIR/init-skill-selection.log" 2>&1 <<'EOF'
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import inquirer from 'inquirer';
+
+const { initCommand } = await import(pathToFileURL(path.join(process.env.AIF_TEST_ROOT_DIR, 'dist/cli/commands/init.js')));
+const projectDir = process.env.AIF_TEST_PROJECT_DIR;
+await mkdir(projectDir);
+process.chdir(projectDir);
+
+const originalPrompt = inquirer.prompt;
+const readConfig = async () => JSON.parse(await readFile('.ai-factory.json', 'utf8'));
+
+async function runInteractive(selectSkills, expectedSkills) {
+  let promptCount = 0;
+  let selectedSkills;
+  inquirer.prompt = async questions => {
+    promptCount++;
+    if (promptCount === 1) {
+      assert.deepEqual(questions.map(question => question.name), ['selectedAgents', 'selectedSkills', 'useSymlinks']);
+      assert.equal(questions[2].default, false, 'New installations must default to copies');
+      const choices = questions[1].choices;
+      assert(choices.some(choice => choice.value === 'aif-loop'), 'Loop must be available for selection');
+      selectedSkills = selectSkills(choices.map(choice => choice.value));
+      return { selectedAgents: ['claude'], selectedSkills };
+    }
+    assert.equal(promptCount, 2, 'Unexpected extra prompt');
+    assert.equal(questions[0].name, 'configureMcp');
+    return { configureMcp: false };
+  };
+  try {
+    await initCommand();
+  } finally {
+    inquirer.prompt = originalPrompt;
+  }
+  assert.equal(promptCount, 2, 'Init must use the interactive wizard');
+  const agent = (await readConfig()).agents[0];
+  assert.deepEqual(agent.installedSkills, expectedSkills ?? selectedSkills);
+  assert.deepEqual(Object.keys(agent.managedSkills).sort(), [...(expectedSkills ?? selectedSkills)].sort());
+  const loopInstalled = selectedSkills.includes('aif-loop');
+  assert.equal(existsSync('.claude/agents/loop-orchestrator.md'), loopInstalled);
+  assert.equal(agent.installedAgentFiles.includes('loop-orchestrator.md'), loopInstalled);
+  assert.equal(Boolean(agent.agentFileSources['loop-orchestrator.md']), loopInstalled);
+  assert.equal(Boolean(agent.managedAgentFiles['loop-orchestrator.md']), loopInstalled);
+}
+
+// Fresh install: deselect only loop from the wizard's complete skill list.
+await runInteractive(skills => skills.filter(skill => skill !== 'aif-loop'));
+assert(!existsSync('.claude/skills/aif-loop'), 'Fresh init must not install deselected loop');
+assert.deepEqual((await readdir('.claude/skills')).sort(), (await readConfig()).agents[0].installedSkills.slice().sort());
+
+// Reconfiguration: selecting loop installs it; deselecting it removes its files and metadata.
+await mkdir('.claude/skills/custom-skill');
+await writeFile('.claude/skills/custom-skill/SKILL.md', 'User-owned custom skill\n');
+await runInteractive(() => ['aif', 'aif-loop'], ['aif', 'aif-loop', 'aif-skill-generator']);
+assert(existsSync('.claude/skills/aif-loop/SKILL.md'), 'Selecting loop must install it');
+await runInteractive(() => ['aif'], ['aif', 'aif-skill-generator']);
+assert(!existsSync('.claude/skills/aif-loop'), 'Reinit must remove deselected loop');
+await runInteractive(() => []);
+assert(!existsSync('.claude/skills/aif'), 'Empty selection must remove tracked base skills');
+assert.deepEqual(await readdir('.claude/skills'), ['custom-skill']);
+assert.equal(await readFile('.claude/skills/custom-skill/SKILL.md', 'utf8'), 'User-owned custom skill\n');
+EOF
+
+echo "interactive skill selection smoke tests passed"
+
+if ! node "$ROOT_DIR/scripts/test-loop-subagents.mjs" > "$TMPDIR/loop-subagents.log" 2>&1; then
+  cat "$TMPDIR/loop-subagents.log"
+  exit 1
+fi
+echo "claude and codex loop subagent selection smoke tests passed"
+
 PROJECT_DIR="$TMPDIR/init-smoke-codex"
 mkdir -p "$PROJECT_DIR"
 
@@ -148,6 +284,8 @@ await initCommand({
 EOF
 
 assert_contains "$CODEX_OUTPUT" "Codex CLI:" "Codex summary must be printed"
+assert_exists "$PROJECT_DIR/.codex/skills/aif-skill-generator/scripts/security-scan.py" "flag-based aif-only init must include scanner"
+assert_exists "$PROJECT_DIR/.codex/skills/aif-skill-generator/scripts/cleanup-blocked-skill.py" "flag-based aif-only init must include cleanup helper"
 assert_contains "$CODEX_OUTPUT" "Agent files directory:" "Codex init summary must include agent files directory"
 assert_contains "$CODEX_OUTPUT" "Installed agent files: ${EXPECTED_CODEX_AGENT_FILES}" "Codex init summary must report installed agent files"
 assert_contains "$CODEX_OUTPUT" "Managed config files: 1" "Codex init summary must report managed config file count"
@@ -180,6 +318,7 @@ keep = true
 EOF
 
 (cd "$PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents codex --skills aif > "$TMPDIR/init-codex-rerun.log" 2>&1)
+assert_exists "$PROJECT_DIR/.codex/skills/aif-skill-generator/scripts/security-scan.py" "reinit must retain the required security skill"
 assert_contains "$PROJECT_DIR/.codex/config.toml" "\\[user\\]" "Codex init rerun must preserve tracked local config changes"
 assert_contains "$PROJECT_DIR/.codex/config.toml" "keep = true" "Codex init rerun must preserve tracked local config content"
 EXPECTED_CODEX_AGENT_FILES="$EXPECTED_CODEX_AGENT_FILES" node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];const expected=Number(process.env.EXPECTED_CODEX_AGENT_FILES);if(a.id!=='codex')process.exit(1);if(!Array.isArray(a.installedAgentFiles)||a.installedAgentFiles.length!==expected)process.exit(1);if(!a.installedConfigFiles||a.installedConfigFiles[0]!=='config.toml')process.exit(1);if(!a.managedConfigFiles||!a.managedConfigFiles['config.toml'])process.exit(1);" "$PROJECT_DIR/.ai-factory.json"
@@ -379,19 +518,24 @@ echo "codex deselect cleanup smoke tests passed"
 # installation.
 # -------------------------------------------------------------------
 
-FLAT_PROJECT_DIR="$TMPDIR/init-smoke-antigravity"
-mkdir -p "$FLAT_PROJECT_DIR"
+AG_PROJECT_DIR="$TMPDIR/init-smoke-antigravity"
+mkdir -p "$AG_PROJECT_DIR"
 
-(cd "$FLAT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents antigravity --skills aif,aif-rules-check > "$TMPDIR/init-antigravity.log" 2>&1)
+(cd "$AG_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents antigravity --skills aif,aif-rules-check --mcp filesystem > "$TMPDIR/init-antigravity.log" 2>&1)
 
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/aif.md" "antigravity init must install aif as a flat workflow"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/aif-rules-check.md" "antigravity init must install aif-rules-check as a flat workflow"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/references/update-config.mjs" "flat workflow installs must include the config helper in references/"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/references/config-template.yaml" "flat workflow installs must include config template references"
-assert_exists "$FLAT_PROJECT_DIR/.agent/workflows/references/RULES-CHECK-CONTRACT.md" "flat workflow installs must include rules-check references"
-assert_not_exists "$FLAT_PROJECT_DIR/.agent/skills/aif-rules-check" "workflow-classified skills must not remain under .agent/skills/"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/aif/SKILL.md" "antigravity init must install aif as standard SKILL.md directory"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/aif-rules-check/SKILL.md" "antigravity init must install aif-rules-check as standard SKILL.md directory"
+assert_exists "$AG_PROJECT_DIR/.agents/skills/aif/references/config-template.yaml" "antigravity skills must include config template references"
+assert_exists "$AG_PROJECT_DIR/.agents/mcp_config.json" "antigravity init must create .agents/mcp_config.json"
+assert_exists "$AG_PROJECT_DIR/.agents/rules/aif-guardrails.md" "antigravity init must create .agents/rules/aif-guardrails.md"
+assert_exists "$AG_PROJECT_DIR/.agents/rules/aif-conventions.md" "antigravity init must create .agents/rules/aif-conventions.md"
+assert_exists "$AG_PROJECT_DIR/.agents/agents/implement-coordinator.md" "antigravity init must install implement-coordinator subagent"
+assert_not_exists "$AG_PROJECT_DIR/.agent/workflows" "legacy .agent/workflows/ must not exist in Antigravity 2.0"
 
-echo "flat workflow init smoke tests passed"
+echo "antigravity 2.0 init smoke tests passed"
+
+npm run test:aif-explore-installation --silent
+echo "aif-explore installation reference smoke tests passed"
 
 # -------------------------------------------------------------------
 # Codex app skills smoke: Codex app uses the repository skills location
@@ -408,8 +552,8 @@ assert_exists "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" "Codex app mu
 assert_exists "$CODEX_APP_PROJECT_DIR/.agents/skills/aif-plan/SKILL.md" "Codex app must install aif-plan into repo skills"
 assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skill-generator' "Codex app skills must use Codex $ invocation"
 assert_not_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '(^|[^$])`/aif-skill-generator`' "Codex app skills must not keep slash invocation examples"
-assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '~/.agents/skills/aif-skill-generator/scripts/security-scan\.py' "Codex app transformer must not rewrite skill directory paths"
-assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\.\./aif-skill-generator/SKILL\.md' "Codex app transformer must not rewrite relative markdown links"
+assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/references/SETUP-SECURITY.md" '~/.agents/skills/aif-skill-generator/scripts/security-scan\.py' "Codex app transformer must not rewrite skill directory paths in references"
+assert_contains "$CODEX_APP_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\]\(references/SETUP-SECURITY\.md\)' "Codex app transformer must not rewrite relative markdown links"
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='codex-app')process.exit(1);if(a.skillsDir!=='.agents/skills')process.exit(1);if(a.agentsDir)process.exit(1);" "$CODEX_APP_PROJECT_DIR/.ai-factory.json"
 
 CODEX_APP_MCP_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-mcp"
@@ -441,24 +585,11 @@ assert_exists "$UNIVERSAL_MCP_PROJECT_DIR/.mcp.json" "Universal MCP init must wr
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(!c.mcpServers?.filesystem||!c.mcpServers?.playwright)process.exit(1);" "$UNIVERSAL_MCP_PROJECT_DIR/.mcp.json"
 node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const a=c.agents[0];if(a.id!=='universal')process.exit(1);if(a.mcp.filesystem!==true||a.mcp.playwright!==true)process.exit(1);" "$UNIVERSAL_MCP_PROJECT_DIR/.ai-factory.json"
 
-CONFLICT_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-universal-conflict"
-mkdir -p "$CONFLICT_PROJECT_DIR"
-if (cd "$CONFLICT_PROJECT_DIR" && node "$ROOT_DIR/dist/cli/index.js" init --agents universal,codex-app --skills aif > "$TMPDIR/init-codex-app-conflict.log" 2>&1); then
-  echo "Assertion failed: universal and codex-app must not be allowed to share .agents/skills"
-  cat "$TMPDIR/init-codex-app-conflict.log"
-  exit 1
-fi
-assert_contains "$TMPDIR/init-codex-app-conflict.log" "universal, codex-app" "conflict error must include both runtime ids"
-assert_contains "$TMPDIR/init-codex-app-conflict.log" "\.agents/skills" "conflict error must include the shared skillsDir"
-if grep -Eq '^[[:space:]]+at ' "$TMPDIR/init-codex-app-conflict.log"; then
-  echo "Assertion failed: conflict error must not print a stack trace"
-  cat "$TMPDIR/init-codex-app-conflict.log"
-  exit 1
-fi
+node "$ROOT_DIR/scripts/test-shared-skill-targets.mjs"
 
-INTERACTIVE_CONFLICT_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-universal-interactive-conflict"
-mkdir -p "$INTERACTIVE_CONFLICT_PROJECT_DIR"
-AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$INTERACTIVE_CONFLICT_PROJECT_DIR" node --input-type=module > "$TMPDIR/init-codex-app-interactive-conflict.log" 2>&1 <<'EOF'
+INTERACTIVE_SHARED_PROJECT_DIR="$TMPDIR/init-smoke-codex-app-universal-interactive-shared"
+mkdir -p "$INTERACTIVE_SHARED_PROJECT_DIR"
+AIF_TEST_ROOT_DIR="$ROOT_DIR" AIF_TEST_PROJECT_DIR="$INTERACTIVE_SHARED_PROJECT_DIR" node --input-type=module > "$TMPDIR/init-codex-app-interactive-shared.log" 2>&1 <<'EOF'
 import inquirer from 'inquirer';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -470,8 +601,6 @@ const promptQueue = [
 ];
 
 const originalPrompt = inquirer.prompt.bind(inquirer);
-const originalExit = process.exit;
-let exitCode = null;
 
 inquirer.prompt = async (questions) => {
   const next = promptQueue.shift();
@@ -479,10 +608,6 @@ inquirer.prompt = async (questions) => {
     throw new Error(`Unexpected prompt: ${JSON.stringify(questions)}`);
   }
   return next;
-};
-process.exit = (code = 0) => {
-  exitCode = code;
-  throw new Error(`PROCESS_EXIT:${code}`);
 };
 
 process.chdir(process.env.AIF_TEST_PROJECT_DIR);
@@ -492,26 +617,12 @@ const { initCommand } = await import(moduleUrl);
 
 try {
   await initCommand();
-  throw new Error('initCommand unexpectedly succeeded');
-} catch (error) {
-  if (!String(error.message).startsWith('PROCESS_EXIT:')) {
-    throw error;
-  }
-  if (exitCode !== 1) {
-    throw new Error(`Expected exit code 1, got ${exitCode}`);
-  }
 } finally {
   inquirer.prompt = originalPrompt;
-  process.exit = originalExit;
 }
 EOF
-assert_contains "$TMPDIR/init-codex-app-interactive-conflict.log" "universal, codex-app" "interactive conflict error must include both runtime ids"
-assert_contains "$TMPDIR/init-codex-app-interactive-conflict.log" "\.agents/skills" "interactive conflict error must include the shared skillsDir"
-if grep -Eq '^[[:space:]]+at ' "$TMPDIR/init-codex-app-interactive-conflict.log"; then
-  echo "Assertion failed: interactive conflict error must not print a stack trace"
-  cat "$TMPDIR/init-codex-app-interactive-conflict.log"
-  exit 1
-fi
+assert_contains "$TMPDIR/init-codex-app-interactive-shared.log" "Setup complete" "interactive shared init must succeed"
+assert_contains "$INTERACTIVE_SHARED_PROJECT_DIR/.agents/skills/aif/SKILL.md" '\$aif-skill-generator' "interactive shared init must use Codex invocations"
 
 echo "codex app init smoke tests passed"
 
@@ -1042,62 +1153,71 @@ import { pathToFileURL } from 'node:url';
 
 const { resolveNpmCommand } = await import(pathToFileURL(path.join(process.env.ROOT_DIR, 'dist/core/extensions.js')).href);
 
-const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aif-npm-resolve-'));
-const fakeExecDir = path.join(tempRoot, 'current-node');
-fs.mkdirSync(fakeExecDir, { recursive: true });
-const fakeExecPath = path.join(fakeExecDir, 'node.exe');
-fs.writeFileSync(fakeExecPath, '');
+const tempRoot = fs.mkdtempSync(path.join(process.cwd(), 'temp-npm-resolve-'));
+const noSafeRoot = fs.mkdtempSync(path.join(process.cwd(), 'temp-npm-missing-'));
 
-const npmRoot = path.join(tempRoot, 'npm-root');
-const npmCliPath = path.join(npmRoot, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-const bundledNodePath = path.join(npmRoot, 'node.exe');
-fs.mkdirSync(path.dirname(npmCliPath), { recursive: true });
-fs.writeFileSync(path.join(npmRoot, 'npm.cmd'), '@ECHO off\r\n');
-fs.writeFileSync(npmCliPath, '#!/usr/bin/env node\n');
-fs.writeFileSync(bundledNodePath, '');
+try {
+  const fakeExecDir = path.join(tempRoot, 'current-node');
+  fs.mkdirSync(fakeExecDir, { recursive: true });
+  const fakeExecPath = path.join(fakeExecDir, 'node.exe');
+  fs.writeFileSync(fakeExecPath, '');
 
-const resolved = await resolveNpmCommand({
-  platform: 'win32',
-  execPath: fakeExecPath,
-  pathEnv: `${npmRoot};${process.env.PATH}`,
-});
+  const npmRoot = path.join(tempRoot, 'npm-root');
+  const npmCliPath = path.join(npmRoot, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  const bundledNodePath = path.join(npmRoot, 'node.exe');
+  fs.mkdirSync(path.dirname(npmCliPath), { recursive: true });
+  fs.writeFileSync(path.join(npmRoot, 'npm.cmd'), '@ECHO off\r\n');
+  fs.writeFileSync(npmCliPath, '#!/usr/bin/env node\n');
+  fs.writeFileSync(bundledNodePath, '');
 
-assert.equal(resolved.command, bundledNodePath, 'Windows npm resolution must prefer node.exe adjacent to npm.cmd');
-assert.deepEqual(resolved.argsPrefix, [npmCliPath], 'Windows npm resolution must invoke npm-cli.js directly');
-
-const resolvedWithCustomDelimiter = await resolveNpmCommand({
-  platform: 'win32',
-  execPath: fakeExecPath,
-  pathEnv: `${path.relative(process.cwd(), npmRoot)}:${path.relative(process.cwd(), tempRoot)}`,
-  pathDelimiter: ':',
-});
-
-assert.equal(
-  resolvedWithCustomDelimiter.command,
-  path.join(path.relative(process.cwd(), npmRoot), 'node.exe'),
-  'Windows npm resolution must honor injected path delimiters instead of host defaults',
-);
-assert.deepEqual(
-  resolvedWithCustomDelimiter.argsPrefix,
-  [path.join(path.relative(process.cwd(), npmRoot), 'node_modules', 'npm', 'bin', 'npm-cli.js')],
-  'Windows npm resolution must honor injected delimiters when locating npm-cli.js',
-);
-
-const noSafeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aif-npm-missing-'));
-const missingExecDir = path.join(noSafeRoot, 'isolated-node');
-fs.mkdirSync(missingExecDir, { recursive: true });
-const missingExecPath = path.join(missingExecDir, 'node.exe');
-fs.writeFileSync(missingExecPath, '');
-
-await assert.rejects(
-  () => resolveNpmCommand({
+  const resolved = await resolveNpmCommand({
     platform: 'win32',
-    execPath: missingExecPath,
-    pathEnv: noSafeRoot,
-  }),
-  /safe Windows npm/i,
-  'Windows npm resolution must fail explicitly when no safe npm-cli.js path is available',
-);
+    execPath: fakeExecPath,
+    pathEnv: `${npmRoot};${process.env.PATH}`,
+  });
+
+  assert.equal(resolved.command, bundledNodePath, 'Windows npm resolution must prefer node.exe adjacent to npm.cmd');
+  assert.deepEqual(resolved.argsPrefix, [npmCliPath], 'Windows npm resolution must invoke npm-cli.js directly');
+
+  const resolvedWithCustomDelimiter = await resolveNpmCommand({
+    platform: 'win32',
+    execPath: fakeExecPath,
+    pathEnv: `${path.relative(process.cwd(), npmRoot)}:${path.relative(process.cwd(), tempRoot)}`,
+    pathDelimiter: ':',
+  });
+
+  assert.equal(
+    resolvedWithCustomDelimiter.command,
+    path.join(path.relative(process.cwd(), npmRoot), 'node.exe'),
+    'Windows npm resolution must honor injected path delimiters instead of host defaults',
+  );
+  assert.deepEqual(
+    resolvedWithCustomDelimiter.argsPrefix,
+    [path.join(path.relative(process.cwd(), npmRoot), 'node_modules', 'npm', 'bin', 'npm-cli.js')],
+    'Windows npm resolution must honor injected delimiters when locating npm-cli.js',
+  );
+
+  const missingExecDir = path.join(noSafeRoot, 'isolated-node');
+  fs.mkdirSync(missingExecDir, { recursive: true });
+  const missingExecPath = path.join(missingExecDir, 'node.exe');
+  fs.writeFileSync(missingExecPath, '');
+
+  await assert.rejects(
+    () => resolveNpmCommand({
+      platform: 'win32',
+      execPath: missingExecPath,
+      pathEnv: noSafeRoot,
+    }),
+    /safe Windows npm/i,
+    'Windows npm resolution must fail explicitly when no safe npm-cli.js path is available',
+  );
+} finally {
+  fs.rmSync(tempRoot, { recursive: true, force: true });
+  fs.rmSync(noSafeRoot, { recursive: true, force: true });
+}
 EOF
 
 echo "windows npm resolution smoke tests passed"
+
+node "$ROOT_DIR/scripts/test-codex-skill-targets.mjs" --group=control,targets,core,preflight,ownership,cli
+node "$ROOT_DIR/scripts/test-managed-skill-receipts.mjs"

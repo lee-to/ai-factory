@@ -2,15 +2,52 @@
 name: aif-loop
 description: Run a strict multi-iteration Reflex Loop with phases (PLAN, PRODUCE||PREPARE, EVALUATE, CRITIQUE, REFINE) to improve an artifact until quality gates pass or iteration limits are reached. Use when user asks for iterative refinement, quality-gated generation, or "generate -> critique -> refine" loops.
 argument-hint: "[new|resume|status|stop|list|history|clean] [task or alias]"
-allowed-tools: Read Write Edit Glob Grep Bash Task AskUserQuestion Questions
+allowed-tools: Read Write Edit Glob Grep Task AskUserQuestion Questions
 disable-model-invocation: true
 ---
 
 # Loop - Reflex Iteration Workflow
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules.
+
+Shell commands are not pre-approved by this skill. Use an exposed execution tool
+under the runtime's existing permissions for the authorized command and CWD.
+Reuse applicable authorization; request native approval only when required.
+Apply this policy to delegated executable checks as well: unavailable or denied
+commands remain blockers/not_run. Never broaden permissions, use another path
+to bypass a denial, or report an unexecuted check as passed.
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/aif-loop/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 Run a result-focused iterative loop with strict phase contracts, evaluation rules, and persistent state between sessions.
 
 ## Step 0: Load Config
+
+The question contract governs delivery, not the setup and cleanup approval gates.
+Prompt-supplied values remain drafts. Reuse only an explicit confirmation already
+completed for the same unchanged settings in this run; required reconfirmation
+after edits still applies. In delegated/non-interactive runs, required confirmations
+remain blockers before iteration 1 or cleanup; optional defaults cannot replace them.
 
 **FIRST:** Read `.ai-factory/config.yaml` if it exists to resolve:
 - **Paths:** `paths.description`, `paths.architecture`, `paths.rules_file`, `paths.roadmap`, `paths.plan`, `paths.plans`, and `paths.evolution`
@@ -205,10 +242,11 @@ When resuming a loop:
 1. Read `run.json` to get `current_step` and `iteration`
 2. Read last event from `history.jsonl` to confirm consistency
 3. If `run.json.current_step` indicates a phase was interrupted:
-   - Re-execute from that phase (do not skip)
-   - `PRODUCE_PREPARE`: always re-run both PRODUCE and PREPARE (idempotent — artifact overwrites, checks regenerate)
+   - First handle a matching `manual_dispatch` using `references/DISPATCH.md`: execute its pending phase in this agent without redispatch, validate and persist its result, then clear the marker. Resume alone is not proof of completed work.
+   - Otherwise re-execute from that phase (do not skip).
+   - `PRODUCE_PREPARE`: re-run both PRODUCE and PREPARE unless a validated manual handoff preserves an already accepted part of this pair; see `references/DISPATCH.md`.
 4. If `run.json.status` is `stopped`, `completed`, or `failed`, inform user and suggest `new` (for `failed` runs, also show the last `phase_error` event from `history.jsonl` so user understands what went wrong)
-5. Discard a stale `phase_started_epoch_seconds`: set it to the current `date +%s` when the interrupted phase actually re-starts. The interrupted attempt contributes nothing to the budget — only `completed_phase_seconds` already accumulated from finished segments carries over (see `references/ACTIVE-TIME-BUDGET.md`).
+5. When a budget is enabled, discard a stale `phase_started_epoch_seconds`: set it to the current `date +%s` when the interrupted phase actually re-starts. The interrupted attempt contributes nothing to the budget — only `completed_phase_seconds` already accumulated from finished segments carries over (see `references/ACTIVE-TIME-BUDGET.md`). With no budget, leave accounting fields untouched.
 
 ## Step 2: Interactive Setup (new loop)
 
@@ -291,6 +329,33 @@ Two levels of parallelism via `Task` tool:
 Each phase produces its defined output (see PHASE-CONTRACTS.md). No envelope wrapping. No router output.
 
 ## Step 4: Iteration Execution
+
+### Step 4.0: Phase dispatch (optional, backwards-compatible)
+
+Before dispatch, load `references/DISPATCH.md` for phase input/output transfer and manual resume.
+A matching pending manual handoff takes priority over dispatch; never dispatch that phase again.
+Otherwise, before each phase's in-process work, call:
+
+    ai-factory dispatch <phase> --json --prompt "<phase context and output contract>"
+
+where `<phase>` ∈ `plan | produce | prepare | evaluate | critique | refine`.
+
+Parse stdout as exactly one JSON object with `schema_version: 1` and the requested `phase`.
+Child output goes to stderr and is never a routing signal. On exit 0:
+- `status: "noop"` → execute in-process.
+- `status: "manual"` → persist the bound `run.json.manual_dispatch`, show the target-agent
+  resume instructions from `references/DISPATCH.md`, and STOP before phase execution.
+- `status: "completed"` → collect and validate the external result using PHASE-CONTRACTS.md;
+  persist it in the normal phase output location before advancing. Process success alone does
+  not validate phase output.
+Non-zero exit, malformed/mismatched JSON or any other status → append a `phase_error` event
+and fall back to in-process execution. Dispatch must NEVER block the loop.
+Auto dispatch forcibly terminates the direct child on `timeoutMs` (default 600000 ms).
+
+`current_step = PRODUCE_PREPARE` spans two phase keys: call `ai-factory dispatch produce` and
+`ai-factory dispatch prepare` separately (sequentially in auto mode), then aggregate in-process.
+The skill still reads only `.ai-factory/config.yaml`; all `.ai-factory.json` resolution lives in the
+`ai-factory dispatch` command.
 
 For each iteration:
 

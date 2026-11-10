@@ -40,62 +40,7 @@ Tasks are persisted in the conversation/project state.
 
 ## List Available Plans (`--list`)
 
-When the user runs:
-
-```
-/aif-implement --list
-```
-
-Use read-only discovery and stop without executing any tasks.
-
-### Discovery steps
-
-```
-git branch --show-current   # git mode only
-```
-
-Then derive:
-- `branchPlan = <configured plans dir>/<branch-stem>.md` or `<configured plans dir>/<branch-stem>/index.md`
-- `namedPlan = the only root *.md full plan or declared-ultra direct child */index.md entrypoint in <configured plans dir>/ when no branch-based plan exists; exclude resolved fast/fix plan paths`
-- `fastPlan = <resolved fast plan path>`
-- `fixPlan = <resolved fix plan path>`
-
-For `workflow.plan_id_format: sequential`, include both
-`[0-9]{4}_<branch-stem>.md` and `[0-9]{4}_<branch-stem>/index.md`, highest
-number first. Count a directory entrypoint only when it contains
-exactly one `<!-- aif:plan-mode:ultra -->`.
-Do not list phase files as independent plans.
-
-Check which files exist and print:
-
-```
-## Available Plans
-Current branch: <branch>
-- [x| ] <branchPlan>   (current-branch plan)
-- [x| ] <namedPlan>    (full/ultra plan without branch)
-- [x| ] <fastPlan>     (fast plan)
-- [x| ] <fixPlan>      (fix plan)
-
-Use:
-- /aif-implement @<path>  to execute a specific plan
-- /aif-implement          to use automatic priority
-```
-
-If no plans exist, print:
-
-```
-No plan files found. Create one with:
-- /aif-plan full <description>
-- /aif-plan ultra <description>
-- /aif-plan fast <description>
-- /aif-fix <bug description>
-```
-
-### Constraints
-
-- Do not execute implementation tasks
-- Do not modify files
-- Do not call `TaskUpdate`
+Follow `references/IMPLEMENT-LIST.md` for the complete read-only listing route and output. Do not load recovery examples for `--list`.
 
 ### Recovery after a break or after /clear
 

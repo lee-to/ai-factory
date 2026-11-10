@@ -6,7 +6,7 @@ The examples and output shapes in this reference define structure only. Render u
 
 ## When this runs
 
-`aif-improve --list` is invoked. The flag may appear anywhere in `$ARGUMENTS`. When `--list` is present, this procedure runs to completion and the skill stops — no refinement is performed even if other tokens (`+check`, `@path`, free-form prompt) are also passed. Those tokens are silently ignored in `--list` mode.
+`aif-improve --list` is invoked. The flag may appear anywhere in `$ARGUMENTS`. When `--list` is present, this procedure runs to completion and the skill stops — no refinement is performed even if other tokens (`+check`, `--no-check`, `@path`, free-form prompt) are also passed. Those tokens and `workflow.improve_check` are silently ignored in `--list` mode.
 
 ## Procedure
 
@@ -79,7 +79,7 @@ In `--list` mode the skill MUST NOT:
 - modify any files,
 - create or delete any plans,
 - update `TaskList` entries or task statuses,
-- call the validator subagent (the `+check` flag is silently ignored — there is nothing to validate before refinement runs).
+- call the validator subagent (validation flags and `workflow.improve_check` are silently ignored — there is nothing to validate before refinement runs).
 
 Only `git` (read-only), `Read`, `Glob`, and `Grep` are required to satisfy the procedure above.
 

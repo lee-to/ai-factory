@@ -1,4 +1,3 @@
-import path from 'path';
 import type { AgentTransformer, TransformResult } from '../transformer.js';
 import {
   WORKFLOW_SKILLS,
@@ -6,9 +5,9 @@ import {
   extractFrontmatterName,
   replaceFrontmatterName,
   rewriteInvocationPrefix,
+  rewriteReferenceInvocationPrefix,
   removeFrontmatter,
 } from '../transformer.js';
-import { fileExists, removeDirectory, removeFile } from '../../utils/fs.js';
 
 function toKiloWorkflowInvocation(invocation: string): string {
   if (invocation === 'aif') {
@@ -23,6 +22,11 @@ function toKiloWorkflowContent(content: string): string {
 }
 
 export class KiloCodeTransformer implements AgentTransformer {
+  transformReference(skillName: string, content: string): string {
+    return WORKFLOW_SKILLS.has(skillName)
+      ? rewriteReferenceInvocationPrefix(content, toKiloWorkflowInvocation) : content;
+  }
+
   transform(skillName: string, content: string): TransformResult {
     if (WORKFLOW_SKILLS.has(skillName)) {
       return {
@@ -45,25 +49,8 @@ export class KiloCodeTransformer implements AgentTransformer {
     };
   }
 
-  async postInstall(projectDir: string): Promise<void> {
-    const skillsDir = path.join(projectDir, '.kilocode', 'skills');
-    for (const skillName of WORKFLOW_SKILLS) {
-      const legacySkillDir = path.join(skillsDir, skillName);
-      if (await fileExists(legacySkillDir)) {
-        await removeDirectory(legacySkillDir);
-      }
-    }
-  }
-
-  async cleanup(projectDir: string): Promise<void> {
-    const workflowsDir = path.join(projectDir, '.kilocode', 'workflows');
-    for (const skillName of WORKFLOW_SKILLS) {
-      const workflowFile = path.join(workflowsDir, `${skillName}.md`);
-      if (await fileExists(workflowFile)) {
-        await removeFile(workflowFile);
-      }
-    }
-  }
+  // Removal belongs to the receipt-aware installer (removeOwnedSkills).
+  // Workflow names alone prove neither ownership nor an unchanged legacy directory.
 
   getWelcomeMessage(): string[] {
     return [

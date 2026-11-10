@@ -15,11 +15,38 @@ metadata:
 
 # Verify — Post-Implementation Quality Check
 
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/build-skill-context.md` — only fix, implement, plan, verify, improve.
+3. `.ai-factory/skill-context/aif-verify/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 Verify that the completed implementation matches the plan, nothing was missed, and the code is production-ready.
 
 **This skill is optional** — invoked after `/aif-implement` finishes all tasks, or manually at any time.
 
 ---
+
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+## Selective reference loading
+
+Resolve reference paths beside this installed entrypoint, including flat workflows. Read a reference in full only when its stated condition applies, before the dependent step; do not preload all references. If a selected reference is missing or unreadable, STOP before that step and report its path. The entrypoint dispatch and hard boundaries apply to every reference. Project skill-context overrides and managed extension injections retain their existing precedence. Keep managed `aif-ext` blocks in the entrypoint; never move them into references.
 
 ## Step 0: Load Context
 
@@ -70,51 +97,9 @@ Preserve machine-readable `aif-gate-result` JSON schema fields and enum values (
   - normal vs strict context-gate thresholds.
 - If this contract conflicts with older examples in this file, follow the contract.
 
-### 0.2 Find Plan Artifact
+### Plan discovery
 
-Same logic as `/aif-implement` — produce the **canonical branch stem** before any plans-dir glob so producer and consumers agree by construction.
-
-```
-1. Check current git branch:
-   git branch --show-current
-2. Convert branch to filename stem (git mode only):
-   branch_stem = current branch with every "/" replaced by "-"
-   Example: feature/user-auth → feature-user-auth
-3. Resolve the plan artifact using <branch_stem>:
-   → When `workflow.plan_id_format = sequential`, glob both
-       <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>.md
-       <configured plans dir>/[0-9][0-9][0-9][0-9]_<branch_stem>/index.md
-     Read every directory candidate and retain it only when `index.md` contains
-     exactly one <!-- aif:plan-mode:ultra -->. Choose the highest prefix across
-     valid artifacts and warn when multiple valid candidates exist; prefer ultra
-     if both shapes share the highest prefix.
-   → Otherwise/fallback check the ultra entrypoint and full file:
-       <configured plans dir>/<branch_stem>/index.md
-       <configured plans dir>/<branch_stem>.md
-     Read the directory entrypoint before selection and ignore it unless it
-     contains exactly one <!-- aif:plan-mode:ultra -->. If both valid shapes
-     exist, warn and prefer ultra.
-4. If the branch-based plan is missing or git mode is off:
-   → Count root `*.md` full plans and declared-ultra direct child `*/index.md`
-     entrypoints as artifacts; exclude resolved fast/fix paths and do not count
-     phase files
-   → If exactly one exists, use it
-   → If multiple exist, ask the user to choose or use `@<path>` via `/aif-implement`
-5. No named full/ultra plan → Check the resolved fast plan path
-6. No regular plan and no resolved fast plan → fall back to standalone verification choices
-```
-
-**Note:** Plan discovery scans `paths.plans/` only. Plans archived to `paths.archive/plans/` by `/aif-archive` are excluded from discovery. If a plan is found only in the archive, emit `WARN [aif-verify] plan <name> is archived; verifying archived plan`.
-
-**If no plan artifact is found:**
-```
-AskUserQuestion: No plan artifact found. What should I verify?
-
-Options:
-1. Verify last commit — Check the most recent commit for completeness
-2. Verify branch diff — Compare current branch against the configured base branch
-3. Cancel
-```
+Before selecting a plan or standalone verification target, read [plan discovery](references/VERIFY-DISCOVERY.md). Scan configured active plan paths, preserve canonical branch stems and sequential IDs, and ignore unrelated directories. Ultra requires exactly one `<!-- aif:plan-mode:ultra -->`; missing plan context requires the existing standalone choice.
 
 ### 0.3 Read Plan & Tasks
 
@@ -181,106 +166,9 @@ Store as `CHANGED_FILES`.
 
 ---
 
-## Step 1: Task Completion Audit
+## Task and code audit
 
-Go through **every task** in the plan and verify it was actually implemented.
-
-For each task:
-
-### 1.1 Read Task Description
-
-```
-TaskGet(taskId) → Get full description, requirements, acceptance criteria
-```
-
-### 1.2 Verify Implementation Exists
-
-For each requirement in the task description:
-- Use `Glob` and `Grep` to find the code that implements it
-- Read the relevant files to confirm the implementation is complete
-- Check that the implementation matches what was described, not just that "something was written"
-
-### 1.3 Build Checklist
-
-For each task, produce a verification result:
-
-```
-✅ Task #1: Create user model — COMPLETE
-   - User model created at src/models/user.ts
-   - All fields present (id, email, name, createdAt, updatedAt)
-   - Validation decorators added
-
-⚠️ Task #3: Add password reset endpoint — PARTIAL
-   - Endpoint created at src/api/auth/reset.ts
-   - MISSING: Email sending logic (task mentioned SendGrid integration)
-   - MISSING: Token expiration check
-
-❌ Task #5: Add rate limiting — NOT FOUND
-   - No rate limiting middleware detected
-   - No rate-limit related packages in dependencies
-```
-
-Statuses:
-- `✅ COMPLETE` — all requirements verified in code
-- `⚠️ PARTIAL` — some requirements implemented, some missing
-- `❌ NOT FOUND` — implementation not detected
-- `⏭️ SKIPPED` — task was intentionally skipped by user during implement
-
----
-
-## Step 2: Code Quality Verification
-
-### 2.1 Build & Compile Check
-
-Detect the build system and verify the project compiles:
-
-| Detection | Command |
-|-----------|---------|
-| `go.mod` | `go build ./...` |
-| `tsconfig.json` | `npx tsc --noEmit` |
-| `package.json` with `build` script | `npm run build` (or pnpm/yarn/bun) |
-| `pyproject.toml` | `python -m py_compile` on changed files |
-| `Cargo.toml` | `cargo check` |
-| `composer.json` | `composer validate` |
-
-If build fails → report errors with file:line references.
-
-### 2.2 Test Check
-
-If the project has tests and they were part of the plan:
-
-| Detection | Command |
-|-----------|---------|
-| `jest.config.*` or `vitest` | `npm test` |
-| `pytest` | `pytest` |
-| `go test` | `go test ./...` |
-| `phpunit.xml*` | `./vendor/bin/phpunit` |
-| `Cargo.toml` | `cargo test` |
-
-If tests fail → report which tests failed and whether they relate to the implemented tasks.
-
-If no tests exist or testing was explicitly skipped in the plan → note it but don't fail.
-
-### 2.3 Lint Check
-
-If linters are configured:
-
-| Detection | Command |
-|-----------|---------|
-| `eslint.config.*` / `.eslintrc*` | `npx eslint [changed files]` |
-| `.golangci.yml` | `golangci-lint run ./...` |
-| `ruff` in pyproject.toml | `ruff check [changed files]` |
-| `.php-cs-fixer*` | `./vendor/bin/php-cs-fixer fix --dry-run --diff` |
-
-Only lint the changed files to keep output focused.
-
-### 2.4 Import & Dependency Check
-
-- Verify no unused imports were left behind
-- Check that new dependencies mentioned in tasks were actually added (`package.json`, `go.mod`, `requirements.txt`, `composer.json`)
-- Check for missing dependencies (imports that reference packages not in dependency files)
-
----
+Before auditing implementation, read [task completion and code quality checks](references/VERIFY-AUDIT.md). Verify every required task against real code, run applicable build/test/lint/dependency checks, and report skipped or failed checks honestly. Apply the plan's testing policy and strict-mode requirements; never treat missing evidence as a passing check.
 
 ## Step 3: Consistency Checks
 
@@ -315,261 +203,15 @@ Respect the plan's testing setting. If tests were intentionally skipped, use
 static inspection plus the plan's runnable/manual verification evidence; report
 missing evidence as a warning in normal mode and a failure in strict mode.
 
-### 3.1 Plan vs Code Drift
+### Code and context consistency
 
-Check for discrepancies between what the plan says and what was built:
+Before evaluating code/configuration drift and context gates, read [consistency checks and owner remediation](references/VERIFY-CONSISTENCY.md). Apply the canonical ownership/gate contracts. Clear architecture/rule violations block; clear roadmap mismatch blocks in strict mode. Missing milestone linkage remains a warning even in strict mode. Context artifacts are read-only; route remediation to their owner commands.
 
-- **Naming**: Do variable/function/endpoint names match what the plan specified?
-- **File locations**: Are files where the plan said they should be?
-- **API contracts**: Do endpoint paths, request/response shapes match the plan?
+## Report and follow-up
 
-### 3.2 Leftover Artifacts
+Before rendering any result, read [report format and follow-up procedures](references/VERIFY-REPORT.md). Report task completion, code quality, requirement consistency, context gates, and unavailable evidence in `ui_language`. Unresolved blockers remain failures even when accepted or deferred; remediation requires the user's choice and owner commands.
 
-Search for things that should have been cleaned up:
-
-```
-Grep in CHANGED_FILES: [T][O][D][O]|[F][I][X][M][E]|HACK|[X][X][X]|TEMP|PLACEHOLDER|console\.log\(.*debug|print\(.*debug
-```
-
-Report any found — they might be intentional, but flag them.
-
-### 3.3 Configuration & Environment
-
-Check if the implementation introduced any new config requirements:
-
-- New environment variables referenced but not documented
-- New config files mentioned in code but not created
-- Database migrations created but not documented in README/docs
-
-```
-Grep in CHANGED_FILES: process\.env\.|os\.Getenv\(|os\.environ|env\(|getenv\(|config\(
-```
-
-Cross-reference with `.env.example`, `.env.local`, README, or docs to ensure they're documented.
-
-### 3.4 DESCRIPTION.md Sync
-
-Check if `.ai-factory/DESCRIPTION.md` reflects the current state:
-
-- New dependencies/libraries added during implementation → should be listed
-- Architecture changes → should be reflected
-- New integrations → should be documented
-
-### 3.5 Context Gates (Architecture / Roadmap / Rules)
-
-Apply the canonical contract from `references/CONTEXT-GATES-AND-OWNERSHIP.md`.
-
-Evaluate and report each gate explicitly:
-
-- **Architecture gate**
-  - Pass: implementation follows documented boundaries and dependency rules
-  - Warn: architecture mapping is ambiguous or stale
-  - Fail: clear violation of explicit architecture constraints
-
-- **Rules gate**
-  - Pass: implementation follows explicit project rules
-  - Warn: relevance/verification is ambiguous
-  - Fail: clear violation of explicit rule text
-
-- **Roadmap gate**
-  - Pass: work aligns with existing milestone direction (prefer `## Roadmap Linkage` from the plan when present)
-  - Warn: `.ai-factory/ROADMAP.md` missing, ambiguous mapping, or no milestone linkage for `feat`/`fix`/`perf` scope
-  - Fail (strict mode): clear roadmap contradiction after all available roadmap context is considered
-
-Normal mode behavior:
-- Architecture/rules clear violations fail verification.
-- Roadmap mismatch and missing milestone linkage are warnings unless contradiction is explicit and severe.
-
-Strict mode behavior:
-- Architecture and rules clear violations fail verification.
-- Clear roadmap mismatch fails verification.
-- Missing milestone linkage for `feat`/`fix`/`perf` remains a warning (even when `.ai-factory/ROADMAP.md` exists).
-
-Human logging/reporting format:
-- Non-blocking findings: `WARN [gate-name] ...`
-- Blocking findings: `ERROR [gate-name] ...`
-
-If the user wants a standalone rules-only pass, suggest `/aif-rules-check`. Keep human context-gate labels at `WARN` / `ERROR`, then derive the final machine-readable gate result from the full verification report.
-
-Machine-readable gate result:
-- Append one final fenced `aif-gate-result` JSON block after the human-readable verification report.
-- Use `"gate": "verify"`.
-- Use `"status": "pass|warn|fail"` where:
-  - `fail` = incomplete required tasks, failed blocking quality checks, strict-mode context gate failures, or other blockers requiring remediation.
-  - `warn` = only non-blocking warnings remain, optional checks were skipped, docs/test gaps were accepted as warnings, or context drift is ambiguous.
-  - `pass` = no blocking or warning findings remain.
-- Use `"blocking": true|false`; set it to `true` only when the result should stop commit or merge flow.
-- Include only blocking findings in `"blockers": [`; keep non-blocking notes in the human summary.
-- Include changed or implicated paths in `"affected_files": [`.
-- Set `"suggested_next": {` to `/aif-fix`, `/aif-rules`, `/aif-architecture`, `/aif-roadmap`, `/aif-commit`, or `null` according to `references/GATE-RESULT-CONTRACT.md`.
-
-### 3.6 Context Drift (Optional Remediation)
-
-`/aif-verify` is **read-only** for context artifacts. Do not edit or regenerate `.ai-factory/*` files here.
-
-If you detect that a context artifact is stale, missing, or ambiguous, report it as a drift finding and provide the owner-command remediation:
-
-- `DESCRIPTION.md` drift → suggest `/aif` (or note that `/aif-implement` should have updated it during implementation)
-- `ARCHITECTURE.md` drift → suggest `/aif-architecture`
-- `ROADMAP.md` drift → suggest `/aif-roadmap check` (or `/aif-roadmap <update request>`)
-- `RULES.md` drift → suggest `/aif-rules <rule text>`
-
-Ask the user a single optional question **only if** drift was detected and fixing it now would materially improve correctness:
-
-```
-AskUserQuestion: Context drift detected. Capture updates now?
-
-Options:
-1. Yes — show the exact commands to run (recommended)
-2. No — proceed without updating context
-```
-
----
-
-## Step 4: Verification Report
-
-### 4.1 Display Results
-
-Write the human-readable verification report in `ui_language`. The template below defines structure only; keep stable technical tokens and the final `aif-gate-result` JSON schema unchanged.
-
-```
-## Verification Report
-
-### Task Completion: 7/8 (87%)
-| # | Task | Status | Notes |
-|---|------|--------|-------|
-| 1 | Create user model | ✅ Complete | |
-| 2 | Add registration endpoint | ✅ Complete | |
-| 3 | Add password reset | ⚠️ Partial | Missing: email sending |
-| 4 | Add JWT auth middleware | ✅ Complete | |
-| 5 | Add rate limiting | ✅ Complete | |
-| 6 | Add input validation | ✅ Complete | |
-| 7 | Add error handling | ✅ Complete | |
-| 8 | Update API docs | ❌ Not found | No changes in docs/ |
-
-### Code Quality
-- Build: ✅ Passes
-- Tests: ✅ 42 passed, 0 failed
-- Lint: ⚠️ 2 warnings in src/api/auth/reset.ts
-
-### Requirements Consistency
-- Source reconciliation: ✅ Passes
-- Supported combinations: ✅ Covered
-- Representative artifact path: ✅ Verified / ⏭️ Not applicable
-
-### Issues Found
-1. **Task #3 incomplete** — Password reset endpoint created but email sending not implemented (SendGrid integration missing)
-2. **Task #8 not done** — API documentation not updated despite plan requirement
-3. **2 unfinished markers found** — src/services/auth.ts:45, src/middleware/rate-limit.ts:12
-4. **New env var undocumented** — `SENDGRID_API_KEY` referenced but not in .env.example
-
-### No Issues
-- All imports resolved
-- No unused dependencies
-- DESCRIPTION.md up to date
-- No leftover debug logs
-```
-
-### 4.2 Determine Overall Status
-
-- **All Green** — everything verified, no issues
-- **Minor Issues** — small gaps that can be fixed quickly
-- **Significant Gaps** — tasks missing or partially done, needs re-implementation
-
-### 4.2.1 Append Machine-Readable Gate Result
-
-After the human-readable report and overall status, append exactly one final `aif-gate-result` fenced JSON block.
-
-```aif-gate-result
-{
-  "schema_version": 1,
-  "gate": "verify",
-  "status": "pass",
-  "blocking": false,
-  "blockers": [],
-  "affected_files": [],
-  "suggested_next": {
-    "command": "/aif-commit",
-    "reason": "Verification passed without blockers."
-  }
-}
-```
-
-Schema reminder: `"status": "pass|warn|fail"`, `"blocking": true|false`, `"blockers": [`, `"affected_files": [`, `"suggested_next": {`.
-
-### 4.3 Action on Issues
-
-If issues were found:
-
-```
-AskUserQuestion: Verification found issues. What should we do?
-
-Options:
-1. Fix now (recommended) — Use /aif-fix to address all issues
-2. Fix critical only — Use /aif-fix for incomplete tasks, skip warnings
-3. Fix directly here — Address issues in this session without /aif-fix
-4. Accept as-is — Mark everything as done, move on
-```
-
-**If "Fix now" or "Fix critical only":**
-- First suggest using `/aif-fix` and pass a concise issue summary as argument
-- Example:
-  - `/aif-fix complete Task #3 password reset email flow, implement Task #8 docs update, remove unfinished markers in src/services/auth.ts and src/middleware/rate-limit.ts, document SENDGRID_API_KEY in .env.example`
-- If user agrees, proceed via `/aif-fix`
-- If user declines `/aif-fix`, continue with direct implementation in this session
-- For each incomplete/partial task — implement the missing pieces (follow the same implementation rules as `/aif-implement`)
-- For unfinished markers/debug artifacts — clean them up
-- For undocumented config — update `.env.example` and docs
-- After fixing, re-run the relevant verification checks to confirm
-
-**If "Accept as-is":**
-- Note the accepted issues in the plan entrypoint as a comment
-- Continue to Step 5
-
----
-
-## Step 5: Suggest Follow-Up Skills
-
-After verification is complete, suggest next steps based on result:
-
-- If unresolved issues remain (accepted or deferred), suggest `/aif-fix` first
-- If all green, suggest security/review/commit flow
-
-```
-## Verification Complete
-
-Suggested next steps:
-
-1. 🛠️ /aif-fix [issue summary] — Fix remaining verification issues
-2. 🔒 /aif-security-checklist — Run security audit on the new code
-3. 👀 /aif-review — Code review of the implementation
-4. 💾 /aif-commit — Commit the changes
-
-Which would you like to run? (or skip all)
-```
-
-```
-AskUserQuestion: Run additional checks?
-
-Options:
-1. Fix issues — Run /aif-fix with verification findings
-2. Security check — Run /aif-security-checklist on changed files
-3. Code review — Run /aif-review on the implementation
-4. Both — Run security check, then code review
-5. Skip — Proceed to commit
-```
-
-**If fix issues selected** → suggest invoking `/aif-fix <issue summary>`
-**If security check selected** → suggest invoking `/aif-security-checklist`
-**If code review selected** → suggest invoking `/aif-review`
-**If both** → suggest security first, then review
-**If skip** → suggest `/aif-commit`
-
-### Context Cleanup
-
-Suggest the user to free up context space if needed: `/clear` (full reset) or `/compact` (compress history).
-
----
+Append exactly one final fenced `aif-gate-result` JSON block with `"gate": "verify"` and unchanged schema. Use `pass` only without warnings/blockers, `warn` for non-blocking limitations, and `fail` for blocking gaps. Keep `blocking`, `blockers`, `affected_files`, and `suggested_next` consistent with `references/GATE-RESULT-CONTRACT.md`. Nothing follows the final machine-readable block; any follow-up suggestions precede it.
 
 ## Strict Mode
 
@@ -598,20 +240,10 @@ Strict mode is recommended before merging to the configured base branch or creat
 
 ---
 
-## Usage
+## Worked report example
 
-### After implement (suggested automatically)
-```
-/aif-verify
-```
+Read [report example](references/VERIFY-EXAMPLES.md) only when a worked rendering is needed; use actual evidence rather than the example values.
 
-### Strict mode before merge
-```
-/aif-verify --strict
-```
+## Usage examples
 
-### Standalone (no plan, verify branch diff)
-```
-/aif-verify
-→ No plan found → verify branch diff against the configured base branch
-```
+Only when usage help is needed, read [verification examples](references/VERIFY-USAGE.md). Normal, strict, and standalone verification remain supported.

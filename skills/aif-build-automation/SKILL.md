@@ -15,6 +15,30 @@ metadata:
 
 # Build Automation Generator
 
+## Runtime-aware questions
+
+Apply this contract whenever the workflow asks the user to decide:
+
+- `AskUserQuestion` and `Questions` below describe the intended interaction, not a required tool name. Use only a question tool actually exposed and permitted in the current session/mode, with its advertised schema. Do not guess aliases, probe unavailable tools, or assume `questionnaire` exists. A frontmatter entry alone does not make a tool available.
+- Ask one focused question at a time with clearly labelled options. Batch independent questions only if the actual tool schema supports it; respect its field names, limits, and selection semantics. For open-ended input, use native free-text support or plain text if the schema cannot represent the question. Use the resolved UI language.
+- If no usable question tool exists (or it reports unavailable in this mode), ask the same question in plain text with numbered options and allow a free-text answer. Pause work that depends on that answer; independent read-only investigation may continue. Missing UI does not make the session autonomous.
+- An empty/cancelled response, a preselected option, or elapsed time is not an answer or approval. Reuse an answer already given in the session instead of asking again.
+- In a subagent/background run or explicit non-interactive mode (including `HANDOFF_MODE=1`), do not prompt the user directly. Use declared defaults only for optional preferences within the authorized scope and report assumptions. If a required decision, approval, or material scope/behavior choice remains unresolved, stop dependent work and return the missing decision and options to the parent/caller using its existing blocked/failure contract. Never invent consent or select a new scope to avoid blocking.
+
+This delivery policy applies to this skill and its linked references. Preserve workflow-specific question scope, required confirmations, approval boundaries, and blocked-result rules. This skill is config-agnostic: use the conversation language for questions; do not read config.yaml just for question delivery.
+
+## Shared project skill-context
+
+Before mode routing or work, read existing files relative to the current project root in this order (reuse them if already loaded):
+
+1. `.ai-factory/skill-context/global-skill-context.md` — all bundled skills.
+2. `.ai-factory/skill-context/aif-build-automation/SKILL.md` — this skill.
+
+Missing files are skipped; an existing unreadable file stops dependent work with its path.
+Precedence: individual > build (when applicable) > global > skill defaults; retain non-conflicting instructions and check all outputs against the effective rules.
+These layers customize workflow; they do not replace the project's rules/architecture hierarchy or relax explicit requirements, ownership, scope, safety/privacy, validation, or approval boundaries. Report conflicts with those boundaries instead of overriding them.
+`global` is a project-local layer, not home-directory configuration. Custom/extension skills do not automatically use it.
+
 Generate or enhance a build automation file for any project. Supports Makefile, Taskfile.yml, Justfile, and Magefile.go.
 
 **Two modes:**
@@ -608,6 +632,12 @@ For detailed integration procedures (README, AGENTS.md, existing markdown) → r
 Brief: scan for existing command sections, update or append quick reference, suggest AGENTS.md creation if missing.
 
 ## Artifact Ownership and Config Policy
+
+When `/aif-quality-setup` hands off selected checks, expose the same native commands,
+repository/component CWD and check/fix distinction in requested build targets.
+Preserve existing targets and tool policy; do not regenerate quality configs or
+install hook managers as part of this handoff. Command discovery is not execution
+authorization. Build-file ownership below remains unchanged.
 
 - Primary ownership: generated or enhanced build automation files (`Makefile`, `Taskfile.yml`, `justfile`, `magefile.go`).
 - Allowed companion updates: quick command snippets in existing docs or `AGENTS.md` when directly tied to the generated build workflow.

@@ -1,0 +1,57 @@
+# Behavioral fixture; npm test does not execute model workflows.
+scenario: redacted-source-terms
+description: Redaction also covers terms references and notices in split children.
+skill: aif-distillation
+argument: >-
+  ./hidden-atlas.md --name operations --path ./output --split-by goal --redact-source-map
+  Create exactly two children named operations-incident-triage and operations-incident-retrospective.
+max_turns: 40
+fixtures:
+  git_init: false
+  files_unstaged:
+    - path: hidden-atlas.md
+      content: |
+        # Hidden Atlas
+        Source kind: internal guide, edition 2.
+        Terms reference: https://hidden.example.test/terms.
+        Notice: Attribute Hidden Atlas by Secret Author.
+        User export restriction: local use only.
+        Two independent jobs: incident triage and incident retrospective.
+        Triage: establish impact, choose reversible mitigation, verify recovery.
+        Retrospective: build a timeline, identify contributing factors,
+        assign an owner and verification date to each corrective action.
+assertions:
+  - id: no-source-map
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: 'SOURCE-MAP\.md$'
+  - id: no-identifiers-in-written-files
+    type: no_tool_called
+    tool: Write
+    args_match:
+      content: '(?i)(Hidden Atlas|hidden-atlas|hidden\.example\.test|Secret Author)'
+  - id: no-identifiers-in-edits
+    type: no_tool_called
+    tool: Edit
+    args_match:
+      new_string: '(?i)(Hidden Atlas|hidden-atlas|hidden\.example\.test|Secret Author)'
+  - id: triage-current-redacted-metadata
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'output/operations-incident-triage/SKILL\.md$'
+      content: &current-redacted-metadata '(?i)^(?=[\s\S]*metadata revision[^\n]*\b1\b[^\n]*current)(?=[\s\S]*terms[^\n]*redacted)(?=[\s\S]*local (?:use )?only)(?=[\s\S]*reduced public traceability)[\s\S]*$'
+  - id: retrospective-current-redacted-metadata
+    type: tool_called
+    tool: Write
+    args_match:
+      file_path: 'output/operations-incident-retrospective/SKILL\.md$'
+      content: *current-redacted-metadata
+  - id: no-unexpected-child
+    type: no_tool_called
+    tool: Write
+    args_match:
+      file_path: 'output/operations-(?!(?:incident-triage|incident-retrospective)/)[^/]+/SKILL\.md$'
+  - id: stay-in-sandbox
+    type: no_path_escape

@@ -1,11 +1,15 @@
 import type { AgentTransformer, TransformResult } from '../transformer.js';
-import { rewriteInvocationPrefix } from '../transformer.js';
+import { rewriteInvocationPrefix, rewriteReferenceInvocationPrefix } from '../transformer.js';
 
 function toQwenInvocation(content: string): string {
   return rewriteInvocationPrefix(content, invocation => `/skills ${invocation}`);
 }
 
 export class QwenTransformer implements AgentTransformer {
+  transformReference(_skillName: string, content: string): string {
+    return rewriteReferenceInvocationPrefix(content, invocation => `/skills ${invocation}`);
+  }
+
   transform(skillName: string, content: string): TransformResult {
     return {
       targetDir: skillName,
