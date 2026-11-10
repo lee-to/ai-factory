@@ -31,7 +31,10 @@ with source hashes and supplied to every role. Public snapshots expose only thei
 identities/hashes. Configured paths must stay inside the project.
 
 Every claim has a unique fencing token and lease. Heartbeats extend only the
-current claim. The Runtime stages and commits worker edits on their assigned branches so Git
+current claim, from worktree preparation through Runtime Git work until result
+or blocker submission is durably accepted. Provider usage is recorded when the
+CLI exits; the worker stays active until the entire task operation finishes.
+The Runtime stages and commits worker edits on their assigned branches so Git
 metadata writes do not depend on model sandbox permissions. Submitted commits
 are immutable hashes. Parent completion waits
 for required children; dependencies and parent completion edges must be acyclic.
@@ -118,3 +121,21 @@ hard token ceiling: an in-flight call can exceed its reservation. Timeouts and
 parallelism are enforced by the Runtime; exact token/cost enforcement and
 subscription cost calculation are not available. `AIF_SWARM_LOG_LEVEL=silent`
 disables operational stderr logs; structured audit events remain enabled.
+
+## Remaining RFC requirements
+
+This release implements a reduced local MVP, not full Swarm RFC compliance.
+The following requirements remain open and are not implied by passing CI:
+
+- Ongoing Lead supervision/replanning and resource reassignment: Lead currently
+  creates the initial DAG and exits. Workers can create bounded subtasks; the
+  deterministic scheduler and owner handle retries and blockers afterward.
+- Runtime-enforced arbitrary tool/network policy and hard in-flight token
+  ceilings: `allowedTools` configures Claude grants only. Codex uses its native
+  sandbox/network settings; it does not implement that Claude tool allowlist.
+- Full RFC efficiency/cost/coordination metrics and the comparison of one agent,
+  static parallelism and dynamic decomposition. Real provider inference and
+  container/VM isolation remain unverified; no speedup or quality claim is made.
+
+CI runs `npm run test:swarm` on Node.js 24 against SQLite and disposable
+PostgreSQL. The separate Node.js 18 job retains package compatibility checks.

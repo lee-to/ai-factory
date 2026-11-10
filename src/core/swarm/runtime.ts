@@ -123,8 +123,9 @@ export class SwarmRuntime {
     const abort = () => heartbeatAbort.abort();
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) abort();
-    const timer = setInterval(() => { void this.engine.heartbeat(run.id, agent.id,
-      agent.currentTaskId, run.tasks.find(t => t.id === agent.currentTaskId)?.claimToken).catch(abort); }, Math.min(5000, run.spec.limits.leaseMs / 3));
+    const timer = agent.currentTaskId ? undefined : setInterval(() => {
+      void this.engine.heartbeat(run.id, agent.id).catch(abort);
+    }, Math.min(5000, run.spec.limits.leaseMs / 3));
     let tokens: number | undefined;
     try {
       const command = buildProviderCommand(agent, agent.role, prompt, run.spec, {
@@ -135,13 +136,13 @@ export class SwarmRuntime {
       const parsed = parseProviderOutput(agent.provider, result.stdout); tokens = parsed.tokens;
       return parsed.result;
     } finally {
-      clearInterval(timer); signal.removeEventListener('abort', abort); this.credentials.delete(token); await this.engine.finishAgent(run.id, agent.id, tokens);
+      clearInterval(timer); signal.removeEventListener('abort', abort); this.credentials.delete(token); await this.engine.recordAgentUsage(run.id, agent.id, tokens);
     }
   }
-  private async worktree(run: Run, suffix: string, ref: string): Promise<string> {
+  private async worktree(run: Run, suffix: string, ref: string, signal?: AbortSignal): Promise<string> {
     const cwd = path.join(this.base, run.id, suffix);
     await mkdir(path.dirname(cwd), { recursive: true, mode: 0o700 });
-    await git(this.engine.project, ['worktree', 'add', '-b', `aif/swarm/${run.id}/${suffix}`, cwd, ref]);
+    await git(this.engine.project, ['worktree', 'add', '-b', `aif/swarm/${run.id}/${suffix}`, cwd, ref], signal);
     return cwd;
   }
   private async remove(cwd: string): Promise<void> {
@@ -162,14 +163,21 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
     } finally { if (cwd) await this.remove(cwd); await this.engine.finishAgent(run.id, agent.id); }
   }
   private async worker(run: Run, task: Task, agent: Agent, signal: AbortSignal): Promise<void> {
+    const taskAbort = new AbortController(), taskSignal = taskAbort.signal;
+    const abort = () => taskAbort.abort();
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+    const timer = setInterval(() => {
+      void this.engine.heartbeat(run.id, agent.id, task.id, task.claimToken).catch(abort);
+    }, Math.min(5000, run.spec.limits.leaseMs / 3));
     let cwd: string | undefined;
     try {
-      cwd = await this.worktree(run, `${task.id}-${task.attempts}`, task.baseRef!);
+      cwd = await this.worktree(run, `${task.id}-${task.attempts}`, task.baseRef!, taskSignal);
       const context = { ...run, tasks: run.tasks.map(t => t.id === task.id ? task : t) };
       const result = await this.invoke(context, agent, cwd, `${this.context(run)}\nGoal: ${run.goal}\nTask: ${JSON.stringify(task)}\n`
         + `MCP swarm tools are available, bound to this run and agent. Create bounded subtasks only if needed, with idempotency keys. `
         + `Implement the task and execute applicable checks. Leave task changes in this worktree; the Runtime owns Git staging and commits. Previous failure: ${task.report ?? 'none'}. `
-        + 'Return {"report":"changes and checks"}; if blocked return {"blocked":true,"report":"reason"}.', signal);
+        + 'Return {"report":"changes and checks"}; if blocked return {"blocked":true,"report":"reason"}.', taskSignal);
       const live = await this.engine.get(run.id), current = live.tasks.find(t => t.id === task.id)!;
       if (current.status !== 'running') return;
       if (result.blocked === true) {
@@ -177,14 +185,14 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
         await this.runtimeResult(run.id, task, agent.id, 'report_blocker', result); return;
       }
       requireValue(typeof result.report === 'string' && result.report.trim(), 'Worker did not return a report');
-      requireValue(await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']) === `aif/swarm/${run.id}/${task.id}-${task.attempts}`, 'Worker changed its assigned branch');
-      if (await git(cwd, ['status', '--porcelain'])) {
-        await git(cwd, ['add', '--all', '--', '.']);
-        await git(cwd, ['commit', '-m', `swarm: ${task.title}`]);
+      requireValue(await git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], taskSignal) === `aif/swarm/${run.id}/${task.id}-${task.attempts}`, 'Worker changed its assigned branch');
+      if (await git(cwd, ['status', '--porcelain'], taskSignal)) {
+        await git(cwd, ['add', '--all', '--', '.'], taskSignal);
+        await git(cwd, ['commit', '-m', `swarm: ${task.title}`], taskSignal);
       }
-      result.gitRef = await git(cwd, ['rev-parse', 'HEAD']);
-      await git(cwd, ['merge-base', '--is-ancestor', task.baseRef!, String(result.gitRef)]);
-      requireValue(!(await git(cwd, ['status', '--porcelain'])), 'Worker left uncommitted changes');
+      result.gitRef = await git(cwd, ['rev-parse', 'HEAD'], taskSignal);
+      await git(cwd, ['merge-base', '--is-ancestor', task.baseRef!, String(result.gitRef)], taskSignal);
+      requireValue(!(await git(cwd, ['status', '--porcelain'], taskSignal)), 'Worker left uncommitted changes');
       await this.runtimeResult(run.id, task, agent.id, 'submit_result', result);
     } catch (error) {
       if (!signal.aborted) await this.engine.store.mutate(this.engine.project, run.id, state => {
@@ -193,10 +201,13 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
         current.leaseUntil = 0;
       });
       throw error;
-    } finally { if (cwd) await this.remove(cwd); await this.engine.finishAgent(run.id, agent.id); }
+    } finally {
+      clearInterval(timer); signal.removeEventListener('abort', abort);
+      if (cwd) await this.remove(cwd); await this.engine.finishAgent(run.id, agent.id);
+    }
   }
   private async runtimeResult(id: string, task: Task, agentId: string, method: string, result: Record<string, unknown>): Promise<void> {
-    await this.engine.agentOperation(id, agentId, uid(), method, { ...result, taskId: task.id, claimToken: task.claimToken }, true);
+    await this.engine.agentOperation(id, agentId, uid(), method, { ...result, taskId: task.id, claimToken: task.claimToken });
   }
   private async checks(run: Run, cwd: string, signal: AbortSignal): Promise<boolean> {
     for (const [file, ...args] of run.spec.checks) {

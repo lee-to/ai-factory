@@ -56,6 +56,18 @@ function settleParents(run: Run, events: SwarmEvent[]): void {
   }
 }
 
+function settleAgentUsage(run: Run, events: SwarmEvent[], agent: Agent, tokens?: number): void {
+  if (agent.reservation === 0) return;
+  const known = Number.isSafeInteger(tokens) && Number(tokens) >= 0;
+  agent.tokens = known ? tokens! : agent.reservation;
+  agent.usageSource = known ? 'observed' : 'reservation';
+  run.reservedTokens -= agent.reservation; run.tokens += agent.tokens; agent.reservation = 0;
+  emit(run, events, 'agent.usage', 'runtime', { agent_id: agent.id, tokens: agent.tokens, telemetry: agent.usageSource });
+  if (!terminal(run.status) && (!known || run.tokens > run.spec.limits.budgetTokens)) {
+    run.status = 'needs_attention'; emit(run, events, 'budget.needs_attention', 'runtime', { reason: known ? 'Token ceiling exceeded' : 'Provider token telemetry unavailable' });
+  }
+}
+
 export class SwarmEngine {
   constructor(readonly store: SwarmStore, readonly project: string) {}
 
@@ -129,17 +141,18 @@ export class SwarmEngine {
       return agent;
     });
   }
+  async recordAgentUsage(id: string, agentId: string, tokens?: number): Promise<void> {
+    await this.store.mutate(this.project, id, (run, events) => {
+      const agent = run.agents.find(a => a.id === agentId);
+      requireValue(agent, 'Agent not found'); settleAgentUsage(run, events, agent, tokens);
+    });
+  }
   async finishAgent(id: string, agentId: string, tokens?: number): Promise<void> {
     await this.store.mutate(this.project, id, (run, events) => {
       const agent = run.agents.find(a => a.id === agentId);
       if (!agent || agent.status === 'stopped') return;
-      const known = Number.isSafeInteger(tokens) && Number(tokens) >= 0;
-      agent.tokens = known ? tokens! : agent.reservation;
-      run.reservedTokens -= agent.reservation; run.tokens += agent.tokens; agent.reservation = 0; agent.status = 'stopped';
-      emit(run, events, 'agent.stopped', 'runtime', { agent_id: agentId, tokens: agent.tokens, telemetry: known ? 'observed' : 'reservation' });
-      if (!terminal(run.status) && (!known || run.tokens > run.spec.limits.budgetTokens)) {
-        run.status = 'needs_attention'; emit(run, events, 'budget.needs_attention', 'runtime', { reason: known ? 'Token ceiling exceeded' : 'Provider token telemetry unavailable' });
-      }
+      settleAgentUsage(run, events, agent, tokens); agent.status = 'stopped';
+      emit(run, events, 'agent.stopped', 'runtime', { agent_id: agentId, tokens: agent.tokens, telemetry: agent.usageSource });
     });
   }
   async claim(id: string, agentId: string): Promise<Task | null> {
@@ -164,10 +177,10 @@ export class SwarmEngine {
       if (taskId) ownedTask(run, agentId, taskId, token ?? '').leaseUntil = Date.now() + run.spec.limits.leaseMs;
     });
   }
-  async agentOperation(id: string, agentId: string, key: string, method: string, args: Record<string, unknown>, finalResult = false): Promise<unknown> {
+  async agentOperation(id: string, agentId: string, key: string, method: string, args: Record<string, unknown>): Promise<unknown> {
     textValue(key, 'idempotency key', 100);
     return this.store.mutate(this.project, id, (run, events) => {
-      const agent = run.agents.find(a => a.id === agentId && (a.status === 'running' || finalResult && ['submit_result', 'report_blocker'].includes(method)));
+      const agent = run.agents.find(a => a.id === agentId && a.status === 'running');
       requireValue(agent && !terminal(run.status), 'Inactive agent or terminal run');
       const operationKey = `${agentId}:${key}`, hash = digest({ method, args });
       const previous = run.operations[operationKey];

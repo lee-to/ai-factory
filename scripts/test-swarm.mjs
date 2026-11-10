@@ -28,7 +28,7 @@ async function planned(engine, tasks, settings = spec) {
 }
 const runCli = (root, args, options = {}) => execFileSync(process.execPath, [cli, 'swarm', ...args], { cwd: root, encoding: 'utf8', timeout: 15000,
   env: { ...process.env, AIF_SWARM_DATABASE_URL: databaseUrl ?? '' }, ...options });
-async function waitUntil(predicate, timeout = 15000) {
+async function waitUntil(predicate, timeout = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeout) { const value = await predicate(); if (value) return value; await new Promise(resolve => setTimeout(resolve, 40)); }
   throw new Error('Timed out waiting for fixture outcome');
@@ -150,11 +150,12 @@ const prompt=fs.readFileSync(0,'utf8');
 if(!prompt.includes('Fixture context survives ignored Git files'))process.exit(2);
 if(prompt.includes('Goal: Cancellation fixture')&&prompt.includes('Task: ')){fs.writeFileSync('worker.started','running');setInterval(()=>{},1000);return;}
 let result;
-if(prompt.includes('Create at most')) result={tasks:Array.from({length:prompt.includes('Goal: Dirty integration fixture')?1:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
+if(prompt.includes('Create at most')) result={tasks:Array.from({length:/Goal: (Dirty integration|Lease lifecycle) fixture/.test(prompt)?1:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
 else if(prompt.includes('Task: ')) {
 const task=JSON.parse(prompt.split('Task: ')[1].split('\\n')[0]);
 fs.writeFileSync(task.title+'.txt','OK');
 if(prompt.includes('Goal: Dirty integration fixture')&&task.attempts>1)fs.writeFileSync('repair.txt','OK');
+if(prompt.includes('Goal: Lease lifecycle fixture'))fs.writeFileSync('slow-commit.txt','OK');
 result={report:'Implemented and checked'};
 } else result={accepted:true,report:'All criteria satisfied'};
 console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}}));
@@ -201,6 +202,23 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
     await new Promise(resolve => mcp.once('exit', resolve));
     const messages = mcpOutput.trim().split('\n').map(line => JSON.parse(line));
     assert.equal(messages[0].result.serverInfo.name, 'ai-factory-swarm'); assert.equal(messages[1].result.tools.length, 10);
+    const hookStarted = path.join(temp, 'hook-started');
+    await fs.writeFile(path.join(repo, '.git', 'hooks', 'pre-commit'), `#!${process.execPath}\nconst fs=require('fs');if(fs.existsSync('slow-commit.txt')){fs.writeFileSync(${JSON.stringify(hookStarted)},'started');setTimeout(()=>{},4500);}\n`, { mode: 0o755 });
+    const leaseRun = await runtimeEngine.create({ ...spec, goal: 'Lease lifecycle fixture',
+      limits: { ...spec.limits, leaseMs: 3000, maxAttempts: 1 } }, source);
+    await waitUntil(() => fs.readFile(hookStarted, 'utf8').catch(() => false));
+    const committing = await runtimeEngine.get(leaseRun.id);
+    const committingAgent = committing.agents.find(a => a.id === committing.tasks[0].assignedAgentId);
+    assert.equal(committingAgent.status, 'running', 'Worker must stay active while Runtime commits its result');
+    assert.equal(committingAgent.tokens, 30, 'Provider usage must be recorded before the Git hook finishes');
+    assert.equal(committingAgent.reservation, 0);
+    const leaseDone = await awaitCompletion(leaseRun.id);
+    assert.equal(leaseDone.tasks[0].attempts, 1, 'A successful hook longer than leaseMs must not expire the claim');
+    assert.equal(leaseDone.tasks[0].status, 'done');
+    assert.equal(leaseDone.tokens, 90, 'Lead, worker and verifier usage must each be counted once');
+    assert(!(await runtimeEngine.store.events(repo, leaseRun.id)).some(event => event.type === 'task.lease_expired'));
+    await runtimeEngine.decide(leaseDone.id, leaseDone.approvals.find(a => a.kind === 'completion').id, 'approve', 'owner');
+    await fs.unlink(path.join(repo, '.git', 'hooks', 'pre-commit'));
     const dirtyRun = await runtimeEngine.create({ ...spec, goal: 'Dirty integration fixture', checks: [
       [process.execPath, '-e', 'const fs=require("fs");if(!fs.existsSync("repair.txt")){fs.writeFileSync("untracked-report.txt","preserved failure evidence");process.exit(1)}'], ...spec.checks,
     ] }, source);

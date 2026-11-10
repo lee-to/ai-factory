@@ -24,7 +24,7 @@ export interface Task extends TaskInput {
 }
 export interface Agent extends Provider {
   id: string; role: Role; status: 'running' | 'idle' | 'stopped'; heartbeatAt: number;
-  currentTaskId?: string; tokens: number; reservation: number;
+  currentTaskId?: string; tokens: number; reservation: number; usageSource?: 'observed' | 'reservation';
 }
 export interface Approval { id: string; taskId?: string; gitRef: string; kind: 'integration' | 'completion'; status: 'pending' | 'approved' | 'rejected' }
 export interface SwarmEvent {

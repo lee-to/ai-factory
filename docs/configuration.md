@@ -9,6 +9,12 @@ Claude/Codex workers, separate Git worktrees, verified integration and owner rev
 It runs independently of Handoff. `/aif-swarm` prepares the goal/spec and delegates
 to this runtime; the existing plan/implement workflow remains available.
 
+This is a reduced local MVP. Ongoing Lead supervision/replanning, arbitrary
+Runtime tool/network policy, hard in-flight token ceilings, full RFC metrics and
+the proposed single-agent/static/dynamic benchmark remain open requirements.
+The [remaining-requirements ledger](../skills/aif-swarm/references/SWARM-RUNTIME.md#remaining-rfc-requirements)
+records these gaps; this release does not claim full RFC compliance.
+
 SQLite is the default (`.ai-factory/swarm/state.sqlite`), with WAL and immediate
 transactions on a local disk. SQLite mode requires Node.js >=22.13; PostgreSQL
 mode and other CLI commands retain the package's Node.js requirement. Set
@@ -97,7 +103,9 @@ See the packaged [Swarm Runtime contract](../skills/aif-swarm/references/SWARM-R
 for the exact HTTP/MCP, recovery, storage and security boundaries. Run
 `npm run test:swarm` for SQLite; set `AIF_SWARM_TEST_DATABASE_URL` to an isolated,
 disposable PostgreSQL database to run the same contract checks against PostgreSQL.
-Tests use a deterministic provider executable, not real model inference.
+The dedicated Node.js 24 CI job runs both backends, including the regression with
+a 4.5-second pre-commit hook and a 3-second lease. Tests use a deterministic
+provider executable, not real model inference.
 
 ## Project Completion Hook
 
