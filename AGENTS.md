@@ -7,7 +7,7 @@
 **AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
 
 1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (34 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
+2. **Built-in skills** (35 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
 3. **Spec-driven workflow** — structured approach: plan → implement → commit
 4. **Multi-agent support** — 18 agents (Claude Code, Cursor, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity, ChatGPT CLI, OpenRouter CLI, OpenCode, Warp,
    Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
@@ -88,6 +88,22 @@ and leave dynamic/ambiguous definitions unresolved. Never import project extensi
 commands on the catalog route, including help. No discovered command is executed,
 verified or authorized by discovery. No catalog/config files are written. See
 `docs/configuration.md#project-command-catalog` for limits and explicit mappings.
+
+### Swarm Runtime
+
+`ai-factory swarm` and `/aif-swarm` provide opt-in local parallel execution.
+`src/core/swarm/` owns the bounded run/DAG, atomic claims, leases, idempotency,
+process pool, Git integration and versioned API/SSE. SQLite (Node >=22.13) is the
+default; `AIF_SWARM_DATABASE_URL` selects PostgreSQL. Both lock the bounded run
+transaction rather than maintaining separate scheduling logic. The user owns
+`.ai-factory/swarm.yaml`; Runtime owns `.ai-factory/swarm/` and `aif/swarm/*` Git
+resources. No config.yaml keys or automatic backend migration. Handoff consumes
+API/events and must not duplicate the scheduler or access the database directly.
+Intermediate integration requires passing checks, parent completion waits for
+children, and final completion requires independent verification and owner review.
+Worktrees are not sandboxes, token ceilings are not uniformly provider-enforced,
+and interrupted unknown usage requires attention. See
+`docs/configuration.md#swarm-runtime` and `npm run test:swarm`.
 
 ### Cross-agent dispatch
 

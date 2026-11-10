@@ -8,6 +8,7 @@ import { registerInstructionCommands } from './commands/instructions.js';
 import { commandsCommand } from './commands/commands.js';
 import { registerCompletionHookCommands } from './commands/completion-hook.js';
 import { worktreeCheckCommand } from './commands/worktree-check.js';
+import { registerSwarmCommands } from './commands/swarm.js';
 import { extensionAddCommand, extensionRemoveCommand, extensionListCommand, extensionUpdateCommand } from './commands/extension.js';
 import { getCurrentVersion, loadConfig } from '../core/config.js';
 import { loadAllExtensions } from '../core/extensions.js';
@@ -63,6 +64,7 @@ const ext = program
 
 registerInstructionCommands(program);
 registerCompletionHookCommands(program);
+registerSwarmCommands(program);
 
 program.command('commands [directories...]')
   .description('Catalog declared project commands without executing project code')
@@ -129,5 +131,5 @@ async function loadExtensionCommands(): Promise<void> {
 }
 
 // Discovery and completion hooks must not import unapproved project extension modules.
-if (!['commands', 'worktree-check', 'completion-hook'].includes(process.argv.slice(2).find(argument => !argument.startsWith('-')) ?? '')) await loadExtensionCommands();
+if (!['commands', 'worktree-check', 'completion-hook', 'swarm'].includes(process.argv.slice(2).find(argument => !argument.startsWith('-')) ?? '')) await loadExtensionCommands();
 program.parse();
