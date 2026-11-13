@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { withSkillSymlinks } from './skill-symlinks.js';
@@ -469,6 +470,34 @@ async function checkedRuntimeRoot(projectDir: string): Promise<string> {
   return root;
 }
 
+async function writeMigrationIgnoreRule(root: string): Promise<void> {
+  const file = path.join(path.dirname(root), '.gitignore');
+  const noFollow = typeof fsConstants.O_NOFOLLOW === 'number' && fsConstants.O_NOFOLLOW !== 0;
+  // O_NOFOLLOW protects the leaf at open time, including creation. Where it
+  // is unavailable, exclusive creation is safe but existing files are skipped.
+  const flags = fsConstants.O_RDWR | fsConstants.O_APPEND | fsConstants.O_CREAT
+    | (noFollow ? fsConstants.O_NOFOLLOW | (fsConstants.O_NONBLOCK ?? 0) : fsConstants.O_EXCL);
+  const handle = await fs.open(file, flags, 0o666);
+  try {
+    if (!(await handle.stat()).isFile()) throw new Error(`Migration ignore file must be a regular file: ${file}`);
+    // Keep validation, reading and appending on this same descriptor. A later
+    // pathname replacement cannot redirect the append to a symlink's target.
+    const existing = await handle.readFile('utf8');
+    if (existing.split(/\r?\n/).includes('/skill-migrations/')) return;
+    const newline = existing.includes('\r\n') ? '\r\n' : '\n';
+    const separator = existing && !existing.endsWith('\n') ? newline : '';
+    await handle.appendFile(`${separator}/skill-migrations/${newline}`);
+    logSkillTarget('[FIX:222] migration:ignored', { file });
+  } finally { await handle.close(); }
+}
+
+async function ignoreMigrationState(root: string): Promise<void> {
+  try { await writeMigrationIgnoreRule(root); }
+  catch (error) {
+    console.warn(`[skill-migration] [FIX:222] Could not update ${path.join(path.dirname(root), '.gitignore')}: ${(error as Error).message}. Migration will continue; exclude /skill-migrations/ manually.`);
+  }
+}
+
 export async function withSkillProjectLock<T>(projectDir: string, action: () => Promise<T>): Promise<T> {
   const project = await fs.realpath(projectDir);
   const held = lockContext.getStore();
@@ -590,6 +619,42 @@ async function recoveryFileState(target: string, file: JournalFile, journal: Mig
   return current === desired && mode === (committed ? file.afterMode : file.beforeMode);
 }
 
+async function syncMigrationPath(file: string): Promise<void> {
+  const handle = await fs.open(file, 'r');
+  try { await handle.sync(); }
+  finally { await handle.close(); }
+}
+
+async function syncMigrationFinalState(projectDir: string, journal: MigrationJournal, committed: boolean): Promise<void> {
+  const project = await fs.realpath(projectDir);
+  const directories = new Set<string>();
+  const files = [{ path: '.ai-factory.json', digest: committed ? journal.configAfter : journal.configBefore },
+    ...journal.files.map(file => ({ path: file.path, digest: committed ? file.after : file.before }))];
+  for (const file of files) {
+    const target = await physicalProjectPath(projectDir, file.path, { preserveCase: true });
+    if (file.digest !== null) await syncMigrationPath(target);
+    // Include every ancestor: atomicWrite syncs file contents, but its rename
+    // and any newly created or removed directories also need to reach disk.
+    for (let parent = path.dirname(target); ; parent = path.dirname(parent)) {
+      const relative = path.relative(project, parent);
+      if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) throw new Error(`Unsafe migration sync directory: ${parent}`);
+      directories.add(parent);
+      if (!relative) break;
+    }
+  }
+  for (const directory of [...directories].sort((a, b) => b.length - a.length)) {
+    try {
+      // Deleted source directories have no entry to sync; their surviving
+      // ancestors are still in the set and must be synced.
+      await fs.lstat(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
+    await syncMigrationPath(directory);
+  }
+}
+
 async function finishJournal(projectDir: string, root: string, journal: MigrationJournal, committed: boolean): Promise<void> {
   const { directory, before, after } = await verifyJournal(projectDir, root, journal);
   const configPath = path.join(projectDir, '.ai-factory.json');
@@ -619,9 +684,44 @@ async function finishJournal(projectDir: string, root: string, journal: Migratio
       });
     }
   }
-  // Keep raw backups for inspection; a completed receipt is never replayed.
-  await fs.rename(path.join(root, 'active.json'), path.join(directory, committed ? 'committed.json' : 'rolled-back.json'));
+  // A failed/unsupported durability barrier keeps all copies, as the original
+  // migration did. Retire the active journal even then so unsupported directory
+  // fsync (notably on Windows) cannot block subsequent operations forever.
+  let durabilityError: unknown;
+  try { await syncMigrationFinalState(projectDir, journal, committed); }
+  catch (error) { durabilityError = error; }
+  const receipt = path.join(directory, committed ? 'committed.json' : 'rolled-back.json');
+  await fs.rename(path.join(root, 'active.json'), receipt);
   logSkillTarget('[FIX:155] recovery:complete', { operation: journal.id, committed, modesPreserved: journal.version === 2 });
+  try {
+    if (durabilityError) throw durabilityError;
+    // rename crosses two directories. Persist both namespace changes before
+    // deleting even the first blob needed by a potentially replayed journal.
+    await syncMigrationPath(directory);
+    await syncMigrationPath(root);
+  } catch (error) {
+    console.warn(`[skill-migration] [FIX:222] Migration ${committed ? 'committed' : 'rolled back'}; durable backup cleanup is unavailable: ${(error as Error).message}. All recovery copies retained at ${directory}.`);
+    return;
+  }
+  logSkillTarget('[FIX:222] migration:durability-complete', { operation: journal.id });
+  logSkillTarget('[FIX:222] migration:cleanup-start', { operation: journal.id, committed });
+  try {
+    const owned = ['config.after'];
+    if (journal.configBefore !== null) owned.push('config.before');
+    journal.files.forEach((file, index) => {
+      if (file.before !== null) owned.push(`${index}.before`);
+      if (file.after !== null) owned.push(`${index}.after`);
+    });
+    for (const name of owned) {
+      await fs.unlink(path.join(directory, name)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    }
+    await fs.unlink(receipt);
+    // Unknown user files and older operation directories are never swept.
+    await fs.rmdir(directory).catch(error => { if (!['ENOTEMPTY', 'EEXIST'].includes(error.code)) throw error; });
+    logSkillTarget('[FIX:222] migration:cleanup-complete', { operation: journal.id });
+  } catch (error) {
+    console.warn(`[skill-migration] [FIX:222] Migration ${committed ? 'committed' : 'rolled back'}, but backup cleanup failed at ${directory}: ${(error as Error).message}. Remove the completed operation's remaining backups manually when no AI Factory command is running.`);
+  }
 }
 
 export async function recoverSkillMigration(projectDir: string): Promise<void> {
@@ -629,6 +729,7 @@ export async function recoverSkillMigration(projectDir: string): Promise<void> {
     const root = await checkedRuntimeRoot(projectDir);
     const bytes = await readOptional(path.join(root, 'active.json'));
     if (!bytes) return;
+    await ignoreMigrationState(root);
     const { journal, before, after } = await verifyJournal(projectDir, root, JSON.parse(bytes.toString('utf8')));
     const configPath = path.join(projectDir, '.ai-factory.json');
     const committed = await matchesJournalConfig(configPath, journal, after, true);
@@ -661,6 +762,7 @@ export async function applySkillMigration(
     }
     const after = Buffer.from(`${JSON.stringify(rawConfig, null, 2)}\n`);
     if (!plan.files.length && equalBytes(after, plan.configBefore)) return plan.config;
+    await ignoreMigrationState(root);
     const id = randomUUID();
     const directory = path.join(root, id);
     await fs.mkdir(directory, { mode: 0o700 });
@@ -726,7 +828,9 @@ export async function applySkillMigration(
           throw new Error(`Skill migration failed: ${(error as Error).message}. Recovery stopped: ${(rollbackError as Error).message}. Backups: ${directory}`);
         }
       }
-      throw new Error(`Skill migration ${journal.phase === 'committed' ? 'committed with pending cleanup' : 'rolled back'}: ${(error as Error).message}. Recovery material: ${directory}`);
+      throw new Error(journal.phase === 'committed'
+        ? `Skill migration committed with pending cleanup: ${(error as Error).message}. Recovery material: ${directory}`
+        : `Skill migration rolled back: ${(error as Error).message}`);
     }
   });
 }
