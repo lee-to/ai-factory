@@ -265,3 +265,5 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
   for (const root of projects) await fs.rm(path.join(os.tmpdir(), `aif-swarm-${digest(root).slice(0, 16)}`), { recursive: true, force: true });
   await fs.rm(temp, { recursive: true, force: true });
 }
+
+await import('./test-swarm-pages.mjs');

@@ -104,7 +104,8 @@ for the exact HTTP/MCP, recovery, storage and security boundaries. Run
 `npm run test:swarm` for SQLite; set `AIF_SWARM_TEST_DATABASE_URL` to an isolated,
 disposable PostgreSQL database to run the same contract checks against PostgreSQL.
 The dedicated Node.js 24 CI job runs both backends, including the regression with
-a 4.5-second pre-commit hook and a 3-second lease. Tests use a deterministic
+a 4.5-second pre-commit hook and a 3-second lease, plus bounded summary pages
+and idempotent creation over more than 10 MB of historical run state. Tests use a deterministic
 provider executable, not real model inference.
 
 ## Project Completion Hook

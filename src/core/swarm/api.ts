@@ -2,7 +2,27 @@ import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import { timingSafeEqual, createHash } from 'node:crypto';
 import { SwarmEngine, publicRun, readyTasks } from './engine.js';
 import { SwarmRuntime, sourceHead } from './runtime.js';
-import { digest, integer, object, parseSpec, requireValue, SwarmError, textValue, redact } from './types.js';
+import { digest, integer, object, parseSpec, requireValue, SwarmError, textValue, redact, type RunPageQuery } from './types.js';
+
+function pageQuery(url: URL): RunPageQuery {
+  const limit = integer(Number(url.searchParams.get('limit') ?? 20), 'limit', 1, 50);
+  const search = url.searchParams.get('search') ?? '';
+  requireValue(search.length <= 200, 'Search is too long');
+  const status = url.searchParams.get('status') ?? '';
+  requireValue(!status || ['running', 'paused', 'needs_attention', 'completed', 'failed', 'cancelled'].includes(status), 'Invalid run status');
+  let cursor: RunPageQuery['cursor'];
+  const encoded = url.searchParams.get('cursor');
+  if (encoded) {
+    requireValue(encoded.length <= 400 && /^[A-Za-z0-9_-]+$/.test(encoded), 'Invalid cursor');
+    let parsed: Record<string, unknown>;
+    try { parsed = object(JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))); }
+    catch { throw new SwarmError('Invalid cursor'); }
+    const id = textValue(parsed.id, 'cursor id', 100);
+    requireValue(/^[A-Za-z0-9_-]+$/.test(id), 'Invalid cursor id');
+    cursor = { id, startedAt: integer(parsed.startedAt, 'cursor time', 0, Number.MAX_SAFE_INTEGER) };
+  }
+  return { limit, cursor, search, ...(status ? { status: status as RunPageQuery['status'] } : {}) };
+}
 
 function matches(a: string, b: string): boolean {
   return timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
@@ -39,6 +59,10 @@ export async function serveSwarm(engine: SwarmEngine, port: number, signal?: Abo
       const route = url.pathname.split('/').filter(Boolean);
       requireValue(route[0] === 'v1' && route[1] === 'swarm', 'Unknown API version');
       const method = request.method;
+      if (route[2] === 'project' && route.length === 3 && method === 'GET') {
+        requireValue(role !== 'agent', 'Agent must use its assigned run');
+        send(response, { schema_version: 1, project: engine.project }); return;
+      }
       if (route[2] === 'approvals' && route[4] === 'decision' && route.length === 5 && method === 'POST') {
         requireValue(role === 'owner', 'Only the owner may decide approvals');
         const input = await body(request);
@@ -52,13 +76,18 @@ export async function serveSwarm(engine: SwarmEngine, port: number, signal?: Abo
       if (route.length === 3) {
         requireValue(role !== 'agent', 'Agent must use its assigned run');
         if (method === 'GET') {
+          if (url.searchParams.get('view') === 'summary') {
+            send(response, { schema_version: 1, project: engine.project, ...await engine.store.summaries(engine.project, pageQuery(url)) }); return;
+          }
           send(response, { schema_version: 1, runs: (await engine.store.list(engine.project)).map(publicRun) }); return;
         }
         requireValue(method === 'POST' && role === 'owner', 'Only the owner may create runs');
         const key = textValue(request.headers['idempotency-key'], 'Idempotency-Key', 100);
         const spec = parseSpec(await body(request));
         const id = digest({ project: engine.project, key });
-        const existing = (await engine.store.list(engine.project)).find(run => run.id === id);
+        let existing;
+        try { existing = await engine.get(id); }
+        catch (error) { if (!(error instanceof SwarmError) || error.status !== 404) throw error; }
         if (existing) { requireValue(digest(existing.spec) === digest(spec), 'Idempotency key reused'); send(response, publicRun(existing)); return; }
         const run = await engine.create(spec, await sourceHead(engine.project), role, id);
         send(response, publicRun(run), 201); return;

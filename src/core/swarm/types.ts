@@ -5,6 +5,14 @@ export type RunStatus = 'running' | 'paused' | 'needs_attention' | 'completed' |
 export type TaskStatus = 'pending' | 'running' | 'submitted' | 'verifying' | 'integrated' | 'done' | 'blocked' | 'failed' | 'cancelled';
 export type Role = 'lead' | 'worker' | 'integration' | 'verifier';
 export interface Provider { provider: 'claude' | 'codex'; model?: string }
+export interface RunSummary {
+  id: string; project: string; goal: string; status: RunStatus; startedAt: number; finishedAt: number | null;
+  tokens: number; budgetTokens: number; agentLimit: number; activeAgents: number;
+  totalTasks: number; completedTasks: number; blockedTasks: number; approval: SwarmSpec['approval'];
+}
+export interface RunPageQuery {
+  limit: number; cursor?: { startedAt: number; id: string }; search?: string; status?: RunStatus;
+}
 export interface SwarmSpec {
   goal: string;
   acceptanceCriteria: string[];

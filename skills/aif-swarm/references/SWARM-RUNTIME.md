@@ -79,7 +79,9 @@ All public envelopes include `schema_version: 1`. Endpoints:
 
 ```text
 POST /v1/swarm/runs                          owner, Idempotency-Key
-GET  /v1/swarm/runs
+GET  /v1/swarm/project                       authenticated non-agent; canonical project path
+GET  /v1/swarm/runs?view=summary&limit=20     bounded summary page
+GET  /v1/swarm/runs                          legacy full-history response
 GET  /v1/swarm/runs/{id}
 POST /v1/swarm/runs/{id}/pause|resume|cancel   owner/operator, Idempotency-Key
 GET  /v1/swarm/runs/{id}/tasks|agents|artifacts
@@ -87,6 +89,18 @@ GET  /v1/swarm/runs/{id}/events?after=0
 GET  /v1/swarm/runs/{id}/events/stream?after=0
 POST /v1/swarm/approvals/{id}/decision        owner, {"decision":"approve"|"reject"}
 ```
+
+Summary pages return `{schema_version:1,project,runs,next_cursor}`. Optional
+`limit` is 1–50 (default 20), `cursor` is opaque, `search` is a case-insensitive
+goal substring of at most 200 characters, and `status` is a native run status.
+Filters apply before keyset pagination ordered by descending `(startedAt,id)`.
+SQLite and PostgreSQL project only scalar summary fields in SQL; historical
+messages/reports/operation results never enter the list response or application
+memory. A goal is capped at 2,000 characters in summaries. The identity endpoint
+returns `{schema_version:1,project}` even with no runs; Handoff checks it before
+creation. Create idempotency reads the deterministic run ID directly, independently
+of historical run count. Legacy unfiltered `GET /runs` still returns full history
+for older callers; new control planes must use summary pages.
 
 Events include `event_id`, `sequence`, `run_id`, `type`, `timestamp`, `actor`,
 `payload`, `schema_version`. Sequence is contiguous per run. Poll pages contain

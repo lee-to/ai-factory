@@ -1,13 +1,14 @@
 import { mkdir, chmod, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import pg from 'pg';
-import { type Run, type SwarmEvent, SwarmError, digest, requireValue } from './types.js';
+import { type Run, type RunSummary, type RunPageQuery, type SwarmEvent, SwarmError, digest, requireValue, integer } from './types.js';
 
 interface Connection { query(sql: string, values?: unknown[]): Promise<Record<string, unknown>[]> }
 interface SQLite {
   exec(sql: string): void;
   prepare(sql: string): { all(...values: unknown[]): Record<string, unknown>[] };
   close(): void;
+  function(name: string, options: { deterministic: boolean }, callback: (value: unknown) => string): void;
 }
 const schema = `CREATE TABLE IF NOT EXISTS swarm_runs (
   id TEXT PRIMARY KEY, project TEXT NOT NULL, state TEXT NOT NULL);
@@ -37,6 +38,7 @@ export class SwarmStore {
         await client.query('BEGIN');
         await client.query("SELECT pg_advisory_xact_lock(hashtext('ai-factory-swarm-schema-v1'))");
         await client.query(schema);
+        await client.query("CREATE INDEX IF NOT EXISTS swarm_runs_summary_page ON swarm_runs(project, ((state::jsonb #>> '{startedAt}')::bigint) DESC, id DESC)");
         await client.query('COMMIT');
       } catch (error) { await client.query('ROLLBACK'); throw error; }
       finally { client.release(); }
@@ -56,6 +58,8 @@ export class SwarmStore {
       await chmod(path.join(dir, 'state.sqlite'), 0o600);
       store.sqlite.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;');
       store.sqlite.exec(schema);
+      store.sqlite.exec("CREATE INDEX IF NOT EXISTS swarm_runs_summary_page ON swarm_runs(project, CAST(json_extract(state,'$.startedAt') AS BIGINT) DESC, id DESC)");
+      store.sqlite.function('swarm_lower', { deterministic: true }, value => typeof value === 'string' ? value.toLowerCase() : '');
     }
     return store;
   }
@@ -135,6 +139,45 @@ export class SwarmStore {
   async list(project: string): Promise<Run[]> {
     return this.transaction(project, async c => (await c.query('SELECT state FROM swarm_runs WHERE project=$1', [project]))
       .map(row => JSON.parse(String(row.state)) as Run));
+  }
+  async summaries(project: string, query: RunPageQuery): Promise<{ runs: RunSummary[]; next_cursor: string | null }> {
+    integer(query.limit, 'limit', 1, 50);
+    const field = (key: string) => this.pool ? `state::jsonb #>> '{${key.split('.').join(',')}}'` : `json_extract(state,'$.${key}')`;
+    const number = (key: string) => `CAST(${field(key)} AS BIGINT)`;
+    const items = (key: string) => this.pool ? `jsonb_array_elements(state::jsonb->'${key}') AS item(value)` : `json_each(state,'$.${key}') AS item`;
+    const status = this.pool ? "item.value->>'status'" : "json_extract(item.value,'$.status')";
+    const count = (key: string, statuses?: string) => `(SELECT COUNT(*) FROM ${items(key)}${statuses ? ` WHERE ${status} IN (${statuses})` : ''})`;
+    const values: unknown[] = [project];
+    const bind = (value: unknown) => { values.push(value); return `$${values.length}`; };
+    const clauses = ['project=$1'];
+    if (query.cursor) {
+      const time = bind(query.cursor.startedAt), id = bind(query.cursor.id);
+      clauses.push(`(${number('startedAt')}<${time} OR (${number('startedAt')}=${time} AND id<${id}))`);
+    }
+    if (query.status) clauses.push(`${field('status')}=${bind(query.status)}`);
+    if (query.search) {
+      const search = bind(query.search.toLowerCase());
+      clauses.push(this.pool ? `strpos(lower(${field('goal')}),${search})>0` : `instr(swarm_lower(${field('goal')}),${search})>0`);
+    }
+    const limit = bind(query.limit + 1);
+    // Project scalars in SQL: historical reports/messages/operation results never cross the DB boundary.
+    const sql = `SELECT id, project, ${number('schema_version')} AS version, substr(${field('goal')},1,2000) AS goal, ${field('status')} AS status,
+      ${number('startedAt')} AS started, ${number('finishedAt')} AS finished, ${number('tokens')} AS tokens,
+      ${number('spec.limits.budgetTokens')} AS budget, ${number('spec.limits.maxAgents')} AS agents,
+      ${field('spec.approval')} AS approval, ${count('agents', "'running'")} AS active,
+      ${count('tasks')} AS total, ${count('tasks', "'done'")} AS completed,
+      ${count('tasks', "'blocked','failed'")} AS blocked
+      FROM swarm_runs WHERE ${clauses.join(' AND ')} ORDER BY ${number('startedAt')} DESC,id DESC LIMIT ${limit}`;
+    const rows = await this.transaction(project, c => c.query(sql, values));
+    requireValue(rows.every(row => Number(row.version) === 1), 'Unsupported Swarm state version');
+    const runs = rows.slice(0, query.limit).map(row => ({
+      id: String(row.id), project: String(row.project), goal: String(row.goal).slice(0, 2000), status: row.status as Run['status'],
+      startedAt: Number(row.started), finishedAt: row.finished === null ? null : Number(row.finished),
+      tokens: Number(row.tokens), budgetTokens: Number(row.budget), agentLimit: Number(row.agents), activeAgents: Number(row.active),
+      totalTasks: Number(row.total), completedTasks: Number(row.completed), blockedTasks: Number(row.blocked), approval: row.approval as Run['spec']['approval'],
+    }));
+    const last = runs.at(-1);
+    return { runs, next_cursor: rows.length > query.limit && last ? Buffer.from(JSON.stringify({ startedAt: last.startedAt, id: last.id })).toString('base64url') : null };
   }
   async events(project: string, id: string, after = 0): Promise<SwarmEvent[]> {
     await this.get(project, id);
