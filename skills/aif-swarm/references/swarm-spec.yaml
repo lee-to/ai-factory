@@ -1,0 +1,37 @@
+goal: Implement a bounded project change
+acceptanceCriteria:
+  - Replace this with observable behavior for the requested change
+# Explicit argv, never a shell string. Use actual authorized project checks.
+# Fresh worktrees may need an explicitly authorized bootstrap command first.
+checks:
+  - [npm, test]
+lead:
+  provider: codex
+workers:
+  - provider: codex
+  - provider: claude
+# manual also pauses after planning; integration reviews each commit;
+# restricted-actions permits intermediate integration. Final owner review always applies.
+approval: integration
+limits:
+  maxAgents: 5
+  maxTasks: 100
+  maxDepth: 4
+  maxAttempts: 3
+  leaseMs: 30000
+  timeoutMs: 600000
+  runTimeoutMs: 3600000
+  budgetTokens: 1000000
+  tokensPerAttempt: 100000
+# Claude tool grants are explicit and project-specific.
+allowedTools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+  - Bash(git status *)
+  - Bash(git diff *)
+  - Bash(git add *)
+  - Bash(git commit *)
+  - Bash(npm test)

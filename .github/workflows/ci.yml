@@ -50,3 +50,40 @@ jobs:
 
       - name: Antigravity E2E tests
         run: npm run test:antigravity
+
+  swarm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: swarm_fixture
+          POSTGRES_PASSWORD: disposable-swarm-fixture
+          POSTGRES_DB: swarm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U swarm_fixture -d swarm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js for built-in SQLite
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Swarm regression tests (SQLite)
+        run: npm run test:swarm
+
+      - name: Swarm regression tests (PostgreSQL)
+        run: npm run test:swarm
+        env:
+          AIF_SWARM_TEST_DATABASE_URL: postgresql://swarm_fixture:disposable-swarm-fixture@127.0.0.1:5432/swarm

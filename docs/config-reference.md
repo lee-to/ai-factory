@@ -316,6 +316,10 @@ These locations are still fixed by contract and are not yet configurable via `co
 | `README.md` | Landing page for `/aif-docs` |
 | `docs-html/` | Static HTML output for `/aif-docs --web` |
 
+Swarm uses a separate user-owned `.ai-factory/swarm.yaml` specification and
+introduces no preference keys here. `/aif-swarm` reads context paths, `rules.*`,
+`language.*` and `git.enabled`; see [Swarm Runtime](configuration.md#swarm-runtime).
+
 ## See Also
 
 - [Configuration](configuration.md) — high-level config architecture and project structure

@@ -2,6 +2,112 @@
 
 # Configuration
 
+## Swarm Runtime
+
+`ai-factory swarm` is an opt-in local runtime with a lead, up to five parallel
+Claude/Codex workers, separate Git worktrees, verified integration and owner review.
+It runs independently of Handoff. `/aif-swarm` prepares the goal/spec and delegates
+to this runtime; the existing plan/implement workflow remains available.
+
+This is a reduced local MVP. Ongoing Lead supervision/replanning, arbitrary
+Runtime tool/network policy, hard in-flight token ceilings, full RFC metrics and
+the proposed single-agent/static/dynamic benchmark remain open requirements.
+The [remaining-requirements ledger](../skills/aif-swarm/references/SWARM-RUNTIME.md#remaining-rfc-requirements)
+records these gaps; this release does not claim full RFC compliance.
+
+SQLite is the default (`.ai-factory/swarm/state.sqlite`), with WAL and immediate
+transactions on a local disk. SQLite mode requires Node.js >=22.13; PostgreSQL
+mode and other CLI commands retain the package's Node.js requirement. Set
+`AIF_SWARM_DATABASE_URL` to use PostgreSQL instead. Storage backends share the
+same queue, idempotency, lease, event and API semantics. Switching backends does
+not migrate runs. PostgreSQL does not add multi-host execution in this release.
+
+Create an explicitly reviewed `.ai-factory/swarm.yaml`, using the
+[annotated example](../skills/aif-swarm/references/swarm-spec.yaml). It requires
+a goal, global acceptance criteria, concrete check argv and worker providers.
+Project instructions and ignored context artifacts are captured with hashes at
+creation and supplied to each role; public API snapshots expose their identities
+rather than instruction contents.
+Settings include lead/provider models, `approval`, `limits` and Claude
+`allowedTools`. Check commands execute without a shell. The spec is user-owned;
+`init`, `update` and `upgrade` do not rewrite it. No `config.yaml` keys are added.
+
+```bash
+# Default local SQLite, or select PostgreSQL through the environment
+# export AIF_SWARM_DATABASE_URL=postgresql://user:password@localhost/swarm
+ai-factory swarm start --spec .ai-factory/swarm.yaml
+ai-factory swarm serve --port 4317
+
+# Use another terminal while serve is running
+ai-factory swarm status
+ai-factory swarm inspect RUN_ID
+ai-factory swarm logs RUN_ID --after 0
+ai-factory swarm pause RUN_ID
+ai-factory swarm resume RUN_ID
+ai-factory swarm approve RUN_ID APPROVAL_ID
+ai-factory swarm reject RUN_ID APPROVAL_ID
+ai-factory swarm cancel RUN_ID
+# After resolving a blocker, within the original retry limit:
+ai-factory swarm retry RUN_ID TASK_ID --reason "Local fixture is available"
+```
+
+`start` creates a durable run; `serve` executes existing runs until stopped.
+Autonomous execution currently requires POSIX for process-group cleanup.
+A clean source checkout is required. Every worker gets a branch under
+`aif/swarm/<run>/<task>-<attempt>`. The Runtime stages and commits worker edits; agents keep their native sandbox
+permissions. Fresh worktrees need explicitly authorized bootstrap commands when
+checks require dependencies; no shared services are started automatically.
+Integration happens on a separate branch;
+the source branch is never merged or pushed automatically. The deterministic
+integration stage merges submitted worker commits and executes configured checks;
+failed results return to the bounded retry queue with failure context.
+Each integration attempt uses its own worktree. Failed worktrees and submitted
+commit refs remain discoverable through `integration-failure` artifacts, so
+generated reports cannot contaminate retries and remain available for diagnosis.
+Parent completion waits for child completion. A final independent verifier checks global
+criteria, then owner approval is required for `completed`.
+Rejecting final completion ends the run as `failed`; it cannot be resumed.
+Start a new run for a revised goal. Rejecting an individual integration instead
+blocks that task and retains the existing resolved-blocker retry path.
+
+`approval: manual` pauses after planning and requires per-result review;
+`integration` requires per-result review; `restricted-actions` permits intermediate
+integration without per-result review. All policies retain final owner review
+and provider permission boundaries. They do not authorize publishing, access to
+secrets or external side effects. Pause stops new work; in-flight work may finish.
+Cancel kills managed process groups and preserves dirty worktrees and branch refs.
+Restart revokes old agent credentials, restores durable state, expires interrupted
+claims and requires attention for unknown token usage. Inspect before resuming.
+
+Handoff uses the loopback-only `/v1/swarm` API, never direct database access.
+Configure distinct `AIF_SWARM_OWNER_TOKEN`, `AIF_SWARM_OPERATOR_TOKEN` and
+`AIF_SWARM_VIEWER_TOKEN` values (at least 32 characters each) for backend access.
+Only the owner creates runs and approves results; an operator may pause/resume/
+cancel; a viewer can only read. Mutating creation/control requests require
+`Idempotency-Key`. Events carry a versioned envelope and a per-run sequence;
+SSE supports reconnect through `after`/`Last-Event-ID`. Closing Handoff does not
+stop the Runtime. Keep the local HTTP port private; remote TLS runners and a
+Handoff UI are separate work.
+
+The scheduler reserves tokens before model calls and stops further work on budget
+exhaustion. Missing usage telemetry is conservatively charged and requires
+attention. An in-flight CLI call can exceed its reservation; a strict cross-provider
+token/cost ceiling is not available. Worktrees are file separation, not security
+sandboxes. Native CLI authentication/settings, hooks and check commands retain
+the OS user's access. Use trusted repositories or an externally provisioned
+container/VM. Raw provider traces are discarded; structured reports and events
+have best-effort credential redaction. No automatic retention cleanup is included.
+Set `AIF_SWARM_LOG_LEVEL=silent` to silence operational stderr logging.
+
+See the packaged [Swarm Runtime contract](../skills/aif-swarm/references/SWARM-RUNTIME.md)
+for the exact HTTP/MCP, recovery, storage and security boundaries. Run
+`npm run test:swarm` for SQLite; set `AIF_SWARM_TEST_DATABASE_URL` to an isolated,
+disposable PostgreSQL database to run the same contract checks against PostgreSQL.
+The dedicated Node.js 24 CI job runs both backends, including the regression with
+a 4.5-second pre-commit hook and a 3-second lease, plus bounded summary pages
+and idempotent creation over more than 10 MB of historical run state. Tests use a deterministic
+provider executable, not real model inference.
+
 ## Project Completion Hook
 
 `ai-factory completion-hook` is an opt-in adapter for **Claude Code 2.1.318 on
