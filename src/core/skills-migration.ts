@@ -469,6 +469,22 @@ async function checkedRuntimeRoot(projectDir: string): Promise<string> {
   return root;
 }
 
+async function ignoreMigrationState(root: string): Promise<void> {
+  const file = path.join(path.dirname(root), '.gitignore');
+  try {
+    const stat = await fs.lstat(file);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`Migration ignore file must be a regular file: ${file}`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  const existing = (await readOptional(file))?.toString('utf8') ?? '';
+  if (existing.split(/\r?\n/).includes('/skill-migrations/')) return;
+  const newline = existing.includes('\r\n') ? '\r\n' : '\n';
+  const separator = existing && !existing.endsWith('\n') ? newline : '';
+  await fs.appendFile(file, `${separator}/skill-migrations/${newline}`);
+  logSkillTarget('[FIX:222] migration:ignored', { file });
+}
+
 export async function withSkillProjectLock<T>(projectDir: string, action: () => Promise<T>): Promise<T> {
   const project = await fs.realpath(projectDir);
   const held = lockContext.getStore();
@@ -498,6 +514,7 @@ export async function withSkillProjectLock<T>(projectDir: string, action: () => 
   }
   logSkillTarget('lock:acquired', { project });
   try {
+    await ignoreMigrationState(root);
     return await lockContext.run(new Set([...(held ?? []), project]), () => withSkillSymlinks(project, action));
   } finally {
     if (equalBytes(await readOptional(lockPath), lockBytes)) await fs.unlink(lockPath);
@@ -619,9 +636,29 @@ async function finishJournal(projectDir: string, root: string, journal: Migratio
       });
     }
   }
-  // Keep raw backups for inspection; a completed receipt is never replayed.
-  await fs.rename(path.join(root, 'active.json'), path.join(directory, committed ? 'committed.json' : 'rolled-back.json'));
+  // Retire the journal before deleting any backups: interrupted cleanup must
+  // never cause recovery to replay an already completed operation.
+  const receipt = path.join(directory, committed ? 'committed.json' : 'rolled-back.json');
+  await fs.rename(path.join(root, 'active.json'), receipt);
   logSkillTarget('[FIX:155] recovery:complete', { operation: journal.id, committed, modesPreserved: journal.version === 2 });
+  logSkillTarget('[FIX:222] migration:cleanup-start', { operation: journal.id, committed });
+  try {
+    const owned = ['config.after'];
+    if (journal.configBefore !== null) owned.push('config.before');
+    journal.files.forEach((file, index) => {
+      if (file.before !== null) owned.push(`${index}.before`);
+      if (file.after !== null) owned.push(`${index}.after`);
+    });
+    for (const name of owned) {
+      await fs.unlink(path.join(directory, name)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    }
+    await fs.unlink(receipt);
+    // Unknown user files and older operation directories are never swept.
+    await fs.rmdir(directory).catch(error => { if (!['ENOTEMPTY', 'EEXIST'].includes(error.code)) throw error; });
+    logSkillTarget('[FIX:222] migration:cleanup-complete', { operation: journal.id });
+  } catch (error) {
+    console.warn(`[skill-migration] [FIX:222] Migration ${committed ? 'committed' : 'rolled back'}, but backup cleanup failed at ${directory}: ${(error as Error).message}. Remove the completed operation's remaining backups manually when no AI Factory command is running.`);
+  }
 }
 
 export async function recoverSkillMigration(projectDir: string): Promise<void> {
@@ -726,7 +763,9 @@ export async function applySkillMigration(
           throw new Error(`Skill migration failed: ${(error as Error).message}. Recovery stopped: ${(rollbackError as Error).message}. Backups: ${directory}`);
         }
       }
-      throw new Error(`Skill migration ${journal.phase === 'committed' ? 'committed with pending cleanup' : 'rolled back'}: ${(error as Error).message}. Recovery material: ${directory}`);
+      throw new Error(journal.phase === 'committed'
+        ? `Skill migration committed with pending cleanup: ${(error as Error).message}. Recovery material: ${directory}`
+        : `Skill migration rolled back: ${(error as Error).message}`);
     }
   });
 }

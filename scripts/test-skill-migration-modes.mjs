@@ -63,17 +63,27 @@ async function interrupt(project, phase) {
 
 test('migration preserves executable/restrictive files, config, and private recovery material', async project => {
   const config = await fixture(project);
-  await applySkillMigration(project, await preflightSkillMigration(project, config));
+  let inspected = false;
+  await applySkillMigration(project, await preflightSkillMigration(project, config), {
+    onPhase: async phase => {
+      if (phase !== 'prepared') return;
+      inspected = true;
+      const migrationRoot = path.join(project, '.ai-factory/skill-migrations');
+      assert.equal(await mode(migrationRoot), 0o700);
+      for (const entry of await fs.readdir(migrationRoot, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const directory = path.join(migrationRoot, entry.name);
+        assert.equal(await mode(directory), 0o700);
+        for (const name of await fs.readdir(directory)) assert.equal(await mode(path.join(directory, name)), 0o600, `private recovery blob ${name}`);
+      }
+    },
+  });
+  assert.ok(inspected, 'inspect permissions before completed copies are removed');
   await assertModes(project, destinationPath);
   await assert.rejects(fs.access(path.join(project, sourcePath, 'run.sh')), { code: 'ENOENT' });
   const migrationRoot = path.join(project, '.ai-factory/skill-migrations');
   assert.equal(await mode(migrationRoot), 0o700);
-  for (const entry of await fs.readdir(migrationRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const directory = path.join(migrationRoot, entry.name);
-    assert.equal(await mode(directory), 0o700);
-    for (const name of await fs.readdir(directory)) assert.equal(await mode(path.join(directory, name)), 0o600, `private recovery blob ${name}`);
-  }
+  assert.deepEqual(await fs.readdir(migrationRoot), []);
 });
 
 for (const phase of ['prepared', 'destination']) {
