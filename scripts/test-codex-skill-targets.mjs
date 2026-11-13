@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -854,7 +855,7 @@ for (const initial of ['# local rules\r\n/private/', '# local rules\n/skill-migr
     const ignore = path.join(project, '.ai-factory/.gitignore');
     await fs.writeFile(ignore, initial);
     await applySkillMigration(project, await preflightSkillMigration(project, config));
-    const expected = initial.includes('/skill-migrations/') ? initial : `${initial}\r\n/skill-migrations/\r\n`;
+    const expected = initial.includes('/skill-migrations/') || !fsConstants.O_NOFOLLOW ? initial : `${initial}\r\n/skill-migrations/\r\n`;
     assert.equal(await fs.readFile(ignore, 'utf8'), expected);
     await recoverSkillMigration(project);
     assert.equal(await fs.readFile(ignore, 'utf8'), expected);
@@ -911,27 +912,93 @@ test('migration', 'linked ignore file warns without blocking migration or modify
   console.warn = message => warnings.push(message);
   try { await applySkillMigration(project, await preflightSkillMigration(project, config)); }
   finally { console.warn = originalWarn; }
-  assert.ok(warnings.some(message => message.includes('.gitignore') && message.includes('regular file')));
+  assert.ok(warnings.some(message => message.includes('.gitignore')));
   assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
   assert.equal(await fs.readFile(target, 'utf8'), 'user bytes');
   await assert.rejects(fs.access(path.join(project, '.ai-factory/skill-migrations/lock.json')), { code: 'ENOENT' });
 });
+
+for (const timing of ['existing-before-open', 'missing-before-create', 'after-read']) {
+  test('migration', `ignore-file symlink swap never writes outside the project (${timing})`, async project => {
+    const config = await legacyProject(project);
+    const ignore = path.join(project, '.ai-factory/.gitignore');
+    const outside = `${project}-outside-ignore`;
+    await fs.mkdir(path.dirname(ignore), { recursive: true });
+    await fs.writeFile(outside, 'outside user bytes');
+    const probe = path.join(project, 'symlink-probe');
+    try { await fs.symlink(outside, probe); await fs.unlink(probe); }
+    catch (error) {
+      await fs.unlink(outside);
+      if (!['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) throw error;
+      console.log(`SKIP [ignore-race] file symlinks unavailable (${error.code})`);
+      return;
+    }
+    if (timing !== 'missing-before-create') await fs.writeFile(ignore, '# user rules\n');
+    const originalStat = fs.lstat;
+    const originalRead = fs.readFile;
+    const originalOpen = fs.open;
+    const isIgnore = file => process.platform === 'win32'
+      ? String(file).toLowerCase() === ignore.toLowerCase() : String(file) === ignore;
+    let swapped = false;
+    const swap = async () => {
+      if (swapped) return;
+      swapped = true;
+      try { await fs.rename(ignore, `${ignore}.original`); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      await fs.symlink(outside, ignore);
+    };
+    // Cover the reported check/write gap and the equivalent boundary at a
+    // safe implementation's open. The injected swap uses an external fixture.
+    fs.lstat = async (file, ...args) => {
+      try { return await originalStat(file, ...args); }
+      finally { if (isIgnore(file) && timing !== 'after-read') await swap(); }
+    };
+    fs.readFile = async (file, ...args) => {
+      const bytes = await originalRead(file, ...args);
+      if (isIgnore(file) && timing === 'after-read') await swap();
+      return bytes;
+    };
+    fs.open = async (file, ...args) => {
+      if (isIgnore(file) && timing !== 'after-read') await swap();
+      const handle = await originalOpen(file, ...args);
+      if (isIgnore(file) && timing === 'after-read') {
+        const read = handle.readFile.bind(handle);
+        handle.readFile = async (...readArgs) => { const bytes = await read(...readArgs); await swap(); return bytes; };
+      }
+      return handle;
+    };
+    try {
+      await applySkillMigration(project, await preflightSkillMigration(project, config));
+      if (timing !== 'after-read' || fsConstants.O_NOFOLLOW) assert.ok(swapped, 'the replacement must be exercised');
+      assert.equal(await originalRead(outside, 'utf8'), 'outside user bytes');
+      if (timing === 'after-read' && fsConstants.O_NOFOLLOW) {
+        assert.equal(await originalRead(`${ignore}.original`, 'utf8'), '# user rules\n/skill-migrations/\n');
+      }
+      assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
+    } finally {
+      fs.lstat = originalStat;
+      fs.readFile = originalRead;
+      fs.open = originalOpen;
+      await fs.unlink(outside);
+    }
+  });
+}
 
 test('migration', 'unwritable ignore file warns without blocking a real migration', async project => {
   const config = await legacyProject(project);
   const ignore = path.join(project, '.ai-factory/.gitignore');
   await fs.mkdir(path.dirname(ignore), { recursive: true });
   await fs.writeFile(ignore, '# user rules\n');
-  const originalAppend = fs.appendFile;
+  const originalOpen = fs.open;
   const originalWarn = console.warn;
   const warnings = [];
   console.warn = message => warnings.push(message);
-  fs.appendFile = async (file, ...args) => {
+  fs.open = async (file, ...args) => {
     if (String(file).endsWith('.gitignore')) throw Object.assign(new Error('ignore is read-only'), { code: 'EACCES' });
-    return originalAppend(file, ...args);
+    return originalOpen(file, ...args);
   };
   try { await applySkillMigration(project, await preflightSkillMigration(project, config)); }
-  finally { fs.appendFile = originalAppend; console.warn = originalWarn; }
+  finally { fs.open = originalOpen; console.warn = originalWarn; }
   assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
   assert.equal(await fs.readFile(ignore, 'utf8'), '# user rules\n');
   assert.ok(warnings.some(message => message.includes('.gitignore') && message.includes('read-only')));

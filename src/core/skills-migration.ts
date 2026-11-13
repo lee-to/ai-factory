@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { withSkillSymlinks } from './skill-symlinks.js';
@@ -471,18 +472,23 @@ async function checkedRuntimeRoot(projectDir: string): Promise<string> {
 
 async function writeMigrationIgnoreRule(root: string): Promise<void> {
   const file = path.join(path.dirname(root), '.gitignore');
+  const noFollow = typeof fsConstants.O_NOFOLLOW === 'number' && fsConstants.O_NOFOLLOW !== 0;
+  // O_NOFOLLOW protects the leaf at open time, including creation. Where it
+  // is unavailable, exclusive creation is safe but existing files are skipped.
+  const flags = fsConstants.O_RDWR | fsConstants.O_APPEND | fsConstants.O_CREAT
+    | (noFollow ? fsConstants.O_NOFOLLOW | (fsConstants.O_NONBLOCK ?? 0) : fsConstants.O_EXCL);
+  const handle = await fs.open(file, flags, 0o666);
   try {
-    const stat = await fs.lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`Migration ignore file must be a regular file: ${file}`);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-  const existing = (await readOptional(file))?.toString('utf8') ?? '';
-  if (existing.split(/\r?\n/).includes('/skill-migrations/')) return;
-  const newline = existing.includes('\r\n') ? '\r\n' : '\n';
-  const separator = existing && !existing.endsWith('\n') ? newline : '';
-  await fs.appendFile(file, `${separator}/skill-migrations/${newline}`);
-  logSkillTarget('[FIX:222] migration:ignored', { file });
+    if (!(await handle.stat()).isFile()) throw new Error(`Migration ignore file must be a regular file: ${file}`);
+    // Keep validation, reading and appending on this same descriptor. A later
+    // pathname replacement cannot redirect the append to a symlink's target.
+    const existing = await handle.readFile('utf8');
+    if (existing.split(/\r?\n/).includes('/skill-migrations/')) return;
+    const newline = existing.includes('\r\n') ? '\r\n' : '\n';
+    const separator = existing && !existing.endsWith('\n') ? newline : '';
+    await handle.appendFile(`${separator}/skill-migrations/${newline}`);
+    logSkillTarget('[FIX:222] migration:ignored', { file });
+  } finally { await handle.close(); }
 }
 
 async function ignoreMigrationState(root: string): Promise<void> {
