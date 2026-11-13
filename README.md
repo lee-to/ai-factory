@@ -74,7 +74,7 @@ Then open your AI agent and start working:
 
 Codex CLI and Codex app use `$aif` style invocations after installation.
 
-Skill migration recovery files stay local and are cleaned up after a successful migration or rollback. See [migration and recovery](docs/configuration.md#conflicts-and-recovery).
+Skill migration recovery files stay local. Completed copies are cleaned up when the filesystem supports durable cleanup; otherwise they are retained with a warning. See [migration and recovery](docs/configuration.md#conflicts-and-recovery).
 
 Need CLI flags, update/upgrade details, or extension commands? See [Getting Started](docs/getting-started.md). Need slash-command reference? See [Core Skills](docs/skills.md).
 

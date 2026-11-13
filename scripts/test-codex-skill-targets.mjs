@@ -820,10 +820,28 @@ for (const failure of ['once', 'always']) {
   });
 }
 
-test('migration', 'completed migration removes its recovery copies and ignores runtime state', async project => {
+async function assertCompletedMigrationCopies(project, committed) {
+  const root = path.join(project, '.ai-factory/skill-migrations');
+  const entries = await fs.readdir(root);
+  if (process.platform !== 'win32') { assert.deepEqual(entries, []); return; }
+  // Native Windows directory fsync is unavailable. Completion remains valid,
+  // but every copy must survive instead of silently claiming durable cleanup.
+  assert.equal(entries.length, 1);
+  const directory = path.join(root, entries[0]);
+  const journal = JSON.parse(await fs.readFile(path.join(directory, committed ? 'committed.json' : 'rolled-back.json'), 'utf8'));
+  const expected = [['config.after', journal.configAfter]];
+  if (journal.configBefore !== null) expected.push(['config.before', journal.configBefore]);
+  for (const [index, file] of journal.files.entries()) {
+    if (file.before !== null) expected.push([`${index}.before`, file.before]);
+    if (file.after !== null) expected.push([`${index}.after`, file.after]);
+  }
+  for (const [file, hash] of expected) assert.equal(digest(await fs.readFile(path.join(directory, file))), hash);
+}
+
+test('migration', 'completed migration cleans supported recovery copies and ignores runtime state', async project => {
   const config = await legacyProject(project);
   await applySkillMigration(project, await preflightSkillMigration(project, config));
-  assert.deepEqual(await fs.readdir(path.join(project, '.ai-factory/skill-migrations')), []);
+  await assertCompletedMigrationCopies(project, true);
   assert.equal(await fs.readFile(path.join(project, '.ai-factory/.gitignore'), 'utf8'), '/skill-migrations/\n');
   await recoverSkillMigration(project);
   assert.equal(await fs.readFile(path.join(project, '.ai-factory/.gitignore'), 'utf8'), '/skill-migrations/\n');
@@ -831,13 +849,14 @@ test('migration', 'completed migration removes its recovery copies and ignores r
 
 for (const initial of ['# local rules\r\n/private/', '# local rules\n/skill-migrations/\n']) {
   test('migration', `migration ignore rule preserves existing content ${JSON.stringify(initial)}`, async project => {
+    const config = await legacyProject(project);
     await fs.mkdir(path.join(project, '.ai-factory'), { recursive: true });
     const ignore = path.join(project, '.ai-factory/.gitignore');
     await fs.writeFile(ignore, initial);
-    await withSkillProjectLock(project, async () => {});
+    await applySkillMigration(project, await preflightSkillMigration(project, config));
     const expected = initial.includes('/skill-migrations/') ? initial : `${initial}\r\n/skill-migrations/\r\n`;
     assert.equal(await fs.readFile(ignore, 'utf8'), expected);
-    await withSkillProjectLock(project, async () => {});
+    await recoverSkillMigration(project);
     assert.equal(await fs.readFile(ignore, 'utf8'), expected);
   });
 }
@@ -859,13 +878,24 @@ test('migration', 'cleanup preserves unknown files and previous operation direct
       await fs.writeFile(path.join(directory, 'user.txt'), 'user bytes');
     },
   });
-  assert.deepEqual((await fs.readdir(directory)).sort(), ['user-directory', 'user.txt']);
+  if (process.platform !== 'win32') assert.deepEqual((await fs.readdir(directory)).sort(), ['user-directory', 'user.txt']);
   assert.equal(await fs.readFile(path.join(directory, 'user.txt'), 'utf8'), 'user bytes');
   assert.equal(await fs.readFile(path.join(directory, 'user-directory/keep.txt'), 'utf8'), 'nested bytes');
   assert.equal(await fs.readFile(path.join(previous, 'user.txt'), 'utf8'), 'previous bytes');
 });
 
-test('migration', 'linked ignore file is rejected without modifying its target', async project => {
+test('migration', 'unrelated locked operations never edit the migration ignore rule', async project => {
+  await fs.mkdir(path.join(project, '.ai-factory'), { recursive: true });
+  const ignore = path.join(project, '.ai-factory/.gitignore');
+  await fs.writeFile(ignore, '# user rules\n');
+  let ran = false;
+  await withSkillProjectLock(project, async () => { ran = true; });
+  assert.ok(ran);
+  assert.equal(await fs.readFile(ignore, 'utf8'), '# user rules\n');
+});
+
+test('migration', 'linked ignore file warns without blocking migration or modifying its target', async project => {
+  const config = await legacyProject(project);
   await fs.mkdir(path.join(project, '.ai-factory'), { recursive: true });
   const target = path.join(project, 'user-ignore');
   await fs.writeFile(target, 'user bytes');
@@ -876,12 +906,111 @@ test('migration', 'linked ignore file is rejected without modifying its target',
     console.log(`CAPABILITY ignore symlink unavailable (${error.code})`);
     return;
   }
-  await assert.rejects(withSkillProjectLock(project, async () => assert.fail('must not execute')), /regular file/);
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = message => warnings.push(message);
+  try { await applySkillMigration(project, await preflightSkillMigration(project, config)); }
+  finally { console.warn = originalWarn; }
+  assert.ok(warnings.some(message => message.includes('.gitignore') && message.includes('regular file')));
+  assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
   assert.equal(await fs.readFile(target, 'utf8'), 'user bytes');
   await assert.rejects(fs.access(path.join(project, '.ai-factory/skill-migrations/lock.json')), { code: 'ENOENT' });
 });
 
+test('migration', 'unwritable ignore file warns without blocking a real migration', async project => {
+  const config = await legacyProject(project);
+  const ignore = path.join(project, '.ai-factory/.gitignore');
+  await fs.mkdir(path.dirname(ignore), { recursive: true });
+  await fs.writeFile(ignore, '# user rules\n');
+  const originalAppend = fs.appendFile;
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = message => warnings.push(message);
+  fs.appendFile = async (file, ...args) => {
+    if (String(file).endsWith('.gitignore')) throw Object.assign(new Error('ignore is read-only'), { code: 'EACCES' });
+    return originalAppend(file, ...args);
+  };
+  try { await applySkillMigration(project, await preflightSkillMigration(project, config)); }
+  finally { fs.appendFile = originalAppend; console.warn = originalWarn; }
+  assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
+  assert.equal(await fs.readFile(ignore, 'utf8'), '# user rules\n');
+  assert.ok(warnings.some(message => message.includes('.gitignore') && message.includes('read-only')));
+});
+
+for (const fault of [null, 'final-state', 'retirement-root', 'retirement-operation']) {
+  test('migration', `backup deletion waits for durable completion (${fault ?? 'successful barriers'})`, async project => {
+    if (process.platform === 'win32') {
+      console.log('SKIP [durability-order] native directory fsync requires POSIX; Windows retention is checked separately');
+      return;
+    }
+    const config = await legacyProject(project);
+    const root = path.join(project, '.ai-factory/skill-migrations');
+    const events = [];
+    const blobs = new Map();
+    let directory;
+    let retired = false;
+    let failed = false;
+    const originalOpen = fs.open;
+    const originalRename = fs.rename;
+    const originalUnlink = fs.unlink;
+    fs.rename = async (source, target) => {
+      await originalRename(source, target);
+      if (String(source) === path.join(root, 'active.json')) { retired = true; events.push('retired'); }
+    };
+    fs.open = async (file, ...args) => {
+      const handle = await originalOpen(file, ...args);
+      if (args[0] !== 'r') return handle;
+      const sync = handle.sync.bind(handle);
+      handle.sync = async () => {
+        const isDirectory = (await fs.stat(file)).isDirectory();
+        if (isDirectory && ((fault === 'final-state' && !retired)
+          || (fault === 'retirement-root' && retired && String(file) === root)
+          || (fault === 'retirement-operation' && retired && String(file) === directory))) {
+          failed = true;
+          throw Object.assign(new Error('injected directory sync failure'), { code: 'ENOTSUP' });
+        }
+        await sync();
+        events.push(`${retired ? 'after' : 'before'}:${String(file)}`);
+      };
+      return handle;
+    };
+    fs.unlink = async file => {
+      if (blobs.has(String(file))) events.push(`delete:${String(file)}`);
+      return originalUnlink(file);
+    };
+    try {
+      await applySkillMigration(project, await preflightSkillMigration(project, config), {
+        onPhase: async phase => {
+          if (phase !== 'committed') return;
+          const journal = JSON.parse(await fs.readFile(path.join(root, 'active.json'), 'utf8'));
+          directory = path.join(root, journal.id);
+          for (const name of await fs.readdir(directory)) blobs.set(path.join(directory, name), await fs.readFile(path.join(directory, name)));
+        },
+      });
+    } finally { fs.open = originalOpen; fs.rename = originalRename; fs.unlink = originalUnlink; }
+    assert.equal((await loadConfig(project)).agents[0].skillsDir, '.agents/skills');
+    if (fault) {
+      assert.ok(failed, 'directory sync failure must be exercised');
+      assert.ok(!events.some(event => event.startsWith('delete:')), 'no recovery blob may be deleted after a failed barrier');
+      for (const [file, bytes] of blobs) assert.deepEqual(await fs.readFile(file), bytes);
+      await fs.access(path.join(directory, 'committed.json'));
+    } else {
+      const firstDelete = events.findIndex(event => event.startsWith('delete:'));
+      const retirement = events.indexOf('retired');
+      assert.ok(retirement > 0 && firstDelete > retirement);
+      assert.ok(events.slice(0, retirement).includes(`before:${path.join(project, '.ai-factory.json')}`));
+      assert.ok(events.slice(0, retirement).includes(`before:${project}`));
+      for (const dir of [root, directory]) assert.ok(events.slice(retirement + 1, firstDelete).includes(`after:${dir}`), `sync ${dir} after retirement before deletion`);
+      assert.deepEqual(await fs.readdir(root), []);
+    }
+  });
+}
+
 test('migration', 'backup cleanup failure keeps a completed receipt without failing migration', async project => {
+  if (process.platform === 'win32') {
+    console.log('SKIP [backup-delete-failure] Windows retains copies before deletion; native retention is checked');
+    return;
+  }
   const config = await legacyProject(project);
   const originalUnlink = fs.unlink;
   let failed = false;
@@ -992,7 +1121,7 @@ for (const phase of ['prepared', 'destination']) {
     assert.deepEqual(await snapshot(path.join(project, '.codex')), before);
     assert.deepEqual(await fs.readFile(path.join(project, '.ai-factory.json')), configBytes);
     await assert.rejects(fs.access(path.join(project, '.agents/skills/aif/SKILL.md')));
-    assert.deepEqual(await fs.readdir(path.join(project, '.ai-factory/skill-migrations')), []);
+    await assertCompletedMigrationCopies(project, false);
   });
 }
 
@@ -1031,7 +1160,7 @@ for (const phase of ['destination', 'committed', 'cleanup']) {
     assert.equal(config.agents[0].skillsDir, phase === 'destination' ? '.codex/skills' : '.agents/skills');
     await fs.access(path.join(project, config.agents[0].skillsDir, 'aif/SKILL.md'));
     await assert.rejects(fs.access(path.join(project, '.ai-factory/skill-migrations/active.json')));
-    assert.deepEqual(await fs.readdir(path.join(project, '.ai-factory/skill-migrations')), []);
+    await assertCompletedMigrationCopies(project, phase !== 'destination');
   });
 }
 
