@@ -497,9 +497,10 @@ When executing through the Claude top-level `implement-coordinator`, the quality
 ### `/aif-verify [--strict] [@<plan path>]` — check completeness
 
 ```
-/aif-verify          # Verify implementation against plan
-/aif-verify --strict # Strict mode — zero tolerance for gaps
-/aif-verify @.ai-factory/plans/<plan>.md  # Verify a specific plan (required for full-stay/fast plans)
+/aif-verify                            # Verify implementation against plan
+/aif-verify --strict                   # Strict mode — zero tolerance for gaps
+/aif-verify @.ai-factory/plans/<plan>.md  # Verify a specific full-stay plan (required: its stem does not match the branch)
+/aif-verify @.ai-factory/PLAN.md          # Verify a specific fast plan (paths.plan)
 ```
 
 Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it.

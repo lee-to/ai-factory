@@ -230,13 +230,13 @@ Options:
 AskUserQuestion: All tasks complete. What's next?
 
 Options:
-1. Verify first — Run /aif-verify to check completeness (recommended)
+1. Verify first — Run /aif-verify @<resolved plan artifact> to check completeness (recommended)
 2. Skip to commit — Go straight to /aif-commit
 ```
 
 **Based on choice:**
 
-- "Verify first" → invoke `/aif-verify` → after it completes, continue to context cleanup below
+- "Verify first" → invoke `/aif-verify @<resolved plan artifact>` with the explicit plan artifact used for this implementation (required for full-stay and fast plans; harmless and still explicit for branch-stem plans) → after it completes, continue to context cleanup below
 - "Skip to commit" → invoke `/aif-commit` → after it completes, continue to context cleanup below
 
 **Context cleanup (after verify or commit):**

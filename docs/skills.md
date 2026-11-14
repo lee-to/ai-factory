@@ -397,9 +397,10 @@ Executes the plan:
 ### `/aif-verify [--strict] [@<plan path>]`
 Verifies completed implementation against the plan:
 ```
-/aif-verify          # Check all tasks were fully implemented
-/aif-verify --strict # Strict mode — zero tolerance before merge
-/aif-verify @.ai-factory/plans/<plan>.md  # Verify a specific plan (required for full-stay/fast plans)
+/aif-verify                            # Check all tasks were fully implemented
+/aif-verify --strict                   # Strict mode — zero tolerance before merge
+/aif-verify @.ai-factory/plans/<plan>.md  # Verify a specific full-stay plan (required: its stem does not match the branch)
+/aif-verify @.ai-factory/PLAN.md          # Verify a specific fast plan (paths.plan)
 ```
 
 **Optional step after `/aif-implement`** — when implementation finishes, you'll be asked if you want to verify.
