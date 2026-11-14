@@ -14,6 +14,7 @@ All 8 tasks completed.
 
 Branch: feature/product-search
 Plan artifact: .ai-factory/plans/feature-product-search.md
+
 Files modified:
 - src/services/search.ts (created)
 - src/api/products/search.ts (created)
@@ -24,6 +25,7 @@ What's next?
 
 1. 🔍 /aif-verify — Verify nothing was missed (recommended)
 2. 💾 /aif-commit — Commit the changes directly
+For a full-stay or fast plan, render this suggestion with the explicit artifact path (`/aif-verify @<plan artifact path>`) so verification targets the same plan instead of a branch-stem plan.
 ```
 
 **Check ROADMAP.md progress:**
@@ -228,13 +230,13 @@ Options:
 AskUserQuestion: All tasks complete. What's next?
 
 Options:
-1. Verify first — Run /aif-verify to check completeness (recommended)
+1. Verify first — Run /aif-verify @<resolved plan artifact> to check completeness (recommended)
 2. Skip to commit — Go straight to /aif-commit
 ```
 
 **Based on choice:**
 
-- "Verify first" → invoke `/aif-verify` → after it completes, continue to context cleanup below
+- "Verify first" → invoke `/aif-verify @<resolved plan artifact>` with the explicit plan artifact used for this implementation (required for full-stay and fast plans; harmless and still explicit for branch-stem plans) → after it completes, continue to context cleanup below
 - "Skip to commit" → invoke `/aif-commit` → after it completes, continue to context cleanup below
 
 **Context cleanup (after verify or commit):**

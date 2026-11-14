@@ -150,7 +150,7 @@ pinned source revision and MIT notice.
 | Key | Default | Read by skills | Notes |
 |-----|---------|----------------|-------|
 | `workflow.explore_mode` | `regular` | `/aif-explore` | Default mode: `regular` or `ultra`; a leading mode token overrides it. `ultra` opts into saving a named research bundle. |
-| `workflow.plan_mode` | `ask` | `/aif-plan`, `/aif-roadmap-next` | Default mode: `ask`, `fast`, `full`, or `ultra`; a leading mode token overrides it. `ask` keeps the full/fast question, or fast in non-interactive Handoff mode. |
+| `workflow.plan_mode` | `ask` | `/aif-plan`, `/aif-roadmap-next` | Default mode: `ask`, `fast`, `full`, or `ultra`; a leading mode token overrides it. A leading `full-stay` runs the full flow without git branch switching and is not a `workflow.plan_mode` value. `ask` keeps the full/full-stay/fast question, or fast in non-interactive Handoff mode. |
 | `workflow.improve_check` | `false` | `/aif-improve` | Boolean default for findings validation. `+check` enables it; `--no-check` disables it for one invocation; the last explicit flag wins. `--list` always skips validation. |
 | `workflow.fix_mode` | `ask` | `/aif-fix` | Default when no fix plan exists: `ask` prompts, `now` fixes immediately, `plan` creates a fix plan and stops. `--fix-now` / `--plan-first` overrides it; the last mode flag wins. Existing fix plans take priority. Autonomous Handoff maps only `ask` to `now`. |
 | `workflow.fix_patch` | `true` | `/aif-fix` | YAML boolean controlling learning patch creation after a completed fix, including existing-plan execution. `--patch` / `--no-patch` overrides it; the last patch flag wins. Independent of mode; plan-first never creates a completed-fix patch. |

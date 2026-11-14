@@ -2,6 +2,8 @@
 
 Same logic as `/aif-implement` — produce the **canonical branch stem** before any plans-dir glob so producer and consumers agree by construction.
 
+**Explicit path override:** when the invocation carries `@<plan path>` (for example a full-stay or fast plan whose stem is unrelated to the current branch), skip this entire procedure and verify exactly that artifact. For an explicit ultra entrypoint, still require exactly one `<!-- aif:plan-mode:ultra -->`.
+
 ```
 1. Check current git branch:
    git branch --show-current

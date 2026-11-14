@@ -211,6 +211,7 @@ project artifacts. Planning begins only after the user selects a scope and start
 | `/aif-rules` | Capture project conventions or add area-specific rules before planning and implementation | No | No (`paths.rules_file` or `paths.rules/<area>.md`) |
 | `/aif-plan fast` | Small tasks, quick fixes, experiments | No | `paths.plan` (default: `.ai-factory/PLAN.md`) |
 | `/aif-plan full` | Full features, stories, epics | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<branch-or-slug>.md` (or `paths.plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see [Plan Files](plan-files.md)) |
+| `/aif-plan full-stay` | Full plan without any git branch/worktree switching (e.g. several agents in one checkout) | No — never, regardless of git config | `paths.plans/<slug>.md` (or `paths.plans/<NNNN>_<slug>.md` when `workflow.plan_id_format: sequential`) |
 | `/aif-plan ultra` | Large/cross-cutting work delegated from a strong planner to a smaller implementer | Optional (`git.enabled` + `git.create_branches`) | `paths.plans/<id>/index.md` + one detailed file per phase |
 | `/aif-plan full\|ultra --parallel` | Concurrent features via worktrees | Yes + worktree (`git.enabled` + `git.create_branches`) | Autonomous end-to-end |
 | `/aif-improve` | Refine plan before implementation | No | No (improves existing) |
@@ -324,12 +325,13 @@ Reliability-gate mode for evidence-backed answers. Use it when the task is alrea
 
 High-level project planning. Creates `paths.roadmap` (default: `.ai-factory/ROADMAP.md`) — a strategic checklist of major milestones (not granular tasks). Use `check` to automatically scan the codebase and mark milestones that appear done. `/aif-implement` also checks the roadmap after completing all tasks.
 
-### `/aif-plan [fast|full|ultra] <description>` — plan the work
+### `/aif-plan [fast|full|full-stay|ultra] <description>` — plan the work
 
 ```
 /aif-plan Add user authentication with OAuth       # Uses config, otherwise asks which mode
 /aif-plan fast Add product search API              # Quick plan, no branch
 /aif-plan full Add user authentication with OAuth  # Full plan; branch is optional
+/aif-plan full-stay Add OAuth login                # Full plan; never creates/switches branches
 /aif-plan ultra Rebuild billing around a ledger    # Multi-file, implementation-complete plan
 /aif-plan full --parallel Add Stripe checkout      # Parallel worktree
 /aif-plan full +coupling Change receipt pricing    # Optional boundary analysis
@@ -341,10 +343,16 @@ only in the leading option segment; once the description starts, literal
 `+coupling` text is preserved. It adds relevant boundary decisions and acceptance
 checks to the existing plan without invoking review or implementation.
 
-Three modes — **fast** (quick single file), **full** (rich single file), and
+Three primary modes — **fast** (quick single file), **full** (rich single file), and
 **ultra** (a directory whose `index.md` owns scope/progress and whose phase files
 specify implementation in code-level detail). Full and ultra share testing,
 logging, docs, roadmap, branch, and worktree preferences.
+
+**Full-stay** is a full-mode variant selected only with a leading `full-stay`
+token: the same rich plan and preferences, but `full_stay=true` — no branch or
+worktree commands run regardless of git config, and the stem is the description
+slug (`paths.plans/<slug>.md`, or `paths.plans/<NNNN>_<slug>.md` when
+`workflow.plan_id_format: sequential`).
 
 Before parallel runtime-dependent work, planning runs the read-only
 [`worktree-check` diagnostic](configuration.md#worktree-readiness-diagnostic) against
@@ -362,7 +370,7 @@ with open roadmap links remain pending reconciliation. Sequential IDs put
 directories whose `index.md` contains the stable ultra marker.
 
 A leading mode token overrides `workflow.plan_mode`. With its default `ask`,
-omitting the mode preserves the full/fast question (fast in non-interactive
+omitting the mode preserves the full/full-stay/fast question (fast in non-interactive
 Handoff mode). Ultra requires a leading `ultra` token or `workflow.plan_mode: ultra`.
 See [Command defaults](config-reference.md#command-defaults).
 
@@ -486,11 +494,13 @@ It adds no requirements-validation or quality gate to this workflow.
 
 When executing through the Claude top-level `implement-coordinator`, the quality-gate sidecars include `review-sidecar`, `security-sidecar`, and `rules-sidecar` (`aif-rules-check`) after code changes, plus `best-practices-sidecar` for maintainability checks. In Handoff automation, `HANDOFF_SKIP_REVIEW=1` intentionally skips the review-family gates: `review-sidecar`, `security-sidecar`, and `rules-sidecar`.
 
-### `/aif-verify [--strict]` — check completeness
+### `/aif-verify [--strict] [@<plan path>]` — check completeness
 
 ```
-/aif-verify          # Verify implementation against plan
-/aif-verify --strict # Strict mode — zero tolerance for gaps
+/aif-verify                            # Verify implementation against plan
+/aif-verify --strict                   # Strict mode — zero tolerance for gaps
+/aif-verify @.ai-factory/plans/<plan>.md  # Verify a specific full-stay plan (required: its stem does not match the branch)
+/aif-verify @.ai-factory/PLAN.md          # Verify a specific fast plan (paths.plan)
 ```
 
 Optional step after `/aif-implement`. Goes through every task in the plan and verifies the code actually implements it.
