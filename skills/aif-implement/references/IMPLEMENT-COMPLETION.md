@@ -111,7 +111,9 @@ If plan setting is `Docs: no` or setting is unset:
 
 **Handle plan artifact after completion:**
 
-- **If the resolved fast plan path** (from `/aif-plan fast`):
+Defer this decision until after the Final Step (Verify or Commit below): verification may still need the artifact.
+
+- **If the resolved fast plan path** (from `/aif-plan fast`), ask after the Final Step choice is complete:
 
   ```
   AskUserQuestion: Would you like to delete the resolved fast plan file? (It's no longer needed)
@@ -127,6 +129,8 @@ If plan setting is `Docs: no` or setting is unset:
       rm <resolved fast plan path>
       ```
     - "No, keep it" → leave the file as is, continue to the next step
+
+  If the user selected "Verify first" and then asked to delete the plan, delete it only after verification completes. Never delete the plan before `/aif-verify` runs — the explicit-path contract (`/aif-verify @<plan artifact>`) skips discovery and fails on a missing artifact.
 
 - **If branch-named full file or ultra bundle directory**:
     - Keep it - documents what was done
@@ -238,6 +242,7 @@ Options:
 
 - "Verify first" → invoke `/aif-verify @<resolved plan artifact>` with the explicit plan artifact used for this implementation (required for full-stay and fast plans; harmless and still explicit for branch-stem plans) → after it completes, continue to context cleanup below
 - "Skip to commit" → invoke `/aif-commit` → after it completes, continue to context cleanup below
+- After verification or commit completes, run the deferred fast-plan deletion prompt from "Handle plan artifact after completion" — never before: `/aif-verify @<plan artifact>` requires the artifact to exist.
 
 **Context cleanup (after verify or commit):**
 
