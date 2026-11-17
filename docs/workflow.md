@@ -418,6 +418,15 @@ If that allowlist is unavailable or unenforced (including Codex), no validator i
 
 Combined with `--list`, validation flags and the configured default are silently ignored — there is no refinement to validate.
 
+### `/aif-swarm` — bounded parallel implementation
+
+For explicitly requested autonomous parallel work, prepare a reviewed goal,
+acceptance criteria, check commands, providers and resource limits, then run the
+local Swarm Runtime. It owns the dynamic DAG, leases, worktrees, integration and
+versioned events. The final source-branch merge remains a separate authorized
+action. Handoff can observe/control the Runtime through its API without owning
+the scheduler. See [Swarm Runtime](configuration.md#swarm-runtime).
+
 ### `/aif-loop [new|resume|status|stop|list|history|clean] [task or alias]` — iterative quality loop
 
 ```

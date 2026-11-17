@@ -179,6 +179,11 @@ ai-factory instructions verify RUN
 ai-factory completion-hook enable --spec tools/completion-hook.json
 ai-factory completion-hook disable
 
+# Create a reviewed Swarm run, then execute it locally (SQLite or PostgreSQL)
+ai-factory swarm start --spec .ai-factory/swarm.yaml
+ai-factory swarm serve
+ai-factory swarm status
+
 # Install an extension (local path, git URL, or npm package)
 ai-factory extension add ./my-extension
 

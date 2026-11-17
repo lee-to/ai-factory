@@ -36,6 +36,7 @@
     "test:extension-schema": "node scripts/test-extension-schema.mjs",
     "test:extensions": "node scripts/run-bash-test.mjs scripts/test-extensions.sh",
     "test:cleanup-helper": "node scripts/run-bash-test.mjs scripts/test-cleanup-helper.sh",
+    "test:swarm": "npm run build && node scripts/test-swarm.mjs",
     "test:dispatch": "node scripts/test-dispatch-regressions.mjs && node scripts/run-bash-test.mjs scripts/test-dispatch.sh",
     "test:ultra-contract": "node scripts/test-ultra-plan-contract.mjs",
     "test:selective-references": "npm run build && node scripts/test-selective-skill-references.mjs",
@@ -116,6 +117,7 @@
     "commander": "^12.1.0",
     "fs-extra": "^11.2.0",
     "inquirer": "^9.2.15",
+    "pg": "^8.23.1",
     "semver": "^7.7.4",
     "yaml": "^2.8.3"
   },
@@ -124,6 +126,7 @@
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.7",
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.23.1",
     "@types/semver": "^7.7.1",
     "ajv": "^8.20.0",
     "knip": "^5.85.0",
