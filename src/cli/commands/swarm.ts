@@ -30,7 +30,10 @@ export function registerSwarmCommands(program: Command): void {
     .option('--spec <file>', 'Project-relative specification', '.ai-factory/swarm.yaml')
     .action((options: { spec: string }) => action(async () => {
       const project = await projectRoot(process.cwd());
-      const specPath = await realpath(path.resolve(project, options.spec));
+      const specPath = await realpath(path.resolve(project, options.spec)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') throw new SwarmError(`Specification not found: ${options.spec}. Create it or select an existing file with --spec.`);
+        throw error;
+      });
       requireValue(isProjectFile(project, specPath), 'Specification must be inside the project');
       const content = await readFile(specPath, 'utf8'); requireValue(Buffer.byteLength(content) <= 128 * 1024, 'Specification too large');
       const spec = parseSpec(parseYaml(content));

@@ -25,12 +25,19 @@ try {
   assert.deepEqual(await loadSwarmContext(alias), await loadSwarmContext(project), 'Context through a checkout alias must stay within the canonical root');
   await fs.mkdir(path.join(project, '.ai-factory'));
   const spec = { goal: 'Path fixture', acceptanceCriteria: ['Paths work'], checks: [[process.execPath, '--version']], workers: [{ provider: 'codex' }] };
+  const start = file => spawnSync(process.execPath, [cli, 'swarm', 'start', '--spec', file], { cwd: alias, encoding: 'utf8', timeout: 15000,
+    env: { ...process.env, AIF_SWARM_DATABASE_URL: '' } });
   const create = file => {
-    const result = spawnSync(process.execPath, [cli, 'swarm', 'start', '--spec', file], { cwd: alias, encoding: 'utf8', timeout: 15000,
-      env: { ...process.env, AIF_SWARM_DATABASE_URL: '' } });
+    const result = start(file);
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);
   };
+  for (const file of ['.ai-factory/swarm.yaml', '.ai-factory/missing.yaml']) {
+    const missing = start(file);
+    assert.equal(missing.status, 1);
+    assert.equal(missing.stdout, '');
+    assert.equal(missing.stderr.trim(), `[swarm] Specification not found: ${file}. Create it or select an existing file with --spec.`);
+  }
   await fs.writeFile(path.join(project, '.ai-factory', 'swarm.yaml'), JSON.stringify(spec));
   assert.equal(await sourceHead(project), ref, 'The reviewed default spec need not be committed or ignored');
   assert.equal(create('.ai-factory/swarm.yaml').baseRef, ref);
