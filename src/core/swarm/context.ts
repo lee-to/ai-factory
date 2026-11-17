@@ -4,16 +4,21 @@ import { parse as parseYaml } from 'yaml';
 import { digest, requireValue } from './types.js';
 
 export interface ContextFile { path: string; sha256: string; content: string }
+export function isProjectFile(project: string, file: string): boolean {
+  const relative = path.relative(project, file);
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
 export async function loadSwarmContext(project: string): Promise<ContextFile[]> {
+  project = await realpath(path.resolve(project));
   const files: ContextFile[] = [];
   let bytes = 0;
   async function read(relative: string, optional: boolean, markdown = true): Promise<string | undefined> {
     requireValue(!path.isAbsolute(relative) && (!markdown || relative.endsWith('.md')), 'Context must reference project Markdown artifacts');
     const target = path.resolve(project, relative);
-    requireValue(target.startsWith(project + path.sep), 'Context path leaves the project');
+    requireValue(isProjectFile(project, target), 'Context path leaves the project');
     try {
       const physical = await realpath(target);
-      requireValue(physical.startsWith(project + path.sep), 'Context symlink leaves the project');
+      requireValue(isProjectFile(project, physical), 'Context symlink leaves the project');
       const content = await readFile(physical, 'utf8');
       bytes += Buffer.byteLength(content); requireValue(bytes <= 256 * 1024, 'Swarm context exceeds 256 KiB');
       return content;

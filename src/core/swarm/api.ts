@@ -32,7 +32,8 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
   for await (const chunk of request) {
     size += chunk.length; requireValue(size <= 128 * 1024, 'Request too large'); chunks.push(Buffer.from(chunk));
   }
-  return object(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
+  try { return object(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); }
+  catch { throw new SwarmError('Invalid request body'); }
 }
 function send(response: ServerResponse, data: unknown, status = 200): void {
   response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -67,10 +68,9 @@ export async function serveSwarm(engine: SwarmEngine, port: number, signal?: Abo
         requireValue(role === 'owner', 'Only the owner may decide approvals');
         const input = await body(request);
         requireValue(input.decision === 'approve' || input.decision === 'reject', 'Invalid decision');
-        const runs = await engine.store.list(engine.project);
-        const run = runs.find(run => run.approvals.some(approval => approval.id === route[3]));
-        requireValue(run, 'Approval not found');
-        await engine.decide(run.id, route[3], input.decision, role); send(response, { schema_version: 1, ok: true }); return;
+        const runId = await engine.store.approvalRunId(engine.project, route[3]);
+        requireValue(runId, 'Approval not found');
+        await engine.decide(runId, route[3], input.decision, role); send(response, { schema_version: 1, ok: true }); return;
       }
       requireValue(route[2] === 'runs', 'Unknown endpoint');
       if (route.length === 3) {

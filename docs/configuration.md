@@ -53,7 +53,10 @@ ai-factory swarm retry RUN_ID TASK_ID --reason "Local fixture is available"
 
 `start` creates a durable run; `serve` executes existing runs until stopped.
 Autonomous execution currently requires POSIX for process-group cleanup.
-A clean source checkout is required. Every worker gets a branch under
+A clean source checkout is required; the selected spec and Runtime storage are
+excluded from that check, so the spec need not be committed or ignored. Project
+roots and spec/context paths are canonicalized, including linked checkouts and
+Windows Git paths. Only autonomous `serve` requires POSIX. Every worker gets a branch under
 `aif/swarm/<run>/<task>-<attempt>`. The Runtime stages and commits worker edits; agents keep their native sandbox
 permissions. Fresh worktrees need explicitly authorized bootstrap commands when
 checks require dependencies; no shared services are started automatically.
@@ -66,6 +69,8 @@ commit refs remain discoverable through `integration-failure` artifacts, so
 generated reports cannot contaminate retries and remain available for diagnosis.
 Parent completion waits for child completion. A final independent verifier checks global
 criteria, then owner approval is required for `completed`.
+Completion approvals are published after agents retire and remain decidable
+while paused or awaiting attention; retries of the same decision are idempotent.
 Rejecting final completion ends the run as `failed`; it cannot be resumed.
 Start a new run for a revised goal. Rejecting an individual integration instead
 blocks that task and retains the existing resolved-blocker retry path.
@@ -75,6 +80,10 @@ blocks that task and retains the existing resolved-blocker retry path.
 integration without per-result review. All policies retain final owner review
 and provider permission boundaries. They do not authorize publishing, access to
 secrets or external side effects. Pause stops new work; in-flight work may finish.
+A worker failure pauses new work for attention while healthy in-flight workers
+finish under their original leases. Their attempts are not consumed by a sibling
+failure. Infrastructure failures, the run time limit, cancel and Runtime shutdown
+still stop active processes.
 Cancel kills managed process groups and preserves dirty worktrees and branch refs.
 Restart revokes old agent credentials, restores durable state, expires interrupted
 claims and requires attention for unknown token usage. Inspect before resuming.
@@ -88,6 +97,9 @@ cancel; a viewer can only read. Mutating creation/control requests require
 SSE supports reconnect through `after`/`Last-Event-ID`. Closing Handoff does not
 stop the Runtime. Keep the local HTTP port private; remote TLS runners and a
 Handoff UI are separate work.
+Scheduler discovery projects nonterminal run IDs, and approval lookup projects
+the owning run ID. These paths do not load full historical state into the Runtime.
+Malformed JSON request bodies return HTTP 400.
 
 The scheduler reserves tokens before model calls and stops further work on budget
 exhaustion. Missing usage telemetry is conservatively charged and requires

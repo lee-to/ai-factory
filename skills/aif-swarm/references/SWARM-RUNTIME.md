@@ -45,6 +45,15 @@ After an interrupted provider process, the new Runtime revokes old API access,
 charges unknown usage conservatively and sets `needs_attention`. Inspect and
 resume explicitly; retained Git refs and expired claims are reused. Completed
 merges are reconciled against the submitted commit before database acceptance.
+An isolated worker failure pauses new dispatch for attention without aborting
+healthy siblings. Their existing claims may finish and submit results; the failed
+worker consumes only its own attempt. Infrastructure errors, run time limits,
+cancel and Runtime shutdown still stop active operations.
+
+Interrupted integrations return to `submitted` with an `integration.interrupted`
+event and no failure artifact. Ref/worktree integrity violations block the task
+and require attention through `integration.integrity_failed`; merge failures and
+failed checks remain distinguishable in their retained artifacts and reports.
 
 ## Commands
 
@@ -56,6 +65,11 @@ and `reject <id> <approval>` operate on existing runs.
 `retry <id> <task> --reason <resolution>` releases a resolved blocker within the
 original attempt limit; resume the run separately when it needs attention. Local CLI access relies
 on the OS user's project/database permissions.
+Project roots are canonical paths, including Windows Git output and checkout
+aliases. Only autonomous `serve` requires POSIX. `start` excludes its selected
+spec and Runtime storage from the clean-source check; all other changes still
+require committing, stashing or ignoring them. Spec and context symlinks must
+remain inside the canonical project root.
 
 Pause stops new claims and integrations; in-flight operations may finish.
 Cancel revokes work and kills managed process groups. Dirty worktrees are retained
@@ -65,6 +79,9 @@ and owner approval; idle workers alone never mean completion.
 Rejecting final completion ends the run as `failed` and records `finishedAt`.
 It cannot be resumed; a revised goal needs a new run. An individual integration
 rejection instead blocks the task and can use the existing resolved-blocker retry.
+The final approval is created after agents retire, and may be decided while the
+run is paused or needs attention, provided its immutable ref/tasks remain current.
+Repeating an already accepted decision returns success without another event.
 
 ## Handoff API v1
 
@@ -116,7 +133,16 @@ Worktrees are not security sandboxes. Agents run as the OS user and may access
 CLI authentication stored in their home directory. Only a small environment
 allowlist plus a short-lived agent token reaches child processes. Codex uses
 workspace-write/read-only with network disabled; Claude uses explicit native tool
-grants. Configured checks may include explicitly authorized dependency bootstrap commands
+grants.
+
+For Claude workers, an empty `allowedTools` list authorizes only the bound Swarm
+MCP tools; it grants no file editing or Bash execution. File-editing workflows
+need explicit grants such as `Read`, `Glob`, `Grep`, `Edit`, `Write`, plus only the
+scoped Bash commands required for that task. `--tools` makes built-in tools
+available; `--allowedTools` supplies permission to call them without prompting.
+The former does not filter MCP tools, per the [Claude CLI reference](https://code.claude.com/docs/en/cli-reference#cli-flags).
+
+Configured checks may include explicitly authorized dependency bootstrap commands
 for fresh worktrees; no dependencies or shared runtime services are copied or
 started automatically. Project and global CLI settings remain subject to the provider's own
 trust model. Native hooks and authorized check commands can execute local code.

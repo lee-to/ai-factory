@@ -7,6 +7,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { SwarmStore } from '../dist/core/swarm/store.js';
 import { SwarmEngine } from '../dist/core/swarm/engine.js';
 import { serveSwarm } from '../dist/core/swarm/api.js';
+import { SwarmRuntime } from '../dist/core/swarm/runtime.js';
 import { parseSpec, digest } from '../dist/core/swarm/types.js';
 
 const project = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'aif-swarm-pages-')));
@@ -63,6 +64,17 @@ try {
   const created = await create(); assert.equal(created.status, 201);
   const id = (await created.json()).id;
   const duplicate = await create(); assert.equal(duplicate.status, 200); assert.equal((await duplicate.json()).id, id);
+  await engine.attention(id, 'Fixture remains idle');
+  const approvalId = randomUUID();
+  await store.mutate(project, waiting.id, run => { run.approvals.push({ id: approvalId, gitRef: ref, kind: 'integration', status: 'pending' }); });
+  assert.equal((await request(`/approvals/${approvalId}/decision`, { method: 'POST', body: '{"decision":"approve"}' })).status, 200, 'Approval lookup must project its run ID without loading history');
+  assert.deepEqual(new Set(await store.activeRunIds(project)), new Set([waiting.id, id]));
+  const get = store.get.bind(store);
+  store.get = async (root, runId) => { assert(!ids.includes(runId), 'Scheduler loaded terminal history'); return get(root, runId); };
+  await server.close(); server = undefined;
+  const runtime = new SwarmRuntime(engine, 'http://127.0.0.1:1');
+  await runtime.start();
+  try { await runtime.tick(); } finally { await runtime.stop(); }
   console.log(`PASS swarm summary pagination (${process.env.AIF_SWARM_TEST_DATABASE_URL ? 'PostgreSQL' : 'SQLite'}): >10MB history, tied cursors, filters, identity and create without history scan`);
 } finally {
   if (server) await server.close();

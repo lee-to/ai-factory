@@ -1,10 +1,11 @@
 import { Command } from 'commander';
-import { readFile } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { SwarmStore } from '../../core/swarm/store.js';
 import { SwarmEngine, publicRun } from '../../core/swarm/engine.js';
 import { projectRoot, sourceHead } from '../../core/swarm/runtime.js';
+import { isProjectFile } from '../../core/swarm/context.js';
 import { serveSwarm } from '../../core/swarm/api.js';
 import { runSwarmMcp } from '../../core/swarm/mcp.js';
 import { integer, parseSpec, requireValue, SwarmError } from '../../core/swarm/types.js';
@@ -29,11 +30,11 @@ export function registerSwarmCommands(program: Command): void {
     .option('--spec <file>', 'Project-relative specification', '.ai-factory/swarm.yaml')
     .action((options: { spec: string }) => action(async () => {
       const project = await projectRoot(process.cwd());
-      const specPath = path.resolve(project, options.spec);
-      requireValue(specPath.startsWith(project + path.sep), 'Specification must be inside the project');
+      const specPath = await realpath(path.resolve(project, options.spec));
+      requireValue(isProjectFile(project, specPath), 'Specification must be inside the project');
       const content = await readFile(specPath, 'utf8'); requireValue(Buffer.byteLength(content) <= 128 * 1024, 'Specification too large');
       const spec = parseSpec(parseYaml(content));
-      const base = await sourceHead(project);
+      const base = await sourceHead(project, specPath);
       return withEngine(async engine => ({ ...publicRun(await engine.create(spec, base)), next: 'ai-factory swarm serve' }));
     }));
   swarm.command('serve').description('Run the scheduler and loopback API independently of Handoff')

@@ -1,8 +1,8 @@
 import path from 'node:path';
 import os from 'node:os';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { SwarmEngine, readyTasks } from './engine.js';
+import { SwarmEngine, readyTasks, emit } from './engine.js';
 import { type Run, type Task, type Agent, uid, digest, requireValue, terminal, redact } from './types.js';
 import { execute, buildProviderCommand, parseProviderOutput, childEnvironment } from './process.js';
 
@@ -11,9 +11,10 @@ export async function git(cwd: string, args: string[], signal?: AbortSignal): Pr
   requireValue(result.code === 0 && !result.timedOut, 'Git operation failed; inspect the preserved worktree');
   return result.stdout.trim();
 }
-export async function projectRoot(cwd: string): Promise<string> { return git(cwd, ['rev-parse', '--show-toplevel']); }
-export async function sourceHead(project: string): Promise<string> {
-  const dirty = await git(project, ['status', '--porcelain', '--untracked-files=normal', '--', '.', ':!.ai-factory/swarm']);
+export async function projectRoot(cwd: string): Promise<string> { return realpath(path.resolve(await git(cwd, ['rev-parse', '--show-toplevel']))); }
+export async function sourceHead(project: string, specPath = path.join(project, '.ai-factory/swarm.yaml')): Promise<string> {
+  const spec = path.relative(project, specPath).split(path.sep).join('/');
+  const dirty = await git(project, ['status', '--porcelain', '--untracked-files=normal', '--', '.', ':(exclude,literal).ai-factory/swarm', `:(exclude,literal)${spec}`]);
   requireValue(!dirty, 'Start requires a clean checkout; commit or stash project changes first');
   return git(project, ['rev-parse', 'HEAD']);
 }
@@ -42,8 +43,8 @@ export class SwarmRuntime {
     }, 3000);
     await mkdir(this.base, { recursive: true, mode: 0o700 });
     // Orphan processes cannot submit through the new server: credentials are memory-only and revoked on restart.
-    for (const run of await this.engine.store.list(this.engine.project)) {
-      if (terminal(run.status)) continue;
+    for (const id of await this.engine.store.activeRunIds(this.engine.project)) {
+      const run = await this.engine.get(id);
       for (const agent of run.agents.filter(a => a.status === 'running')) await this.engine.finishAgent(run.id, agent.id);
       await this.engine.store.mutate(this.engine.project, run.id, state => {
         for (const task of state.tasks) {
@@ -61,20 +62,23 @@ export class SwarmRuntime {
     const abort = new AbortController();
     const work = operation(abort.signal).catch(async () => {
       await this.engine.attention(runId, 'Runtime operation failed; inspect tasks, refs and provider setup').catch(() => {});
+      if (!agentId) for (const item of this.active.values()) if (item.runId === runId) item.abort.abort();
       this.log('operation.failed', runId);
     }).finally(() => this.active.delete(key));
     this.active.set(key, { abort, work, runId, agentId });
   }
   async tick(): Promise<void> {
     requireValue(!this.leaseFailed && !this.stopped, 'Runtime lease lost or runtime stopped');
-    for (const previous of await this.engine.store.list(this.engine.project)) {
+    const ids = new Set([...await this.engine.store.activeRunIds(this.engine.project), ...[...this.active.values()].map(item => item.runId)]);
+    for (const id of ids) {
+      const previous = await this.engine.get(id);
       if (terminal(previous.status)) {
         for (const item of this.active.values()) if (item.runId === previous.id) item.abort.abort();
         continue;
       }
       await this.engine.recover(previous.id);
       const run = await this.engine.get(previous.id);
-      if (run.status === 'needs_attention') {
+      if (run.status === 'needs_attention' && Date.now() - run.startedAt >= run.spec.limits.runTimeoutMs) {
         for (const item of this.active.values()) if (item.runId === run.id) item.abort.abort();
       }
       if (run.status !== 'running') continue;
@@ -93,7 +97,8 @@ export class SwarmRuntime {
         agent.currentTaskId = task.id;
         this.schedule(`worker:${agent.id}`, run.id, signal => this.worker(run, task, agent, signal), agent.id);
       }
-      if (run.tasks.length && run.tasks.every(t => t.status === 'done') && !run.approvals.some(a => a.kind === 'completion' && a.gitRef === run.integrationRef)) {
+      if (run.tasks.length && run.tasks.every(t => t.status === 'done') && run.agents.every(a => a.status !== 'running') &&
+        !run.approvals.some(a => a.kind === 'completion' && a.gitRef === run.integrationRef)) {
         this.schedule(`verify:${run.id}`, run.id, signal => this.verify(run, signal));
       } else if (!readyTasks(run).length && ![...this.active.values()].some(item => item.runId === run.id && item.agentId)
         && run.tasks.some(t => t.status === 'blocked' || t.status === 'failed')) {
@@ -126,7 +131,7 @@ export class SwarmRuntime {
     const timer = agent.currentTaskId ? undefined : setInterval(() => {
       void this.engine.heartbeat(run.id, agent.id).catch(abort);
     }, Math.min(5000, run.spec.limits.leaseMs / 3));
-    let tokens: number | undefined;
+    let tokens: number | undefined, providerFailed = false;
     try {
       const command = buildProviderCommand(agent, agent.role, prompt, run.spec, {
         cli: fileURLToPath(new URL('../../cli/index.js', import.meta.url)), url: this.url, runId: run.id, agentId: agent.id });
@@ -135,8 +140,12 @@ export class SwarmRuntime {
       requireValue(result.code === 0 && !result.timedOut, 'Provider failed or timed out');
       const parsed = parseProviderOutput(agent.provider, result.stdout); tokens = parsed.tokens;
       return parsed.result;
+    } catch (error) {
+      providerFailed = true; throw error;
     } finally {
-      clearInterval(timer); signal.removeEventListener('abort', abort); this.credentials.delete(token); await this.engine.recordAgentUsage(run.id, agent.id, tokens);
+      clearInterval(timer); signal.removeEventListener('abort', abort); this.credentials.delete(token);
+      try { await this.engine.recordAgentUsage(run.id, agent.id, tokens); }
+      catch (error) { if (!providerFailed) throw error; this.log('usage.record_failed', run.id); }
     }
   }
   private async worktree(run: Run, suffix: string, ref: string, signal?: AbortSignal): Promise<string> {
@@ -235,6 +244,7 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
     const previous = run.integrationRef;
     let cwd: string | undefined;
     let integrated = false;
+    let phase: 'integrity' | 'merge' | 'checks' = 'integrity';
     try {
       cwd = await this.integrationTree(run, task);
       const branch = `refs/heads/aif/swarm/${id}/${task.id}-${task.attempts}`;
@@ -244,18 +254,32 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
       // Recover a crash between Git commit and database commit using the immutable submitted ref.
       if (head !== previous) {
         await git(cwd, ['merge-base', '--is-ancestor', task.gitRef!, head]);
+        phase = 'checks';
         requireValue(await this.checks(run, cwd, signal), 'Recovered integration checks failed');
         await this.engine.integration(id, task.id, head, 'Recovered integration; checks passed'); integrated = true; return;
       }
       requireValue(!(await git(cwd, ['status', '--porcelain'])), 'Integration worktree is dirty');
+      phase = 'merge';
       await git(cwd, ['merge', '--no-ff', '--no-edit', task.gitRef!], signal);
+      phase = 'checks';
       requireValue(await this.checks(run, cwd, signal), 'Integration checks failed');
       await this.engine.integration(id, task.id, await git(cwd, ['rev-parse', 'HEAD']), 'Configured checks passed');
       integrated = true;
     } catch {
+      if (signal.aborted) {
+        await this.engine.store.mutate(this.engine.project, id, (state, events) => {
+          const current = state.tasks.find(t => t.id === task.id);
+          if (terminal(state.status) || current?.status !== 'verifying') return;
+          current.status = 'submitted';
+          emit(state, events, 'integration.interrupted', 'runtime', { task_id: task.id, git_ref: current.gitRef });
+        });
+        return;
+      }
       // Retain failed worktrees and refs as evidence; each retry starts from the accepted integration ref.
       const live = await this.engine.get(id);
-      if (!terminal(live.status)) await this.engine.integration(id, task.id, null, 'Merge conflict or verification failed; revise against current integration ref', cwd);
+      const reason = phase === 'integrity' ? 'Submitted ref or worktree integrity validation failed; inspect retained refs'
+        : phase === 'merge' ? 'Git merge failed; inspect the retained integration worktree' : 'Configured integration checks failed';
+      if (!terminal(live.status)) await this.engine.integration(id, task.id, null, reason, cwd, phase);
     } finally { if (integrated && cwd) await this.remove(cwd); }
   }
   private async verify(run: Run, signal: AbortSignal): Promise<void> {
@@ -268,6 +292,7 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
       const result = await this.invoke(run, agent, cwd, `${this.context(run)}\nGoal: ${run.goal}\nAcceptance criteria: ${JSON.stringify(run.spec.acceptanceCriteria)}\n`
         + `Review the integrated changes from ${run.baseRef} to ${run.integrationRef} independently against every criterion. Do not edit files. `
         + 'Return {"accepted":true or false,"report":"evidence per criterion and remaining issues"}.', signal);
+      await this.engine.finishAgent(run.id, agent.id);
       const live = await this.engine.get(run.id);
       if (live.status === 'running') await this.engine.complete(run.id, checks && result.accepted === true, redact(String(result.report ?? 'No verification report')));
     } finally { if (cwd) await this.remove(cwd); await this.engine.finishAgent(run.id, agent.id); }

@@ -245,7 +245,8 @@ export class SwarmEngine {
       emit(run, events, 'task.retry_requested', 'owner', { task_id: taskId, reason: task.report });
     });
   }
-  async integration(id: string, taskId: string, ref: string | null, report: string, worktree?: string): Promise<void> {
+  async integration(id: string, taskId: string, ref: string | null, report: string, worktree?: string,
+    failure: 'integrity' | 'merge' | 'checks' = 'checks'): Promise<void> {
     await this.store.mutate(this.project, id, (run, events) => {
       requireValue(!terminal(run.status), 'Run is terminal');
       const task = run.tasks.find(t => t.id === taskId);
@@ -256,11 +257,12 @@ export class SwarmEngine {
         emit(run, events, 'task.integrated', 'integration', { task_id: taskId, git_ref: ref });
         settleParents(run, events);
       } else {
-        run.artifacts.push({ id: uid(), taskId, type: 'integration-failure', git_ref: task.gitRef!,
-          metadata: { checks: 'fail', report: redact(report), ...(worktree ? { worktree } : {}) } });
-        task.status = task.attempts >= run.spec.limits.maxAttempts ? 'failed' : 'pending';
+        run.artifacts.push({ id: uid(), taskId, type: failure === 'integrity' ? 'integration-integrity' : 'integration-failure', git_ref: task.gitRef!,
+          metadata: { checks: failure === 'checks' ? 'fail' : 'not_run', phase: failure, report: redact(report), ...(worktree ? { worktree } : {}) } });
+        task.status = failure === 'integrity' ? 'blocked' : task.attempts >= run.spec.limits.maxAttempts ? 'failed' : 'pending';
         task.report = redact(report); delete task.gitRef; delete task.claimToken; delete task.assignedAgentId;
-        emit(run, events, 'integration.failed', 'integration', { task_id: taskId, reason: task.report });
+        emit(run, events, failure === 'integrity' ? 'integration.integrity_failed' : 'integration.failed', 'integration', { task_id: taskId, reason: task.report, phase: failure });
+        if (failure === 'integrity') { run.status = 'needs_attention'; emit(run, events, 'run.needs_attention', 'integration', { reason: task.report }); }
       }
     });
   }
@@ -283,16 +285,16 @@ export class SwarmEngine {
   }
   async decide(id: string, approvalId: string, decision: 'approve' | 'reject', actor: string): Promise<void> {
     await this.store.mutate(this.project, id, (run, events) => {
-      requireValue(!terminal(run.status), 'Run is terminal');
       const approval = run.approvals.find(a => a.id === approvalId);
       requireValue(approval, 'Approval not found');
       if (approval.status === (decision === 'approve' ? 'approved' : 'rejected')) return;
+      requireValue(!terminal(run.status), 'Run is terminal');
       requireValue(approval.status === 'pending', 'Approval is not pending');
       approval.status = decision === 'approve' ? 'approved' : 'rejected';
       emit(run, events, 'approval.decided', actor, { approval_id: approvalId, decision, git_ref: approval.gitRef });
       if (approval.kind === 'completion') {
-        requireValue(run.status === 'running' && run.agents.every(a => a.status !== 'running') &&
-          approval.gitRef === run.integrationRef && run.tasks.every(t => t.status === 'done'), 'Completion approval is stale or run needs attention');
+        requireValue(run.agents.every(a => a.status !== 'running') &&
+          approval.gitRef === run.integrationRef && run.tasks.every(t => t.status === 'done'), 'Completion approval is stale or agents are still active');
         run.status = decision === 'approve' ? 'completed' : 'failed';
         run.finishedAt = Date.now();
         emit(run, events, `run.${run.status}`, actor, { git_ref: run.integrationRef });
@@ -302,6 +304,7 @@ export class SwarmEngine {
   async complete(id: string, accepted: boolean, report: string): Promise<void> {
     await this.store.mutate(this.project, id, (run, events) => {
       requireValue(run.status === 'running' && run.planned && run.tasks.length && run.tasks.every(t => t.status === 'done'), 'Tasks are incomplete');
+      requireValue(run.agents.every(a => a.status !== 'running'), 'Agents are still active');
       run.artifacts.push({ id: uid(), type: 'verification', git_ref: run.integrationRef, metadata: { accepted, report: redact(report) } });
       if (!accepted) { run.status = 'needs_attention'; emit(run, events, 'verification.failed', 'verifier', { report: redact(report) }); return; }
       if (run.approvals.some(a => a.kind === 'completion' && a.gitRef === run.integrationRef)) return;

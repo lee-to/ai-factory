@@ -39,6 +39,7 @@ export class SwarmStore {
         await client.query("SELECT pg_advisory_xact_lock(hashtext('ai-factory-swarm-schema-v1'))");
         await client.query(schema);
         await client.query("CREATE INDEX IF NOT EXISTS swarm_runs_summary_page ON swarm_runs(project, ((state::jsonb #>> '{startedAt}')::bigint) DESC, id DESC)");
+        await client.query("CREATE INDEX IF NOT EXISTS swarm_runs_active ON swarm_runs(project, (state::jsonb->>'status'))");
         await client.query('COMMIT');
       } catch (error) { await client.query('ROLLBACK'); throw error; }
       finally { client.release(); }
@@ -59,6 +60,7 @@ export class SwarmStore {
       store.sqlite.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;');
       store.sqlite.exec(schema);
       store.sqlite.exec("CREATE INDEX IF NOT EXISTS swarm_runs_summary_page ON swarm_runs(project, CAST(json_extract(state,'$.startedAt') AS BIGINT) DESC, id DESC)");
+      store.sqlite.exec("CREATE INDEX IF NOT EXISTS swarm_runs_active ON swarm_runs(project, json_extract(state,'$.status'))");
       store.sqlite.function('swarm_lower', { deterministic: true }, value => typeof value === 'string' ? value.toLowerCase() : '');
     }
     return store;
@@ -139,6 +141,19 @@ export class SwarmStore {
   async list(project: string): Promise<Run[]> {
     return this.transaction(project, async c => (await c.query('SELECT state FROM swarm_runs WHERE project=$1', [project]))
       .map(row => JSON.parse(String(row.state)) as Run));
+  }
+  async activeRunIds(project: string): Promise<string[]> {
+    const status = this.pool ? "state::jsonb->>'status'" : "json_extract(state,'$.status')";
+    return this.transaction(project, async c => (await c.query(`SELECT id FROM swarm_runs WHERE project=$1 AND ${status} IN ('running','paused','needs_attention')`, [project]))
+      .map(row => String(row.id)));
+  }
+  async approvalRunId(project: string, approvalId: string): Promise<string | undefined> {
+    const items = this.pool ? "jsonb_array_elements(state::jsonb->'approvals') AS item(value)" : "json_each(state,'$.approvals') AS item";
+    const id = this.pool ? "item.value->>'id'" : "json_extract(item.value,'$.id')";
+    return this.transaction(project, async c => {
+      const rows = await c.query(`SELECT id FROM swarm_runs WHERE project=$1 AND EXISTS (SELECT 1 FROM ${items} WHERE ${id}=$2) LIMIT 1`, [project, approvalId]);
+      return rows[0] ? String(rows[0].id) : undefined;
+    });
   }
   async summaries(project: string, query: RunPageQuery): Promise<{ runs: RunSummary[]; next_cursor: string | null }> {
     integer(query.limit, 'limit', 1, 50);

@@ -150,9 +150,15 @@ const prompt=fs.readFileSync(0,'utf8');
 if(!prompt.includes('Fixture context survives ignored Git files'))process.exit(2);
 if(prompt.includes('Goal: Cancellation fixture')&&prompt.includes('Task: ')){fs.writeFileSync('worker.started','running');setInterval(()=>{},1000);return;}
 let result;
-if(prompt.includes('Create at most')) result={tasks:Array.from({length:/Goal: (Dirty integration|Lease lifecycle) fixture/.test(prompt)?1:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
+if(prompt.includes('Create at most')) result={tasks:Array.from({length:/Goal: (Dirty integration|Lease lifecycle) fixture/.test(prompt)?1:prompt.includes('Goal: Sibling failure fixture')?2:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
 else if(prompt.includes('Task: ')) {
 const task=JSON.parse(prompt.split('Task: ')[1].split('\\n')[0]);
+if(prompt.includes('Goal: Sibling failure fixture')){
+  const marker=${JSON.stringify(path.join(temp, 'sibling-ready'))};
+  if(task.title==='item0'){const timer=setInterval(()=>{if(fs.existsSync(marker)){clearInterval(timer);process.exit(1);}},30);return;}
+  fs.writeFileSync(marker,'ready');
+  setTimeout(()=>{fs.writeFileSync(task.title+'.txt','OK');console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'{"report":"Healthy sibling finished"}'}}));console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_tokens:10}}));},4500);return;
+}
 fs.writeFileSync(task.title+'.txt','OK');
 if(prompt.includes('Goal: Dirty integration fixture')&&task.attempts>1)fs.writeFileSync('repair.txt','OK');
 if(prompt.includes('Goal: Lease lifecycle fixture'))fs.writeFileSync('slow-commit.txt','OK');
@@ -173,6 +179,8 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
       return state.approvals.some(a => a.kind === 'completion') && state.agents.every(a => a.status === 'stopped') ? state : false;
     });
     assert.equal((await fetch(server.url + '/v1/swarm/runs')).ok, false);
+    const malformed = await api('runs', 'OWNER', { method: 'POST', body: '{' });
+    assert.equal(malformed.status, 400); assert.equal((await malformed.json()).error, 'Invalid request body');
     assert.equal((await api(`runs/${started.id}/cancel`, 'VIEWER', { method: 'POST' })).ok, false);
     assert.equal((await fetch(server.url + '/v1/swarm/runs', { headers: { ...headers('OWNER'), origin: 'https://example.invalid' } })).ok, false);
     const done = await waitUntil(async () => {
@@ -186,7 +194,9 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
     assert.equal(done.artifacts.filter(a => a.type === 'integration').length, 5);
     const approval = done.approvals.find(a => a.kind === 'completion');
     await waitUntil(async () => (await runtimeEngine.get(started.id)).agents.every(a => a.status === 'stopped'));
+    await runtimeEngine.control(started.id, 'pause');
     assert.equal((await api(`approvals/${approval.id}/decision`, 'OWNER', { method: 'POST', body: '{"decision":"approve"}' })).status, 200);
+    assert.equal((await api(`approvals/${approval.id}/decision`, 'OWNER', { method: 'POST', body: '{"decision":"approve"}' })).status, 200, 'Final approval retries must be idempotent');
     assert.equal((await runtimeEngine.get(started.id)).status, 'completed');
     const stream = await api(`runs/${started.id}/events/stream?after=2`, 'VIEWER');
     const reader = stream.body.getReader(); let output = '';
@@ -202,6 +212,19 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
     await new Promise(resolve => mcp.once('exit', resolve));
     const messages = mcpOutput.trim().split('\n').map(line => JSON.parse(line));
     assert.equal(messages[0].result.serverInfo.name, 'ai-factory-swarm'); assert.equal(messages[1].result.tools.length, 10);
+    const siblingRun = await runtimeEngine.create({ ...spec, goal: 'Sibling failure fixture',
+      limits: { ...spec.limits, leaseMs: 3000, maxAttempts: 1 } }, source);
+    const siblingState = await waitUntil(async () => {
+      const state = await runtimeEngine.get(siblingRun.id);
+      const healthy = state.tasks.find(t => t.title === 'item1');
+      return healthy && ['submitted', 'failed'].includes(healthy.status) ? state : false;
+    });
+    const healthy = siblingState.tasks.find(t => t.title === 'item1');
+    assert.equal(healthy.status, 'submitted', 'A failed worker must not abort an authorized healthy sibling');
+    assert.equal(healthy.attempts, 1);
+    assert.equal(siblingState.status, 'needs_attention');
+    assert(!(await runtimeEngine.store.events(repo, siblingRun.id)).some(event => event.type === 'task.lease_expired' && event.payload.task_id === healthy.id));
+    await runtimeEngine.control(siblingRun.id, 'cancel');
     const hookStarted = path.join(temp, 'hook-started');
     await fs.writeFile(path.join(repo, '.git', 'hooks', 'pre-commit'), `#!${process.execPath}\nconst fs=require('fs');if(fs.existsSync('slow-commit.txt')){fs.writeFileSync(${JSON.stringify(hookStarted)},'started');setTimeout(()=>{},4500);}\n`, { mode: 0o755 });
     const leaseRun = await runtimeEngine.create({ ...spec, goal: 'Lease lifecycle fixture',
@@ -233,11 +256,25 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
     const rejectionRun = await runtimeEngine.create({ ...spec, goal: 'Final rejection fixture' }, source);
     const rejected = await awaitCompletion(rejectionRun.id);
     const rejectionApproval = rejected.approvals.find(a => a.kind === 'completion');
+    await runtimeEngine.attention(rejectionRun.id, 'Owner attention before final decision');
     assert.equal((await api(`approvals/${rejectionApproval.id}/decision`, 'OWNER', { method: 'POST', body: '{"decision":"reject"}' })).status, 200);
     const terminalRejection = await runtimeEngine.get(rejectionRun.id);
     assert.equal(terminalRejection.status, 'failed');
     assert(Number.isSafeInteger(terminalRejection.finishedAt));
     assert.equal((await api(`runs/${rejectionRun.id}/resume`, 'OWNER', { method: 'POST' })).ok, false, 'Final rejection is terminal, not a stuck resumable run');
+    const timedRun = await runtimeEngine.create({ ...spec, goal: 'Cancellation fixture', limits: { ...spec.limits, maxAgents: 1 } }, source);
+    await waitUntil(async () => {
+      const state = await runtimeEngine.get(timedRun.id), task = state.tasks.find(t => t.status === 'running');
+      return task && fs.access(path.join(os.tmpdir(), `aif-swarm-${digest(repo).slice(0, 16)}`, state.id,
+        `${task.id}-${task.attempts}`, 'worker.started')).then(() => true, () => false);
+    });
+    await runtimeEngine.store.mutate(repo, timedRun.id, state => { state.startedAt = Date.now() - state.spec.limits.runTimeoutMs - 1; });
+    await waitUntil(async () => {
+      const state = await runtimeEngine.get(timedRun.id);
+      return state.status === 'needs_attention' && state.agents.every(agent => agent.status === 'stopped');
+    });
+    assert((await runtimeEngine.store.events(repo, timedRun.id)).some(event => event.type === 'run.time_limit'), 'Run time limits must still abort active work');
+    await runtimeEngine.control(timedRun.id, 'cancel');
     const cancelledRun = await runtimeEngine.create({ ...spec, goal: 'Cancellation fixture' }, source);
     await waitUntil(async () => {
       const state = await runtimeEngine.get(cancelledRun.id);
@@ -267,3 +304,5 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
 }
 
 await import('./test-swarm-pages.mjs');
+await import('./test-swarm-paths.mjs');
+await import('./test-swarm-integrity.mjs');
