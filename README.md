@@ -155,6 +155,7 @@ See [global skills and project symlinks](docs/getting-started.md#global-skills-a
 | [Configuration](docs/configuration.md) | `.ai-factory.json`, MCP servers, project structure, best practices |
 | [Config Reference](docs/config-reference.md) | Full `config.yaml` key reference and skill read/write matrix |
 | [Instruction Manifests](docs/instruction-manifests.md) | Explicit invocation records, exact instruction bytes, load evidence, and local restoration |
+| [Architecture](docs/architecture.md) | Repository layout, module boundaries, and CLI internals |
 
 ## Links
 - [Official Website](https://aif.cutcode.dev) - AI Factory website

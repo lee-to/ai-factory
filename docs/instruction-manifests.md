@@ -1,4 +1,4 @@
-[← Config Reference](config-reference.md) · [Back to README](../README.md)
+[← Config Reference](config-reference.md) · [Back to README](../README.md) · [Architecture →](architecture.md)
 
 # Instruction Composition Manifests
 
