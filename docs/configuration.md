@@ -85,6 +85,9 @@ finish under their original leases. Their attempts are not consumed by a sibling
 failure. Infrastructure failures, the run time limit, cancel and Runtime shutdown
 still stop active processes.
 Cancel kills managed process groups and preserves dirty worktrees and branch refs.
+POSIX cleanup requires `ps` and also stops observed descendants in separate
+process groups before their parent. Processes that daemonize and reparent before
+inspection require separate containment; worktrees do not provide it.
 Restart revokes old agent credentials, restores durable state, expires interrupted
 claims and requires attention for unknown token usage. Inspect before resuming.
 

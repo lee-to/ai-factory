@@ -123,6 +123,16 @@ try {
   const claude = buildProviderCommand({ provider: 'claude' }, 'worker', 'literal prompt', spec,
     { cli, url: 'http://127.0.0.1:1', runId: run.id, agentId: worker.id });
   assert.equal(JSON.parse(claude.args[claude.args.indexOf('--mcp-config') + 1]).mcpServers.swarm.env.AIF_SWARM_AGENT_TOKEN, '${AIF_SWARM_AGENT_TOKEN}');
+  const previousUser = process.env.USER, previousSecret = process.env.AIF_SWARM_TEST_SECRET;
+  process.env.USER = 'swarm-native-user'; process.env.AIF_SWARM_TEST_SECRET = 'fixture-private-value';
+  try {
+    const identity = await execute(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({user:process.env.USER,secret:process.env.AIF_SWARM_TEST_SECRET}))'], temp, 10000);
+    assert.equal(identity.code, 0);
+    assert.deepEqual(JSON.parse(identity.stdout), { user: 'swarm-native-user' }, 'Preserve native credential identity without forwarding secret environment values');
+  } finally {
+    if (previousUser === undefined) delete process.env.USER; else process.env.USER = previousUser;
+    if (previousSecret === undefined) delete process.env.AIF_SWARM_TEST_SECRET; else process.env.AIF_SWARM_TEST_SECRET = previousSecret;
+  }
   const timed = await execute(process.execPath, ['-e', 'setInterval(()=>{},1000)'], temp, 100);
   assert.equal(timed.timedOut, true);
   const abort = new AbortController(), pidFile = path.join(temp, 'descendant.pid');
@@ -304,5 +314,6 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
 }
 
 await import('./test-swarm-pages.mjs');
+await import('./test-swarm-processes.mjs');
 await import('./test-swarm-paths.mjs');
 await import('./test-swarm-integrity.mjs');

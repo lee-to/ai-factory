@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 import type { Provider, SwarmSpec, Role } from './types.js';
 import { requireValue, SwarmError } from './types.js';
@@ -6,11 +6,29 @@ import { requireValue, SwarmError } from './types.js';
 export interface ProcessResult { stdout: string; code: number; timedOut: boolean }
 export function childEnvironment(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
-  for (const key of ['PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'TMPDIR', 'TEMP', 'LANG', 'LC_ALL', 'TERM']) {
+  // Native CLI credential stores can use USER to select the saved login.
+  for (const key of ['PATH', 'HOME', 'USER', 'USERPROFILE', 'SystemRoot', 'TMPDIR', 'TEMP', 'LANG', 'LC_ALL', 'TERM']) {
     if (process.env[key]) env[key] = process.env[key];
   }
   env.GIT_TERMINAL_PROMPT = '0';
   return env;
+}
+function descendants(pid: number): number[] {
+  const snapshot = execFileSync('ps', ['-A', '-o', 'pid=,ppid='], {
+    encoding: 'utf8', env: childEnvironment(), timeout: 1000, maxBuffer: 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  const children = new Map<number, number[]>();
+  for (const row of snapshot.trim().split('\n')) {
+    const [child, parent, extra] = row.trim().split(/\s+/).map(Number);
+    requireValue(Number.isSafeInteger(child) && child > 0 && Number.isSafeInteger(parent) && parent >= 0 && extra === undefined,
+      'Process tree could not be inspected');
+    const siblings = children.get(parent) ?? []; siblings.push(child); children.set(parent, siblings);
+  }
+  const pids = [pid], seen = new Set(pids);
+  for (const parent of pids) for (const child of children.get(parent) ?? []) {
+    if (!seen.has(child)) { seen.add(child); pids.push(child); }
+  }
+  return pids.reverse();
 }
 export async function execute(file: string, args: string[], cwd: string, timeoutMs: number, signal?: AbortSignal,
   env = childEnvironment(), input?: string): Promise<ProcessResult> {
@@ -20,10 +38,21 @@ export async function execute(file: string, args: string[], cwd: string, timeout
     child.stdin.on('error', () => { /* The child may exit before reading its input. */ });
     child.stdin.end(input);
     const decoder = new StringDecoder('utf8');
-    let stdout = '', bytes = 0, timedOut = false, limit = false;
+    let stdout = '', bytes = 0, timedOut = false, limit = false, terminating = false, cleanupFailed = false;
     const kill = () => {
-      if (!child.pid) return;
-      try { if (process.platform === 'win32') child.kill('SIGKILL'); else process.kill(-child.pid, 'SIGKILL'); } catch { /* Already exited. */ }
+      if (!child.pid || terminating) return;
+      terminating = true;
+      if (process.platform === 'win32') {
+        try { child.kill('SIGKILL'); } catch { cleanupFailed = true; }
+        return;
+      }
+      // Native tools can start new sessions; inspect ancestry before killing their parent.
+      let pids = [child.pid];
+      try { pids = descendants(child.pid); } catch { cleanupFailed = true; }
+      for (const pid of [...pids, -child.pid]) {
+        try { process.kill(pid, 'SIGKILL'); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') cleanupFailed = true; }
+      }
     };
     const timer = setTimeout(() => { timedOut = true; kill(); }, timeoutMs);
     signal?.addEventListener('abort', kill, { once: true });
@@ -38,7 +67,8 @@ export async function execute(file: string, args: string[], cwd: string, timeout
     child.once('error', () => { cleanup(); reject(new SwarmError('Executable could not start; check its installation and permissions')); });
     child.once('close', code => {
       cleanup();
-      if (limit) reject(new SwarmError('Process output limit reached'));
+      if (cleanupFailed) reject(new SwarmError('Process tree cleanup failed; inspect remaining worktree processes'));
+      else if (limit) reject(new SwarmError('Process output limit reached'));
       else if (signal?.aborted) reject(new SwarmError('Operation cancelled'));
       else resolve({ stdout: stdout + decoder.end(), code: code ?? 1, timedOut });
     });

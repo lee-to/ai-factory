@@ -76,6 +76,12 @@ Cancel revokes work and kills managed process groups. Dirty worktrees are retain
 to prevent data loss. Integration branches remain for review; the source branch
 is never merged or pushed automatically. Runs need checks plus a final verifier
 and owner approval; idle workers alone never mean completion.
+POSIX cleanup requires `ps`. On cancellation, timeout or output overflow, the
+process runner inspects PID/PPID ancestry before stopping descendants from leaves
+to parent, including tools in separate sessions, then kills the original process
+group. Inspection/signal failures produce a cleanup error. This is not containment
+of processes that already daemonized and reparented outside the observable tree;
+use a container/VM when process containment is required.
 Rejecting final completion ends the run as `failed` and records `finishedAt`.
 It cannot be resumed; a revised goal needs a new run. An individual integration
 rejection instead blocks the task and can use the existing resolved-blocker retry.
