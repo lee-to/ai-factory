@@ -34,6 +34,11 @@ Every claim has a unique fencing token and lease. Heartbeats extend only the
 current claim, from worktree preparation through Runtime Git work until result
 or blocker submission is durably accepted. Provider usage is recorded when the
 CLI exits; the worker stays active until the entire task operation finishes.
+After an accepted result/blocker, its durable operation receipt identifies the
+exact agent, task and fencing token. Heartbeats then maintain agent liveness
+without renewing the settled claim while integration or retries proceed. Expired
+active claims and foreign tokens remain errors; a finishing old provider cannot
+submit over a replacement attempt.
 The Runtime stages and commits worker edits on their assigned branches so Git
 metadata writes do not depend on model sandbox permissions. Submitted commits
 are immutable hashes. Parent completion waits

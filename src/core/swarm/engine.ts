@@ -174,7 +174,15 @@ export class SwarmEngine {
       requireValue(!terminal(run.status), 'Run is terminal');
       const agent = run.agents.find(a => a.id === agentId && a.status === 'running');
       requireValue(agent, 'Agent is not active'); agent.heartbeatAt = Date.now();
-      if (taskId) ownedTask(run, agentId, taskId, token ?? '').leaseUntil = Date.now() + run.spec.limits.leaseMs;
+      if (taskId) {
+        // An accepted result settles the claim while the provider can still be producing final usage.
+        const accepted = Object.entries(run.operations).some(([key, operation]) => {
+          const receipt = operation.result as Task | null;
+          return key.startsWith(`${agentId}:`) && receipt?.id === taskId && receipt.assignedAgentId === agentId &&
+            receipt.claimToken === token && ['submitted', 'blocked'].includes(receipt.status);
+        });
+        if (!accepted) ownedTask(run, agentId, taskId, token ?? '').leaseUntil = Date.now() + run.spec.limits.leaseMs;
+      }
     });
   }
   async agentOperation(id: string, agentId: string, key: string, method: string, args: Record<string, unknown>): Promise<unknown> {

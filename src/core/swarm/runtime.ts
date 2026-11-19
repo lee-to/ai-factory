@@ -188,7 +188,7 @@ Dependencies are zero-based task indexes; no parentId. Include verification work
         + `Implement the task and execute applicable checks. Leave task changes in this worktree; the Runtime owns Git staging and commits. Previous failure: ${task.report ?? 'none'}. `
         + 'Return {"report":"changes and checks"}; if blocked return {"blocked":true,"report":"reason"}.', taskSignal);
       const live = await this.engine.get(run.id), current = live.tasks.find(t => t.id === task.id)!;
-      if (current.status !== 'running') return;
+      if (current.status !== 'running' || current.assignedAgentId !== agent.id || current.claimToken !== task.claimToken) return;
       if (result.blocked === true) {
         // The runtime records a blocker under the original lease even after the CLI exits.
         await this.runtimeResult(run.id, task, agent.id, 'report_blocker', result); return;

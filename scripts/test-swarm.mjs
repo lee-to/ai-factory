@@ -53,12 +53,19 @@ try {
   await engine.agentOperation(run.id, worker.id, 'result', 'submit_result', { taskId: parent.id, claimToken: parent.claimToken, gitRef: 'b'.repeat(40), report: 'Implemented' });
   assert.equal((await engine.get(run.id)).tasks.find(t => t.id === parent.id).status, 'submitted');
   await engine.prepareIntegration(run.id);
+  await engine.heartbeat(run.id, worker.id, parent.id, parent.claimToken);
+  await assert.rejects(engine.heartbeat(run.id, worker.id, parent.id, 'wrong-token'), /Stale or foreign/);
+  await assert.rejects(engine.heartbeat(run.id, agents[1].id, parent.id, parent.claimToken), /Stale or foreign/);
   await engine.integration(run.id, parent.id, 'c'.repeat(40), 'checks passed');
   assert.equal((await engine.get(run.id)).tasks.find(t => t.id === parent.id).status, 'integrated', 'Parent must wait for children');
+  await engine.heartbeat(run.id, worker.id, parent.id, parent.claimToken);
+  await engine.finishAgent(run.id, worker.id, 5);
+  await assert.rejects(engine.heartbeat(run.id, worker.id, parent.id, parent.claimToken), /Agent is not active/);
   await engine.control(run.id, 'pause');
   const spare = await engine.register(run.id, 'worker', spec.workers[0]); assert.equal(spare, null);
   await engine.control(run.id, 'resume');
   await engine.store.mutate(root, run.id, state => { state.tasks.find(t => t.id === claimed[1].id).leaseUntil = 0; });
+  await assert.rejects(engine.heartbeat(run.id, agents[1].id, claimed[1].id, claimed[1].claimToken), /Stale or foreign/);
   await engine.recover(run.id);
   await assert.rejects(engine.agentOperation(run.id, agents[1].id, 'stale', 'submit_result', { taskId: claimed[1].id, claimToken: claimed[1].claimToken, gitRef: 'b'.repeat(40), report: 'stale' }));
   assert.equal((await engine.get(run.id)).tasks.find(t => t.id === claimed[1].id).status, 'pending');
@@ -103,9 +110,21 @@ try {
   const blockedTask = await engine.claim(blocked.id, blockedAgent.id);
   await engine.agentOperation(blocked.id, blockedAgent.id, 'blocker', 'report_blocker', {
     taskId: blockedTask.id, claimToken: blockedTask.claimToken, report: 'Missing local fixture' });
+  await engine.heartbeat(blocked.id, blockedAgent.id, blockedTask.id, blockedTask.claimToken);
   await engine.retry(blocked.id, blockedTask.id, 'Fixture is now available');
   assert.equal((await engine.get(blocked.id)).tasks[0].status, 'pending');
   await assert.rejects(engine.retry(blocked.id, blockedTask.id, 'Cannot retry a ready task'));
+  const replacement = await engine.register(blocked.id, 'worker', spec.workers[0]);
+  const replacementTask = await engine.claim(blocked.id, replacement.id);
+  await engine.heartbeat(blocked.id, blockedAgent.id, blockedTask.id, blockedTask.claimToken);
+  assert.equal((await engine.get(blocked.id)).tasks[0].leaseUntil, replacementTask.leaseUntil, 'An accepted old attempt must not renew the replacement claim');
+  await assert.rejects(engine.heartbeat(blocked.id, blockedAgent.id, blockedTask.id, replacementTask.claimToken), /Stale or foreign/);
+  await assert.rejects(engine.heartbeat(blocked.id, replacement.id, blockedTask.id, blockedTask.claimToken), /Stale or foreign/);
+  await assert.rejects(engine.agentOperation(blocked.id, blockedAgent.id, 'stale-result', 'submit_result', {
+    taskId: blockedTask.id, claimToken: blockedTask.claimToken, gitRef: 'e'.repeat(40), report: 'Old attempt' }), /Stale or foreign/);
+  await engine.heartbeat(blocked.id, replacement.id, replacementTask.id, replacementTask.claimToken);
+  await engine.control(blocked.id, 'cancel');
+  await assert.rejects(engine.heartbeat(blocked.id, blockedAgent.id, blockedTask.id, blockedTask.claimToken), /Run is terminal/);
   assert.match(redact('password=private-value https://alice:secret@host/path sk-12345678901234567890'), /redacted/);
   assert(!redact('password=private-value').includes('private-value'));
   assert.throws(() => parseSpec({ ...spec, limits: { maxAgents: 6 } }));
@@ -159,10 +178,28 @@ const fs=require('fs'), cp=require('child_process');
 const prompt=fs.readFileSync(0,'utf8');
 if(!prompt.includes('Fixture context survives ignored Git files'))process.exit(2);
 if(prompt.includes('Goal: Cancellation fixture')&&prompt.includes('Task: ')){fs.writeFileSync('worker.started','running');setInterval(()=>{},1000);return;}
+const finish=result=>{console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}}));console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_tokens:10}}));};
 let result;
-if(prompt.includes('Create at most')) result={tasks:Array.from({length:/Goal: (Dirty integration|Lease lifecycle) fixture/.test(prompt)?1:prompt.includes('Goal: Sibling failure fixture')?2:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
+if(prompt.includes('Create at most')) result={tasks:Array.from({length:/Goal: (Dirty integration|Lease lifecycle|Submission tail|Submission retry tail) fixture/.test(prompt)?1:prompt.includes('Goal: Sibling failure fixture')?2:5},(_,i)=>({title:'item'+i,description:'Create item'+i,acceptanceCriteria:['File exists'],dependsOn:[]}))};
 else if(prompt.includes('Task: ')) {
 const task=JSON.parse(prompt.split('Task: ')[1].split('\\n')[0]);
+if(/Goal: Submission (retry )?tail fixture/.test(prompt)){
+  const retry=prompt.includes('Goal: Submission retry tail fixture');
+  const hold=name=>{const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(path.join(temp, 'submission-release-'))}+name)){clearInterval(timer);finish({report:'Provider turn finished'});}},20);};
+  fs.writeFileSync(task.title+'.txt',retry&&task.attempts===1?'BAD':'OK');
+  if(task.attempts>1){fs.writeFileSync(${JSON.stringify(path.join(temp, 'submission-replacement'))},'ready');hold('replacement');return;}
+  cp.execFileSync('git',['add','--all']);cp.execFileSync('git',['-c','commit.gpgSign=false','commit','-m','Native submission fixture']);
+  const gitRef=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+  const setting=name=>{const prefix='mcp_servers.swarm.env.'+name+'=';return JSON.parse(process.argv.find(arg=>arg.startsWith(prefix)).slice(prefix.length));};
+  (async()=>{
+    const response=await fetch(setting('AIF_SWARM_URL')+'/v1/swarm/runs/'+setting('AIF_SWARM_RUN_ID')+'/agent',{
+      method:'POST',headers:{authorization:'Bearer '+process.env.AIF_SWARM_AGENT_TOKEN,'content-type':'application/json'},
+      body:JSON.stringify({method:'submit_result',idempotencyKey:'early-submit',arguments:{taskId:task.id,claimToken:task.claimToken,gitRef,report:'Submitted before provider final usage'}})});
+    if(!response.ok)process.exit(3);
+    fs.writeFileSync(${JSON.stringify(path.join(temp, 'submission-'))}+(retry?'retry':'normal'),'accepted');
+    hold(retry?'retry':'normal');
+  })().catch(()=>process.exit(4));return;
+}
 if(prompt.includes('Goal: Sibling failure fixture')){
   const marker=${JSON.stringify(path.join(temp, 'sibling-ready'))};
   if(task.title==='item0'){const timer=setInterval(()=>{if(fs.existsSync(marker)){clearInterval(timer);process.exit(1);}},30);return;}
@@ -174,8 +211,7 @@ if(prompt.includes('Goal: Dirty integration fixture')&&task.attempts>1)fs.writeF
 if(prompt.includes('Goal: Lease lifecycle fixture'))fs.writeFileSync('slow-commit.txt','OK');
 result={report:'Implemented and checked'};
 } else result={accepted:true,report:'All criteria satisfied'};
-console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify(result)}}));
-console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_tokens:10}}));
+finish(result);
 `, { mode: 0o755 });
   const originalPath = process.env.PATH; process.env.PATH = bin + path.delimiter + originalPath;
   process.env.AIF_SWARM_OWNER_TOKEN = 'owner-'.repeat(8); process.env.AIF_SWARM_VIEWER_TOKEN = 'viewer-'.repeat(8);
@@ -222,6 +258,40 @@ console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:20,output_
     await new Promise(resolve => mcp.once('exit', resolve));
     const messages = mcpOutput.trim().split('\n').map(line => JSON.parse(line));
     assert.equal(messages[0].result.serverInfo.name, 'ai-factory-swarm'); assert.equal(messages[1].result.tools.length, 10);
+    const tailRun = await runtimeEngine.create({ ...spec, goal: 'Submission tail fixture',
+      checks: [[process.execPath, '-e', 'setTimeout(()=>{},1500)'], ...spec.checks],
+      limits: { ...spec.limits, leaseMs: 3000, maxAttempts: 1 } }, source);
+    await waitUntil(() => fs.readFile(path.join(temp, 'submission-normal'), 'utf8').catch(() => false));
+    await waitUntil(async () => (await runtimeEngine.get(tailRun.id)).tasks[0].status === 'verifying');
+    const integratedTail = await waitUntil(async () => {
+      const state = await runtimeEngine.get(tailRun.id);
+      return state.tasks[0].status === 'done' ? state : false;
+    });
+    assert.equal(integratedTail.agents.find(a => a.role === 'worker').status, 'running', 'Provider must survive integration while finishing its turn');
+    await new Promise(resolve => setTimeout(resolve, 3500));
+    assert.equal((await runtimeEngine.get(tailRun.id)).agents.find(a => a.role === 'worker').status, 'running');
+    await fs.writeFile(path.join(temp, 'submission-release-normal'), 'finish');
+    const tailDone = await awaitCompletion(tailRun.id);
+    assert.equal(tailDone.tokens, 90); assert(tailDone.agents.every(a => a.usageSource === 'observed'));
+    assert(!(await runtimeEngine.store.events(repo, tailRun.id)).some(e => ['budget.needs_attention', 'task.lease_expired'].includes(e.type)));
+    await runtimeEngine.decide(tailRun.id, tailDone.approvals.find(a => a.kind === 'completion').id, 'approve', 'owner');
+    const retryTail = await runtimeEngine.create({ ...spec, goal: 'Submission retry tail fixture',
+      limits: { ...spec.limits, leaseMs: 3000, maxAgents: 2, maxAttempts: 2 } }, source);
+    await waitUntil(() => fs.readFile(path.join(temp, 'submission-retry'), 'utf8').catch(() => false));
+    await waitUntil(() => fs.readFile(path.join(temp, 'submission-replacement'), 'utf8').catch(() => false));
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    await fs.writeFile(path.join(temp, 'submission-release-retry'), 'finish');
+    await waitUntil(async () => {
+      const state = await runtimeEngine.get(retryTail.id), workers = state.agents.filter(a => a.role === 'worker');
+      return workers.length === 2 && workers[0].status === 'stopped' && workers[1].status === 'running';
+    });
+    assert.equal((await runtimeEngine.get(retryTail.id)).status, 'running', 'A finishing old attempt must not resubmit over its replacement');
+    await fs.writeFile(path.join(temp, 'submission-release-replacement'), 'finish');
+    const retryDone = await awaitCompletion(retryTail.id);
+    assert.equal(retryDone.tasks[0].attempts, 2); assert.equal(retryDone.tokens, 120);
+    assert(retryDone.agents.every(a => a.usageSource === 'observed'));
+    assert(!(await runtimeEngine.store.events(repo, retryTail.id)).some(e => ['budget.needs_attention', 'run.needs_attention', 'task.lease_expired'].includes(e.type)));
+    await runtimeEngine.decide(retryTail.id, retryDone.approvals.find(a => a.kind === 'completion').id, 'approve', 'owner');
     const siblingRun = await runtimeEngine.create({ ...spec, goal: 'Sibling failure fixture',
       limits: { ...spec.limits, leaseMs: 3000, maxAttempts: 1 } }, source);
     const siblingState = await waitUntil(async () => {
