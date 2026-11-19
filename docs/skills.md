@@ -88,6 +88,16 @@ It excludes extension injections, project/source context, executable helpers, to
 
 Run `npm run test:selective-references` in that checkout for installation/update and route-boundary checks.
 
+### `/aif-swarm [start <goal> | status | pause | resume | cancel | inspect | logs] [run-id]`
+
+Prepare and operate a bounded autonomous parallel run. Reads config-aware project
+context and preserves user-owned `.ai-factory/swarm.yaml`. The skill delegates
+scheduling, leases, worktrees and integration to `ai-factory swarm`; it never
+creates a second native-agent scheduler. Startup needs concrete criteria, authorized
+checks and tool permissions. SQLite and PostgreSQL share a versioned API for Handoff.
+A passing integration, independent verifier and final owner approval are required.
+See [Swarm Runtime](configuration.md#swarm-runtime) for setup and limitations.
+
 ### `/aif-warmup`
 Load the essential project context before starting work:
 ```

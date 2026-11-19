@@ -211,6 +211,18 @@ fi
 # ─────────────────────────────────────────────
 echo -e "\n${BOLD}=== Codebase integrity checks ===${NC}\n"
 
+# Enforce Codex's default project instruction budget for the root guide.
+agents_doc_limit=32768
+if agents_doc_bytes=$(wc -c 2>/dev/null < "$ROOT_DIR/AGENTS.md"); then
+    if (( agents_doc_bytes <= agents_doc_limit )); then
+        pass "AGENTS.md fits the project instruction budget ($agents_doc_bytes of $agents_doc_limit bytes)"
+    else
+        fail "AGENTS.md is $agents_doc_bytes bytes (project instruction limit: $agents_doc_limit bytes)"
+    fi
+else
+    fail "could not read $ROOT_DIR/AGENTS.md to check the project instruction budget"
+fi
+
 # No dotted name: in frontmatter
 DOTTED_NAMES=$(grep -r 'name: aif\.' "$ROOT_DIR/skills/" --include='*.md' 2>/dev/null | wc -l | tr -d ' ' || true)
 if [[ "$DOTTED_NAMES" -eq 0 ]]; then
