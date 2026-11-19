@@ -15,7 +15,7 @@ AI Factory is a TypeScript CLI and skill distribution system. It installs skills
 
 - `src/cli/`, `src/core/`, and `src/utils/` contain the CLI, core logic, and shared utilities.
 - `skills/`, `subagents/`, and `mcp/` contain bundled content. `scripts/` contains validation and tests.
-- [Repository layout and module boundaries](docs/architecture.md#структура-репозитория) describes the full map.
+- [Repository layout and module boundaries](docs/architecture.md#repository-layout) describes the full map.
 
 ## Key Entry Points
 
@@ -26,7 +26,7 @@ AI Factory is a TypeScript CLI and skill distribution system. It installs skills
 | Bundled skills | `skills/aif-*/SKILL.md` |
 | Repository checks | `scripts/test-skills.sh` |
 
-See [entry points by subsystem](docs/architecture.md#точки-входа) for other files.
+See [entry points by subsystem](docs/architecture.md#entry-points) for other files.
 
 ## AI Context Files
 
@@ -85,7 +85,7 @@ For deferred classic commits with `Docs: yes`, reserve and validate the docs gro
 
 ## CLI and Installation Contracts
 
-Read the [CLI and installation contracts](docs/architecture.md#контракты-cli-и-установки) before changing command discovery, Swarm, phase dispatch, completion hooks, worktree checks, instruction records, skill paths and migration, extension permissions, or bundled agent files.
+Read the [CLI and installation contracts](docs/architecture.md#cli-and-installation-contracts) before changing command discovery, Swarm, phase dispatch, completion hooks, worktree checks, instruction records, skill paths and migration, extension permissions, or bundled agent files.
 
 ## Common Changes
 
