@@ -227,7 +227,7 @@ When pausing plan-backed work, read [progress persistence](references/IMPLEMENT-
 
 Only after all plan-backed tasks are verified complete, read [completion, docs, cleanup, and worktree procedures](references/IMPLEMENT-COMPLETION.md). Apply manual Handoff final sync only when linked; autonomous Handoff never calls MCP. Mark roadmap completion only with evidence. `Docs: yes` requires the docs checkpoint via `/aif-docs`; no/unset is warn-only. Ask before deleting the fast plan or merging/cleaning a worktree; keep named full/ultra artifacts. On merge conflict STOP before cleanup. No reports or wrap-up tasks.
 
-The exact follow-up commands remain `/aif-verify` or `/aif-commit`.
+The exact follow-up commands are rendered by the completion reference with the explicit plan artifact: `/aif-verify @<resolved plan artifact>` and `/aif-commit @<resolved plan artifact>` (required for full-stay and fast plans; harmless and still explicit for branch-stem plans).
 
 ## Command examples
 

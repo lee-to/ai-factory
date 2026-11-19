@@ -10,6 +10,7 @@ Paths below show the default `.ai-factory/` layout. `config.yaml` can relocate p
 |--------|-----------|------------------|
 | `/aif-plan fast` | `paths.plan` (default: `.ai-factory/PLAN.md`) | Offer to delete |
 | `/aif-plan full` | `paths.plans/<stem>.md` (default; `stem` = Handoff branch → git branch → description slug, per `/aif-plan` Step 1.2.a) | Keep (user decides) |
+| `/aif-plan full-stay` | `paths.plans/<slug>.md` (`full_stay=true` → stem is always the description slug; no branch) | Keep (user decides) |
 | `/aif-plan full` (`workflow.plan_id_format: sequential`) | `paths.plans/<NNNN>_<stem>.md` (4-digit, capped at `9999`; `NNNN` is derived from existing numbered plans in the directory) | Keep (user decides) |
 | `/aif-plan ultra` | `paths.plans/<stem>/index.md` plus `phase-NN-*.md` | Keep (user decides) |
 | `/aif-plan ultra` (`workflow.plan_id_format: sequential`) | `paths.plans/<NNNN>_<stem>/index.md` plus phase files | Keep (user decides) |
@@ -383,7 +384,7 @@ hypothesis or silently update the plan's committed Research Context.
 When the user supplies a request to `/aif-plan`, the plan includes `## Original Request` with the request preserved as raw source input.
 
 Command parsing removes only recognized command tokens in command positions:
-the leading `fast`, `full`, or `ultra` mode token, recognized flags such as
+the leading `fast`, `full`, `full-stay`, or `ultra` mode token, recognized flags such as
 `--parallel` and `--list`, and `--cleanup <branch>` when that command path is
 used. Matching words inside the user's actual request are not removed.
 

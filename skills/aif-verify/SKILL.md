@@ -1,10 +1,10 @@
 ---
 name: aif-verify
 description: >-
-  Verify completed implementation against the plan. Checks that all tasks were implemented,
-  nothing was forgotten, code compiles, tests pass, and quality standards are met.
-  Use after "/aif-implement" completes, or when user says "verify", "check work", "did we miss anything".
-argument-hint: "[--strict]"
+  Verify completed implementation against the plan: tasks implemented, code
+  compiles, tests pass, quality standards met. Use after "/aif-implement",
+  or when user says "verify", "check work", "did we miss anything".
+argument-hint: "[--strict] [@<plan path>]"
 allowed-tools: Read Edit Glob Grep Bash(git *) Bash(npm *) Bash(npx *) Bash(yarn *) Bash(pnpm *) Bash(bun *) Bash(go *) Bash(python *) Bash(php *) Bash(composer *) Bash(cargo *) Bash(make *) Bash(task *) Bash(just *) Bash(mage *) Bash(shasum -a 256 *) Bash(sha256sum *) TaskList TaskGet AskUserQuestion Questions
 disable-model-invocation: false
 metadata:
@@ -98,8 +98,8 @@ Preserve machine-readable `aif-gate-result` JSON schema fields and enum values (
 - If this contract conflicts with older examples in this file, follow the contract.
 
 ### Plan discovery
+Before selecting a plan or standalone verification target, read [plan discovery](references/VERIFY-DISCOVERY.md). An explicit `@<plan path>` argument overrides discovery entirely and verifies exactly that artifact (validate an explicit ultra entrypoint the same way: require exactly one `<!-- aif:plan-mode:ultra -->`). Otherwise scan configured active plan paths, preserve canonical branch stems and sequential IDs, and ignore unrelated directories. Ultra requires exactly one `<!-- aif:plan-mode:ultra -->`; missing plan context requires the existing standalone choice.
 
-Before selecting a plan or standalone verification target, read [plan discovery](references/VERIFY-DISCOVERY.md). Scan configured active plan paths, preserve canonical branch stems and sequential IDs, and ignore unrelated directories. Ultra requires exactly one `<!-- aif:plan-mode:ultra -->`; missing plan context requires the existing standalone choice.
 
 ### 0.3 Read Plan & Tasks
 

@@ -63,7 +63,7 @@ Apply [workflow ownership and context gates](docs/workflow.md#artifact-ownership
 | Setup, config, and language precedence | [Setup skill](skills/aif/SKILL.md), [config reference](docs/config-reference.md) |
 | Workflow routing and skill options | [Workflow](docs/workflow.md), [skills](docs/skills.md) |
 | Research bundle structure, coherence, and promotion | [Research](docs/research.md), [exploration skill](skills/aif-explore/SKILL.md) |
-| Fast/full/ultra plans, discovery, and plan IDs | [Plan files](docs/plan-files.md), [planning skill](skills/aif-plan/SKILL.md), [implementation discovery](skills/aif-implement/references/IMPLEMENT-DISCOVERY.md) |
+| Fast/full/full-stay/ultra plans, discovery, and plan IDs | [Plan files](docs/plan-files.md), [planning skill](skills/aif-plan/SKILL.md), [implementation discovery](skills/aif-implement/references/IMPLEMENT-DISCOVERY.md) |
 | Read-only planning advisors | [Plan overview](skills/aif-plan-overview/SKILL.md), [roadmap next](skills/aif-roadmap-next/SKILL.md) |
 | Workflow questions and native tool availability | [Questions Across Runtimes](docs/skills.md#questions-across-runtimes), [skill-generator guidance](skills/aif-skill-generator/references/BEST-PRACTICES.md) |
 | Loop state, stop precedence, and dispatch resume | [Loop](docs/loop.md), [Phase Dispatch and Resume](docs/loop.md#phase-dispatch-and-resume) |
@@ -109,7 +109,7 @@ Read the [CLI and installation contracts](docs/architecture.md#cli-and-installat
 - `npm test` runs `scripts/test-skills.sh`. It checks skill validation, negative cases, repository integrity, and bundled regression suites. Run it after changing bundled skills. The root guide must fit within 32,768 bytes so Codex can load it at its default project instruction limit.
 - `npm run test:review-check` also runs recorded review protocol scenarios on their own. They use recorded source/reviewer/validator responses. See [review test maintenance](skills/aif-review/tests/README.md).
 - `npm run test:quality-setup` covers offline quality setup. `npm run test:quality-setup:native -- --run` is opt-in, tests native staging/EOL with pinned tools in disposable repositories, and is outside `npm test`. It does not establish model behavior or coverage for untested platforms.
-- `npm link` is available for local CLI testing. Run install, update, or v1 upgrade smoke checks in a disposable project when touching those paths. For workflow changes, verify applicable interactive setup, fast/full/ultra plan discovery and branch/worktree behavior, implementation execution, and DESCRIPTION loading.
+- `npm link` is available for local CLI testing. Run install, update, or v1 upgrade smoke checks in a disposable project when touching those paths. For workflow changes, verify applicable interactive setup, fast/full/full-stay/ultra plan discovery and branch/worktree behavior, implementation execution, and DESCRIPTION loading.
 
 ## Documentation
 

@@ -178,7 +178,7 @@ workflow:
 
   # Default /aif-plan mode when no leading mode token is supplied.
   # Options: ask, fast, full, ultra. Explicit fast/full/ultra overrides this.
-  # ask keeps the full/fast question (or fast in non-interactive Handoff mode).
+  # ask keeps the full/full-stay/fast question (or fast in non-interactive Handoff mode).
   plan_mode: ask
 
   # Run /aif-improve's +check validation by default.
