@@ -84,6 +84,9 @@ A worker failure pauses new work for attention while healthy in-flight workers
 finish under their original leases. Their attempts are not consumed by a sibling
 failure. Infrastructure failures, the run time limit, cancel and Runtime shutdown
 still stop active processes.
+An accepted result or blocker settles that attempt's task lease; its provider may
+finish collecting usage during integration or a retry. Only a matching durable
+receipt allows these agent heartbeats; active-claim fencing remains enforced.
 Cancel kills managed process groups and preserves dirty worktrees and branch refs.
 POSIX cleanup requires `ps` and also stops observed descendants in separate
 process groups before their parent. Processes that daemonize and reparent before
