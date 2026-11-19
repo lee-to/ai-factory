@@ -23,9 +23,9 @@ Documentation: updated existing docs | created docs/<feature-slug>.md | skipped 
 
 What's next?
 
-1. 🔍 /aif-verify — Verify nothing was missed (recommended)
-2. 💾 /aif-commit — Commit the changes directly
-For a full-stay or fast plan, render this suggestion with the explicit artifact path (`/aif-verify @<plan artifact path>`) so verification targets the same plan instead of a branch-stem plan.
+1. 🔍 /aif-verify @<plan artifact path> — Verify nothing was missed (recommended)
+2. 💾 /aif-commit @<plan artifact path> — Commit the changes directly
+Render both suggestions with the explicit artifact path so verification and commit grouping target the same plan instead of a branch-stem plan (required for full-stay and fast plans; harmless and still explicit for branch-stem plans).
 ```
 
 **Check ROADMAP.md progress:**
@@ -111,9 +111,9 @@ If plan setting is `Docs: no` or setting is unset:
 
 **Handle plan artifact after completion:**
 
-Defer this decision until after the Final Step (Verify or Commit below): verification may still need the artifact.
+Branch this decision by the Final Step choice below: on the `Verify first` branch, ask only after verification completes (verification needs the artifact); on the `Skip to commit` branch, ask BEFORE invoking `/aif-commit` so a tracked `paths.plan` deletion lands inside that commit.
 
-- **If the resolved fast plan path** (from `/aif-plan fast`), ask after the Final Step choice is complete:
+- **If the resolved fast plan path** (from `/aif-plan fast`), ask at the branch point described above (after verification on the `Verify first` branch; before the commit invocation on the `Skip to commit` branch):
 
   ```
   AskUserQuestion: Would you like to delete the resolved fast plan file? (It's no longer needed)
@@ -235,14 +235,14 @@ AskUserQuestion: All tasks complete. What's next?
 
 Options:
 1. Verify first — Run /aif-verify @<resolved plan artifact> to check completeness (recommended)
-2. Skip to commit — Go straight to /aif-commit
+2. Skip to commit — Go straight to /aif-commit @<resolved plan artifact>
 ```
 
 **Based on choice:**
 
 - "Verify first" → invoke `/aif-verify @<resolved plan artifact>` with the explicit plan artifact used for this implementation (required for full-stay and fast plans; harmless and still explicit for branch-stem plans) → after it completes, continue to context cleanup below
-- "Skip to commit" → invoke `/aif-commit` → after it completes, continue to context cleanup below
-- After verification or commit completes, run the deferred fast-plan deletion prompt from "Handle plan artifact after completion" — never before: `/aif-verify @<plan artifact>` requires the artifact to exist.
+- "Skip to commit" → invoke `/aif-commit @<resolved plan artifact>` with the explicit plan artifact used for this implementation (required for full-stay and fast plans; harmless and still explicit for branch-stem plans) → after it completes, continue to context cleanup below
+- Final Step fast-plan deletion ordering: on the `Verify first` branch, run the deferred fast-plan deletion prompt from "Handle plan artifact after completion" only AFTER verification completes — never before: `/aif-verify @<plan artifact>` requires the artifact to exist. On the `Skip to commit` branch, run that prompt BEFORE invoking `/aif-commit @<resolved plan artifact>` so a tracked deletion is staged into the completed commit; if the user keeps the plan, proceed unchanged.
 
 **Context cleanup (after verify or commit):**
 
