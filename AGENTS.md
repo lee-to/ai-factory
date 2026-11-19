@@ -1,860 +1,136 @@
-# AI Factory - Developer Guide
+# AI Factory Developer Guide
 
-> This file is for AI agents working on this codebase. Read this first when starting a new session.
+AI Factory is a TypeScript CLI and skill distribution system. It installs skills, configures MCP, and supports spec-driven development across agent runtimes. Use this file for repository rules and entry points. Follow the topic links when working on the corresponding feature.
 
-## What is this project?
+## Agent Rules
 
-**AI Factory** (v2) is an npm package + skill system that automates AI agent context setup for projects. It provides:
-
-1. **CLI tool** (`ai-factory init/update/upgrade`) — installs skills and configures MCP
-2. **Built-in skills** (35 skills, all `aif-*` prefixed) — workflow commands for spec-driven development
-3. **Spec-driven workflow** — structured approach: plan → implement → commit
-4. **Multi-agent support** — 18 agents (Claude Code, Cursor, Devin Desktop (formerly Windsurf), Roo Code, Kilo Code, Antigravity, ChatGPT CLI, OpenRouter CLI, OpenCode, Warp,
-   Zencoder, Codex CLI, Codex app, GitHub Copilot, Gemini CLI, Junie, Qwen Code, Universal)
+- Keep dependencies one-way: `src/cli → src/core → src/utils`. CLI handlers collect input and delegate orchestration to core. Keep runtime-specific behavior in adapters. Use the existing extension interfaces, and keep `src/utils` framework-agnostic. Never import generated `dist/` into `src/` or edit `dist/` by hand.
+- Edit bundled skill sources under `skills/`. Installed copies and runtime renderings are generated from those sources. Use `aif-*` names. Search skills.sh before creating a skill that may already exist.
+- Resolve `.ai-factory/config.yaml` when present. Use the configured DESCRIPTION and ARCHITECTURE as the sources of truth for project scope and architecture. Follow area rules over base rules over the project-wide rules file. Keep plans under the configured AI Factory paths.
+- Respect explicit scope and artifact ownership. `/aif` sets up project context and stops before implementation. Plan, explore, implement, verify, and commit each have their own scope.
+- Add configurable verbose logging when implementing code. Use the existing logger and log levels, and give actionable errors. Add tests when requested or specified by the implementation plan. Run the existing checks applicable to the change. For plans with five or more tasks, define commit checkpoints.
+- Preserve exact original request text, source revisions, statuses, and machine-readable markers wherever the workflow defines a compatibility contract. Preserve the boundary between discovered, authorized, executed, and verified work.
 
 ## Project Structure
 
-```
-ai-factory/
-├── src/                    # CLI source (TypeScript)
-│   ├── cli/
-│   │   ├── commands/       # init.ts, update.ts, upgrade.ts
-│   │   └── wizard/         # prompts.ts
-│   ├── core/               # installer.ts, config.ts, mcp.ts, agents.ts, template.ts, transformer.ts
-│   │   └── transformers/   # default.ts, antigravity.ts, kilocode.ts
-│   └── utils/              # fs.ts
-├── skills/                 # Built-in skills (copied to user projects)
-│   ├── aif/                           # Main setup skill
-│   ├── aif-architecture/       # Architecture patterns
-│   ├── aif-best-practices/     # Code quality guidelines
-│   ├── aif-build-automation/   # Makefile/Taskfile/Justfile/Mage; unified stack detection (incl. JVM)
-│   ├── aif-ci/                 # GitHub Actions / GitLab CI generator
-│   ├── aif-commit/             # Conventional commits
-│   ├── aif-distillation/       # Distill books/docs/files into skills
-│   ├── aif-dockerize/          # Docker/compose generator
-│   ├── aif-docs/               # Documentation generation & maintenance
-│   ├── aif-skills-audit/             # Audit installed skills and final composition
-│   ├── aif-evolve/             # Self-improve skills based on context
-│   ├── aif-transfer/           # Reuse anonymized patch experience from another project
-│   ├── aif-warmup/             # Load startup context for a session or fork
-│   ├── aif-explore/            # Explore mode (thinking partner)
-│   ├── aif-fix/                # Quick bug fixes (no plans)
-│   ├── aif-grounded/           # Reliability gate for answers
-│   ├── aif-implement/          # Execute plan tasks
-│   ├── aif-improve/            # Plan refinement (second iteration)
-│   ├── aif-loop/               # Iterative reflex loop with quality gates
-│   ├── aif-plan/               # Plan implementation (fast/full/ultra modes)
-│   ├── aif-plan-overview/      # Read-only plan summary and file map
-│   ├── aif-review/             # Code review
-│   ├── aif-roadmap/            # Strategic project roadmap
-│   ├── aif-roadmap-next/       # Read-only next-plan scope recommendation
-│   ├── aif-rules/              # Project rules and conventions
-│   ├── aif-rules-check/        # Standalone rules compliance gate
-│   ├── aif-qa/                 # QA workflow: change summary → test plan → test cases
-│   ├── aif-qa-check/           # Execute QA cases in human/automated-agent mode
-│   ├── aif-quality-setup/      # Stack-driven quality checks and Git hooks setup
-│   ├── aif-security-checklist/ # Security audit
-│   ├── aif-skill-generator/    # Generate new skills
-│   └── aif-verify/             # Verify implementation against plan
-├── scripts/                # test-skills.sh
-├── mcp/                    # MCP server templates
-├── dist/                   # Compiled JS
-└── bin/                    # CLI entry point
-```
+- `src/cli/`, `src/core/`, and `src/utils/` contain the CLI, core logic, and shared utilities.
+- `skills/`, `subagents/`, and `mcp/` contain bundled content. `scripts/` contains validation and tests.
+- [Repository layout and module boundaries](docs/architecture.md#repository-layout) describes the full map.
 
-## Key Concepts
+## Key Entry Points
 
-### Read-only planning advisors
+| Topic | Entry point |
+| --- | --- |
+| CLI | `src/cli/index.ts` |
+| Skill installation | `src/core/installer.ts` |
+| Bundled skills | `skills/aif-*/SKILL.md` |
+| Repository checks | `scripts/test-skills.sh` |
 
-`/aif-plan-overview` follows implementation's discovery priority without invoking
-its mutation steps. It reads a full single-file/index plan and only linked ultra
-phase summaries, then renders a declared file map. Its stdlib formatter is under
-`references/plan-overview/file_tree.py` so existing flat workflow packaging also
-delivers it; run with `python3 -I -B`, with manual rendering as a portable fallback.
+See [entry points by subsystem](docs/architecture.md#entry-points) for other files.
 
-`/aif-roadmap-next` inventories milestone dependencies and active plan linkage,
-estimates S/M/L/XL scope, and recommends a mode-sized next plan. It owns no files;
-only a selected `/aif-plan` invocation may write after the user chooses. Optional
-`workflow.roadmap_next_mode` / `workflow.roadmap_next_capacity` are user-owned,
-commented in the template and preserved verbatim by setup reruns.
+## AI Context Files
 
-### Project command catalog
+| File or configured path | Purpose |
+| --- | --- |
+| `.ai-factory/config.yaml` | Artifact paths, workflow, Git, language, and registered rules |
+| `paths.description` (default `.ai-factory/DESCRIPTION.md`) | Project description, stack, and requirements |
+| `paths.architecture` (default `.ai-factory/ARCHITECTURE.md`) | Architecture, module boundaries, and dependency rules |
+| `paths.rules_file`, `rules.base`, `rules.<area>` | Project axioms, base conventions, and area rules |
+| `paths.roadmap`, `paths.research` | Milestones and exploration context |
+| `paths.plan`, `paths.plans`, `paths.fix_plan` | Fast plan, named full/ultra plans, and fix plan |
+| `.ai-factory/skill-context/` | Optional local workflow guidance for bundled skills |
 
-`ai-factory commands [directories...] [--mapping <existing-json>] [--json]` is
-read-only declaration discovery for planning/implementation. Core logic lives in
-`src/core/command-catalog.ts`, CLI rendering in `src/cli/commands/commands.ts`.
-Read bounded npm/Composer JSON, preserve source hashes and per-directory identity,
-and leave dynamic/ambiguous definitions unresolved. Never import project extension
-commands on the catalog route, including help. No discovered command is executed,
-verified or authorized by discovery. No catalog/config files are written. See
-`docs/configuration.md#project-command-catalog` for limits and explicit mappings.
+`language.ui` / `language.artifacts` / `language.technical_terms` control UI language, artifact language, and how technical terms are preserved. Follow the applicable skill and the [config reference](docs/config-reference.md) for discovery, defaults, and read/write ownership. `.ai-factory.json` stores CLI installation metadata and user-owned dispatch settings. Setup reruns refresh only managed keys in `config.yaml` and preserve comments, manual settings, unknown sections, and existing `rules.<area>`. The skill-context root and the README and `docs-html/` locations remain fixed under the current schema.
 
-### Swarm Runtime
+Load applicable skill-context layers in global → build → individual order. Build applies only to fix, implement, plan, verify, and improve. Individual takes precedence over build and global while explicit requirements, project rules, architecture, and hard boundaries remain authoritative. For shared writes and transfer, see [shared skill context](skills/aif-evolve/references/SHARED-CONTEXT.md) and [evolution](docs/evolve.md). Shared writes require resolution and validation of every consumer. Named and global runs keep their own destinations. There is no automatic migration.
 
-`ai-factory swarm` and `/aif-swarm` provide opt-in local parallel execution.
-`src/core/swarm/` owns the bounded run/DAG, atomic claims, leases, idempotency,
-process pool, Git integration and versioned API/SSE. SQLite (Node >=22.13) is the
-default; `AIF_SWARM_DATABASE_URL` selects PostgreSQL. Both lock the bounded run
-transaction rather than maintaining separate scheduling logic. The user owns
-`.ai-factory/swarm.yaml`; Runtime owns `.ai-factory/swarm/` and `aif/swarm/*` Git
-resources. No config.yaml keys or automatic backend migration. Handoff consumes
-API/events and must not duplicate the scheduler or access the database directly.
-Intermediate integration requires passing checks, parent completion waits for
-children, and final completion requires independent verification and owner review.
-Worktrees are not sandboxes, token ceilings are not uniformly provider-enforced,
-and interrupted unknown usage requires attention. See
-`docs/configuration.md#swarm-runtime` and `npm run test:swarm`.
+## Artifact Ownership
 
-### Cross-agent dispatch
+Apply [workflow ownership and context gates](docs/workflow.md#artifact-ownership-and-context-gates) and the [verification matrix](skills/aif-verify/references/CONTEXT-GATES-AND-OWNERSHIP.md). Configured paths relocate artifacts within the same ownership contract.
 
-`ai-factory dispatch <phase>` resolves one workflow phase to an external agent CLI
-(`src/core/dispatch.ts`, `src/core/dispatch-registry.ts`, CLI in `src/cli/commands/dispatch.ts`).
-User-owned `dispatch` / `phases` / `dispatchAgents` live in `.ai-factory.json` and survive
-`init`/`update`/`upgrade` reruns; they are not `config.yaml` keys. `command` is an argv
-template split on whitespace, never a shell string; prompts stay one argv element. No-config
-and no-phase-entry are silent no-ops (exit 0, empty stdout/stderr); unknown phase/agent exit 2
-on stderr. `--json` emits one versioned `noop|manual|completed|error` result on stdout,
-with child output redirected to stderr; loop routing never infers status from child text.
-Auto spawns forcibly terminate the direct child at `phases.<phase>.timeoutMs` (default 600000).
-`/aif-loop` Step 4.0 owns the fallback contract: dispatch must never block the loop.
-Its phase-bound `run.json.manual_dispatch` is consumed on target-agent resume without
-redispatch, then cleared after accepted output; see the bundled `references/DISPATCH.md`.
-See `docs/configuration.md#cross-agent-dispatch` and `npm run test:dispatch`.
+- `/aif` owns setup and managed context configuration. `/aif-rules` owns project and area rules and their registration. `/aif-architecture` and `/aif-roadmap` own their respective artifacts. Implementation may update description or architecture only for material factual or structural changes, and may mark roadmap work complete only with evidence.
+- `/aif-explore` owns the selected research file or ultra bundle. `/aif-plan` writes fast/full/ultra plans. `/aif-improve` refines them, and `/aif-implement` tracks execution. `/aif-fix` owns the fix plan and learning patches, with context artifacts read-only by default. `/aif-archive` owns archived plans and roadmap snapshots.
+- `/aif-docs` owns README and the configured documentation directory. `/aif-skills-audit` is read-only for installed skills and settings, with a new report only when `--output` is explicit.
+- `/aif-quality-setup` owns selected native quality configuration, dependency and script entries, and hooks. CI, build, rules, and docs changes go through their owners. Preserve existing tools, scripts, and hooks. Source edits require the selected autofix mode and verified staging support.
+- `/aif-loop` owns loop state. `/aif-evolve` owns skill-context changes and evolution records. Transfer can delegate approved writes there and never advances the patch cursor. Evolve must prove ownership, validate candidates, and obtain approval before writing user-owned skills. Global targets require `--global` and must already exist. Managed package/extension targets stay read-only.
+- `/aif-qa` writes change summaries, test plans, and cases. `/aif-qa-check` owns execution results, reusable browser replay, and non-sensitive reusable QA context. Keep recurring learnings append-only and retain replaced replay versions.
+- Quality commands read context without writing it by default. In strict verification, clear architecture and rules violations block. Clear roadmap mismatch blocks in strict mode and warns in normal mode. Missing `feat`/`fix`/`perf` milestone linkage is warning-first by default even in strict mode. `/aif-rules-check` reports `PASS`/`WARN`/`FAIL`. Verify, review, security-checklist, and rules-check end with the [quality gate contract](docs/quality-gates.md), an `aif-gate-result` JSON block.
 
-### Project completion hook
+## Workflow References
 
-`ai-factory completion-hook` is an explicit project-local Claude Code 2.1.318 Stop
-adapter (`src/core/completion-hook.ts`). It pins the reviewed spec, executable,
-command inputs, CWD and source HEAD, then records working-tree fingerprints and
-bounded observed verifier execution using the existing `aif-gate-result` report.
-Only enable/disable own the exact local settings entry and active approval;
-run owns attempts/receipts under `.ai-factory/completion-hook/`. No global settings,
-command discovery execution, automatic retries or workflow finalization. Required
-checks and optional observers retain their existing policy. Inspect checks freshness,
-not authenticity; local receipts cannot independently prove trusted execution.
-Stop lifecycle limits preclude fail-closed host enforcement. See
-`docs/configuration.md#project-completion-hook` and `npm run test:completion-hook`.
+| When working on… | Read |
+| --- | --- |
+| Setup, config, and language precedence | [Setup skill](skills/aif/SKILL.md), [config reference](docs/config-reference.md) |
+| Workflow routing and skill options | [Workflow](docs/workflow.md), [skills](docs/skills.md) |
+| Research bundle structure, coherence, and promotion | [Research](docs/research.md), [exploration skill](skills/aif-explore/SKILL.md) |
+| Fast/full/ultra plans, discovery, and plan IDs | [Plan files](docs/plan-files.md), [planning skill](skills/aif-plan/SKILL.md), [implementation discovery](skills/aif-implement/references/IMPLEMENT-DISCOVERY.md) |
+| Read-only planning advisors | [Plan overview](skills/aif-plan-overview/SKILL.md), [roadmap next](skills/aif-roadmap-next/SKILL.md) |
+| Workflow questions and native tool availability | [Questions Across Runtimes](docs/skills.md#questions-across-runtimes), [skill-generator guidance](skills/aif-skill-generator/references/BEST-PRACTICES.md) |
+| Loop state, stop precedence, and dispatch resume | [Loop](docs/loop.md), [Phase Dispatch and Resume](docs/loop.md#phase-dispatch-and-resume) |
+| Review evidence, API compatibility, and optional coupling | [PR source](skills/aif-review/references/PR-SOURCE.md), [API compatibility](skills/aif-review/references/API-COMPATIBILITY.md), [review coupling](skills/aif-review/references/COUPLING-REVIEW.md), [plan coupling](skills/aif-plan/references/COUPLING-PLAN.md) |
+| Deferred commits and receipt recovery | [Implementation commits](skills/aif-implement/references/IMPLEMENT-COMMITS.md) |
+| QA planning, execution modes, and blocked cases | [QA](skills/aif-qa/SKILL.md), [QA check](skills/aif-qa-check/SKILL.md) |
+| Build-tool generation and JVM stack detection | [Build automation](skills/aif-build-automation/SKILL.md) |
+| Native quality setup and staging/EOL validation | [Quality setup](skills/aif-quality-setup/SKILL.md), [quality setup reference](docs/skills.md) |
 
-### Worktree runtime readiness
+Planning advisors are read-only. Plan overview follows implementation discovery and reads only linked ultra phase summaries. Roadmap next estimates mode-sized scope and leaves writes to the selected planning invocation. Setup preserves its user-owned mode/capacity settings. Keep advisor output and any command catalog results as declarations, without authorizing execution.
 
-`ai-factory worktree-check [checkouts...] [--mapping <existing-json>] [--json]`
-compares bounded static Compose declarations and owner-supplied `runtimeResources`
-without launching environments, importing extensions or writing files. Core logic
-is in `src/core/worktree-readiness.ts`; CLI rendering is in
-`src/cli/commands/worktree-check.ts`. Unknown/dynamic sources stay incomplete and
-isolation is always unverified. `/aif-plan --parallel` carries findings into execution;
-checkout creation alone does not authorize parallel runtime-resource use. Existing
-configuration owners retain all mappings and remediation writes. See
-`docs/configuration.md#worktree-readiness-diagnostic`.
+Regular exploration writes research only on user selection. Ultra requires explicit mode or config. Include C4, ADR, or dependency artifacts only with evidence, promote material conclusions to the Active Summary, and run the bundle/coherence checks before appending a session. Source-linked hypotheses track revisions and supplied observations without authorizing experiments. Plan and fix consumers treat embedded `Research Context` as committed input and the exact source as a drift check. Ultra implementation reads the active phase and records progress only in `index.md`.
 
-### Instruction composition records
+For interactive skills, embed the portable question contract, including clarification paths. Apply it before routing in the skill generator, including URL-based Learn Mode. Tool examples do not prove availability. Preserve workflow-specific confirmations, including loop setup/cleanup and supervised QA. Use the plain-text fallback when needed, and surface unresolved required decisions to the caller in delegated runs. `aif-best-practices` is a non-interactive reference.
 
-`ai-factory instructions` is an opt-in recorder for explicitly registered invocations. Core logic is in `src/core/instruction-manifest.ts` and installed-package inventory in `src/core/instruction-inventory.ts`; CLI wiring is in `src/cli/commands/instructions.ts`. The output contract is `schemas/instruction-manifest.schema.json`, documented in `docs/instruction-manifests.md`.
+For PR review, pin base/head/merge-base and diff hash. Load context from the pinned tree, record unavailable sources, and bind `+check` to that evidence package. API compatibility and `+coupling` are opt-in or conditional per their references. They preserve the existing review severity, evidence, validation and tool boundaries. Coupling PR dependency collection is same-repository and bounded at pinned revisions. External consumers require separate authorization. `npm run test:coupling` covers offline cases and packaging.
 
-Default artifacts are `.ai-factory/instruction-runs/<run-id>/manifest.json` and per-run content-addressed snapshots. The `instructions` command owns these artifacts; other commands do not mutate them. Capture policies default to no snapshots, no settings, and local-only manual retention. `--runs-dir` relocates storage within the project without introducing `config.yaml` keys. Resource declarations and caller-supplied load evidence must never be described as complete runtime visibility. References, revisions, mandatory missing dependencies, and incomplete invocations remain explicit; budget accounting never trims instructions.
+For deferred classic commits with `Docs: yes`, reserve and validate the docs group first. Invoke `/aif-commit` once for each selected classic group, with the saved range, message, and task ownership. Persist the change manifest and pre-commit `HEAD` before dispatch, then the verified commit hash. Reconcile against the saved receipt on resume. Validate docs-only no-op outcomes against both the task outcome and live owned changes.
 
-### Skills Location
+## CLI and Installation Contracts
 
-- **Package skills**: `skills/` — source of truth, copied during install
-- Optional `init --symlinks` shares source-proven, byte-identical skill trees in `.agents/skills/`; native paths and render profiles stay independent. `src/core/skill-symlinks.ts` materializes recorded links before the outer project-locked mutation and relinks after success. Persist `useSymlinks` and `skillSymlinks` metadata in `.ai-factory.json`; never replace untracked skill links or delete unproven shared trees. `init --no-symlinks` restores copies.
-- Selecting `aif` also selects `aif-skill-generator`, which supplies setup's security scanner and blocked-skill cleanup helpers. `init` records this managed dependency; `update` heals older selections missing it. Other skill selections remain independent.
-- **User skills**: `<agent-config-dir>/skills/` (e.g. `.claude/skills/`, `.opencode/skills/`, `.agents/skills/`)
-- **Agent transformer system**: `src/core/transformers/` adapts skill format per agent (e.g. Codex rewrites invocation prefixes to `$`, Antigravity 2.0 uses `.agents/` with triggered rules and subagents, KiloCode sanitizes dotted names)
-- Devin Desktop keeps the `windsurf` runtime ID. New installs use `.devin/skills/`; saved legacy/custom directories keep the Windsurf render profile in `createSkillRenderContext` so receipt checks do not require migration. Blocked-skill cleanup accepts both `.devin/skills` and `.windsurf/skills`.
+Read the [CLI and installation contracts](docs/architecture.md#cli-and-installation-contracts) before changing command discovery, Swarm, phase dispatch, completion hooks, worktree checks, instruction records, skill paths and migration, extension permissions, or bundled agent files.
 
-### Extension tool permissions
+## Common Changes
 
-`extension.json` may declare `toolPermissions` per installed skill and runtime. Only
-Claude Code currently has a native adapter; unsupported runtimes are warned and skipped.
-`src/core/tool-permissions.ts` owns YAML field parsing, per-extension ownership comments,
-shared requests, and preservation across reinstall/update/remove. Keep its composition
-in managed receipt proof and skill migration rendering. Never infer grants from prose
-or broaden a scoped request into unrestricted shell permissions. See `docs/extensions.md`.
+### Adding or changing a skill
 
-Captured tool baselines must stay bound to their applied skill source owner and
-extension-native declaration. Replacement removal or changed source defaults use
-the current source field and recompose remaining requests; old native grants must
-never become unowned permissions on a restored bundle or a new replacement.
+- Create `skills/aif-<name>/SKILL.md`. Built-in discovery needs no TypeScript registry change unless UI hints or runtime-specific behavior require one. Follow neighboring frontmatter and choose invocation policy according to the skill's purpose.
+- Keep the entrypoint focused on purpose, triggers, context, workflow, and ownership. Use `references/` for conditional detail, `examples/` for reusable examples, and `scripts/` for repeatable processing. If source material includes code, adapt examples across its major code-facing areas.
+- For config-aware skills, read `config.yaml` first and document the exact keys. For config-agnostic skills, explain why. Keep human-language settings separate from identifiers. Declare artifact ownership and use the shared result contract for machine-readable gates.
+- Use `{{skills_dir}}` or `{{home_skills_dir}}` for runtime paths. Generated user skills belong in the current runtime's skill directory, with lowercase hyphenated names, unless the command supports and receives a custom path.
+- Update user docs according to the table below. Update this guide when workflow logic or project rules change. Rebuild, run `npm test`, and exercise `ai-factory update` in a disposable project for workflow changes.
 
-### Bundled loop subagents
+### Adding an agent or changing prompts
 
-Bundled `loop-*` agent files require `aif-loop` in the selected/installed skill set for both Claude and Codex.
-`init` and `update` (including `--force`) skip these files when the skill is absent and remove previously tracked
-bundled loop files and their metadata. Preserve untracked user files and extension-owned helpers. Other bundled
-agents remain independent of skill selection. Keep package inventory discovery unfiltered for ownership checks;
-apply skill filtering only when installing/updating. Codex currently has no loop roles; smoke tests use isolated
-Markdown/TOML source fixtures to verify both runtimes.
-
-### aif-build-automation (unified stack detection)
-
-`skills/aif-build-automation/SKILL.md` defines how to generate or enhance Makefile, Taskfile, Justfile, or Mage. **Repository analysis uses one ordered pipeline for every stack:** primary language → package manager / build entrypoints → frameworks → Docker → CI → migrations → tests → linters → monorepo, then `PROJECT_PROFILE`. **Java/Kotlin (JVM) is not a separate side path:** Gradle/Maven, wrappers (`gradlew`, `mvnw`), `java_build`, frameworks from build files, and JVM linters follow the same section structure as Node (`package.json`), Python (`pyproject.toml`), etc. (skill §2.1–§2.8). If both Gradle signals and `pom.xml` are present, set `java_build.mixed_maven_gradle`, append to `PROJECT_PROFILE.warnings`, and wire generated targets to Gradle (skill §2.2).
-
-### aif-quality-setup
-
-`skills/aif-quality-setup/SKILL.md` routes discovery → audit → explained options →
-user selection → setup → verification. Load profiles only after actual stack
-detection; baseline recipes cover JS/TS, PHP, Python and Rust, including mixed
-monorepos and explicit multirepo roots. Preserve existing tools/scripts/hooks.
-The skill reads context/rules/language and `git.enabled`, introduces no config keys
-and owns only selected native quality configs/manifests/hooks. CI/build/rules/docs
-changes go through their existing owners. Autofix modes require verified staging
-support; configured and verified results remain distinct. Offline installation
-coverage is `npm run test:quality-setup`; runtime cases are specified separately.
-`npm run test:quality-setup:native -- --run` is an opt-in native staging/EOL
-regression with pinned tools in disposable repositories. Select existing
-dependencies or explicitly request their installation; it is absent from `npm test`
-and does not establish agent behavior or untested platform coverage.
-
-### Working Directory
-
-All AI Factory files in user projects go to `.ai-factory/` by default. `config.yaml` can relocate many workflow
-artifacts, but the paths below remain the default layout:
-
-- `.ai-factory/DESCRIPTION.md` — project specification
-- `.ai-factory/ARCHITECTURE.md` — architecture decisions and guidelines
-- `.ai-factory/PLAN.md` — task plan (from /aif-plan fast)
-- `.ai-factory/plans/<branch-or-slug>.md` — plans (from /aif-plan full; or `.ai-factory/plans/<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential` — see `docs/plan-files.md`)
-- `.ai-factory/plans/<branch-or-slug>/index.md` — ultra plan entrypoint with sibling `phase-NN-*.md` files (or `.ai-factory/plans/<NNNN>_<branch-or-slug>/index.md` under sequential IDs)
-- `.ai-factory/RESEARCH.md` — regular persisted exploration context (from /aif-explore)
-- `.ai-factory/research/<english-topic-slug>/INDEX.md` — ultra research manifest with compatible `RESEARCH.md` and only justified C4/ADR/dependency files; the root is derived from the parent of `paths.research`
-- `.ai-factory/skill-context/<skill>/SKILL.md` — project-specific overrides for skills (from /aif-evolve, directly or via /aif-transfer)
-- `.ai-factory/skill-context/global-skill-context.md` — optional project-local learned workflow rules for all bundled skills
-- `.ai-factory/skill-context/build-skill-context.md` — optional shared rules for fix, implement, plan, verify, improve only
-- `.ai-factory/evolutions/*.md` — evolution logs (from /aif-evolve, directly or via /aif-transfer)
-- `.ai-factory/evolutions/patch-cursor.json` — incremental evolve cursor (latest processed patch)
-- `.ai-factory/qa/<branch-slug>/change-summary.md` — QA change summary (from /aif-qa)
-- `.ai-factory/qa/<branch-slug>/test-plan.md` — QA test plan (from /aif-qa)
-- `.ai-factory/qa/<branch-slug>/test-cases.md` — QA test cases (from /aif-qa)
-- `.ai-factory/qa/<branch-slug>/qa-check.md` — QA execution checklist and results (from /aif-qa-check)
-- `.ai-factory/qa/<branch-slug>/browser-replay/TC-NNN.js` — reusable case/target/content-bound browser scripts for fix verification and regression reruns; replaced versions are preserved under `browser-replay/history/` (from /aif-qa-check agent)
-- `.ai-factory/qa/agent-context.md` — cross-QA reusable non-sensitive automated QA setup facts such as stable URLs, command patterns, login route, selectors, test account role, and seed data patterns (from /aif-qa-check agent)
-- `.ai-factory/qa/agent-history.md` — append-only cross-QA reusable learnings, recurring blockers, resolved setup questions, command patterns, selectors, and navigation notes; not a per-run log (from /aif-qa-check agent)
-- `.ai-factory/evolution/current.json` — active loop pointer (from /aif-loop)
-- `.ai-factory/evolution/<alias>/run.json` — current loop state
-- `.ai-factory/evolution/<alias>/history.jsonl` — loop event history (append-only)
-- `.ai-factory/evolution/<alias>/artifact.md` — latest loop artifact output
-
-### Artifact Ownership Contract
-
-Artifact writers are command-scoped to prevent ownership conflicts:
-
-| Artifact                                                                                      | Primary writer command | Notes                                                                                            |
-|-----------------------------------------------------------------------------------------------|------------------------|--------------------------------------------------------------------------------------------------|
-| `.ai-factory/DESCRIPTION.md`                                                                  | `/aif`                 | `/aif-implement` may update only when implementation materially changed context facts            |
-| `.ai-factory/config.yaml`                                                                     | `/aif`                 | initial create uses the commented template; reruns refresh only managed keys and preserve comments/manual edits; `/aif-rules` owns `rules.<area>` |
-| `paths.architecture` (default: `.ai-factory/ARCHITECTURE.md`)                                 | `/aif-architecture`    | `/aif-implement` may update structure notes when structure changes                               |
-| `paths.roadmap` (default: `.ai-factory/ROADMAP.md`)                                           | `/aif-roadmap`         | `/aif-implement` may mark completed milestones with evidence                                     |
-| `paths.rules_file` (default: `.ai-factory/RULES.md`), `paths.rules/<area>.md`, `rules.<area>` | `/aif-rules`           | top-level conventions plus area-rule files and registration                                      |
-| `paths.research` or derived `<parent>/research/<english-slug>/` bundle                        | `/aif-explore`         | regular single file; ultra selected by token or config always owns `INDEX.md` + `RESEARCH.md`, supporting files are conditional |
-| `paths.plan`, `paths.plans/<id>.md`, `paths.plans/<id>/index.md` + phase files                | `/aif-plan`            | fast/full/ultra artifacts; `/aif-improve` refines existing plans and bundles                     |
-| `paths.fix_plan` and `paths.patches/*.md`                                                     | `/aif-fix`             | fix workflow ownership; context artifacts (including `DESCRIPTION.md`) stay read-only by default |
-| `README.md` and `paths.docs/*`                                                                | `/aif-docs`            | README stays the landing page; detailed docs directory is configurable via `paths.docs`          |
-| Explicit new audit report (`--output` only) | `/aif-skills-audit` | Chat by default; installed skills, injections, overrides and settings stay read-only |
-| Selected native quality configs, manifest/script entries, dev-dependency lockfiles and hook configuration/installation | `/aif-quality-setup` | Context/config stay read-only; source fixes follow selected autofix mode; CI/build/rules/docs edits go through their owners |
-| Verified user-owned skill target files | `/aif-evolve` | Exact resolved destinations after candidate validation/approval; existing globals require `--global`; managed package/extension files remain read-only |
-| `.ai-factory/skill-context/*`                                                                 | `/aif-evolve`          | skill-context overrides for built-in skills; `/aif-transfer` delegates approved writes here       |
-| `paths.evolutions/*.md` and `paths.evolutions/patch-cursor.json`                              | `/aif-evolve`          | evolution logs and incremental patch cursor; `/aif-transfer` delegates logs but never the cursor  |
-| `.ai-factory/evolution/*` artifacts                                                           | `/aif-loop`            | loop state ownership                                                                             |
-| `paths.qa` (default: `.ai-factory/qa/<branch-slug>/`)                                         | `/aif-qa`, `/aif-qa-check` | `/aif-qa` writes change-summary, test-plan, test-cases; `/aif-qa-check` writes qa-check results, browser replay scripts, and root-level automated-QA memory |
-| `paths.archive/plans/*`, `paths.archive/roadmap/*.md`                                         | `/aif-archive`         | archived completed plan files/bundles and dated roadmap snapshots                                |
-
-Quality commands (`/aif-rules-check`, `/aif-commit`, `/aif-review`, `/aif-verify`) are read-only for context artifacts by default.
-
-Bundled skills load optional context layers before routing: global → build (only the
-five consumers above) → individual. Conflict precedence is individual > build > global
-> skill defaults, while explicit requirements, rules/architecture and hard boundaries
-remain authoritative. These layers hold learned workflow prevention, not a competing
-rules hierarchy. `/aif-evolve all` may propose shared writes only after resolving and
-validating every consumer; named/global runs retain their individual destinations.
-See `skills/aif-evolve/references/SHARED-CONTEXT.md` and `docs/evolve.md`. No automatic migration.
-
-The locations shown in the ownership table are the default paths. `config.yaml` may relocate plan, fix, reference,
-documentation, security, evolution, and other AI Factory artifacts; ownership stays with the same command even when the path changes.
-
-Context gate policy for quality commands:
-
-- Architecture/rules clear violations are blocking failures in strict verification.
-- Roadmap mismatch is warning-first in normal mode, blocking in strict mode when mismatch is clear.
-- Missing roadmap milestone linkage for `feat`/`fix`/`perf` is warning-first by default, even in strict verify when a
-  roadmap exists.
-- `/aif-rules-check` is the standalone rules-only companion and uses human `PASS` / `WARN` / `FAIL` labels.
-- `/aif-verify`, `/aif-review`, `/aif-security-checklist`, and `/aif-rules-check` append a final machine-readable
-  `aif-gate-result` JSON block with lowercase `pass` / `warn` / `fail` status values.
-
-### Config-Aware Skills
-
-`config.yaml` is not universal yet. The current config-aware skills are:
-
-- Core workflow and quality: `/aif`, `/aif-plan`, `/aif-implement`, `/aif-verify`, `/aif-commit`, `/aif-review`,
-  `/aif-rules-check`, `/aif-roadmap`, `/aif-explore`, `/aif-loop`, `/aif-rules`, `/aif-warmup`
-- Read-only planning advisors: `/aif-plan-overview`, `/aif-roadmap-next`
-- Additional utility: `/aif-architecture`, `/aif-docs`, `/aif-fix`, `/aif-improve`, `/aif-evolve`, `/aif-skills-audit`, `/aif-quality-setup`, `/aif-transfer`, `/aif-reference`,
-  `/aif-distillation`,
-  `/aif-security-checklist`, `/aif-qa`, `/aif-qa-check`, `/aif-archive`
-
-Current config-agnostic built-ins:
-
-- `/aif-best-practices`, `/aif-build-automation`, `/aif-ci`, `/aif-dockerize`
-- `/aif-grounded`, `/aif-skill-generator`
-
-Current config keys in active use:
-
-- `paths.*` - artifact discovery for description, architecture, roadmap, research, RULES.md, plan files, fix plans, QA artifacts,
-  references, security state, patches, evolutions, loop state, rules, and archive
-- `language.ui` / `language.artifacts` / `language.technical_terms` - prompt/report language, generated artifact language, and terminology handling while preserving commands, paths, identifiers, config keys, and raw errors where required
-- `writing.profile` / `writing.targets` / `writing.dictionary` - user-owned, disabled-by-default `/aif-docs` editorial profile for exact authorized documentation/runbook paths; choose RU/EN rules after artifact language, preserve meaning and project terminology, and never use style as requirements validation
-- `git.enabled` / `git.base_branch` / `git.create_branches` / `git.branch_prefix` / `git.skip_push_after_commit` - planning, verification, and commit push behavior
-- `workflow.verify_mode` - default verification strictness
-- `workflow.explore_mode` / `workflow.plan_mode` / `workflow.improve_check` - command defaults (`regular` / `ask` / `false`); explicit arguments win, `/aif` reruns preserve values
-- `workflow.fix_mode` / `workflow.fix_patch` - fix mode (`ask` / `now` / `plan`, default `ask`) and independent completed-fix learning patch policy (YAML boolean, default `true`); last explicit mode/patch flag wins, existing fix plans execute first, setup preserves values including `false`
-- `workflow.roadmap_next_mode` / `workflow.roadmap_next_capacity` - optional user-owned next-plan recommendation defaults; setup leaves them and their comments intact
-- `warmup.paths` - optional extra files/directories loaded recursively by `/aif-warmup`
-- `rules.base` plus named `rules.<area>` entries - rules hierarchy
-
-Not yet configurable via the current schema:
-
-- `.ai-factory/skill-context/`
-- `README.md` landing page location
-- `docs-html/` output location for `/aif-docs --web`
-
-### Runtime-Aware Questions
-
-Question delivery follows `docs/skills.md#questions-across-runtimes`. Every bundled skill with a user-decision or exceptional clarification path embeds the portable contract; only the non-interactive `aif-best-practices` reference is exempt. Authors reuse the snippet in `skills/aif-skill-generator/references/BEST-PRACTICES.md`. Tool examples, including linked references, never imply runtime availability. Missing UI uses plain text; delegated/non-interactive runs preserve required approvals and return unresolved material decisions as blockers. Preserve workflow-specific question scope and explicit reconfirmation, including loop setup/cleanup and supervised QA. `scripts/test-runtime-questions.mjs` checks the inventory and every built-in rendering profile without inference or native UI execution.
-
-`aif-skill-generator` applies this contract before mode routing, including URL-based Learn Mode, and embeds the self-contained section in every generated interactive skill. Learn Mode checks both clarification delivery and the generated section before presentation.
-
-### Skill Naming (v2)
-
-All skills use `aif-` prefix (v1 used bare names like `commit`, `feature`):
-
-- `/aif` — main setup
-- `/aif-plan`
-- `/aif-explore`
-- `/aif-implement`
-- `/aif-roadmap`
-- `/aif-rules`
-- `/aif-commit`
-- `/aif-docs`
-- etc.
-
-The `ai-factory upgrade` command migrates from v1 bare names to v2 prefixed names.
-
-## Workflow Logic
-
-```
-/aif (3 scenarios)
-    ↓
-Check: has arguments? has project files?
-    ↓
-┌─────────────────────────────────────────────────────────────┐
-│ Mode 1: Existing project (no args + has package.json, etc.) │
-│   → Analyze project → Generate DESCRIPTION.md → Setup       │
-├─────────────────────────────────────────────────────────────┤
-│ Mode 2: New project with description                        │
-│   → Interactive stack selection → DESCRIPTION.md → Setup    │
-├─────────────────────────────────────────────────────────────┤
-│ Mode 3: Empty project (no args + no config files)           │
-│   → Ask "What are you building?" → Stack selection → Setup  │
-└─────────────────────────────────────────────────────────────┘
-    ↓
-/aif config.yaml contract
-    ↓
-Initial create → copy from `skills/aif/references/config-template.yaml` and set resolved values without dropping comments
-Rerun update → deterministic merge of managed keys only; preserve manual comments, unknown sections, and existing `rules.<area>`
-    ↓
-/aif-architecture → Generate ARCHITECTURE.md
-    ↓
-STOP (does NOT implement)
-
-/aif-rules [rule text | area:<name>]
-    ↓
-No `area:` prefix → append/update project-wide axioms in configured `paths.rules_file`
-`area:<name>` → create/update `<configured rules dir>/<area>.md` and register `rules.<area>` in `config.yaml`
-    ↓
-Workflow skills resolve conventions with the same hierarchy:
-`rules.<area>` → `rules/base.md` → `paths.rules_file`
-
-/aif-rules-check [git ref]
-    ↓
-Reads resolved rules hierarchy from `config.yaml` with fallback to `.ai-factory/RULES.md`
-    ↓
-Collects changed files from staged diff, working tree, or `<git ref>...HEAD`
-    ↓
-Optionally reads the active plan only to disambiguate scope/area relevance
-    ↓
-Evaluates rules in read-only mode
-    ↓
-Reports standalone verdict:
-    - PASS → applicable rules checked and no clear violations found
-    - WARN → missing/ambiguous rules or no changed files
-    - FAIL → explicit hard-rule violation tied to diff evidence
-    - final `aif-gate-result` JSON block → parseable lowercase pass/warn/fail summary
-    ↓
-Suggests `/aif-rules` when rules need to be added or clarified
-
-/aif-warmup
-    ↓
-Reads config-aware DESCRIPTION, ARCHITECTURE, ROADMAP, RESEARCH, and rules paths plus applicable AGENTS.md
-    ↓
-Loads optional extra files/directories from `warmup.paths`
-    ↓
-Carries relevant language, git, and workflow preferences into a compact read-only handoff
-    ↓
-Stops without implementation so the warmed session can continue or be forked
-
-/aif-explore [regular|ultra] [topic or plan name]
-    ↓
-Regular → thinking partner; optional save to configured `paths.research`; persisted updates pass a saved-content coherence gate before presentation/session append
-    ↓
-Explicit source-linked hypothesis request → optional cards in selected `RESEARCH.md`; preserve source conditions/redaction and exact hypothesis/experiment revisions; record supplied observations separately from implementation completion, retain negative/inconclusive history, and promote accepted planning inputs/material changes through Active Summary (not whole-card hashing); execution remains outside explore in separately authorized tasks
-    ↓
-Ultra (leading token or workflow.explore_mode: ultra; regular overrides) → derives `<parent(paths.research)>/research/<logical-english-slug>/`
-    ↓
-Always writes `INDEX.md` + compatible `RESEARCH.md`
-    ↓
-Adds C4 Context/Container/Component, ADR, and dependency graph files only when evidence meets their inclusion signals; never creates placeholders or C4 Level 4 by default
-    ↓
-Material supporting-artifact conclusions are promoted into the `RESEARCH.md` Active Summary before planning
-    ↓
-Before appending each ultra session, adds bundle traceability: Active Summary claims need self-contained supporting passages and material supporting conclusions must be promoted; use a fresh-context subagent when available and direct checking as the portable fallback
-    ↓
-All application code and non-research context artifacts remain read-only
-
-/aif-roadmap [vision or requirements]
-    ↓
-Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
-    ↓
-First run → explores codebase, asks user for goals → generates configured `paths.roadmap`
-Subsequent → review progress, add/reprioritize/mark milestones done
-    ↓
-ROADMAP.md = strategic checklist of high-level goals
-
-/aif-plan [fast|full|ultra] <description>
-    ↓
-Preserves explicitly selected roadmap groups in every mode: primary `Milestone:` plus one `Also completes:` per remaining milestone; completion/verification assess each independently
-    ↓
-Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
-    ↓
-Resolve mode once, independently of description; reusing a research topic retains the selected mode, including configured ultra
-    ↓
-Selects at most one relevant research source: explicit path → clearly matching marked ultra bundle → configured `paths.research`; if it informs the plan, writes a committed `Research Context` snapshot with the exact `RESEARCH.md` source plus stable revision metadata (`Updated:` timestamp and/or Active Summary hash)
-If the user supplied an explicit planning request, saves it in the plan entrypoint as `Original Request`; strip only recognized command tokens (`fast`/`full`/`ultra` mode token and control flags) and trim only outer whitespace, then preserve internal whitespace, wording, casing, and punctuation exactly. Treat `Original Request` as raw source input, not generated artifact prose; omit it only when the plan is created solely from `RESEARCH.md`
-    ↓
-fast → no branch, saves to configured `paths.plan`
-full → creates richer plan, asks: tests? logging? docs?
-       optionally creates git branch/worktree when `git.enabled=true` and `git.create_branches=true`
-       saves to configured `paths.plans/<branch-or-slug>.md`
-       (`<slug>.md` when git is disabled or branch creation is off;
-        `<NNNN>_<branch-or-slug>.md` when `workflow.plan_id_format: sequential`)
-    ↓
-ultra → uses full-mode preferences and optional branch/worktree flow
-        → is opt-in via the leading `ultra` token or workflow.plan_mode: ultra;
-          explicit mode wins; otherwise workflow.plan_mode selects ask/fast/full/ultra
-          (ask preserves the full/fast question, or fast in non-interactive Handoff mode)
-        → saves `paths.plans/<id>/index.md` plus one `phase-NN-*.md` per phase
-        → `index.md` contains the exact untranslated `<!-- aif:plan-mode:ultra -->` discovery marker
-        → `index.md` owns scope/settings/context/TOC/task checkboxes/dependencies/commits
-        → phase files own exact code evidence, files/symbols, ordered edits, contracts,
-          errors/logging, test policy, acceptance criteria, and verification
-        → sequential format prefixes the directory; allocation counts full files + marked ultra dirs
-          and ignores numbered directories whose `index.md` lacks the ultra marker
-    ↓
-Explores codebase
-    ↓
-Creates tasks with TaskCreate
-    ↓
-For 5+ tasks: includes commit checkpoints
-
-/aif-improve [+check|--no-check]
-    ↓
-Resolves validation: last explicit flag → workflow.improve_check → false; --list skips validation
-    ↓
-Reads the active plan and treats `## Original Request` as the immutable original intent / scope anchor when present
-    ↓
-Preserves `## Original Request` exactly on any plan edit or regeneration; does not translate, summarize, normalize, or rewrite it even when `language.artifacts` differs
-    ↓
-Uses `## Original Request`, the current task list, and committed `Research Context` to decide whether refinements are in scope or should be reported as out of scope
-
-/aif-loop [new|resume|status|stop|list|history|clean]
-    ↓
-Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + RULES.md for context
-    ↓
-Creates/loads configured `paths.evolution/current.json`
-    ↓
-Creates/loads configured `paths.evolution/<alias>/run.json` + `history.jsonl` + `artifact.md`
-    ↓
-Always asks explicit confirmation for success criteria, max iterations, and a non-`none` time budget before iteration 1 (even if included in task prompt)
-    ↓
-Runs 6 phases: PLAN → PRODUCE||PREPARE → EVALUATE → CRITIQUE → REFINE
-    ↓
-PRODUCE and PREPARE run in parallel (Task tool); EVALUATE runs check groups in parallel
-    ↓
-Stops by a fixed precedence contract: threshold_reached → no_major_issues → user_stop → stagnation → budget_exceeded → iteration_limit (default 4); completion always outranks a resource guard tripping at the same boundary
-    ↓
-If stopped by max iterations or the optional completed-phase time budget without meeting criteria, final summary shows distance-to-success (score/threshold gap + remaining blocking fail rules), plus budget diagnostics when the stop reason is budget_exceeded
-
-/aif-implement
-    ↓
-Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md for context
-    ↓
-Reads skill-context rules first; uses limited recent patch fallback when needed
-    ↓
-Finds plan artifact (explicit file/ultra directory, branch-named full/ultra, single named artifact, or fast plan)
-    ↓
-If the plan contains `## Original Request`, treats it as useful original scope context while executing the task list and committed `Research Context` as the executable plan inputs
-    ↓
-For ultra, reads `index.md` then the complete phase file for the active task; updates progress only in `index.md`
-    ↓
-If the plan references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads the exact source path (legacy or bundled) only to detect revision drift before executing tasks
-    ↓
-Executes tasks one by one
-    ↓
-Updates DESCRIPTION.md if stack changes
-    ↓
-Prompts for commits at checkpoints
-    ↓
-Checks configured `paths.roadmap` → marks completed milestones
-    ↓
-Docs policy:
-    - Docs: yes → mandatory docs checkpoint (update/create/skip) routed via /aif-docs
-    - Docs: no or unset → WARN [docs] only (no mandatory prompt)
-    ↓
-Offers to delete PLAN.md when done (keeps named full files and ultra bundles)
-
-/aif-qa [--all] [change-summary | test-plan | test-cases] [<branch>]
-    ↓
-Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + config.yaml for context
-    ↓
-change-summary → collects git diff, checks commit/diff size limits, explores key files in parallel
-               → if git is disabled or refs cannot be resolved, asks for manual change context instead of failing
-               → saves .ai-factory/qa/<branch-slug>/change-summary.md
-    ↓
-test-plan      → reads change-summary → determines scope and test types → saves test-plan.md
-    ↓
-test-cases     → reads change-summary + test-plan → writes TC-NNN scenarios → saves test-cases.md
-    ↓
---all          → runs all three stages in sequence without inter-stage prompts
-
-/aif-qa-check [human|agent] [<branch>]
-    ↓
-Reads .ai-factory/DESCRIPTION.md + ARCHITECTURE.md + config.yaml for context
-    ↓
-Reads .ai-factory/qa/agent-context.md + agent-history.md when available, then reads .ai-factory/qa/<branch-slug>/test-cases.md and resumes/creates qa-check.md
-    ↓
-human → shows one test case at a time, asks whether it works, records pass/fail and redacted user failure comments
-    ↓
-agent → uses browser, CLI, API, automated tests, or file/document checks depending on each case; browser/UI cases require in-app Browser or Playwright MCP
-    ↓
-agent → saves browser/UI automation as case/target/content-bound browser-replay/TC-NNN.js; new/changed scripts run once as proof, stateful repeats require reset + renewed authorization, and prior scripts/errors are preserved before repair
-    ↓
-agent → later code/build changes replay safe matching prior passes and failures, then records whether concrete change risk justifies one bounded exploratory pass
-    ↓
-agent → for browser/UI login or user-state gaps, reuses known test fixtures, creates safe local/test disposable fixtures when authorized/available, or asks the user before blocking
-    ↓
-agent → when URL/login/access/setup/selectors/commands/test filters are missing, asks the user before blocking, writes reusable non-sensitive cross-QA answers to agent-context.md, and appends only recurring reusable learnings to agent-history.md
-    ↓
-agent → if human-verifiable cases remain Blocked, asks whether to continue those eligible cases in human mode before ending; automation-only blocked cases stay routed to tests/commands/context
-    ↓
-Writes .ai-factory/qa/<branch-slug>/qa-check.md plus canonical/history browser-replay scripts, with results bound to revision/worktree or manual build id plus test-case, target, and proven script digests
-
-/aif-fix <bug description>
-    ↓
-Reads .ai-factory/DESCRIPTION.md + skill-context first (+ limited recent patch fallback)
-    ↓
-If an existing FIX_PLAN.md references `RESEARCH.md`, treats embedded `Research Context` as committed requirements and reads the exact source path (legacy or bundled) only to detect revision drift before executing it
-    ↓
-Investigates codebase (Glob, Grep, Read)
-    ↓
-When a bug needs regression coverage, follows the Canonical Regression-First Policy: creates or identifies a regression check, handles no-regression-check or non-reproducible fallbacks, then preserves the same check for verification
-(`Canonical Regression-First Policy` is defined in `skills/aif-fix/SKILL.md`.)
-    ↓
-Implements fix WITH logging ([FIX] prefix)
-    ↓
-Reruns the same regression check when available and suggests any useful extra coverage
-    ↓
-Creates self-improvement patch in configured `paths.patches/` only when the resolved patch policy is enabled (`workflow.fix_patch: true` by default; `--patch` / `--no-patch` overrides it)
-    ↓
-NO plans, NO reports
-
-/aif-evolve [skill-name|"all"] [--global]
-    ↓
-Resolves canonical targets and ownership from installation provenance, never name prefixes
-Replacement ownership requires an applied replacedSkills record and matching physical installation; manifest intent alone does not override a restored bundled skill
-Default project scope; --global selects existing user-global skills only (no installation)
-Project built-ins → skill-context; verified user-owned → exact approved path
-Extension-managed, global built-in, and unknown targets → warn/skip, no writes
-    ↓
-Reads .ai-factory/DESCRIPTION.md + patches incrementally (cursor-based)
-    ↓
-Analyzes recurring patterns and tech-specific pitfalls
-    ↓
-Reads current skills → identifies gaps
-    ↓
-Builds rule-candidate cards with original problem, exact applicability, instruction diff, and a control where the rule must NOT apply
-    ↓
-Compares current effective instructions and each exact candidate on the same frozen cases; records output evidence, extra cost, and regressions
-    ↓
-Outcomes: accept / narrow / refine / keep_old / postpone; narrowed or refined text requires another comparison
-    ↓
-Offers only validated accept revisions for user approval; unavailable execution means postpone
-    ↓
-Applies exact approved revisions; multiple rules also require a passing combined comparison
-    ↓
-Saves all outcomes, including "the new rule did not improve behavior", to configured `paths.evolutions/` after apply/report-save approval
-
-/aif-transfer <source-project-path> [skill-name|"all"]
-    ↓
-Reads only source `.ai-factory` config/description/architecture/patches (source stays read-only)
-    ↓
-Extracts prevention points → keeps only candidates verified against current project
-    ↓
-Removes source paths, names, patch filenames, repository metadata, and source-only identifiers
-    ↓
-Runs the installed `/aif-evolve` workflow with the sanitized in-memory registry
-    ↓
-User approves → evolve writes current skill-context/evolution log
-    ↓
-Rechecks changed artifacts for source identity; never copies patches or advances patch cursor
-```
-
-`/aif-distillation` can generate either one skill or, with `--split` / `--split-by <strategy>`, a set of focused child
-skills from the same material. Split children are written as direct skill directories under the current agent skills
-directory, not nested under a parent package, and every split child uses one shared namespace prefix derived from
-`--name` or the source material title to avoid collisions. `--path <directory>` overrides the output root when the
-generated skill packages should be saved outside the current agent skills directory.
-
-## Skill Frontmatter Patterns
-
-### Action skills (user-only)
-
-```yaml
-disable-model-invocation: true  # User must invoke explicitly
-allowed-tools: Bash(git *) Write Edit
-```
-
-Used by: plan, implement, commit
-
-### Reference skills (model + user)
-
-```yaml
-# No disable-model-invocation - Claude can use automatically
-allowed-tools: Read Glob Grep
-```
-
-Used by: best-practices, architecture, security-checklist, review
+- Register the runtime in `src/core/agents.ts` with its directories and settings path. Extend `src/core/mcp.ts` only when its MCP format differs. Let the template renderer substitute runtime paths. Add the agent to `package.json` keywords and update the agent docs below, including config IDs and runtime MCP support as applicable.
+- Build and run `ai-factory init` in a disposable project with the new runtime. Check installed skills and native MCP settings where supported.
+- Edit interactive prompts in `src/cli/wizard/prompts.ts` and corresponding types in `src/core/config.ts` when needed. Rebuild after changing TypeScript.
 
 ## Development Commands
 
-```bash
-# Build TypeScript
-npm run build
+- `npm run build` compiles TypeScript. Run it after changing `src/` and before tests that import compiled modules from `dist/`.
+- `npm test` runs `scripts/test-skills.sh`. It checks skill validation, negative cases, repository integrity, and bundled regression suites. Run it after changing bundled skills. The root guide must fit within 32,768 bytes so Codex can load it at its default project instruction limit.
+- `npm run test:review-check` also runs recorded review protocol scenarios on their own. They use recorded source/reviewer/validator responses. See [review test maintenance](skills/aif-review/tests/README.md).
+- `npm run test:quality-setup` covers offline quality setup. `npm run test:quality-setup:native -- --run` is opt-in, tests native staging/EOL with pinned tools in disposable repositories, and is outside `npm test`. It does not establish model behavior or coverage for untested platforms.
+- `npm link` is available for local CLI testing. Run install, update, or v1 upgrade smoke checks in a disposable project when touching those paths. For workflow changes, verify applicable interactive setup, fast/full/ultra plan discovery and branch/worktree behavior, implementation execution, and DESCRIPTION loading.
 
-# Run tests (validates all skills + negative tests + codebase integrity)
-npm test
+## Documentation
 
-# Link globally for testing
-npm link
+See [Architecture](docs/architecture.md) for the repository layout, module boundaries, and CLI contracts.
 
-# Test in a project
-cd /some/project
-ai-factory init
-
-# Update skills after changes
-ai-factory update
-
-# Upgrade from v1 to v2 (removes old bare-named skills, installs aif-* prefixed)
-ai-factory upgrade
-```
-
-## Key Files to Know
-
-| File | Purpose |
-|------|---------|
-| `src/cli/index.ts` | CLI entry point, registers init/update/upgrade commands |
-| `src/cli/commands/init.ts` | Interactive wizard: select agents, skills, configure MCP |
-| `src/cli/commands/update.ts` | Re-install all skills, preserve custom skills |
-| `src/cli/commands/upgrade.ts` | v1→v2 migration: remove old bare names, install prefixed |
-| `src/cli/wizard/prompts.ts` | Interactive CLI questions |
-| `src/core/agents.ts` | Agent registry (19 agents incl. runtime aliases) |
-| `src/core/installer.ts` | Copies skills to project |
-| `src/core/skill-targets.ts` | Resolves physical skill targets, shared rendering profiles, and native-path boundaries |
-| `src/core/skills-migration.ts` | Proves skill ownership and performs journaled skill-only migration/recovery |
-| `src/core/mcp.ts` | MCP server configuration |
-| `src/core/template.ts` | `{{var}}` template substitution in SKILL.md |
-| `src/core/transformer.ts` | AgentTransformer interface + registry |
-| `src/core/transformers/` | Per-agent skill format adapters |
-| `scripts/test-skills.sh` | Test suite (validate + negative tests + integrity) |
-| `skills/aif-*/SKILL.md` | Skill instructions |
-
-## Important Rules
-
-1. **Skills don't implement** - `/aif` only sets up context
-2. **DESCRIPTION.md is source of truth** - all skills read it for context
-3. **Plans go to .ai-factory/** - keeps project root clean
-4. **Search skills.sh first** - don't reinvent existing skills
-5. **Verbose logging required** - all implementations must have configurable logging
-6. **No tests unless asked** - respect user's testing preference
-7. **Commit checkpoints** - for plans with 5+ tasks
-8. **ARCHITECTURE.md is architecture source of truth** - all skills follow its folder structure and dependency rules
-9. **Deferred commits** - with `Docs: yes`, reserve and validate the docs task/group before deferred commits; `/aif-implement` invokes `/aif-commit` once per selected classic `## Commit Plan` group using classic-group task-bound mode, and saved group/range/message/task ownership must match before committing. Persist the captured change manifest and pre-commit `HEAD` before dispatch, then persist the verified commit hash; resume reconciles only against that durable receipt. Classic docs-only no-op outcomes are group-level markers validated against both the docs task outcome and live owned changes.
-
-## Documentation Structure
-
-PR review evidence is defined in `skills/aif-review/references/PR-SOURCE.md`: `/aif-review` pins base/head/merge-base SHAs and the reviewed diff hash, retrieves verification context from the same tree, and records file versions and unavailable context in **Review Sources**. `+check` consumes that package without local PR context reads. User-facing behavior is documented in `docs/skills.md` and `docs/workflow.md`.
-
-For application API changes, `skills/aif-review/references/API-COMPATIBILITY.md` defines a conditional review lens: pin supported contract revisions and inspected consumers, compare wire shape and semantics, and preserve existing severity, source, validation and gate rules. This reference grants no independent command execution or production access.
-
-The optional `+coupling` lens uses independent `COUPLING-REVIEW.md` and
-`COUPLING-PLAN.md` references, shipped with their respective skills. It is off by
-default, retains qualitative evidence/unknowns, existing severity/gates and both
-explicit/automatic validator permission boundaries. Review protocol v3 supports
-an optional allowlisted `lenses` field for prepare/finish; run selects it only
-from argument tokens. `references/coupling-context.mjs` verifies declared PR
-dependencies in the same repository at pinned head/merge-base, bounded to 16
-identities, 1 MiB/file and 2 MiB total. Attach its verified results after project
-context merging using repository/commit/path identity, preserving both revisions
-even for config/description. External consumers remain unavailable without new
-access authorization. No graph crawl, numeric coupling score or new config key.
-`npm run test:coupling` covers offline examples, protocol/evidence and all-profile
-standalone/combined installs and package inventory, not model/native behavior.
-Kilo currently installs plan as a flat workflow and review as a nested skill;
-tests must follow actual targets rather than inventing a shared flat layout.
-
-User-facing documentation is split between a lean README and detailed `docs/` pages:
-
-```
-README.md                    # Landing page — first impression, install, example workflow
-docs/
-├── getting-started.md       # What is AI Factory, supported agents table, first project walkthrough, CLI
-├── workflow.md              # Workflow diagram, "When to Use What" table, workflow skills overview
-├── research.md              # Regular and ultra research, adaptive C4/ADR/dependency bundles
-├── loop.md                  # Reflex loop protocol: phases, rules, state, stop conditions
-├── subagents.md             # Claude-only bundled subagents and runtime-local agent-file boundaries
-├── skills.md                # Workflow/utility reference, including stack-driven quality setup and loop dispatch/resume
-├── evolve.md                # Patch-driven skill evolution and skill-context learning loop
-├── plan-files.md            # Plan files, self-improvement patches, skill acquisition strategy
-├── security.md              # Two-level security scanning system
-├── extensions.md            # Extension commands, shared skill composition, injections, MCP, runtimes, and agent files
-├── configuration.md         # .ai-factory.json, Codex skill targets and recovery, MCP config, project structure
-└── config-reference.md      # Full config.yaml schema, defaults, and skill read/write matrix
-```
-
-### Principles
-
-1. **README is a landing page, not a manual.** It should contain: logo, tagline, "Why?", install, quick start, example workflow, documentation links table, external links, license. Nothing else.
-2. **Details go to `docs/`.** Each file is self-contained — one topic, one page. A user should be able to read a single doc file and get the full picture on that topic.
-3. **No duplication.** If information lives in `docs/`, README links to it — does not repeat it. The only exception: installation command appears in both README and `docs/getting-started.md` (users expect it in README).
-4. **Navigation.** Every docs/ file starts with prev/back/next navigation that follows the README Documentation table order and ends with a "See Also" section linking to 2-3 related pages. `getting-started.md` may use a simpler first-page header and ends with "Next Steps" instead.
-5. **Workflow skills vs utility skills.** `docs/workflow.md` describes the workflow skills (plan, loop, improve, implement, fix, evolve) with concise overviews. `docs/research.md` is the source of truth for regular/ultra research artifact shapes. `docs/loop.md` is the source of truth for Reflex Loop contracts, dispatch handoffs and state transitions. `docs/subagents.md` documents bundled Claude-only subagents. `docs/skills.md` has the full reference for ALL skills, split into "Workflow Skills" and "Utility Skills" sections.
-6. **Cross-links use relative paths.** From README: `docs/workflow.md`. Between docs: `workflow.md` (same directory).
+Keep `README.md` as the landing page: logo, tagline, rationale, installation, quick start, workflow example, documentation links, external links, and license. Put detailed, self-contained guidance in `docs/`, one topic per page. Link to canonical explanations. The install command may appear in README and Getting Started. Use relative links and follow the README documentation order for prev/back/next navigation. End each guide with “See Also” and two or three related links. Getting Started can use simpler first-page navigation and ends with “Next Steps.”
 
 ### When to Update What
 
 | Change | Update |
-|--------|--------|
-| New skill added | `docs/skills.md` (add to appropriate section), `docs/workflow.md` (if it's a workflow skill), README Documentation table description (if skill count text changes) |
-| New agent added | `docs/getting-started.md` (agents table), README (agent name in "Multi-agent support" bullet) |
-| Workflow logic changed | `docs/workflow.md` (diagram + skill descriptions), `docs/skills.md` (detailed reference) |
-| Research artifact format changed | `docs/research.md`, `docs/plan-files.md`, `docs/workflow.md`, `docs/skills.md` |
-| Subagent or runtime-local agent-file behavior changed | `docs/subagents.md`, `docs/configuration.md`, README Documentation table description if navigation text changes |
-| Skill evolution / patch learning changed | `docs/evolve.md`, `docs/plan-files.md` when patch lifecycle or skill-context flow changes |
-| Extension lifecycle or runtime-extension behavior changed | `docs/extensions.md`, `docs/configuration.md` |
-| New config option | `docs/configuration.md`, `docs/config-reference.md` |
-| Security scanning changed | `docs/security.md` |
-| Plan file format changed | `docs/plan-files.md` |
-| New CLI command | `docs/getting-started.md` (CLI Commands section) |
-| Documentation conventions changed | `skills/aif-docs/SKILL.md` (principles and templates) |
-
-## Common Changes
-
-### Adding a new skill
-
-1. Create `skills/aif-new-skill/SKILL.md` (must use the `aif-` prefix). Built-in skills are discovered from `skills/`; no TypeScript registry change is needed unless adding UI hints or agent-specific behavior.
-2. Keep `SKILL.md` as the router: purpose, triggers, Step 0 context/config loading, workflow, and ownership. Put dense knowledge in `references/`; put reusable examples in `examples/`; add `scripts/` only for repeatable processing. If source material includes code examples, generated skills must include adapted code snippets in `examples/` and cover the major code-facing source areas, not only a few samples.
-3. Decide config policy explicitly:
-   - Config-aware skills must read `.ai-factory/config.yaml` first and document exact keys used.
-   - Config-agnostic skills must say why they do not read config.
-   - Use `language.ui` for prompts/reports/summaries, `language.artifacts` for generated artifacts when applicable, and `language.technical_terms` to preserve stable technical tokens where required.
-4. Add an Artifact Ownership section. Owner commands write only their owned artifacts; non-owner context artifacts stay read-only. Quality gates must follow the shared `aif-gate-result` contract only when they are machine-readable gates.
-5. Never hardcode installed skill directories in built-in skills. Use template variables such as `{{skills_dir}}` or `{{home_skills_dir}}`; the installer resolves them per agent.
-6. If the skill creates user skills, save them in the current agent skills directory (`{{skills_dir}}/<skill-name>/`) with concise lowercase-hyphen names unless the command explicitly supports and receives a custom output path.
-7. Update docs when user-facing behavior changes: `docs/skills.md`, `docs/workflow.md` if workflow-relevant, `docs/configuration.md` / `docs/config-reference.md` if config-aware, and `AGENTS.md` if project rules change.
-8. Validate with `npm run build` and `npm test`.
-
-### Modifying workflow
-
-1. Edit relevant skill in `skills/`
-2. Update AGENTS.md if logic changes
-3. Rebuild and test with `ai-factory update`
-4. Validate: `npm test`
-
-### Adding a new agent
-
-To add support for a new AI coding agent:
-
-1. **`src/core/agents.ts`** — add entry to `AGENT_REGISTRY`:
-   ```ts
-   newagent: {
-     id: 'newagent',
-     displayName: 'New Agent',
-     configDir: '.newagent',          // where agent stores config
-     skillsDir: '.newagent/skills',   // where skills are installed
-     settingsFile: null,              // path to MCP settings file (null = no MCP)
-     supportsMcp: false,              // true if agent supports MCP servers
-   },
-   ```
-   - `settingsFile` is relative to project root (e.g. `.mcp.json` for Claude Code, `opencode.json` for OpenCode)
-   - Set `supportsMcp: true` + provide `settingsFile` to enable MCP auto-configuration
-
-2. **`src/core/mcp.ts`** — only if MCP format differs from Claude/Cursor standard:
-   - Standard format: `{ mcpServers: { name: { command, args, env } } }`
-   - If the agent uses a different structure (like OpenCode uses `{ mcp: { name: { type, command[], environment } } }`), add a branch in `configureMcp()` with format conversion
-   - If MCP format matches standard — no changes needed
-
-3. **Documentation** — update:
-   - `docs/getting-started.md` — Supported Agents table
-   - `docs/configuration.md` — MCP support mention (if applicable), agent IDs/entries in `.ai-factory.json` docs
-   - `README.md` — agent name in "Multi-agent support" bullet, Links section
-
-4. **`AGENTS.md`** — update Skills Location example if helpful
-
-5. **`package.json`** — add agent name to `keywords`
-
-6. **Build & test**: `npm run build && ai-factory init` — select the new agent, verify skills copy to correct dir and MCP config (if any) writes correct format
-
-Template variables (`{{config_dir}}`, `{{skills_dir}}`, etc.) in skill `.md` files are substituted automatically by `src/core/template.ts` — no changes needed there.
-
-### Changing CLI prompts
-
-1. Edit `src/cli/wizard/prompts.ts`
-2. Update types in `src/core/config.ts` if needed
-3. Rebuild: `npm run build`
-
-## Testing
-
-### Automated tests
-
-```bash
-npm test
-```
-
-The deterministic `/aif-review +check` scenarios also run via `npm run test:review-check` and are included in `npm test`. They use recorded source/reviewer/validator responses through the skill's executable host protocol, without inference or live-tool fallback. See `skills/aif-review/tests/README.md` for reports and recording maintenance.
-
-Runs `scripts/test-skills.sh` which validates:
-
-1. **All skills pass validation** — runs `validate.sh` on every `skills/aif-*/`
-2. **Negative tests** — ensures validator correctly rejects: dotted names, name/dir mismatch, missing name, consecutive hyphens, uppercase names, oversized frontmatter, unquoted bracket hints
-3. **Codebase integrity** — no dotted `name:` fields in skills, no dotted slash-command invocations in docs
-
-### Manual checklist
-
-After changes, verify:
-
-- [ ] `npm test` passes
-- [ ] `ai-factory init` works in empty directory
-- [ ] `ai-factory update` updates existing skills
-- [ ] `ai-factory upgrade` migrates v1 → v2 correctly
-- [ ] `/aif` in Claude Code shows interactive stack selection
-- [ ] `/aif-plan` creates the expected fast/full file or valid ultra bundle and optional branch/worktree flow
-- [ ] `/aif-implement` finds and executes plan
-- [ ] Skills read `.ai-factory/DESCRIPTION.md`
+| --- | --- |
+| New skill | `docs/skills.md`, `docs/workflow.md` if workflow-related, README if the documented count changes |
+| New agent | `docs/getting-started.md` (agent table), `docs/configuration.md` (config ID and MCP support as applicable), README (support list and links) |
+| Workflow logic | `docs/workflow.md` and `docs/skills.md` |
+| Research artifact format | `docs/research.md`, `docs/plan-files.md`, `docs/workflow.md`, `docs/skills.md` |
+| Subagent or runtime-local agent files | `docs/subagents.md`, `docs/configuration.md`, README if navigation text changes |
+| Skill evolution or patch learning | `docs/evolve.md`, `docs/plan-files.md` if patch lifecycle or skill-context flow changes |
+| Extension lifecycle or runtime extensions | `docs/extensions.md` and `docs/configuration.md` |
+| New config option | `docs/configuration.md` and `docs/config-reference.md` |
+| Security scanning | `docs/security.md` |
+| Plan file format | `docs/plan-files.md` |
+| New CLI command | `docs/getting-started.md` (CLI Commands) |
+| Repository layout or module boundaries | `docs/architecture.md` |
+| Documentation conventions | `skills/aif-docs/SKILL.md` (principles and templates) |
