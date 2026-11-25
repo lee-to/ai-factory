@@ -80,7 +80,7 @@ Execute the steps below in order. Do not write the architecture artifact or upda
 7. Ensure the available context is sufficient to evaluate architecture. At minimum, it must establish what is being built, the principal technology stack, and the material domain or operational constraints. Team size and expected scale are supporting factors: use them when stated, but do not invent them.
 8. If DESCRIPTION does not exist or its content is insufficient:
    - If the user supplied the missing details in the current conversation or invocation, combine them with the file content.
-   - Otherwise, ask one focused question at a time in interactive mode. Start with the missing project purpose/type, then ask about the principal technology stack, then material domain or operational constraints. Ask about team size or expected scale only when those facts are needed and are not available.
+   - Otherwise, in interactive mode, ask one focused question at a time via `AskUserQuestion` (per the Runtime-aware questions policy). Start with the missing project purpose/type, then ask about the principal technology stack, then material domain or operational constraints. Ask about team size or expected scale only when those facts are needed and are not available.
    - In non-interactive mode, return `BLOCKED` with the specific missing context. Do not infer a project type or recommend a pattern without sufficient evidence.
 9. Record whether the resolved architecture path exists and whether it is a regular file. If the path exists but is a directory, device, socket, or other non-regular object, return `BLOCKED`; do not attempt to overwrite it. Do not modify the artifact in this step.
 10. Read `.ai-factory/skill-context/aif-architecture/SKILL.md` and `.ai-factory/skill-context/global-skill-context.md` if they exist. If an existing skill-context file cannot be read, return `BLOCKED` with its path. Extract all project-specific rules and constraints so they govern decision resolution, artifact generation, and validation.
@@ -136,7 +136,7 @@ Apply these sources in descending order of authority:
 4. The workflow's detection rules applied to repository evidence.
 5. Declared defaults in this skill and its references.
 
-Do not reuse choices from earlier, separate architecture runs unless the user explicitly repeats them in the current run. A lower-priority source must never override a higher-priority choice. Within the same priority level, use the latest unambiguous explicit user instruction in the current run (for repeated command options, use the last valid occurrence per Step 3.1). If chronology does not resolve conflicting explicit choices, ask one focused question in interactive mode or return `BLOCKED` in non-interactive mode. Configuration values are authoritative only for the keys explicitly resolved in Step 0; they do not silently select a pattern, variant, style, or alignment policy. Do not infer approval from a default, recommendation, or preselected option.
+Do not reuse choices from earlier, separate architecture runs unless the user explicitly repeats them in the current run. A lower-priority source must never override a higher-priority choice. Within the same priority level, use the latest unambiguous explicit user instruction in the current run (for repeated command options, use the last valid occurrence per Step 3.1). If chronology does not resolve conflicting explicit choices, ask one focused question via `AskUserQuestion` in interactive mode or return `BLOCKED` in non-interactive mode. Configuration values are authoritative only for the keys explicitly resolved in Step 0; they do not silently select a pattern, variant, style, or alignment policy. Do not infer approval from a default, recommendation, or preselected option.
 
 ### Step 3: Resolve the architecture pattern
 
@@ -150,7 +150,7 @@ Parse the complete invocation once, before resolving any decision. Parsing is ca
 2. For each option, retain the last valid occurrence. An invalid occurrence is reported and ignored; it does not erase an earlier valid occurrence. If an option is repeated and a later valid occurrence overrides an earlier valid one, report the override.
 3. A token beginning with `--` that is not one of the two supported options, or that uses a malformed form (including a missing `=` or empty value), is an unrecognized option. Report it and do not reinterpret it as a positional token.
 4. All remaining tokens are positional tokens. Parse them using the table and rules below. Do not infer intent from free-form text or from a token that is not listed.
-5. A clear natural-language choice made by the user in the current architecture run also counts as an explicit choice when it maps unambiguously to one canonical pattern, variant, style, or policy. Do not reuse choices from earlier, separate runs. If the wording could map to more than one choice, ask one focused clarification question; do not guess. A question, preference hint, or description of project needs is not itself a choice.
+5. A clear natural-language choice made by the user in the current architecture run also counts as an explicit choice when it maps unambiguously to one canonical pattern, variant, style, or policy. Do not reuse choices from earlier, separate runs. If the wording could map to more than one choice, ask one focused clarification question via `AskUserQuestion` (or return `BLOCKED` in non-interactive mode); do not guess. A question, preference hint, or description of project needs is not itself a choice.
 
 Recognized pattern tokens:
 
@@ -198,7 +198,7 @@ Use the INDEX decision matrix and two-phase decision algorithm as the primary gu
 - **Structured Modules** for a growing multi-feature application that benefits from cohesive module boundaries without the full cost of explicit ports and adapters.
 - **Layered Architecture** for a small, straightforward CRUD application where minimizing initial complexity is more valuable than strong module boundaries.
 
-Interactive mode, when no explicit pattern choice was supplied: present one recommendation with evidence-based reasons and the meaningful alternatives. Ask the user to choose exactly one of the four base patterns (Layered Architecture, Structured Modules, Explicit Architecture, Microservices). Do not include structural variants in this question and do not collapse the pattern and variant choices into a single prompt. Wait for the user's pattern selection before resolving any structural variant in Step 4. Do not continue until a valid choice is received.
+Interactive mode, when no explicit pattern choice was supplied: present one recommendation with evidence-based reasons and the meaningful alternatives, and ask the user via `AskUserQuestion` to choose exactly one of the four base patterns (Layered Architecture, Structured Modules, Explicit Architecture, Microservices). Do not include structural variants in this question and do not collapse the pattern and variant choices into a single prompt. Wait for the user's pattern selection before resolving any structural variant in Step 4. Do not continue until a valid choice is received.
 
 Non-interactive mode, when no explicit pattern choice was supplied: return `BLOCKED` for both Greenfield and Existing codebases. Include the evidence-based recommendation, meaningful alternatives, and accepted pattern tokens. The base pattern is a required architecture decision, not an optional preference; do not select it on the user's behalf.
 
@@ -233,15 +233,15 @@ Resolve the variant using this precedence:
    - Microservices → Single Service Repository.
 
 For an Existing codebase with an unambiguous detected variant and no explicit variant:
-- Interactive mode: show the evidence and ask whether to retain the detected variant or choose another valid variant. The detected variant is the preselected recommendation, not user approval; wait for an answer.
+- Interactive mode: show the evidence and ask via `AskUserQuestion` whether to retain the detected variant or choose another valid variant. The detected variant is the preselected recommendation, not user approval; wait for an answer.
 - Non-interactive mode: return `BLOCKED` with the detected variant, its evidence, and the alternatives. Detection does not authorize a material architecture choice.
 
 For an Existing codebase with no explicit or unambiguous detected variant:
-- Interactive mode: ask the user to choose from the variants available for the resolved pattern.
+- Interactive mode: ask the user via `AskUserQuestion` to choose from the variants available for the resolved pattern.
 - Non-interactive mode: return `BLOCKED` with those options and the canonical tokens that resolve them.
 
 For a Greenfield project with no explicit variant:
-- Interactive mode: present the canonical default as the recommendation, explain briefly why it is the default, and ask the user to confirm it or choose another available variant.
+- Interactive mode: present the canonical default as the recommendation, explain briefly why it is the default, and ask the user via `AskUserQuestion` to confirm it or choose another available variant.
 - Non-interactive mode: return `BLOCKED` with the canonical default, the available alternatives, and their canonical tokens. A structural variant is a material architecture decision, not an optional preference.
 
 If an explicit variant conflicts with observed structure, keep the explicit variant and report the mismatch; do not ask the user to reconfirm it.
@@ -286,15 +286,15 @@ Set the alignment policy to `strict (already conforming)`. This means new code f
 - Repeated and invalid values follow the parser rules in Step 3.1.
 
 Without a valid explicit policy choice:
-- Interactive mode: ask the user to choose:
-  1. **Adapt** — document the current structure accurately, identify deviations from the target, and recommend that new code follow the target boundaries where practical.
-  2. **Strict** — document the canonical target architecture and logically isolate non-conforming existing code as legacy without physical file relocation. Do not refactor unrelated legacy code automatically.
+- Interactive mode: ask the user via `AskUserQuestion` to choose:
+  1. **Adapt** — adapt the architecture guidelines to fit the existing project structure (document the real folder tree, pragmatic boundaries within current roots, and actual deviations without requiring structural rewrites).
+  2. **Strict** — enforce the pure canonical target architecture (canonical target tree, strict boundaries, logical quarantine of non-conforming legacy paths without physical file relocation, and a concrete migration map for future refactoring).
 - Non-interactive mode: return `BLOCKED` with the detected discrepancies and the two policy options.
 
 Policy semantics:
 
-- **Adapt:** the generated folder tree and dependency rules describe the selected target architecture. Add a clearly labelled `Current-State Deviations` subsection that records the actual existing locations and explains which target rules they do not yet satisfy. Do not present those deviations as allowed target dependencies.
-- **Strict:** generate the canonical target tree and dependency rules purely according to the chosen pattern without compromising for existing files. Add `Legacy vs New Code Policy` where non-conforming existing code is isolated logically without physical file relocation (existing non-conforming locations stay frozen; no files are moved or renamed automatically). Include concrete migration instructions: map existing non-conforming paths to target architectural locations, with required namespace, configuration, and binding updates. The user decides whether to physically relocate legacy code into a dedicated quarantine folder or refactor it into the target architecture in future tasks. New code follows the target architecture; migrate legacy code only when a planned task explicitly touches that area or the user requests a refactor.
+- **Adapt:** adapt the architecture guidelines to the **actual existing project structure**. `## Folder Structure` documents the real observed directories (showing only minimal incremental placement for new code within existing roots); `## Dependency Rules`, `## Layer/Module Communication`, and `## Code Examples` use the project's actual paths, classes, and pragmatic boundaries without forcing an idealized tree or full ports/mappers rewrite. Add `Code Organization Note` and `Current-State Deviations` to record material boundary violations separately from allowed rules without presenting broken dependencies as approved patterns.
+- **Strict:** generate the **pure canonical target architecture** (`## Folder Structure`, `## Dependency Rules`, `## Layer/Module Communication`, and `## Code Examples`) strictly according to the chosen pattern, variant, and style without compromising for existing files. Add `Legacy vs New Code Policy` where non-conforming existing code is isolated logically without physical file relocation (existing non-conforming locations stay frozen; no files are moved or renamed automatically), define adapter/facade interoperability rules so legacy coupling does not leak into new code, include concrete migration instructions mapping existing non-conforming paths to target architectural locations with required namespace, configuration, and binding updates, and outline an ordered immediate-alignment path. The user decides whether to physically relocate legacy code into a dedicated quarantine folder or refactor it into the target architecture in future tasks. New code follows the target architecture; migrate legacy code only when a planned task explicitly touches that area or the user requests a refactor.
 
 The alignment policy does not apply to Greenfield projects. Any natural-language Adapt/Strict choice or `--policy` value on a Greenfield project is a no-op; report it as ignored. For a conforming Existing codebase, use `Strict (already conforming)` regardless of an Adapt/Strict choice or `--policy` value, report that choice/value as a no-op, and do not create an Adapt or legacy-quarantine section.
 
@@ -312,7 +312,7 @@ Resolve style in this order, using an unambiguous explicit user choice of Style 
 1. A valid `--style=subfolders` or an unambiguous natural-language choice of Style 1 selects Style 1.
 2. A valid `--style=unified` or an unambiguous natural-language choice of Style 2 selects Style 2.
 3. When no valid explicit style was supplied (neither in arguments nor in natural language):
-   - Interactive mode: if an existing codebase clearly demonstrates one style, show that evidence and ask the user whether to keep it or choose the other style; otherwise present Style 1 (Feature Subfolders) and Style 2 (Unified Multi-Action) and require the user's explicit selection.
+   - Interactive mode: if an existing codebase clearly demonstrates one style, show that evidence and ask the user via `AskUserQuestion` whether to keep it or choose the other style; otherwise present Style 1 (Feature Subfolders) and Style 2 (Unified Multi-Action) via `AskUserQuestion` and require the user's explicit selection.
    - Non-interactive mode: return `BLOCKED` with the two style options (`--style=subfolders` for Style 1 — Feature Subfolders, and `--style=unified` for Style 2 — Unified Multi-Action), including any clearly detected style and its evidence.
 
 If an explicit style conflicts with the detected style, the explicit choice wins and the mismatch is reported. Repeated and invalid option values follow the parser rules in Step 3.1.
@@ -345,13 +345,13 @@ Use this structure, adapting headings and prose to the artifact language while p
 - **Alignment policy:** [Not applicable (Greenfield) / Strict (already conforming) / Adapt / Strict (logical legacy quarantine).]
 
 ## Folder Structure
-[Stack-idiomatic target folder tree.]
+[Under Greenfield or Strict: stack-idiomatic canonical target folder tree (under Strict with discrepancies, list/annotate frozen legacy paths separately). Under Adapt: existing project folder tree adapted with incremental placement for new code.]
 
 ## Dependency Rules
-[Allowed and forbidden dependency directions.]
+[Allowed and forbidden dependency directions: canonical strict rules for Greenfield/Strict (plus legacy interoperability boundaries under Strict), or pragmatic existing-layout boundaries under Adapt.]
 
 ## Layer/Module Communication
-[How modules, layers, services, and adapters communicate.]
+[How modules, layers, services, and adapters communicate — via canonical boundaries under Greenfield/Strict, or existing interfaces/services under Adapt.]
 
 ## Key Principles
 [Practical rules for day-to-day development.]
@@ -363,7 +363,7 @@ Use this structure, adapting headings and prose to the artifact language while p
 - Existing and conforming: omit any additional alignment-policy section.]
 
 ## Code Examples
-[At least two examples in the project's language/framework. One demonstrates a normal use case; another demonstrates a key dependency or boundary rule.]
+[At least two examples in the project's language/framework. Under Adapt, write examples against the actual existing folders, classes, and framework conventions. Under Greenfield or Strict, write examples against the canonical target layout (and under Strict with discrepancies, show isolating legacy code behind an adapter/facade when applicable).]
 
 ## Anti-Patterns
 [Concrete anti-patterns for the selected architecture.]
@@ -371,7 +371,7 @@ Use this structure, adapting headings and prose to the artifact language while p
 
 Generation rules:
 
-1. Use the exact resolved pattern, variant, style, and alignment policy. Do not combine folder trees from different variants.
+1. Use the exact resolved pattern, variant, style, and alignment policy. Under Greenfield or Strict, use the canonical tree and do not combine folder trees from different variants. Under Adapt, preserve the existing repository roots in `Folder Structure` and adapt the chosen pattern's boundaries and new-feature placement to fit the existing layout.
 2. Adapt every code example to the project's actual language, framework, imports, naming, and conventions. Never use examples from another language merely because they appear in a reference.
 3. Use stack-idiomatic names and casing. The reference folder names describe architectural roles; they are not mandatory literal casing.
 4. Apply the selected variant's domain/model placement:
@@ -380,8 +380,8 @@ Generation rules:
    - **Layered Architecture:** models/entities belong in the Models role.
    - **Microservices:** each service follows the selected service template; domain entities and outbound interfaces remain inside that service.
 5. Apply the selected style consistently across all relevant layers and delivery channels. Add `[Channel]` folders only where the reference prescribes them and only when the project serves multiple audiences.
-6. Under Adapt, show the target structure first. List actual deviations separately; never describe a forbidden existing dependency as an allowed target rule.
-7. Under Strict, define logical quarantine boundaries for non-conforming existing code without physically moving or renaming files. The user decides whether to physically relocate legacy code or refactor it into the target architecture.
+6. Under Adapt, base `Folder Structure`, `Dependency Rules`, `Layer/Module Communication`, and `Code Examples` on the actual existing codebase rather than an idealized unbuilt target tree; record actual boundary violations separately in `Current-State Deviations` and never describe a broken dependency as an allowed target rule.
+7. Under Strict with discrepancies, keep `Folder Structure`, `Dependency Rules`, and `Code Examples` strictly canonical without compromising for existing files; define logical quarantine boundaries for non-conforming existing code without physically moving or renaming files, specify adapter/facade interoperability rules, and include concrete file migration mappings (`existing path -> target path`) plus an ordered immediate-alignment path. The user decides whether to physically relocate legacy code or refactor it into the target architecture.
 8. Include only architectural rules supported by the selected references and project evidence. Mark assumptions explicitly.
 9. Keep the artifact actionable. Avoid generic principles that do not change implementation decisions.
 10. Apply all project-specific rules from skill-context (`.ai-factory/skill-context/aif-architecture/SKILL.md` and `global-skill-context.md`). The template is a base structure: if a skill-context rule requires specific sections, principles, constraints, or custom layouts, augment the generated ARCHITECTURE.md accordingly.
@@ -396,17 +396,18 @@ Generation rules:
 
 **Existing with discrepancies — Adapt**
 
-- **Code Organization Note:** document the existing structure without requiring unrelated rewrites; new code should follow target boundaries where practical.
-- **Current-State Deviations:** list each material observed deviation with its actual path/evidence and the corresponding target rule. Do not call a deviation an approved exception unless the user explicitly approved it.
+- **Code Organization Note:** document the existing structure as the active baseline without requiring unrelated rewrites; place new code cleanly within existing roots and follow target boundaries where practical.
+- **Interoperability & Incremental Alignment:** when touching existing code or calling legacy modules, prefer clean service/interface boundaries without forcing a structural rewrite purely for alignment.
+- **Current-State Deviations:** list each material observed deviation (for example, business rules or direct DB queries inside controllers/routes) with its actual path/evidence and explain the boundary risk and the quickest pragmatic fix. Do not call a deviation an approved exception unless the user explicitly approved it.
 
 **Existing with discrepancies — Strict**
 
 - **Target Architecture:** canonical architecture designed purely according to the chosen pattern without compromising for existing legacy files.
-- **New Features:** follow the canonical target architecture.
-- **Logical Legacy Quarantine:** non-conforming existing locations are logically marked as frozen legacy boundaries without physical file relocation. Do not move or rename existing files automatically; the user decides whether to physically move legacy code into a dedicated quarantine folder or refactor it to the new architecture.
-- **Legacy Isolation:** do not allow legacy implementation details to leak into new domain/application code.
-- **Migration Instructions:** provide a concrete file migration mapping (existing path -> target path) and identify required namespace, framework configuration (e.g. auth/provider configs), and binding updates needed to complete the migration.
-- **Opportunistic Migration:** migrate legacy code either through a dedicated refactoring task or opportunistically when a planned task touches that area. Do not refactor unrelated code automatically.
+- **New Features:** follow the canonical target architecture strictly.
+- **Logical Legacy Quarantine:** explicitly list the non-conforming existing paths/areas and mark them as frozen legacy boundaries without physical file relocation. Do not move or rename existing files automatically; the user decides whether to physically move legacy code into a dedicated quarantine folder or refactor it to the new architecture.
+- **Legacy Isolation & Interoperability:** when new code must interact with frozen legacy code, isolate the call behind adapters, ports, or facades so legacy types and coupling never leak into new domain/application code.
+- **Migration Instructions:** provide a concrete file migration mapping (`existing path -> target path`) and identify required namespace, framework configuration (e.g. auth/provider configs), and binding updates needed to complete the migration.
+- **Immediate Alignment Path & Opportunistic Migration:** provide a concise ordered checklist of immediate actions if the user wants to align the app right away (for example: create target directory/layer roots, move/re-register framework delivery and wiring files such as middleware/CLI/providers, extract business logic from legacy controllers/models per the migration mapping, and remove empty legacy directories once verified); otherwise migrate legacy code opportunistically when planned tasks touch that area without refactoring unrelated code automatically.
 
 ### Step 8: Update companion pointers
 
@@ -446,9 +447,9 @@ Before reporting success, validate the result against this checklist:
 - [ ] Domain/model placement matches the selected pattern.
 - [ ] All project-specific rules from skill-context (`.ai-factory/skill-context/aif-architecture/SKILL.md` and global) are satisfied and incorporated.
 - [ ] The alignment-policy content matches the project state: Greenfield has Code Organization Policy; Existing with discrepancies has exactly one of Adapt or Strict policy sections; Existing and conforming has no additional alignment-policy section.
-- [ ] If the selected policy is Adapt, deviations are described separately from target rules.
-- [ ] If the selected policy is Strict with existing discrepancies, the target architecture is designed purely without compromising for existing files, legacy quarantine is defined logically without physical file relocation, and file migration instructions are provided.
-- [ ] If existing discrepancies were found (legacy quarantine under Strict or deviations under Adapt), report guidance focuses strictly on architectural discrepancies and legacy code without recommending unrelated commands.
+- [ ] If the selected policy is Adapt, `Folder Structure`, `Dependency Rules`, and `Code Examples` reflect the actual existing codebase layout and pragmatic boundaries, and deviations are listed separately from allowed rules.
+- [ ] If the selected policy is Strict with existing discrepancies, `Folder Structure`, `Dependency Rules`, and `Code Examples` follow the canonical target architecture without compromising for existing files, legacy quarantine is defined logically without physical file relocation, adapter/facade interoperability is specified, and file migration instructions plus immediate alignment steps are provided.
+- [ ] If existing discrepancies were found (legacy quarantine under Strict or deviations under Adapt), report guidance names the concrete affected paths, explains the boundary/quarantine status clearly, states actionable immediate steps to align the codebase, and focuses strictly on architectural discrepancies and legacy code without recommending unrelated commands.
 - [ ] The DESCRIPTION pointer, if updated, references the resolved path and the artifact's actual pattern.
 - [ ] The AGENTS.md row, if updated, references the resolved path.
 - [ ] Companion pointers were changed only after the architecture artifact write succeeded.
@@ -477,8 +478,13 @@ Present the final report in resolved `language.ui`:
 - [Three concise project-specific architectural rules.]
 
 [Localized architectural-discrepancies / legacy-guidance heading in `language.ui`]:
-- [If Strict with legacy discrepancies: remind that non-conforming legacy code is quarantined logically without physical relocation; note that ARCHITECTURE.md includes target migration instructions and mapping for future refactoring tasks; the user decides whether to physically relocate it or refactor it opportunistically.]
-- [If Adapt with deviations: remind that identified architectural deviations are documented under Current-State Deviations and can be addressed opportunistically.]
+- [If Strict with legacy discrepancies:
+  - Name the concrete quarantined existing paths/folders and state clearly that they remain frozen in place (logical quarantine only — no files were moved or renamed).
+  - Explain how to work safely alongside legacy right away: write new features strictly in the target structure and isolate any calls to frozen legacy paths behind adapters/ports.
+  - List 2–3 concrete immediate actions from the migration instructions in the architecture artifact if the user wants to bring the existing app into alignment right now (such as moving/re-registering framework delivery/wiring files, refactoring priority legacy controllers/models using `existing path -> target path`, and removing empty legacy paths after verification).]
+- [If Adapt with deviations:
+  - Name the concrete existing paths/files with boundary deviations (documented in Current-State Deviations) and summarize each boundary issue briefly.
+  - State 1–2 concrete immediate improvements that resolve the main boundary leaks without rewriting the existing codebase (for example, moving inline transactions or DB queries out of a controller into a dedicated handler/service).]
 - [Omit this section entirely if the codebase is greenfield or conforming with zero discrepancies.]
 
 [Localized closing sentence in `language.ui` about workflow skills following these architecture guidelines.]

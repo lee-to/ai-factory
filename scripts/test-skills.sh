@@ -1458,6 +1458,25 @@ else
     fail "/aif-architecture starter scaffolding classification contract drifted"
 fi
 
+if grep -Fq 'ask the user via `AskUserQuestion` to choose exactly one of the four base patterns' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'ask the user via `AskUserQuestion` to choose from the variants available' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'ask the user via `AskUserQuestion` to choose:' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'Style 2 (Unified Multi-Action) via `AskUserQuestion`' "$AIF_ARCH_SKILL"; then
+    pass "/aif-architecture routes interactive questions through AskUserQuestion"
+else
+    fail "/aif-architecture missing AskUserQuestion references in interactive steps"
+fi
+
+if grep -Fq 'adapt the architecture guidelines to the **actual existing project structure**' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'generate the **pure canonical target architecture**' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'base `Folder Structure`, `Dependency Rules`, `Layer/Module Communication`, and `Code Examples` on the actual existing codebase' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'Name the concrete quarantined existing paths/folders' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'List 2–3 concrete immediate actions from the migration instructions' "$AIF_ARCH_SKILL"; then
+    pass "/aif-architecture clearly differentiates Adapt vs Strict and provides actionable legacy/immediate-alignment guidance"
+else
+    fail "/aif-architecture Adapt vs Strict or legacy report guidance contract drifted"
+fi
+
 if ROOT_DIR="$ROOT_DIR" node --input-type=module - <<'EOF'
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

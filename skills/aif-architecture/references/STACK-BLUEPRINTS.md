@@ -21,6 +21,9 @@ When a language compiler, package manager, or framework idiom establishes conven
      - *Level 1 (Entity Backend):* `_Shared/Schemas/`, `_Shared/Dtos/` prevents lateral imports between use cases.
      - *Level 2 (Cross-Channel UI):* `Presentation/Web/_Shared/Components/` for shared UI forms across channels.
      - *Level 3 (Intra-Channel):* `[Channel]/_Shared/` for channel-specific filters and tables.
+4. **Context/Module Grouping & Framework Glue (All Stacks & Architectures):**
+   - **Optional Grouping Wrappers:** Modules or bounded contexts may live directly under the ecosystem's source root (`src/`, `app/`, `internal/`, etc.), inside a grouping folder (`Modules/`, `Contexts/`, `contexts/`) when helpful to separate them from framework files, or without any `[Module]/`/`[Context]/` wrapper in single-area applications. Never mandate an extra wrapper folder by default.
+   - **Delivery & Wiring Placement (Strict Alignment):** Across any stack and architecture, CLI/console commands and HTTP middleware belong to the **Presentation / Delivery** role, and DI providers / service wiring belong to **Infrastructure / Composition Root** — placed either inside an appropriate module/context (such as `Main` or the owning domain area) or in a cross-cutting layer, and registered through the stack's bootstrap/entrypoint configuration.
 
 ---
 
@@ -43,16 +46,18 @@ When a language compiler, package manager, or framework idiom establishes conven
 
 | Conceptual Role | Laravel Idiom | Yii3 / Clean PHP Idiom | Notes |
 |---|---|---|---|
-| **Module / Bounded Context** | `app/Modules/[Module]/` | `src/[Context]/` | Self-contained domain module |
-| **Domain Entity** | `Models/[Entity].php` (Rich Eloquent) | `Domain/[Entity].php` (Pure POPO) | Cycle ORM Entity or Rich Eloquent |
+| **Module / Bounded Context** | `app/Modules/[Module]/`, `app/[Context]/`, or `src/[Context]/` | `src/[Context]/` | Self-contained module/context (`Contexts/`/`Modules/` wrapper optional; omit `[Module]/`/`[Context]/` for single-area apps) |
+| **Domain Entity** | `Models/[Entity].php` (Rich Eloquent) or `Domain/[Entity].php` (Pure) | `Domain/[Entity].php` (Pure POPO) | Cycle ORM Entity, pure POPO, or Rich Eloquent |
 | **Value Object** | `Domain/ValueObjects/` | `Domain/ValueObject/` | `readonly class` with validation |
 | **Use Case / Action** | `Slices/[Entity]/[Feature]/[Feature]Action.php` | `Application/Command/[Feature]Handler.php` | Single-action execution |
 | **Port (Interface)** | `Contracts/` or `Domain/Ports/` | `Domain/Port/[Entity]RepositoryInterface.php` | Pure interface |
 | **DTO / Input Data** | `Dtos/[Feature]Data.php` (`readonly`) | `Application/Dto/[Feature]Input.php` | Strongly-typed transport DTO (with `yiisoft/validator`) |
-| **Delivery (HTTP)** | `Http/[Channel]/` | `Presentation/Action/[Channel]/` | PSR-15 RequestHandler / Middleware Action |
+| **Delivery (HTTP)** | `Http/[Channel]/` or `[Scope]/Presentation/.../[Channel]/` | `Presentation/Action/[Channel]/` | Single-action controller / PSR-15 RequestHandler |
+| **HTTP Middleware** | `Http/Middleware/` or `[Scope]/Presentation/Middleware/` | `Presentation/Middleware/` | Presentation/Delivery layer of owning/main scope (or cross-cutting); wired in `bootstrap/app.php` |
+| **Console / CLI** | `Console/Commands/` or `[Scope]/Presentation/Cli/` | `Presentation/Command/` | Presentation/Delivery layer of owning/main scope (or cross-cutting); registered in `bootstrap/app.php` |
 | **Validation** | `Http/Requests/[Feature]Request.php` | `yiisoft/validator` (Attributes on DTO) | Transport payload validation |
-| **Entity `_Shared/`** | `app/Modules/[Module]/Slices/[Entity]/_Shared/` | `src/[Context]/Slices/[Entity]/_Shared/` | Entity-scoped base DTOs and schemas |
-| **Module Wiring** | `Providers/[Module]ServiceProvider.php` | `config/di-web.php` via `yiisoft/config` | PSR-11 container definitions |
+| **Entity `_Shared/`** | `Slices/[Entity]/_Shared/` | `src/[Context]/Slices/[Entity]/_Shared/` | Entity-scoped base DTOs and schemas |
+| **DI Wiring / Providers** | `Providers/` or `[Scope]/Infrastructure/Providers/` | `config/di-web.php` via `yiisoft/config` | Infrastructure/Composition Root of owning/main scope; registered in `bootstrap/providers.php` |
 
 ### 1.3 Blueprint 1: Laravel Modular Monolith (Vertical Slices & Actions — Style 1)
 
