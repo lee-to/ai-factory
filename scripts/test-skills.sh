@@ -827,17 +827,17 @@ EXISTING_PROJECT_SUGGESTIONS_SECTION="$(awk '
     /^Present these as `AskUserQuestion` with multi-select options:$/ { if (capture) exit }
 ' "$AIF_SKILL")"
 AIF_ARCH_DESCRIPTION_SECTION="$(awk '
-    /^### Step 3: Update DESCRIPTION\.md$/ { capture=1 }
+    /^#### 8\.1 DESCRIPTION\.md$/ { capture=1 }
     capture { print }
-    /^### Step 4: Update AGENTS\.md$/ { if (capture) exit }
+    /^#### 8\.2 AGENTS\.md$/ { if (capture) exit }
 ' "$AIF_ARCH_SKILL")"
 AIF_ARCH_AGENTS_SECTION="$(awk '
-    /^### Step 4: Update AGENTS\.md$/ { capture=1 }
+    /^#### 8\.2 AGENTS\.md$/ { capture=1 }
     capture { print }
-    /^### Step 5: Confirm$/ { if (capture) exit }
+    /^### Step 9: Validate and report$/ { if (capture) exit }
 ' "$AIF_ARCH_SKILL")"
 AIF_ARCH_CONFIRM_SECTION="$(awk '
-    /^### Step 5: Confirm$/ { capture=1 }
+    /^### Step 9: Validate and report$/ { capture=1 }
     capture { print }
     /^## Artifact Ownership$/ { if (capture) exit }
 ' "$AIF_ARCH_SKILL")"
@@ -1365,14 +1365,14 @@ fi
 
 if printf '%s\n' "$AIF_ARCH_AGENTS_SECTION" | grep -Fq 'resolved `language.artifacts`' \
    && printf '%s\n' "$AIF_ARCH_AGENTS_SECTION" | grep -Fq '| [resolved-architecture-path] | [Localized architecture artifact description in resolved artifacts language] |' \
-   && printf '%s\n' "$AIF_ARCH_AGENTS_SECTION" | grep -Fq 'Only add if the resolved architecture path is not already present.'; then
+   && printf '%s\n' "$AIF_ARCH_AGENTS_SECTION" | grep -Fq 'If a row already points to the resolved path'; then
     pass "/aif-architecture keeps AGENTS companion update path-aware and localized"
 else
     fail "/aif-architecture AGENTS companion update contract missing"
 fi
 
 if printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq 'resolved `language.ui`' \
-   && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized pattern label in `language.ui`]: [chosen pattern]' \
+   && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized pattern label in `language.ui`]: [canonical pattern-variant name]' \
    && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized file label in `language.ui`]: [resolved architecture path]' \
    && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized success heading in `language.ui`]' \
    && printf '%s\n' "$AIF_ARCH_CONFIRM_SECTION" | grep -Fq '[Localized closing sentence in `language.ui` about workflow skills following these architecture guidelines.]'; then
@@ -1402,6 +1402,143 @@ if printf '%s\n' "$AIF_ARCH_OWNERSHIP_SECTION" | grep -Fq '.ai-factory/DESCRIPTI
     fail "default DESCRIPTION path leaked into /aif-architecture Artifact Ownership"
 else
     pass "no default DESCRIPTION path leak in /aif-architecture Artifact Ownership"
+fi
+
+if grep -Fq -e '--style=subfolders|unified' "$AIF_ARCH_SKILL" \
+   && grep -Fq -e '--policy=adapt|strict' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'microservices[-single|-monorepo]' "$AIF_ARCH_SKILL"; then
+    pass "/aif-architecture declares modern CLI flags and microservices variants"
+else
+    fail "/aif-architecture CLI flags or variants missing in argument-hint"
+fi
+
+if grep -Fq 'Read `.ai-factory/skill-context/aif-architecture/SKILL.md`' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'the skill-context rule wins' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'skill-context rules apply to ALL outputs of this skill' "$AIF_ARCH_SKILL"; then
+    pass "/aif-architecture enforces skill-context precedence and augmentation contract"
+else
+    fail "/aif-architecture skill-context enforcement contract missing"
+fi
+
+ARCH_REFS_OK=1
+for ref_file in INDEX.md STACK-BLUEPRINTS.md LAYERED.md STRUCTURED-MODULES.md \
+                EXPLICIT-ARCHITECTURE.md MICROSERVICES.md DOMAIN-MODELING.md \
+                PERSISTENCE-AND-ORM.md MIGRATIONS.md; do
+    if [[ ! -f "$ROOT_DIR/skills/aif-architecture/references/$ref_file" ]]; then
+        ARCH_REFS_OK=0
+        break
+    fi
+done
+
+if [[ $ARCH_REFS_OK -eq 1 ]] && ! grep -Fq 'references/architecture.md' "$AIF_ARCH_SKILL"; then
+    pass "all 9 modular architecture references exist and legacy architecture.md is not referenced"
+else
+    fail "modular architecture references missing or legacy architecture.md referenced"
+fi
+
+if ! grep -Fq 'non-interactive runs report the detection as an assumption' "$SKILLS_DOC" \
+   && ! grep -Fq 'uses the detected style as a reported assumption' "$SKILLS_DOC" \
+   && ! grep -Fq 'default to Feature Subfolders' "$SKILLS_DOC" \
+   && grep -Fq 'unresolved structural variant or action style returns `BLOCKED`' "$SKILLS_DOC" \
+   && grep -Fq 'When no valid explicit style was supplied (neither in arguments nor in natural language):' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'Non-interactive mode: return `BLOCKED` with the two style options' "$AIF_ARCH_SKILL" \
+   && ! grep -Fq 'pattern/variant default' "$AIF_ARCH_SKILL" \
+   && ! grep -Fq 'Default style per variant' "$ROOT_DIR/skills/aif-architecture/references/INDEX.md" \
+   && grep -Fq '[resolved alignment policy: Not applicable (Clean) / Strict (already conforming) / Adapt / Strict]' "$AIF_ARCH_SKILL"; then
+    pass "/aif-architecture docs, Step 6 no-default style resolution, and Step 9 policy states stay aligned"
+else
+    fail "/aif-architecture docs, Step 6 no-default style resolution, or Step 9 policy alignment drifted"
+fi
+
+if ROOT_DIR="$ROOT_DIR" node --input-type=module - <<'EOF'
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import ts from 'typescript';
+
+const root = process.env.ROOT_DIR;
+const logFix = process.env.LOG_LEVEL === 'debug' || process.env.DEBUG_FIX === '1';
+const read = rel => fs.readFileSync(path.join(root, rel), 'utf8').replace(/\r/g, '');
+
+try {
+    if (logFix) console.error('[FIX] Checking TypeScript snippets and OrderItem/Money APIs');
+    for (const rel of [
+        'skills/aif-architecture/references/DOMAIN-MODELING.md',
+        'skills/aif-architecture/references/PERSISTENCE-AND-ORM.md',
+    ]) {
+        const lines = read(rel).split('\n');
+        let inTs = false;
+        let blockStart = 0;
+        let blockCount = 0;
+        let buf = [];
+        for (let i = 0; i < lines.length; i++) {
+            const trimmed = lines[i].trim();
+            if (!inTs && trimmed === '```typescript') {
+                inTs = true;
+                blockStart = i + 2;
+                buf = [];
+            } else if (inTs && trimmed === '```') {
+                inTs = false;
+                blockCount++;
+                const sf = ts.createSourceFile(`${rel}:${blockStart}`, buf.join('\n'), ts.ScriptTarget.Latest, true);
+                assert.equal(sf.parseDiagnostics.length, 0, `${rel}:${blockStart} parse error: ${sf.parseDiagnostics.map(d => ts.flattenDiagnosticMessageText(d.messageText, ' ')).join('; ')}`);
+            } else if (inTs) {
+                buf.push(lines[i]);
+            }
+        }
+        assert(!inTs, `Unclosed typescript code block in ${rel}`);
+        assert(blockCount > 0, `Expected typescript code blocks in ${rel}`);
+        if (logFix) console.error('[FIX] Verified TypeScript syntax', { rel, blockCount });
+    }
+
+    const dm = read('skills/aif-architecture/references/DOMAIN-MODELING.md');
+    const po = read('skills/aif-architecture/references/PERSISTENCE-AND-ORM.md');
+    assert(!dm.includes('new OrderItem(product.id, product.price, quantity)'));
+    assert(!dm.includes('this._items[existingIndex] = this._items[existingIndex].increaseQuantity(quantity)'));
+    assert(dm.includes('public times(multiplier: number): Money'));
+    assert(dm.includes('public get unitPrice(): Money'));
+    assert(po.includes('item.unitPrice.cents'));
+    assert(!po.includes('item.price.cents'));
+    const reconstituteSig = 'public static reconstitute(\n    id: OrderId,\n    customerId: CustomerId,\n    status: OrderStatus,\n    total: Money,\n    items: OrderItem[],\n    version: number\n  ): Order';
+    assert(dm.includes(reconstituteSig));
+    assert(po.includes(reconstituteSig));
+    assert(po.includes('Money.cents(record.total_amount_cents, record.currency),\n      items,\n      record.version'));
+    assert(!dm.includes('const record = OrderMapper.toPersistence(order)'));
+    assert(dm.includes('const { orderRecord, itemRecords } = OrderMapper.toPersistence(order)'));
+    assert(dm.includes('this.orderRepo.findById(new OrderId(command.orderId))'));
+    assert(dm.includes('this.customerRepo.findById(new CustomerId(command.customerId))'));
+    if (logFix) console.error('[FIX] Verified OrderItem/Money API consistency');
+} catch (error) {
+    console.error('[FIX] Architecture reference snippet check failed:', error.message);
+    process.exit(1);
+}
+EOF
+then
+    pass "/aif-architecture reference TypeScript snippets keep valid syntax and consistent OrderItem/Money APIs"
+else
+    fail "/aif-architecture reference TypeScript snippets have stray syntax or inconsistent OrderItem/Money APIs"
+fi
+
+EXPLICIT_VAR_B_SECTION="$(awk '
+    /^### Variant B: Folder Structure — Vertical Slices$/ { capture=1 }
+    /^### Variant C: Folder Structure — Flat Vertical Slices$/ { if (capture) exit }
+    capture { print }
+' "$ROOT_DIR/skills/aif-architecture/references/EXPLICIT-ARCHITECTURE.md")"
+EXPLICIT_VAR_C_SECTION="$(awk '
+    /^### Variant C: Folder Structure — Flat Vertical Slices$/ { capture=1 }
+    /^## 4\. Key Principles$/ { if (capture) exit }
+    capture { print }
+' "$ROOT_DIR/skills/aif-architecture/references/EXPLICIT-ARCHITECTURE.md")"
+
+if printf '%s\n' "$EXPLICIT_VAR_B_SECTION" | grep -Fq 'Style 2: Unified Multi-Action' \
+   && printf '%s\n' "$EXPLICIT_VAR_B_SECTION" | grep -Fq '[EntityName]Service.{ext}' \
+   && printf '%s\n' "$EXPLICIT_VAR_B_SECTION" | grep -Fq '[ProcessName]Controller.{ext}' \
+   && printf '%s\n' "$EXPLICIT_VAR_C_SECTION" | grep -Fq 'Style 2: Unified Multi-Action' \
+   && printf '%s\n' "$EXPLICIT_VAR_C_SECTION" | grep -Fq '[Channel][EntityName]Controller.{ext}' \
+   && printf '%s\n' "$EXPLICIT_VAR_C_SECTION" | grep -Fq '[ProcessName]Controller.{ext}'; then
+    pass "/aif-architecture Explicit Architecture Variants B and C include Style 2 trees"
+else
+    fail "/aif-architecture Explicit Architecture Variants B or C missing Style 2 trees"
 fi
 
 # /aif-commit active Commit Plan grouping contract
