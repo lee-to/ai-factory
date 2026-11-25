@@ -112,11 +112,13 @@ class Order {
     );
   }
 
-  // Pull-based domain events pattern
-  public pullDomainEvents(): DomainEvent[] {
-    const events = [...this._domainEvents];
+  // Snapshot-and-clear domain events pattern: retains events if transaction fails
+  public peekDomainEvents(): readonly DomainEvent[] {
+    return [...this._domainEvents];
+  }
+
+  public clearDomainEvents(): void {
     this._domainEvents = [];
-    return events;
   }
 
   // Read-only accessors
@@ -316,7 +318,6 @@ class PlaceOrderService {
     private readonly orderRepo: OrderRepositoryPort,
     private readonly customerRepo: CustomerRepositoryPort,
     private readonly pricingService: PricingService, // Domain Service
-    private readonly eventPublisher: EventPublisherPort,
   ) {}
 
   async execute(command: PlaceOrderCommand): Promise<void> {
@@ -332,14 +333,13 @@ class PlaceOrderService {
 
     // 2. Invoke pure domain logic (Domain Service & Entity methods)
     const finalTotal = this.pricingService.calculateTotal(order.items, customer);
-    order.finalize(finalTotal); // The entity enforces its own state transition
+    order.finalize(finalTotal); // Buffers OrderFinalizedEvent inside aggregate
 
-    // 3. Persist updated domain state
+    // 3. Persist state + outbox events atomically (see PERSISTENCE-AND-ORM.md);
+    // repository snapshots peekDomainEvents(), commits them to outbox_messages,
+    // and calls clearDomainEvents() only after the transaction succeeds.
+    // A background outbox relay publishes committed events to the broker.
     await this.orderRepo.save(order);
-
-    // 4. Dispatch domain events (buffered in entity)
-    const events = order.pullDomainEvents();
-    await this.eventPublisher.publishAll(events);
   }
 }
 ```
