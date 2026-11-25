@@ -115,8 +115,8 @@ Perform a bounded, read-only survey using `Glob` for file-path discovery and `Re
 
 Classify the project as exactly one of:
 
-- **Clean / starter scaffolding:** no custom domain behavior. Framework entry points, generated layouts, starter auth/scaffolding, configuration, and utilities do not make a project Existing. Classify as Clean if observed files represent standard framework scaffolding.
-- **Existing codebase:** at least one file contains project-specific domain behavior (custom domain models, business services, business rules, or domain routes). Preserve this code.
+- **Greenfield:** no application source code or framework-generated app scaffolding exists yet (only repository metadata, documentation, manifests, or configuration).
+- **Existing codebase:** at least one application source file exists, including framework-generated starter scaffolding (generated entry points, layouts, starter auth, controllers, models, routes, or utilities) as well as custom domain behavior (domain models, business services, business rules, or domain routes). Preserve existing files and evaluate their structural alignment.
 
 Build a concise structural inventory of the codebase:
 - Technical-layer roots and feature/module/context roots (`src/`, `app/`, etc.);
@@ -183,7 +183,7 @@ Positional parsing rules:
 5. Legacy aliases resolve exactly as shown in the table. `clean`, `ddd`, and `monolith` do not implicitly select a structural variant.
 6. A standalone `vertical` token resolves Explicit Architecture with Vertical Slice By Entity, as specified in the table.
 7. If the first positional token is unrecognized, return `BLOCKED` and request a valid pattern token; do not fall back to automatic recommendation. If an extra positional token follows a valid pattern/variant selection, report it as unrecognized and continue with the already resolved selection. Never reinterpret an unrecognized token as another pattern or variant.
-8. The legacy token `clean` is an alias for Explicit Architecture. It does not mean that the codebase classification is Clean / starter scaffolding; determine codebase classification independently in Step 2.
+8. The legacy token `clean` is an alias for Explicit Architecture; determine codebase classification (Greenfield vs Existing codebase) independently in Step 2.
 
 If a recognized pattern token or an unambiguous conversational pattern choice is present, use it and skip automatic pattern recommendation. If no explicit pattern choice is present, evaluate the project using the decision matrix in `references/INDEX.md`.
 
@@ -200,7 +200,7 @@ Use the INDEX decision matrix and two-phase decision algorithm as the primary gu
 
 Interactive mode, when no explicit pattern choice was supplied: present one recommendation with evidence-based reasons and the meaningful alternatives. Ask the user to choose exactly one of the four base patterns (Layered Architecture, Structured Modules, Explicit Architecture, Microservices). Do not include structural variants in this question and do not collapse the pattern and variant choices into a single prompt. Wait for the user's pattern selection before resolving any structural variant in Step 4. Do not continue until a valid choice is received.
 
-Non-interactive mode, when no explicit pattern choice was supplied: return `BLOCKED` for both Clean and Existing codebases. Include the evidence-based recommendation, meaningful alternatives, and accepted pattern tokens. The base pattern is a required architecture decision, not an optional preference; do not select it on the user's behalf.
+Non-interactive mode, when no explicit pattern choice was supplied: return `BLOCKED` for both Greenfield and Existing codebases. Include the evidence-based recommendation, meaningful alternatives, and accepted pattern tokens. The base pattern is a required architecture decision, not an optional preference; do not select it on the user's behalf.
 
 A valid user-provided pattern is an explicit choice; do not replace it with the recommendation. If the chosen pattern appears unsuitable, explain the evidence-based trade-off in the report but continue with the requested pattern. An invalid or unrecognized pattern token is not a valid user choice.
 
@@ -227,7 +227,7 @@ Resolve the variant using this precedence:
 1. An unambiguous explicit variant choice made by the user in the current run, either as a recognized positional token or in natural language.
 2. A valid immediately-following variant token parsed under Step 3.1.
 3. For an Existing codebase, an unambiguous variant demonstrated by the structural inventory.
-4. The canonical default for a Clean project:
+4. The canonical default for a Greenfield project:
    - Structured Modules → Technical Layers.
    - Explicit Architecture → Architectural Layers.
    - Microservices → Single Service Repository.
@@ -240,7 +240,7 @@ For an Existing codebase with no explicit or unambiguous detected variant:
 - Interactive mode: ask the user to choose from the variants available for the resolved pattern.
 - Non-interactive mode: return `BLOCKED` with those options and the canonical tokens that resolve them.
 
-For a Clean project with no explicit variant:
+For a Greenfield project with no explicit variant:
 - Interactive mode: present the canonical default as the recommendation, explain briefly why it is the default, and ask the user to confirm it or choose another available variant.
 - Non-interactive mode: return `BLOCKED` with the canonical default, the available alternatives, and their canonical tokens. A structural variant is a material architecture decision, not an optional preference.
 
@@ -256,15 +256,16 @@ An explicit variant always wins over detection. Report any mismatch between the 
 
 ### Step 5: Resolve the alignment policy
 
-This step applies only to Existing codebases. Clean projects skip it.
+This step applies only to Existing codebases. Greenfield projects skip it.
 
 Compare the surveyed structure with the canonical structure and dependency rules for the exact pattern and variant resolved in Steps 3-4. Use the selected pattern reference as the authority.
 
-A discrepancy exists only when observed project code has a structural placement or dependency direction that the selected architecture does not permit. Examples include domain logic placed in a delivery layer, infrastructure dependencies flowing inward, or a module importing another module's private implementation.
+A discrepancy exists only when observed project code (including framework-generated starter scaffolding) has a structural placement or dependency direction that the selected architecture does not permit. Examples include domain logic or direct DB access placed in a delivery/starter route or page layer, infrastructure/ORM-coupled starter models where the target requires pure domain isolation, infrastructure dependencies flowing inward, or a module importing another module's private implementation.
 
 The following are not discrepancies by themselves:
 
 - a canonical directory or file that does not yet exist;
+- pure framework bootstrap entry points, generated framing layouts, or configuration files in their idiomatic bootstrap/presentation role (provided they do not contain domain logic or forbidden dependencies);
 - different casing or stack-idiomatic names for the same architectural role;
 - a different but reference-approved synonymous directory name;
 - a file-level quality concern that does not change architectural placement or dependency direction.
@@ -295,7 +296,7 @@ Policy semantics:
 - **Adapt:** the generated folder tree and dependency rules describe the selected target architecture. Add a clearly labelled `Current-State Deviations` subsection that records the actual existing locations and explains which target rules they do not yet satisfy. Do not present those deviations as allowed target dependencies.
 - **Strict:** generate the canonical target tree and dependency rules purely according to the chosen pattern without compromising for existing files. Add `Legacy vs New Code Policy` where non-conforming existing code is isolated logically without physical file relocation (existing non-conforming locations stay frozen; no files are moved or renamed automatically). Include concrete migration instructions: map existing non-conforming paths to target architectural locations, with required namespace, configuration, and binding updates. The user decides whether to physically relocate legacy code into a dedicated quarantine folder or refactor it into the target architecture in future tasks. New code follows the target architecture; migrate legacy code only when a planned task explicitly touches that area or the user requests a refactor.
 
-The alignment policy does not apply to Clean projects. Any natural-language Adapt/Strict choice or `--policy` value on a Clean project is a no-op; report it as ignored. For a conforming Existing codebase, use `Strict (already conforming)` regardless of an Adapt/Strict choice or `--policy` value, report that choice/value as a no-op, and do not create an Adapt or legacy-quarantine section.
+The alignment policy does not apply to Greenfield projects. Any natural-language Adapt/Strict choice or `--policy` value on a Greenfield project is a no-op; report it as ignored. For a conforming Existing codebase, use `Strict (already conforming)` regardless of an Adapt/Strict choice or `--policy` value, report that choice/value as a no-op, and do not create an Adapt or legacy-quarantine section.
 
 ### Step 6: Resolve action organization style
 
@@ -336,12 +337,12 @@ Use this structure, adapting headings and prose to the artifact language while p
 
 ## Decision Rationale
 - **Pattern/variant:** [Canonical pattern and variant; Layered has no variant suffix.]
-- **Codebase classification:** [Clean / Existing (conforming) / Existing (discrepancies).]
+- **Codebase classification:** [Greenfield / Existing (conforming) / Existing (discrepancies).]
 - **Project type:** [Evidence from DESCRIPTION or user-provided context.]
 - **Tech stack:** [Language, framework, database/ORM where relevant.]
 - **Key factor:** [Primary evidence behind the choice.]
 - **Action organization:** [Style 1 or Style 2; omit for Layered.]
-- **Alignment policy:** [Not applicable (Clean) / Strict (already conforming) / Adapt / Strict (logical legacy quarantine).]
+- **Alignment policy:** [Not applicable (Greenfield) / Strict (already conforming) / Adapt / Strict (logical legacy quarantine).]
 
 ## Folder Structure
 [Stack-idiomatic target folder tree.]
@@ -356,7 +357,7 @@ Use this structure, adapting headings and prose to the artifact language while p
 [Practical rules for day-to-day development.]
 
 [Include the applicable policy content only:
-- Clean project: Code Organization Policy.
+- Greenfield project: Code Organization Policy.
 - Existing with discrepancies + Adapt: Code Organization Note and Current-State Deviations.
 - Existing with discrepancies + Strict: Legacy vs New Code Policy.
 - Existing and conforming: omit any additional alignment-policy section.]
@@ -387,10 +388,10 @@ Generation rules:
 
 #### Required policy-section content
 
-**Clean project — Code Organization Policy**
+**Greenfield project — Code Organization Policy**
 
-- Starter entry points, layouts, and generated framing files remain part of the presentation/bootstrap layer.
-- Do not place domain entities, business rules, or direct database access in generic starter files, page components, or framework route handlers.
+- Keep future framework entry points, layouts, and bootstrap files in the presentation/bootstrap layer.
+- Do not place domain entities, business rules, or direct database access in generic entry points, page components, or framework route handlers.
 - New code must follow the target architecture documented in this artifact.
 
 **Existing with discrepancies — Adapt**
@@ -444,7 +445,7 @@ Before reporting success, validate the result against this checklist:
 - [ ] All examples use the project's language and framework.
 - [ ] Domain/model placement matches the selected pattern.
 - [ ] All project-specific rules from skill-context (`.ai-factory/skill-context/aif-architecture/SKILL.md` and global) are satisfied and incorporated.
-- [ ] The alignment-policy content matches the project state: Clean has Code Organization Policy; Existing with discrepancies has exactly one of Adapt or Strict policy sections; Existing and conforming has no additional alignment-policy section.
+- [ ] The alignment-policy content matches the project state: Greenfield has Code Organization Policy; Existing with discrepancies has exactly one of Adapt or Strict policy sections; Existing and conforming has no additional alignment-policy section.
 - [ ] If the selected policy is Adapt, deviations are described separately from target rules.
 - [ ] If the selected policy is Strict with existing discrepancies, the target architecture is designed purely without compromising for existing files, legacy quarantine is defined logically without physical file relocation, and file migration instructions are provided.
 - [ ] If existing discrepancies were found (legacy quarantine under Strict or deviations under Adapt), report guidance focuses strictly on architectural discrepancies and legacy code without recommending unrelated commands.
@@ -462,7 +463,7 @@ Present the final report in resolved `language.ui`:
 
 [Localized pattern label in `language.ui`]: [canonical pattern-variant name]
 [Localized style label in `language.ui`]: [resolved action organization style; omit for Layered]
-[Localized policy label in `language.ui`]: [resolved alignment policy: Not applicable (Clean) / Strict (already conforming) / Adapt / Strict]
+[Localized policy label in `language.ui`]: [resolved alignment policy: Not applicable (Greenfield) / Strict (already conforming) / Adapt / Strict]
 [Localized file label in `language.ui`]: [resolved architecture path]
 
 [Localized assumptions heading in `language.ui`]:
@@ -478,7 +479,7 @@ Present the final report in resolved `language.ui`:
 [Localized architectural-discrepancies / legacy-guidance heading in `language.ui`]:
 - [If Strict with legacy discrepancies: remind that non-conforming legacy code is quarantined logically without physical relocation; note that ARCHITECTURE.md includes target migration instructions and mapping for future refactoring tasks; the user decides whether to physically relocate it or refactor it opportunistically.]
 - [If Adapt with deviations: remind that identified architectural deviations are documented under Current-State Deviations and can be addressed opportunistically.]
-- [Omit this section entirely if the codebase is clean or conforming with zero discrepancies.]
+- [Omit this section entirely if the codebase is greenfield or conforming with zero discrepancies.]
 
 [Localized closing sentence in `language.ui` about workflow skills following these architecture guidelines.]
 ```

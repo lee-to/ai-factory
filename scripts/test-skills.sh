@@ -1444,10 +1444,18 @@ if ! grep -Fq 'non-interactive runs report the detection as an assumption' "$SKI
    && grep -Fq 'Non-interactive mode: return `BLOCKED` with the two style options' "$AIF_ARCH_SKILL" \
    && ! grep -Fq 'pattern/variant default' "$AIF_ARCH_SKILL" \
    && ! grep -Fq 'Default style per variant' "$ROOT_DIR/skills/aif-architecture/references/INDEX.md" \
-   && grep -Fq '[resolved alignment policy: Not applicable (Clean) / Strict (already conforming) / Adapt / Strict]' "$AIF_ARCH_SKILL"; then
+   && grep -Fq '[resolved alignment policy: Not applicable (Greenfield) / Strict (already conforming) / Adapt / Strict]' "$AIF_ARCH_SKILL"; then
     pass "/aif-architecture docs, Step 6 no-default style resolution, and Step 9 policy states stay aligned"
 else
     fail "/aif-architecture docs, Step 6 no-default style resolution, or Step 9 policy alignment drifted"
+fi
+
+if grep -Fq '**Greenfield:**' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'including framework-generated starter scaffolding' "$AIF_ARCH_SKILL" \
+   && ! grep -Fq 'Classify as Clean if observed files represent standard framework scaffolding' "$AIF_ARCH_SKILL"; then
+    pass "/aif-architecture classifies framework starter scaffolding as Existing codebase"
+else
+    fail "/aif-architecture starter scaffolding classification contract drifted"
 fi
 
 if ROOT_DIR="$ROOT_DIR" node --input-type=module - <<'EOF'
