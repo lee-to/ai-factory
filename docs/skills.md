@@ -557,19 +557,36 @@ Typical sequence when both are useful:
 
 For the workflow view of where these fit, see [Development Workflow](workflow.md).
 
-### `/aif-architecture [explicit|structured|microservices|layers]`
+### `/aif-architecture [layers | structured[-layers|-vertical] | explicit[-layers|-vertical|-flat] | microservices[-single|-monorepo] | clean | ddd | monolith | vertical] [--style=subfolders|unified] [--policy=adapt|strict]`
 Generates architecture guidelines tailored to your project:
 ```
 /aif-architecture           # Analyze project and recommend
+/aif-architecture layers    # Use Layered Architecture
 /aif-architecture explicit-layers # Use Explicit Architecture (Technical Layer)
 /aif-architecture explicit-vertical # Use Explicit Architecture (Vertical Slices By Entity)
+/aif-architecture explicit-vertical --style=subfolders # Vertical Slices with Feature Subfolders
+/aif-architecture explicit-vertical --style=unified    # Vertical Slices with Unified Multi-Action
 /aif-architecture explicit-flat # Use Explicit Architecture (Flat Vertical Slice - Simplified)
-/aif-architecture explicit  # Asks the user which folder structure variant to use (3 options)
+/aif-architecture explicit-layers --policy=strict # Strict architecture (quarantine legacy) on existing project
 /aif-architecture structured-layers # Use Structured Modules (Technical Layer)
 /aif-architecture structured-vertical # Use Structured Modules (Vertical Slices By Entity)
+/aif-architecture structured-vertical --policy=adapt # Adapt architecture to existing project structure
 /aif-architecture structured # Asks the user which folder structure variant to use
+/aif-architecture microservices-single # Use Microservices (Single Service Repository)
+/aif-architecture microservices-monorepo # Use Microservices (Monorepo)
+/aif-architecture microservices # Asks the user which repository structure variant to use
+/aif-architecture structured --policy=adapt # Pattern + adapt policy; detects existing variant to confirm interactively
 ```
-*Note: `clean`, `ddd`, `monolith`, and `vertical` are legacy aliases mapped to current patterns for backward compatibility.*
+**Notes & Flags:**
+- **Legacy aliases:** `clean`, `ddd`, `monolith`, and `vertical` map to current patterns.
+- **Action organization style (`--style=subfolders|unified`):** Required for every pattern except Layered (`subfolders` = Feature Subfolders, `unified` = Unified Multi-Action; takes one value).
+- **Alignment policy (`--policy=adapt|strict`):** Pre-selects the alignment policy on existing codebases (takes one value).
+- **Existing-codebase detection:** When evidence is unambiguous, the survey detects the de-facto structural variant and action style for interactive confirmation.
+- **Non-interactive mode:**
+  - An unresolved structural variant or action style returns `BLOCKED` (detection does not authorize a material architecture choice).
+  - Any other unresolved material decision returns a `BLOCKED` payload.
+
+**How it works:**
 - Reads the resolved description artifact for project context
 - Recommends architecture pattern based on team size, domain complexity, and tech stack
 - Reads `.ai-factory/config.yaml` for `paths.description`, `paths.architecture`, `language.ui`, and `language.artifacts`

@@ -14,6 +14,8 @@ Run once per project. Sets up context files that all workflow skills depend on.
 
 During `/aif`, the initial `.ai-factory/config.yaml` is created from the commented template, and setup reruns refresh only the managed keys so manual comments and unrelated customizations survive.
 
+`/aif-architecture` classifies the repository (`Greenfield` vs. `Existing codebase`, including framework starter scaffolding) and resolves required architectural decisions before writing `paths.architecture`: base pattern (`layers`, `structured`, `explicit`, `microservices`), structural variant, alignment policy (`--policy=adapt|strict` when discrepancies exist), and action organization style (`--style=subfolders|unified` for non-Layered patterns). In interactive runs it prompts for missing required decisions; in non-interactive runs it returns `BLOCKED` rather than guessing defaults. Under `Adapt`, the generated guide fits the existing directory structure; under `Strict`, it prescribes the canonical target layout with logical legacy quarantine and migration guidance.
+
 For local quality tooling, use [`/aif-quality-setup`](skills.md#aif-quality-setup-auditsetupenhance-paths).
 It detects the current stack and existing checks, explains suitable options, then
 configures the user's selection. Audit is read-only; setup supports JS/TS, PHP,
