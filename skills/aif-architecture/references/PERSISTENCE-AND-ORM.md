@@ -193,7 +193,8 @@ export class PostgresOrderRepository implements OrderRepositoryPort {
 
   async save(order: Order): Promise<void> {
     const { orderRecord, itemRecords } = OrderMapper.toPersistence(order);
-    const domainEvents = order.pullDomainEvents();
+    // Snapshot events non-destructively so retries keep them if OCC or transaction fails
+    const domainEvents = order.peekDomainEvents();
 
     await this.db.transaction(async (tx) => {
       // 1. Upsert Aggregate Root with Optimistic Concurrency Control (OCC)
@@ -242,6 +243,9 @@ export class PostgresOrderRepository implements OrderRepositoryPort {
         );
       }
     });
+
+    // Clear the aggregate's event buffer only after the outbox transaction commits
+    order.clearDomainEvents();
   }
 }
 ```
@@ -268,8 +272,8 @@ When developers use ORM relationships (`@ManyToOne`, `@OneToMany`, EF Core navig
 3. **Broken Bounded Contexts:** Different aggregates often belong to different subdomains (e.g. `Order` in Ordering Context, `Customer` in Identity Context). Direct object references force their database models into a single tightly coupled schema.
 
 ### How to Retrieve Related Aggregate Data
-- **In Write Scenarios (Commands):** Load `Order` via `orderRepo.findById(orderId)`. If you need customer data for a business calculation, use the ID: `customerRepo.findById(order.customerId)`. Pass both to a pure **Domain Service**.
-- **In Read Scenarios (Queries):** Do NOT load domain aggregates. Use **CQRS Read Projections** (see [Domain Modeling](./DOMAIN-MODELING.md#6-cqrs--query-optimization-read-path-vs-write-path)) with a direct SQL `JOIN orders o JOIN customers c ON c.id = o.customer_id` returning a flat Read DTO.
+- **In Write Scenarios (Commands):** Load `Order` via `orderRepo.findById(orderId)`. If you need customer data from a neighboring context (`Identity`), fetch a read-only summary through an explicit port/ACL (`CustomerSummaryPort`) without importing `Identity` ORM entities, and pass pure domain inputs to a **Domain Service**.
+- **In Read Scenarios (Queries):** Do NOT load domain aggregates and do NOT write SQL joins across bounded contexts. Use **CQRS Read Projections** (see [Domain Modeling](./DOMAIN-MODELING.md#6-cqrs--query-optimization-read-path-vs-write-path)): join only tables owned by the same context (for example `SELECT ... FROM orders o LEFT JOIN order_items i ON i.order_id = o.id`), or project external context attributes (such as customer display name) into an Ordering-owned read-model table updated asynchronously from `Identity` domain events (or compose via the context's public query contract).
 
 ---
 

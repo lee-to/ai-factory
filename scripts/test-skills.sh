@@ -1534,7 +1534,14 @@ try {
     assert(dm.includes('const { orderRecord, itemRecords } = OrderMapper.toPersistence(order)'));
     assert(dm.includes('this.orderRepo.findById(new OrderId(command.orderId))'));
     assert(dm.includes('this.customerRepo.findById(new CustomerId(command.customerId))'));
-    if (logFix) console.error('[FIX] Verified OrderItem/Money API consistency');
+    assert(dm.includes('public peekDomainEvents(): readonly DomainEvent[]'));
+    assert(dm.includes('public clearDomainEvents(): void'));
+    assert(!dm.includes('order.pullDomainEvents()'));
+    assert(po.includes('const domainEvents = order.peekDomainEvents()'));
+    assert(po.includes('order.clearDomainEvents()'));
+    assert(!po.includes('order.pullDomainEvents()'));
+    assert(!po.includes('JOIN customers'));
+    if (logFix) console.error('[FIX] Verified OrderItem/Money API and outbox/context-boundary consistency');
 } catch (error) {
     console.error('[FIX] Architecture reference snippet check failed:', error.message);
     process.exit(1);

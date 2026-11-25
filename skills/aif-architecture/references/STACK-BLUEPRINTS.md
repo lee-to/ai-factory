@@ -49,13 +49,13 @@ When a language compiler, package manager, or framework idiom establishes conven
 | **Module / Bounded Context** | `app/Modules/[Module]/`, `app/[Context]/`, or `src/[Context]/` | `src/[Context]/` | Self-contained module/context (`Contexts/`/`Modules/` wrapper optional; omit `[Module]/`/`[Context]/` for single-area apps) |
 | **Domain Entity** | `Models/[Entity].php` (Rich Eloquent) or `Domain/[Entity].php` (Pure) | `Domain/[Entity].php` (Pure POPO) | Cycle ORM Entity, pure POPO, or Rich Eloquent |
 | **Value Object** | `Domain/ValueObjects/` | `Domain/ValueObject/` | `readonly class` with validation |
-| **Use Case / Action** | `Slices/[Entity]/[Feature]/[Feature]Action.php` | `Application/Command/[Feature]Handler.php` | Single-action execution |
+| **Use Case / Action** | `Slices/[Entity]/[Feature]/[Feature]Handler.php` (or `Actions/`) | `Application/Command/[Feature]Handler.php` | Single-action use-case handler |
 | **Port (Interface)** | `Contracts/` or `Domain/Ports/` | `Domain/Port/[Entity]RepositoryInterface.php` | Pure interface |
 | **DTO / Input Data** | `Dtos/[Feature]Data.php` (`readonly`) | `Application/Dto/[Feature]Input.php` | Strongly-typed transport DTO (with `yiisoft/validator`) |
-| **Delivery (HTTP)** | `Http/[Channel]/` or `[Scope]/Presentation/.../[Channel]/` | `Presentation/Action/[Channel]/` | Single-action controller / PSR-15 RequestHandler |
+| **Delivery (HTTP)** | `Http/[Channel]/` or `[Scope]/Presentation/.../[Channel]/` | `Presentation/Action/[Channel]/` | Single-action HTTP controller / PSR-15 RequestHandler |
 | **HTTP Middleware** | `Http/Middleware/` or `[Scope]/Presentation/Middleware/` | `Presentation/Middleware/` | Presentation/Delivery layer of owning/main scope (or cross-cutting); wired in `bootstrap/app.php` |
 | **Console / CLI** | `Console/Commands/` or `[Scope]/Presentation/Cli/` | `Presentation/Command/` | Presentation/Delivery layer of owning/main scope (or cross-cutting); registered in `bootstrap/app.php` |
-| **Validation** | `Http/Requests/[Feature]Request.php` | `yiisoft/validator` (Attributes on DTO) | Transport payload validation |
+| **Validation** | `Http/.../[Feature]Request.php` | `yiisoft/validator` (Attributes on DTO) | Transport payload validation in Delivery layer |
 | **Entity `_Shared/`** | `Slices/[Entity]/_Shared/` | `src/[Context]/Slices/[Entity]/_Shared/` | Entity-scoped base DTOs and schemas |
 | **DI Wiring / Providers** | `Providers/` or `[Scope]/Infrastructure/Providers/` | `config/di-web.php` via `yiisoft/config` | Infrastructure/Composition Root of owning/main scope; registered in `bootstrap/providers.php` |
 
@@ -67,25 +67,25 @@ For medium-to-large business platforms and SaaS requiring high feature cohesion 
 app/
 ├── Modules/                                    # ── FEATURE MODULES (Structured Modules) ──
 │   ├── Ordering/
-│   │   ├── Slices/                             # Vertical Slices by Entity (Style 1)
+│   │   ├── Slices/                             # Vertical Slices by Entity (Style 1 — Application & DTOs)
 │   │   │   ├── Order/
 │   │   │   │   ├── _Shared/                    # Entity-level shared backend (prevents lateral imports)
 │   │   │   │   │   └── Dtos/
 │   │   │   │   │       └── OrderBaseData.php   # Base DTO (readonly class)
 │   │   │   │   │
 │   │   │   │   ├── CreateOrder/                # Feature Subfolder (Style 1)
-│   │   │   │   │   ├── CreateOrderAction.php   # Invokable Action / Handler (__invoke)
-│   │   │   │   │   └── CreateOrderRequest.php  # FormRequest (HTTP transport validation)
+│   │   │   │   │   ├── CreateOrderHandler.php  # Application use-case handler
+│   │   │   │   │   └── CreateOrderData.php     # Input DTO (readonly class)
 │   │   │   │   ├── UpdateOrder/
-│   │   │   │   │   ├── UpdateOrderAction.php
-│   │   │   │   │   └── UpdateOrderRequest.php
+│   │   │   │   │   ├── UpdateOrderHandler.php
+│   │   │   │   │   └── UpdateOrderData.php
 │   │   │   │   └── CancelOrder/
-│   │   │   │       ├── CancelOrderAction.php
-│   │   │   │       └── CancelOrderRequest.php
+│   │   │   │       ├── CancelOrderHandler.php
+│   │   │   │       └── CancelOrderData.php
 │   │   │   │
 │   │   │   └── Checkout/                       # Process slice (cross-entity workflow)
-│   │   │       ├── CheckoutAction.php
-│   │   │       └── CheckoutRequest.php
+│   │   │       ├── CheckoutHandler.php
+│   │   │       └── CheckoutData.php
 │   │   │
 │   │   ├── Models/                             # Eloquent models with domain methods
 │   │   │   ├── Order.php                       # Invariants, state transitions & business calculations
@@ -94,15 +94,25 @@ app/
 │   │   ├── Enums/                              # Backed Enums
 │   │   │   └── OrderStatus.php
 │   │   │
-│   │   ├── Http/                               # Delivery Layer (Channels)
+│   │   ├── Http/                               # Delivery Layer (Channels + FormRequests)
 │   │   │   ├── Admin/                          # [Channel] Admin Backoffice Single-Action Endpoints
 │   │   │   │   ├── _Shared/                    # Intra-channel shared (admin filters, serializers)
 │   │   │   │   └── Orders/
-│   │   │   │       └── AdminOrderAction.php    # Single-action endpoint (__invoke)
+│   │   │   │       ├── UpdateOrder/
+│   │   │   │       │   ├── UpdateOrderAction.php   # Invokable HTTP endpoint (__invoke)
+│   │   │   │       │   └── UpdateOrderRequest.php  # FormRequest (HTTP transport validation)
+│   │   │   │       └── CancelOrder/
+│   │   │   │           ├── CancelOrderAction.php
+│   │   │   │           └── CancelOrderRequest.php
 │   │   │   └── Public/                         # [Channel] Public Customer Storefront Endpoints
 │   │   │       ├── _Shared/                    # Intra-channel shared (public query params)
 │   │   │       └── Orders/
-│   │   │           └── PublicOrderAction.php   # Single-action endpoint (__invoke)
+│   │   │           ├── CreateOrder/
+│   │   │           │   ├── CreateOrderAction.php   # Invokable HTTP endpoint (__invoke)
+│   │   │           │   └── CreateOrderRequest.php  # FormRequest (HTTP transport validation)
+│   │   │           └── Checkout/
+│   │   │               ├── CheckoutAction.php
+│   │   │               └── CheckoutRequest.php
 │   │   │
 │   │   ├── Policies/                           # Authorization logic
 │   │   │   └── OrderPolicy.php
