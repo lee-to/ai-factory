@@ -302,7 +302,7 @@ The alignment policy does not apply to Greenfield projects. Any natural-language
 
 Layered Architecture has no style choice. It always uses unified per-entity Controller/Service files. Skip this step for Layered; any natural-language Style 1/Style 2 choice or `--style` value is a no-op and must be reported as ignored.
 
-For all other patterns, use one style consistently throughout the generated folder tree:
+For all other patterns, apply one chosen style consistently (throughout the generated folder tree under Greenfield/Strict, and for new features/slices under Adapt):
 
 - **Style 1 — Feature Subfolders:** each use case has its own `[FeatureName]/` folder in every layer it touches, including delivery, with its use-case DTO placed inside that feature folder. Shared backend schemas and base DTOs belong in entity-level `_Shared/` (`Slices/[EntityName]/_Shared/`), intra-channel assets in `[Channel]/_Shared/`, and cross-channel UI in `Presentation/Web/_Shared/Components/`, as prescribed by `references/INDEX.md`; feature folders must not import directly from sibling feature folders.
 - **Style 2 — Unified Multi-Action:** use per-entity Controller/Service files and place related DTOs next to the service, following the selected pattern reference.
@@ -379,7 +379,7 @@ Generation rules:
    - **Structured Modules:** rich domain models belong in the selected module's Models role.
    - **Layered Architecture:** models/entities belong in the Models role.
    - **Microservices:** each service follows the selected service template; domain entities and outbound interfaces remain inside that service.
-5. Apply the selected style consistently across all relevant layers and delivery channels. Add `[Channel]` folders only where the reference prescribes them and only when the project serves multiple audiences.
+5. Apply the selected style consistently across all relevant layers and delivery channels (for Greenfield/Strict across the whole tree, and for Adapt for newly added features/slices while keeping existing roots intact). Add `[Channel]` folders only where the reference prescribes them and only when the project serves multiple audiences.
 6. Under Adapt, base `Folder Structure`, `Dependency Rules`, `Layer/Module Communication`, and `Code Examples` on the actual existing codebase rather than an idealized unbuilt target tree; record actual boundary violations separately in `Current-State Deviations` and never describe a broken dependency as an allowed target rule.
 7. Under Strict with discrepancies, keep `Folder Structure`, `Dependency Rules`, and `Code Examples` strictly canonical without compromising for existing files; define logical quarantine boundaries for non-conforming existing code without physically moving or renaming files, specify adapter/facade interoperability rules, and include concrete file migration mappings (`existing path -> target path`) plus an ordered immediate-alignment path. The user decides whether to physically relocate legacy code or refactor it into the target architecture.
 8. Include only architectural rules supported by the selected references and project evidence. Mark assumptions explicitly.
@@ -441,10 +441,10 @@ Before reporting success, validate the result against this checklist:
 
 - [ ] The architecture artifact is at the resolved `paths.architecture`.
 - [ ] Its pattern and variant match the resolved decisions.
-- [ ] The folder tree matches the selected pattern, variant, and style.
-- [ ] The dependency rules match the selected pattern reference.
+- [ ] Under Greenfield/Strict, the folder tree matches the selected pattern, variant, and style; under Adapt, existing repository roots are preserved and new-feature placement follows the selected style.
+- [ ] The dependency rules match the selected pattern reference (or Adapt's pragmatic existing-layout boundaries).
 - [ ] All examples use the project's language and framework.
-- [ ] Domain/model placement matches the selected pattern.
+- [ ] Domain/model placement matches the selected pattern (or follows Adapt's pragmatic baseline with deviations documented separately).
 - [ ] All project-specific rules from skill-context (`.ai-factory/skill-context/aif-architecture/SKILL.md` and global) are satisfied and incorporated.
 - [ ] The alignment-policy content matches the project state: Greenfield has Code Organization Policy; Existing with discrepancies has exactly one of Adapt or Strict policy sections; Existing and conforming has no additional alignment-policy section.
 - [ ] If the selected policy is Adapt, `Folder Structure`, `Dependency Rules`, and `Code Examples` reflect the actual existing codebase layout and pragmatic boundaries, and deviations are listed separately from allowed rules.

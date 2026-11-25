@@ -1467,11 +1467,11 @@ else
     fail "/aif-architecture missing AskUserQuestion references in interactive steps"
 fi
 
-if grep -Fq 'adapt the architecture guidelines to the **actual existing project structure**' "$AIF_ARCH_SKILL" \
-   && grep -Fq 'generate the **pure canonical target architecture**' "$AIF_ARCH_SKILL" \
-   && grep -Fq 'base `Folder Structure`, `Dependency Rules`, `Layer/Module Communication`, and `Code Examples` on the actual existing codebase' "$AIF_ARCH_SKILL" \
-   && grep -Fq 'Name the concrete quarantined existing paths/folders' "$AIF_ARCH_SKILL" \
-   && grep -Fq 'List 2–3 concrete immediate actions from the migration instructions' "$AIF_ARCH_SKILL"; then
+if grep -Fq '**actual existing project structure**' "$AIF_ARCH_SKILL" \
+   && grep -Fq '**pure canonical target architecture**' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'for newly added features/slices while keeping existing roots intact' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'concrete quarantined existing paths/folders' "$AIF_ARCH_SKILL" \
+   && grep -Fq 'concrete immediate actions' "$AIF_ARCH_SKILL"; then
     pass "/aif-architecture clearly differentiates Adapt vs Strict and provides actionable legacy/immediate-alignment guidance"
 else
     fail "/aif-architecture Adapt vs Strict or legacy report guidance contract drifted"
