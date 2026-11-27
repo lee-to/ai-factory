@@ -63,6 +63,9 @@ jobs:
       - name: Antigravity E2E tests
         run: npm run test:antigravity
 
+      - name: ZCode E2E tests
+        run: npm run test:zcode
+
   swarm:
     runs-on: ubuntu-latest
     timeout-minutes: 15

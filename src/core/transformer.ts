@@ -16,6 +16,8 @@ export interface AgentTransformer {
   transform(skillName: string, content: string): TransformResult;
   transformReference?(skillName: string, content: string): string;
   postInstall?(projectDir: string): Promise<void>;
+  // Runs after managed skill directories are removed, even when nothing is installed afterwards.
+  postRemove?(projectDir: string, removedSkills: string[]): Promise<void>;
   getWelcomeMessage(): string[];
   getInvocationHint?(): string;
   cleanup?(projectDir: string, skillsDir: string): Promise<void>;

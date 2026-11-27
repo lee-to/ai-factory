@@ -51,6 +51,13 @@ interface VsCodeMcpServerConfig {
   env?: Record<string, string>;
 }
 
+interface ZCodeMcpServerConfig {
+  type: 'stdio';
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
 export interface McpOptions {
   github: boolean;
   filesystem: boolean;
@@ -95,6 +102,29 @@ function toVsCodeFormat(config: McpServerConfig): VsCodeMcpServerConfig {
     result.env = Object.fromEntries(
       Object.entries(config.env).map(([key, value]) => [key, normalizeVsCodeEnvValue(value)]),
     );
+  }
+
+  return result;
+}
+
+// ZCode does not expand `${VAR}` templates in configuration files and drops a
+// server that has an unknown key. Stdio servers inherit the ZCode process
+// environment, so a bare placeholder is passed through by omitting it instead
+// of reaching the server as a literal string.
+function toZCodeFormat(config: McpServerConfig): ZCodeMcpServerConfig {
+  const result: ZCodeMcpServerConfig = { type: 'stdio', command: config.command };
+
+  if (config.args && config.args.length > 0) {
+    result.args = [...config.args];
+  }
+
+  if (config.env) {
+    const env = Object.fromEntries(
+      Object.entries(config.env).filter(([, value]) => !/^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(value)),
+    );
+    if (Object.keys(env).length > 0) {
+      result.env = env;
+    }
   }
 
   return result;
@@ -200,7 +230,7 @@ function applyServerConfig(
 
   if (format === 'zcode') {
     const servers = ensureNestedRecord(ensureNestedRecord(settings, 'mcp'), 'servers');
-    servers[key] = { type: 'stdio', ...template };
+    servers[key] = toZCodeFormat(template);
     return;
   }
 

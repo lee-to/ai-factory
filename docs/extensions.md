@@ -451,7 +451,7 @@ Same format as built-in MCP templates:
 }
 ```
 
-The template is merged into the agent's settings file under `mcpServers.<key>` (or `servers.<key>` for GitHub Copilot, `mcp.<key>` for OpenCode, `[mcp_servers.<key>]` in `.codex/config.toml` for Codex app). Only agents with `supportsMcp: true` are configured. On `extension remove`, the key is deleted from the settings file; for Codex app, the matching TOML server table and all nested subtables are removed.
+The template is merged into the agent's settings file under `mcpServers.<key>` (or `servers.<key>` for GitHub Copilot, `mcp.<key>` for OpenCode, `mcp.servers.<key>` with `type: "stdio"` in `.zcode/config.json` for ZCode, `[mcp_servers.<key>]` in `.codex/config.toml` for Codex app). Only agents with `supportsMcp: true` are configured. On `extension remove`, the key is deleted from the settings file; for Codex app, the matching TOML server table and all nested subtables are removed.
 
 ---
 

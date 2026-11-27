@@ -1626,6 +1626,18 @@ else
     fail "/aif MCP section missing GitHub Copilot runtime contract"
 fi
 
+if grep -Fq "ZCode" <<< "$AIF_MCP_SECTION" && grep -Fq 'mcp.servers.<server>' <<< "$AIF_MCP_SECTION" && grep -Fq '"type": "stdio"' <<< "$AIF_MCP_SECTION"; then
+    pass "/aif MCP section includes ZCode runtime contract"
+else
+    fail "/aif MCP section missing ZCode runtime contract"
+fi
+
+if grep -Fq 'ZCode does not expand templates' <<< "$AIF_MCP_SECTION"; then
+    pass "/aif MCP section explains ZCode credential pass-through"
+else
+    fail "/aif MCP section missing ZCode credential pass-through"
+fi
+
 if grep -Eiq '(all|every|any).*(supported )?(agents|runtimes).*(mcpServers)|mcpServers.*(all|every|any).*(supported )?(agents|runtimes)|(works|work).*(across|for).*(agents|runtimes).*(mcpServers)' <<< "$AIF_MCP_SECTION"; then
     fail "/aif MCP section still implies universal mcpServers usage"
 else

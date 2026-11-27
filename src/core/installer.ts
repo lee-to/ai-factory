@@ -1250,6 +1250,11 @@ async function removeSkillsByName(
     }
   }
 
+  if (removed.length > 0) {
+    // Derived artifacts such as ZCode command stubs follow the removed skill directories.
+    await transformer.postRemove?.(projectDir, removed);
+  }
+
   return removed;
 }
 

@@ -44,6 +44,7 @@
     "record:review-check": "node scripts/capture-review-check.mjs --write",
     "test:workflow-defaults-config": "node scripts/test-workflow-defaults-config.mjs",
     "test:antigravity": "node scripts/test-antigravity-e2e.mjs",
+    "test:zcode": "node scripts/test-zcode-e2e.mjs",
     "test:simulate": "node scripts/simulate-real-world-lifecycle.mjs",
     "lint:unused": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "lint:dead": "knip --reporter compact",

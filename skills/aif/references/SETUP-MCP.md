@@ -137,6 +137,6 @@ args = ["-y", "@modelcontextprotocol/server-github"]
 env_vars = ["GITHUB_TOKEN"]
 ```
 
-For GitHub Copilot, convert credential placeholders from `${VAR}` to `${env:VAR}` in the final config file. For OpenCode, use `environment` instead of `env` when the server requires credentials. For Codex app, convert credential placeholders from `${VAR}` to `env_vars = ["VAR"]`; only literal values belong under `[mcp_servers.<server>.env]`.
+For GitHub Copilot, convert credential placeholders from `${VAR}` to `${env:VAR}` in the final config file. For OpenCode, use `environment` instead of `env` when the server requires credentials. For ZCode, omit a bare `${VAR}` placeholder from `env`: ZCode does not expand templates in configuration files and passes its own environment to stdio servers. For Codex app, convert credential placeholders from `${VAR}` to `env_vars = ["VAR"]`; only literal values belong under `[mcp_servers.<server>.env]`.
 
 ---

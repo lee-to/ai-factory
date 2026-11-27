@@ -268,7 +268,7 @@ const BUILTIN_AGENT_REGISTRY: Record<string, AgentConfig> = {
     skillsDir: '.zcode/skills',
     settingsFile: '.zcode/config.json',
     supportsMcp: true,
-    skillsCliAgent: null,
+    skillsCliAgent: 'zcode',
     source: 'builtin',
   },
   universal: {
