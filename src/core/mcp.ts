@@ -51,6 +51,13 @@ interface VsCodeMcpServerConfig {
   env?: Record<string, string>;
 }
 
+interface ZCodeMcpServerConfig {
+  type: 'stdio';
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
 export interface McpOptions {
   github: boolean;
   filesystem: boolean;
@@ -59,7 +66,7 @@ export interface McpOptions {
   playwright: boolean;
 }
 
-type McpSettingsFormat = 'standard' | 'opencode' | 'vscode' | 'codex-toml';
+type McpSettingsFormat = 'standard' | 'opencode' | 'vscode' | 'zcode' | 'codex-toml';
 
 interface McpServerDefinition {
   key: keyof McpOptions;
@@ -95,6 +102,29 @@ function toVsCodeFormat(config: McpServerConfig): VsCodeMcpServerConfig {
     result.env = Object.fromEntries(
       Object.entries(config.env).map(([key, value]) => [key, normalizeVsCodeEnvValue(value)]),
     );
+  }
+
+  return result;
+}
+
+// ZCode does not expand `${VAR}` templates in configuration files and drops a
+// server that has an unknown key. Stdio servers inherit the ZCode process
+// environment, so a bare placeholder is passed through by omitting it instead
+// of reaching the server as a literal string.
+function toZCodeFormat(config: McpServerConfig): ZCodeMcpServerConfig {
+  const result: ZCodeMcpServerConfig = { type: 'stdio', command: config.command };
+
+  if (config.args && config.args.length > 0) {
+    result.args = [...config.args];
+  }
+
+  if (config.env) {
+    const env = Object.fromEntries(
+      Object.entries(config.env).filter(([, value]) => !/^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/.test(value)),
+    );
+    if (Object.keys(env).length > 0) {
+      result.env = env;
+    }
   }
 
   return result;
@@ -158,6 +188,9 @@ function resolveMcpSettingsFormat(agentId: string): McpSettingsFormat {
   if (agentId === 'opencode') {
     return 'opencode';
   }
+  if (agentId === 'zcode') {
+    return 'zcode';
+  }
   if (agentId === 'copilot') {
     return 'vscode';
   }
@@ -169,6 +202,9 @@ function getContainerKey(format: McpSettingsFormat): 'mcp' | 'mcpServers' | 'ser
     throw new Error('Codex TOML MCP settings do not use a JSON container key');
   }
   if (format === 'opencode') {
+    return 'mcp';
+  }
+  if (format === 'zcode') {
     return 'mcp';
   }
   if (format === 'vscode') {
@@ -189,6 +225,12 @@ function applyServerConfig(
 
   if (format === 'opencode') {
     ensureNestedRecord(settings, 'mcp')[key] = toOpenCodeFormat(template);
+    return;
+  }
+
+  if (format === 'zcode') {
+    const servers = ensureNestedRecord(ensureNestedRecord(settings, 'mcp'), 'servers');
+    servers[key] = toZCodeFormat(template);
     return;
   }
 
@@ -336,8 +378,14 @@ export async function removeExtensionMcpServers(
   }
 
   const settings = await loadSettings(settingsPath);
-  const containerKey = getContainerKey(format);
-  const container = settings[containerKey];
+
+  let container: Record<string, unknown> | undefined;
+  if (format === 'zcode') {
+    const mcp = settings.mcp;
+    container = isRecord(mcp) ? mcp.servers as Record<string, unknown> | undefined : undefined;
+  } else {
+    container = settings[getContainerKey(format)] as Record<string, unknown> | undefined;
+  }
 
   if (!isRecord(container)) return;
 

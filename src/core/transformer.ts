@@ -3,6 +3,7 @@ import { KiloCodeTransformer } from './transformers/kilocode.js';
 import { AntigravityTransformer } from './transformers/antigravity.js';
 import { CodexTransformer } from './transformers/codex.js';
 import { QwenTransformer } from './transformers/qwen.js';
+import { ZCodeTransformer } from './transformers/zcode.js';
 
 export interface TransformResult {
   targetDir: string;
@@ -15,6 +16,8 @@ export interface AgentTransformer {
   transform(skillName: string, content: string): TransformResult;
   transformReference?(skillName: string, content: string): string;
   postInstall?(projectDir: string): Promise<void>;
+  // Runs after managed skill directories are removed, even when nothing is installed afterwards.
+  postRemove?(projectDir: string, removedSkills: string[]): Promise<void>;
   getWelcomeMessage(): string[];
   getInvocationHint?(): string;
   cleanup?(projectDir: string, skillsDir: string): Promise<void>;
@@ -121,6 +124,10 @@ const registry: Record<string, TransformerRegistration> = {
   antigravity: {
     create: () => new AntigravityTransformer(),
     identity: 'default',
+  },
+  zcode: {
+    create: () => new ZCodeTransformer(),
+    identity: 'zcode',
   },
 };
 

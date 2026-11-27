@@ -72,6 +72,7 @@ _BUILTIN_AGENT_SKILLS_DIRS = (
     '.roo/skills',
     '.kilocode/skills',
     '.opencode/skills',
+    '.zcode/skills',
 )
 
 

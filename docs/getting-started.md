@@ -33,6 +33,7 @@ AI Factory works with any AI coding agent. During `ai-factory init`, you choose 
 | OpenCode | `.opencode/` | `.opencode/skills/` |
 | Warp | `.warp/` | `.warp/skills/` |
 | Zencoder | `.zencoder/` | `.zencoder/skills/` |
+| ZCode | `.zcode/` | `.zcode/skills/`, `.zcode/commands/` |
 | Codex CLI | `.codex/` | `.agents/skills/` when `.agents/` already exists; otherwise `.codex/skills/` |
 | Codex app         | `.agents/`       | `.agents/skills/`                           |
 | GitHub Copilot    | `.github/`       | `.github/skills/`                           |
@@ -57,13 +58,15 @@ When Claude Code is selected, AI Factory installs bundled Claude agent files int
 
 When Antigravity is selected, AI Factory installs bundled Antigravity agent files into `.agents/agents/`, triggered rules into `.agents/rules/`, and configures MCP in `.agents/mcp_config.json`.
 
+When ZCode is selected, AI Factory also generates an `/aif-*` command stub in `.zcode/commands/` for each installed skill. Stubs carry an AI Factory marker and are refreshed or removed together with their skill. A command file you wrote yourself is never overwritten: AI Factory reports the conflict and leaves the file alone.
+
 Extensions can additionally provide agent files for Codex or extension-defined runtimes through the same generic agent-files mechanism, but the bundled Claude/Codex/Antigravity package inventory is documented separately in [Subagents](subagents.md).
 
 Codex CLI and Codex app receive Codex-style skill content and use `$aif-*` invocations. They can share `.agents/skills/` with Universal / Other: shared skills use the Codex `$aif-*` format, while all selected agents remain separate entries with their own MCP settings.
 
 Universal selected alone and other slash-command runtimes keep `/aif-*` examples. See [Codex skill directories and migration](configuration.md#codex-skill-directories-and-migration) for first-init defaults, saved overrides, and conflict recovery.
 
-MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, Qwen Code, Codex app, Antigravity, and Universal / Other. Antigravity writes standard MCP settings to `.agents/mcp_config.json`. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
+MCP server configuration is supported for Claude Code, Cursor, GitHub Copilot, Roo Code, Kilo Code, OpenCode, ZCode, Qwen Code, Codex app, Antigravity, and Universal / Other. Antigravity writes standard MCP settings to `.agents/mcp_config.json`. ZCode writes to `.zcode/config.json` under `mcp.servers` and asks you to trust each workspace server once (Settings → MCP) before it connects it. Universal writes standard MCP settings to `.mcp.json`. Other agents get skills installed with correct paths but without MCP auto-configuration.
 
 ## Your First Project
 

@@ -8,6 +8,7 @@ AI Factory writes MCP config to `{{settings_file}}`, but the outer settings shap
 |---------|-------------|-------------|
 | Standard MCP runtimes (Claude Code, Cursor, Roo Code, Kilo Code, Qwen Code, Universal / Other) | `mcpServers.<server>` | `{ "command": "...", "args": [...], "env": {...} }` |
 | OpenCode | `mcp.<server>` | `{ "type": "local", "command": ["...", "..."], "environment": {...} }` |
+| ZCode | `mcp.servers.<server>` in `.zcode/config.json` | `{ "type": "stdio", "command": "...", "args": [...], "env": {...} }` |
 | GitHub Copilot | `servers.<server>` | `{ "type": "stdio", "command": "...", "args": [...], "env": {...} }` |
 | Codex app | `[mcp_servers.<server>]` in `.codex/config.toml` | `command = "..."`, optional `args = [...]`, credential placeholders as `env_vars = ["VAR"]`, literal values under `[mcp_servers.<server>.env]` |
 
@@ -107,6 +108,22 @@ GitHub Copilot (`servers` + `type: "stdio"`):
 }
 ```
 
+ZCode (`.zcode/config.json`, `mcp.servers` + `type: "stdio"`):
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+      }
+    }
+  }
+}
+```
+
 Codex app (`.codex/config.toml` + `mcp_servers` TOML tables):
 
 ```toml
@@ -120,6 +137,6 @@ args = ["-y", "@modelcontextprotocol/server-github"]
 env_vars = ["GITHUB_TOKEN"]
 ```
 
-For GitHub Copilot, convert credential placeholders from `${VAR}` to `${env:VAR}` in the final config file. For OpenCode, use `environment` instead of `env` when the server requires credentials. For Codex app, convert credential placeholders from `${VAR}` to `env_vars = ["VAR"]`; only literal values belong under `[mcp_servers.<server>.env]`.
+For GitHub Copilot, convert credential placeholders from `${VAR}` to `${env:VAR}` in the final config file. For OpenCode, use `environment` instead of `env` when the server requires credentials. For ZCode, omit a bare `${VAR}` placeholder from `env`: ZCode does not expand templates in configuration files and passes its own environment to stdio servers. For Codex app, convert credential placeholders from `${VAR}` to `env_vars = ["VAR"]`; only literal values belong under `[mcp_servers.<server>.env]`.
 
 ---
