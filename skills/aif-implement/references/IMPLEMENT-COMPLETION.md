@@ -26,6 +26,20 @@ What's next?
 2. 💾 /aif-commit — Commit the changes directly
 ```
 
+**Requirements report (when the plan has `## Requirements Reconciliation`):**
+add one report line per table row, in table order, with exactly one status:
+`pass | fail | not run | BLOCKED`. Do not merge rows, skip rows, or use
+"partial". `pass` is only for a check executed in this session; a check that
+ran earlier or elsewhere is `not run`. Rows marked `BLOCKED: <reason>` in the
+plan stay `BLOCKED` with the same reason, and "All tasks completed" must not be
+claimed while any row is `fail` or `BLOCKED`.
+
+```
+Requirements:
+1. <decision / combination> — pass (<command or test>)
+2. <decision / combination> — BLOCKED: <reason>
+```
+
 **Check ROADMAP.md progress:**
 
 If the resolved roadmap artifact exists:

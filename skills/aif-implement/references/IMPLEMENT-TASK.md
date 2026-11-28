@@ -72,6 +72,12 @@ TaskUpdate(taskId, status: "in_progress")
 - Run the verification scenarios assigned to the task. When a representative
   repository artifact defines the contract, exercise that artifact through the
   primary path rather than relying only on synthetic fixtures.
+- When a verification listed in `## Requirements Reconciliation` cannot be run
+  in this environment (no database, network, credentials, or dependency), keep
+  its row, write `BLOCKED: <reason>` in the row's verification-evidence cell,
+  and leave the task `[ ]` and not completed. Do not replace the check with a
+  weaker one, delete the row, or report it as passed. Continue with tasks that
+  do not depend on the blocked one.
 
 **3.5: Mark as completed**
 
@@ -103,6 +109,23 @@ TaskUpdate(taskId, status: "completed")
 - Never add or update duplicate progress checkboxes in ultra phase files
 
 **Handoff sync (manual mode ONLY — skip when `HANDOFF_MODE` is `1`):** If a Handoff task ID was extracted in Step 0.2, call `handoff_push_plan` with `{ taskId: <id>, planContent: <full updated plan text> }` to sync the checklist progress. For ultra, use the bundle serialization defined in Step 0.2.
+
+**3.6.1: Keep the plan in sync with the code**
+
+When the implementation departs from what the plan says — a different task
+split, file, approach, or verification — edit the plan entrypoint (and the
+ultra phase file, when the detail lives there) so it describes what was built.
+Make that edit part of the same change as the code:
+
+- A note in a decision log, patch, or summary does not replace the plan edit.
+- When the plan artifact is tracked by git, it belongs to the same commit as
+  the code it describes. Before a task commit, check the staged file list
+  (for example `git diff --cached --stat`) and confirm an amended plan is in it.
+- This covers how the work is done, not what is required. Never rewrite
+  `## Original Request`, `## Research Context`, or the behavioral rules in
+  `## Requirements Reconciliation` to match the code; a requirement conflict
+  still stops at the gate in 3.1.1, and ultra phase drift still stops as
+  described in 3.1.
 
 **3.7: Update the resolved description artifact if needed**
 

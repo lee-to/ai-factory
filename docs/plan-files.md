@@ -460,6 +460,11 @@ Constraints: Must support existing session middleware
 Decisions: Use JWT for API auth
 Open questions: Do we need refresh tokens?
 
+## Risks
+- Could break: existing session middleware in `src/middleware/session.ts`
+- Riskiest step: Task 4 — token validation; contained by keeping the old session path until Task 4 is verified
+- Rejected alternatives: server-side sessions only — does not cover API clients
+
 ## Commit Plan
 - **Commit 1** (tasks 1-3): "feat: add user model and types"
 - **Commit 2** (tasks 4-6): "feat: implement auth service"

@@ -518,6 +518,8 @@ changes must be identified separately from editorial rewrites.
   tasks. When linked research has drifted, preserve its research-backed
   decisions until the user explicitly requests a rebase; only that rebase may
   update them from the live research source
+- Preserve an existing `## Risks` section and its exact heading; update a line
+  only when the refinement changes the task it names or removes the risk
 - If an unlinked plan is refined using current research, add `## Research Context` by copying the relevant Active Summary and write ``Source: `<selected research path>` (Active Summary, Updated: <research Updated timestamp>, SHA256: <sha256 of copied Active Summary>)``
 - Compute that hash with the canonical drift normalization: remove HTML comment blocks, preserve line order and leading whitespace, trim trailing spaces from every line, use LF line endings, and end with exactly one final newline. Feed the normalized text to `shasum -a 256` or `sha256sum` through stdin / inline shell input, never through a temp file, and copy the first output field.
 - If a linked plan has research drift, keep the committed Research Context and source revision in the plan and include `WARN [research-drift]` in the refinement report
