@@ -1216,6 +1216,36 @@ else
     fail "full or ultra requirements reconciliation template is incomplete"
 fi
 
+AIF_PLAN_RISKS_STEP_LINE=$(grep -nF '### Step 4.1: Interrogate the Plan (Risks)' "$AIF_PLAN_SKILL" | head -1 | cut -d: -f1 || true)
+AIF_PLAN_SAVE_STEP_LINE=$(grep -nF '### Step 5: Save Plan Artifact' "$AIF_PLAN_SKILL" | head -1 | cut -d: -f1 || true)
+if [[ -n "$AIF_PLAN_RISKS_STEP_LINE" && -n "$AIF_PLAN_SAVE_STEP_LINE" && "$AIF_PLAN_RISKS_STEP_LINE" -lt "$AIF_PLAN_SAVE_STEP_LINE" ]] \
+   && grep -Fq 'What could this change break?' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Which step is the riskiest, and how does the plan contain it?' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Which alternatives were rejected, and why?' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'Do not save the plan before approval.' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'do not prompt. Write' "$AIF_PLAN_SKILL" \
+   && grep -Fxq '## Risks' "$AIF_PLAN_FORMAT_REF" \
+   && grep -Fxq '## Risks' "$AIF_PLAN_ULTRA_REF" \
+   && grep -Fq 'Preserve an existing `## Risks` section' "$AIF_IMPROVE_SKILL"; then
+    pass "plan is interrogated for risks before it is saved"
+else
+    fail "plan risk interrogation or Risks template is incomplete"
+fi
+
+AIF_IMPLEMENT_TASK_REF="$ROOT_DIR/skills/aif-implement/references/IMPLEMENT-TASK.md"
+AIF_IMPLEMENT_COMPLETION_REF="$ROOT_DIR/skills/aif-implement/references/IMPLEMENT-COMPLETION.md"
+if grep -Fq '**3.6.1: Keep the plan in sync with the code**' "$AIF_IMPLEMENT_TASK_REF" \
+   && grep -Fq 'does not replace the plan edit' "$AIF_IMPLEMENT_TASK_REF" \
+   && grep -Fq 'git diff --cached --stat' "$AIF_IMPLEMENT_TASK_REF" \
+   && grep -Fq 'Never rewrite' "$AIF_IMPLEMENT_TASK_REF" \
+   && grep -Fq 'write `BLOCKED: <reason>` in the row'"'"'s verification-evidence cell' "$AIF_IMPLEMENT_TASK_REF" \
+   && grep -Fq '`pass | fail | not run | BLOCKED`' "$AIF_IMPLEMENT_COMPLETION_REF" \
+   && grep -Fq '`pass` is only for a check executed in this session' "$AIF_IMPLEMENT_COMPLETION_REF"; then
+    pass "implementation keeps the plan in sync and reports blocked evidence row by row"
+else
+    fail "plan sync, BLOCKED evidence, or row-by-row report contract is incomplete"
+fi
+
 if grep -Fq '`paths.architecture`, `paths.roadmap`, `paths.rules_file`, `paths.rules`' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'Read the resolved architecture and roadmap artifacts when present.' "$AIF_IMPROVE_SKILL" \
    && grep -Fq 'Read the resolved rules hierarchy when present:' "$AIF_PLAN_SKILL" \

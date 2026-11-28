@@ -176,6 +176,8 @@ If a relevant configured or marked ultra-bundle `RESEARCH.md` exists, `/aif-plan
 
 Linked plans include the exact `Source:` path with revision metadata so downstream skills treat the embedded context as committed requirements and warn if live research has drifted.
 
+Before saving, `/aif-plan` interrogates the draft with three questions — what the change could break, which step is the riskiest, and which alternatives were rejected — revises the draft, and records the answers in a short `## Risks` section (omitted for trivial plans). In an interactive session it shows the answers and asks `Approve plan` / `Adjust` before writing the artifact; in `HANDOFF_MODE=1` it writes the section and continues without prompting.
+
 If the resolved roadmap artifact exists, `/aif-plan` may also capture a `Roadmap Linkage` section (primary milestone, any additional selected milestones, and brief rationale) to make milestone alignment explicit.
 
 Full and ultra plans ask for commit strategy and development methodology,
@@ -373,6 +375,8 @@ Executes the plan:
   updates task progress only in `index.md`
 - Treats `## Original Request` as useful original scope context while executing the task list and committed `Research Context` as the executable plan inputs
 - Uses embedded `Research Context` as committed scope and checks the exact legacy or bundled `RESEARCH.md` source only for revision drift
+- Keeps the plan in sync with the code: a departure from the planned task split, file, approach, or verification is edited into the plan as part of the same change (same commit when the plan is tracked); requirements sections are never rewritten to match the code
+- Marks a reconciliation check that cannot run in the environment as `BLOCKED: <reason>` in its evidence cell and leaves the task open; the completion report lists every `## Requirements Reconciliation` row with `pass | fail | not run | BLOCKED`
 - `--list` mode is read-only: shows available plan files and exits
 - `--without-plan <description>` mode (inline):
   - Executes exactly one small task from the description — no plan file created, read, or updated

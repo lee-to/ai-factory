@@ -1016,6 +1016,47 @@ Use `TaskUpdate` to set `blockedBy` relationships:
 - Task 2 blocked by Task 1 if it depends on Task 1's output
 - Keep dependency chains logical
 
+### Step 4.1: Interrogate the Plan (Risks)
+
+Before saving, question the drafted plan. Answer from the code and sources
+already explored in Steps 2-3, not from memory, and cite paths:
+
+1. **What could this change break?** Existing behavior, modules, data, or
+   consumers outside the task list.
+2. **Which step is the riskiest, and how does the plan contain it?** Name the
+   task number.
+3. **Which alternatives were rejected, and why?** At least the most plausible
+   one; `none considered` is a valid answer for a trivial change.
+
+Then revise the draft: add or reorder tasks, narrow scope, or add a
+verification step for whatever the answers exposed. Finally check that an
+engineer who has not seen this conversation could execute the plan from the
+saved artifact alone; move any decision that lives only in the conversation
+into the plan.
+
+Write the answers to an exact `## Risks` section in the plan entrypoint (see
+the templates). Keep it to 3-6 lines. Omit the section only when all three
+answers are trivial (nothing outside the touched files can break, no step is
+riskier than the rest, no alternative was considered). The section records
+planning judgment; it does not replace `## Requirements Reconciliation` and
+must not restate or change requirements.
+
+- **Manual mode:** show the answers in 2-5 lines, then ask:
+
+  ```
+  AskUserQuestion: Plan risks reviewed. Approve this plan?
+
+  Options:
+  1. Approve plan (Recommended) — save it as drafted
+  2. Adjust — tell me what to change before saving
+  ```
+
+  On `Adjust`, apply the requested change, repeat this step for the affected
+  answers only, and ask again. Do not save the plan before approval.
+- **`HANDOFF_MODE=1` or another non-interactive run:** do not prompt. Write
+  `## Risks` and continue to Step 5. An unanswered risk is not a blocker by
+  itself; an unresolved requirement conflict still follows the gate in Step 2.
+
 ### Step 5: Save Plan Artifact
 
 **Determine plan artifact path:** the values were already resolved in Step 1.2.
@@ -1059,6 +1100,7 @@ For ultra also create the resolved bundle directory before writing its files.
 - `Roadmap Linkage` section (optional, only if the resolved roadmap artifact exists)
 - `Research Context` section (optional, only if research content influenced this plan)
 - `Requirements Reconciliation` section (conditional, when required by the gate in Step 2)
+- `Risks` section (conditional, from Step 4.1; immediately after `Requirements Reconciliation` when both exist)
 - `Tasks` section grouped by phases; in ultra this is the only task-checkbox source
 - For `workflow.plan_structure: classic`, a `Commit Plan` section when commits are planned; never include this section in task-based plans.
 
@@ -1237,6 +1279,8 @@ Use canonical examples in `references/TASK-FORMAT.md`:
 11. **Reconcile before planning** — Do not let a roadmap summary, lower-priority
     source, or internally consistent implementation override an unresolved
     behavioral requirement.
+12. **Interrogate before saving** — Answer the three risk questions of Step 4.1
+    and revise the draft before the plan artifact is written.
 
 ## Plan File Handling
 

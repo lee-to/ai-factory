@@ -67,6 +67,12 @@ Authority: [declared source priority, or "none declared"]
 |----------------------------------|-------------------------|-----------------------|
 | [material rule or combination] | `[path]` — [section] | [test, command, or manual check] |
 
+## Risks
+<!-- From Step 4.1. Omit only when all three answers are trivial. Keep this exact heading. -->
+- Could break: [behavior / module / data at risk, with paths]
+- Riskiest step: Task [n] — [why, and how the plan contains it]
+- Rejected alternatives: [option] — [why not]
+
 ## Tasks
 
 ### Phase 1: Setup
