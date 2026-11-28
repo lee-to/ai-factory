@@ -117,6 +117,7 @@ Depending on what the user brings, you might:
 
 **Explore the problem space**
 - Ask clarifying questions that emerge from what they said
+- When the user's open decisions depend on each other, close them with `/aif-grill` (rounds over the decision-tree frontier) instead of a flat list; exploration finds the facts, grilling closes the decisions
 - Challenge assumptions
 - Reframe the problem
 - Find analogies

@@ -8,7 +8,7 @@ The current config-aware set is `/aif`, `/aif-plan`, `/aif-implement`, `/aif-ver
 
 `/aif` is also the primary writer for `config.yaml`: the initial file comes from the commented template, and setup reruns update only managed keys while preserving comments, unrelated manual edits, and `rules.<area>` entries owned by `/aif-rules`.
 
-Config-agnostic built-ins in the current model: `/aif-best-practices`, `/aif-build-automation`, `/aif-ci`, `/aif-dockerize`, `/aif-grounded`, and `/aif-skill-generator`.
+Config-agnostic built-ins in the current model: `/aif-best-practices`, `/aif-build-automation`, `/aif-ci`, `/aif-dockerize`, `/aif-grill`, `/aif-grounded`, and `/aif-skill-generator`.
 
 Other skills are intentionally config-agnostic for now and rely on repository context, explicit arguments, or fixed non-configurable paths such as `skill-context`. See [Configuration](configuration.md) for the current schema and its limits.
 
@@ -529,6 +529,24 @@ When called with a description:
 - Transforms your idea into a structured, professional description
 
 **Does NOT implement your project** - only sets up context.
+
+### `/aif-grill <idea, plan, or question>`
+
+Interviews you in rounds over a tree of dependent decisions until none is left open:
+
+```
+/aif-grill Move notifications from polling to webhooks
+/aif-grill Stress-test this plan before I approve it
+```
+
+- Builds the tree of decisions only you can make (scope, priorities, trade-offs, what "done" means) and asks the whole **frontier** — every decision whose prerequisites are answered — in one numbered round, each with a recommended answer and the reason
+- Finds facts itself from code, docs, and git; never asks you for a fact
+- Does not reveal later questions before their prerequisites are answered, does not re-ask what you already answered, and never recommends more than you asked for
+- Stops when the frontier is empty, shows a normalized `D1…Dn` list plus `Open:` items, and asks for explicit confirmation
+- Writes no files: the result goes back to the calling skill (`/aif-plan`, `/aif-explore`, `/aif-fix`) or to you
+- Other skills call it only when open decisions depend on each other or need more than one round; one fork or a few independent questions stay ordinary questions
+- In `HANDOFF_MODE=1` and other non-interactive runs it does not ask or guess: it returns `BLOCKED [aif-grill]` with the unanswered frontier and recommendations
+- The mechanics live in `skills/aif-grill/references/GRILL-CONTRACT.md`; extensions should consume that reference instead of copying the algorithm
 
 ### `/aif-grounded <question or task>`
 Reliability gate that prevents guessing:

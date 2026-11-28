@@ -204,7 +204,7 @@ From the problem description after removing control flags, identify:
 - Where it occurs (file, function, endpoint)
 - Steps to reproduce (if provided)
 
-If unclear, ask:
+If unclear, ask (when several user-owned decisions depend on each other, close them with `/aif-grill`; in autonomous Handoff its `BLOCKED [aif-grill]` result is an unresolved required clarification, not permission to guess):
 
 ```
 To fix this effectively, I need more context:

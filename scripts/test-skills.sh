@@ -2194,6 +2194,47 @@ else
     fail "plan advisors, formatter or config preservation"
 fi
 
+echo -e "\n${BOLD}=== Decision grilling contract ===${NC}\n"
+
+AIF_GRILL_SKILL="$ROOT_DIR/skills/aif-grill/SKILL.md"
+AIF_GRILL_CONTRACT_REF="$ROOT_DIR/skills/aif-grill/references/GRILL-CONTRACT.md"
+AIF_GRILL_ALLOWED_TOOLS_LINE=$(grep -m1 '^allowed-tools:' "$AIF_GRILL_SKILL" || true)
+if [[ "$AIF_GRILL_ALLOWED_TOOLS_LINE" != *Write* && "$AIF_GRILL_ALLOWED_TOOLS_LINE" != *Edit* && "$AIF_GRILL_ALLOWED_TOOLS_LINE" != *Bash* ]] \
+   && grep -Fq 'least one **dependency edge**' "$AIF_GRILL_SKILL" \
+   && grep -Fq 'Do not grill a clear request.' "$AIF_GRILL_SKILL" \
+   && grep -Fq '(references/GRILL-CONTRACT.md)' "$AIF_GRILL_SKILL" \
+   && grep -Fq 'BLOCKED [aif-grill] <n> user decisions open:' "$AIF_GRILL_SKILL" \
+   && grep -Fq 'do not ask and do not guess answers' "$AIF_GRILL_SKILL" \
+   && grep -Fq 'Write nothing to disk.' "$AIF_GRILL_SKILL"; then
+    pass "aif-grill has a threshold, a read-only tool scope, and a non-interactive blocker"
+else
+    fail "aif-grill threshold, tool scope, or non-interactive contract is incomplete"
+fi
+
+if grep -Fq 'Facts are never questions.' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq 'Stay inside the original scope.' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq 'at the root, so they are asked in the first rounds' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq 'Never reveal a downstream question before its prerequisites are answered.' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq 'how many rounds are left' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq 'Never re-ask a decision the user already answered' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq 'Never recommend an answer wider than what the user said.' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq '## 5. Stop when the frontier is empty' "$AIF_GRILL_CONTRACT_REF" \
+   && grep -Fq 'ask for explicit confirmation' "$AIF_GRILL_CONTRACT_REF"; then
+    pass "grilling contract keeps frontier, scope, and confirmation rules"
+else
+    fail "grilling contract lost a frontier, scope, or confirmation rule"
+fi
+
+if grep -Fq 'them with `/aif-grill` instead of a flat list' "$AIF_PLAN_SKILL" \
+   && grep -Fq 'close them with `/aif-grill`' "$AIF_EXPLORE_SKILL" \
+   && grep -Fq 'close them with `/aif-grill`' "$AIF_FIX_SKILL" \
+   && grep -Fq '`BLOCKED [aif-grill]`' "$AIF_PLAN_SKILL" \
+   && grep -Fq '`BLOCKED [aif-grill]` result is an unresolved required clarification' "$AIF_FIX_SKILL"; then
+    pass "plan, explore, and fix route dependent decisions to aif-grill"
+else
+    fail "plan, explore, or fix does not route dependent decisions to aif-grill"
+fi
+
 echo -e "\n${BOLD}=== Shared skill-context installation and lifecycle ===${NC}\n"
 
 if node "$ROOT_DIR/scripts/test-shared-skill-context.mjs"; then

@@ -935,7 +935,7 @@ build-file edits stay with their owner skills. See [quality setup](skills.md#aif
 
 Other skills are config-agnostic for now and rely on repository context, explicit arguments, or fixed non-configurable paths such as `skill-context`.
 
-Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-automation`, `/aif-ci`, `/aif-dockerize`, `/aif-grounded`, and `/aif-skill-generator`.
+Current config-agnostic built-ins include `/aif-best-practices`, `/aif-build-automation`, `/aif-ci`, `/aif-dockerize`, `/aif-grill`, `/aif-grounded`, and `/aif-skill-generator`.
 
 **Language semantics:**
 - `language.ui` controls prompts, questions, progress updates, summaries, and next-step guidance.
