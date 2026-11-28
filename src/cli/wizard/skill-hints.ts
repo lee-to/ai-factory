@@ -12,6 +12,7 @@ const SKILL_HINTS: Record<string, string> = {
     'aif-evolve': 'Evolve skills from patches',
     'aif-explore': 'Explore ideas and options',
     'aif-fix': 'Fix specific bugs quickly',
+    'aif-grill': 'Interview over dependent decisions',
     'aif-grounded': 'Reliability gate (no guesses)',
     'aif-implement': 'Execute current plan tasks',
     'aif-improve': 'Improve existing plan quality',

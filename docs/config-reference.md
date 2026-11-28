@@ -303,6 +303,7 @@ managing or backfilling these fields. Neither advisor writes config or plan arti
 | `/aif-build-automation` | No | No | Repo and tool detection drive outputs |
 | `/aif-ci` | No | No | Repo and platform detection drive outputs |
 | `/aif-dockerize` | No | No | Repo and infrastructure choices drive outputs |
+| `/aif-grill` | No | No | Decision interview; returns decisions to the caller, writes nothing |
 | `/aif-grounded` | No | No | Evidence-only reasoning gate |
 | `/aif-skill-generator` | No | No | Driven by user input and source material |
 

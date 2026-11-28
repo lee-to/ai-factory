@@ -757,6 +757,15 @@ I need a few clarifications before creating the plan:
 2. [Question about approach]
 ```
 
+When the open user-owned decisions depend on each other (the answer to one
+changes which questions come next) or clearly need more than one round, close
+them with `/aif-grill` instead of a flat list: it asks the decision-tree
+frontier round by round and returns confirmed `D<n>` decisions. One simple fork
+or several independent questions stay ordinary questions. Carry the confirmed
+decisions into the plan; in `HANDOFF_MODE=1` treat its
+`BLOCKED [aif-grill]` result as an unresolved required decision under the
+Runtime-aware questions contract.
+
 #### Requirements Reconciliation Gate
 
 For work governed by existing requirements, reconcile them before exploring an
